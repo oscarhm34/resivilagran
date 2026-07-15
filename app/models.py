@@ -19,6 +19,7 @@ class Cleaner(UserMixin, db.Model):
     password_hash = db.Column(db.String(128), nullable=False)
     name = db.Column(db.String(50), nullable=False)
     is_admin = db.Column(db.Boolean, nullable=False, default=False)
+    active = db.Column(db.Boolean, nullable=False, default=True)
 
     groups = db.relationship('ResidentGroup', secondary=cleaner_groups, back_populates='workers', lazy=True)
 

@@ -8,6 +8,11 @@
         <h1 class="h3 mb-0">Residentes</h1>
         <div class="d-flex align-items-center gap-2">
             <span class="badge bg-secondary">{{ residents|length }} residente{{ 's' if residents|length != 1 }}</span>
+            <select class="form-select form-select-sm" style="width:auto" onchange="window.location.href='{{ url_for('manage_residents') }}?estado='+this.value">
+                <option value="altas" {{ 'selected' if estado_filtro == 'altas' }}>Ver altas</option>
+                <option value="bajas" {{ 'selected' if estado_filtro == 'bajas' }}>Ver bajas</option>
+                <option value="todos" {{ 'selected' if estado_filtro == 'todos' }}>Ver todos</option>
+            </select>
             <a href="{{ url_for('manage_care_types') }}" class="btn btn-sm btn-outline-secondary">Tipos de atención</a>
         </div>
     </div>
@@ -130,9 +135,9 @@
                         </td>
                         <td>
                             {% if r.active %}
-                            <span class="status-badge status-success">Activo</span>
+                            <span class="status-badge status-success">Alta</span>
                             {% else %}
-                            <span class="status-badge status-muted">Inactivo</span>
+                            <span class="status-badge status-muted">Baja</span>
                             {% endif %}
                         </td>
                         <td class="hide-mobile" style="color:var(--color-text-secondary);font-size:.85rem;max-width:200px">

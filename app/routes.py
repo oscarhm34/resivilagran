@@ -262,9 +262,15 @@ def api_registros_limpieza():
 @app.route('/manage_workers')
 @login_required
 def manage_workers():
-    cleaners = Cleaner.query.all()
+    estado = request.args.get('estado', 'altas')
+    query = Cleaner.query
+    if estado == 'altas':
+        query = query.filter_by(active=True)
+    elif estado == 'bajas':
+        query = query.filter_by(active=False)
+    cleaners = query.all()
     groups = ResidentGroup.query.order_by(ResidentGroup.name).all()
-    return render_template('manage_workers.html', cleaners=cleaners, groups=groups)
+    return render_template('manage_workers.html', cleaners=cleaners, groups=groups, estado_filtro=estado)
 
 
 @app.route('/cleaners/add_edit', methods=['POST'])
@@ -275,6 +281,7 @@ def add_edit_cleaner():
     name = request.form.get('name', '').strip()
     password = request.form.get('password', '')
     is_admin = bool(request.form.get('is_admin'))
+    active = bool(request.form.get('active'))
 
     group_ids = request.form.getlist('group_ids')
     selected_groups = ResidentGroup.query.filter(ResidentGroup.id.in_(group_ids)).all() if group_ids else []
@@ -285,6 +292,7 @@ def add_edit_cleaner():
             cleaner.username = username
             cleaner.name = name
             cleaner.is_admin = is_admin
+            cleaner.active = active
             cleaner.groups = selected_groups
             if password:
                 cleaner.set_password(password)
@@ -293,7 +301,7 @@ def add_edit_cleaner():
         else:
             flash('Trabajador no encontrado.', 'error')
     else:
-        new_cleaner = Cleaner(username=username, name=name, is_admin=is_admin)
+        new_cleaner = Cleaner(username=username, name=name, is_admin=is_admin, active=active)
         new_cleaner.set_password(password)
         new_cleaner.groups = selected_groups
         db.session.add(new_cleaner)
@@ -1125,9 +1133,15 @@ def cancel_session():
 @app.route('/manage-residents')
 @login_required
 def manage_residents():
-    residents = Resident.query.order_by(Resident.name).all()
+    estado = request.args.get('estado', 'altas')
+    query = Resident.query.order_by(Resident.name)
+    if estado == 'altas':
+        query = query.filter_by(active=True)
+    elif estado == 'bajas':
+        query = query.filter_by(active=False)
+    residents = query.all()
     groups = ResidentGroup.query.order_by(ResidentGroup.name).all()
-    return render_template('manage_residents.html', residents=residents, groups=groups)
+    return render_template('manage_residents.html', residents=residents, groups=groups, estado_filtro=estado)
 
 
 @app.route('/residents/add_edit', methods=['POST'])

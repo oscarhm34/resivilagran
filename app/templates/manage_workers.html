@@ -24,7 +24,14 @@
 
     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
         <h1 class="h3 mb-0">Empleados</h1>
-        <span class="badge bg-secondary">{{ cleaners|length }} empleado{{ 's' if cleaners|length != 1 }}</span>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-secondary">{{ cleaners|length }} empleado{{ 's' if cleaners|length != 1 }}</span>
+            <select class="form-select form-select-sm" style="width:auto" onchange="window.location.href='{{ url_for('manage_workers') }}?estado='+this.value">
+                <option value="altas" {{ 'selected' if estado_filtro == 'altas' }}>Ver altas</option>
+                <option value="bajas" {{ 'selected' if estado_filtro == 'bajas' }}>Ver bajas</option>
+                <option value="todos" {{ 'selected' if estado_filtro == 'todos' }}>Ver todos</option>
+            </select>
+        </div>
     </div>
 
     <!-- Formulario añadir / editar -->
@@ -65,11 +72,18 @@
                                     aria-label="Mostrar u ocultar contraseña">&#128065;</button>
                         </div>
                     </div>
-                    <div class="col-md-3 d-flex align-items-end pb-1">
+                    <div class="col-md-2 d-flex align-items-end pb-1">
                         <div class="form-check">
                             <input type="checkbox" id="is_admin" name="is_admin"
                                    class="form-check-input" value="1">
-                            <label class="form-check-label" for="is_admin">Administrador del panel</label>
+                            <label class="form-check-label" for="is_admin">Administrador</label>
+                        </div>
+                    </div>
+                    <div class="col-md-1 d-flex align-items-end pb-1">
+                        <div class="form-check">
+                            <input type="checkbox" id="active" name="active"
+                                   class="form-check-input" value="1" checked>
+                            <label class="form-check-label" for="active">Activo</label>
                         </div>
                     </div>
                 </div>
@@ -113,6 +127,7 @@
                         <th scope="col">Usuario</th>
                         <th scope="col">Nombre</th>
                         <th scope="col">Rol</th>
+                        <th scope="col">Estado</th>
                         <th scope="col" class="hide-mobile">Grupos</th>
                         <th scope="col" class="text-end">Acciones</th>
                     </tr>
@@ -127,6 +142,13 @@
                             <span class="status-badge status-info">Admin</span>
                             {% else %}
                             <span class="status-badge status-muted">Limpiadora</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if cleaner.active %}
+                            <span class="status-badge status-success">Alta</span>
+                            {% else %}
+                            <span class="status-badge status-muted">Baja</span>
                             {% endif %}
                         </td>
                         <td class="hide-mobile">
@@ -165,6 +187,7 @@
                                     data-username="{{ cleaner.username }}"
                                     data-name="{{ cleaner.name }}"
                                     data-is-admin="{{ '1' if cleaner.is_admin else '' }}"
+                                    data-active="{{ '1' if cleaner.active else '' }}"
                                     data-groups="{{ cleaner.groups|map(attribute='id')|list|join(',') }}"
                                     aria-label="Editar a {{ cleaner.name }}">Editar</button>
                             <button type="button"
@@ -226,6 +249,7 @@
             form.querySelector('[name="name"]').value       = this.dataset.name;
             form.querySelector('[name="password"]').value   = '';
             form.querySelector('[name="is_admin"]').checked = this.dataset.isAdmin === '1';
+            form.querySelector('[name="active"]').checked   = this.dataset.active === '1';
             var groupIds = this.dataset.groups ? this.dataset.groups.split(',') : [];
             form.querySelectorAll('[name="group_ids"]').forEach(function(cb) {
                 cb.checked = groupIds.indexOf(cb.value) !== -1;
@@ -242,6 +266,7 @@
         var form = document.getElementById('worker-form');
         form.reset();
         form.querySelector('[name="cleaner_id"]').value = '';
+        form.querySelector('[name="active"]').checked = true;
         document.getElementById('submit-btn').textContent  = 'Añadir empleado';
         document.getElementById('form-title').textContent  = 'Añadir empleado';
         document.getElementById('edit-badge').classList.add('d-none');
