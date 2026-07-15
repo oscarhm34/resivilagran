@@ -145,12 +145,13 @@
                             {% endif %}
                         </td>
                         <td>
-                            <div class="form-check form-switch m-0">
-                                <input type="checkbox" class="form-check-input toggle-active"
-                                       data-id="{{ cleaner.id }}" role="switch"
+                            <label class="form-check m-0 d-flex align-items-center gap-1" style="cursor:pointer">
+                                <input type="checkbox" class="form-check-input toggle-active m-0"
+                                       data-id="{{ cleaner.id }}"
                                        {% if cleaner.active %}checked{% endif %}
-                                       style="cursor:pointer;font-size:1.2rem">
-                            </div>
+                                       style="cursor:pointer">
+                                <span style="font-size:.85rem">Activo</span>
+                            </label>
                         </td>
                         <td class="hide-mobile">
                             <div class="dropdown inline-cleaner-groups" data-cleaner-id="{{ cleaner.id }}">

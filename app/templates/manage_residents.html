@@ -134,12 +134,13 @@
                             </div>
                         </td>
                         <td>
-                            <div class="form-check form-switch m-0">
-                                <input type="checkbox" class="form-check-input toggle-active"
-                                       data-id="{{ r.id }}" role="switch"
+                            <label class="form-check m-0 d-flex align-items-center gap-1" style="cursor:pointer">
+                                <input type="checkbox" class="form-check-input toggle-active m-0"
+                                       data-id="{{ r.id }}"
                                        {% if r.active %}checked{% endif %}
-                                       style="cursor:pointer;font-size:1.2rem">
-                            </div>
+                                       style="cursor:pointer">
+                                <span style="font-size:.85rem">Activo</span>
+                            </label>
                         </td>
                         <td class="hide-mobile" style="color:var(--color-text-secondary);font-size:.85rem;max-width:200px">
                             {{ r.notes or '—' }}
