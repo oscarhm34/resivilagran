@@ -343,6 +343,22 @@ def update_cleaner_groups():
     return jsonify({'ok': True}), 200
 
 
+@app.route('/cleaners/update-active', methods=['POST'])
+@login_required
+def update_cleaner_active():
+    data = request.json or {}
+    cleaner_id = data.get('cleaner_id')
+    active = data.get('active')
+    if not cleaner_id or active is None:
+        return jsonify({'error': 'cleaner_id y active requeridos'}), 400
+    cleaner = db.session.get(Cleaner, int(cleaner_id))
+    if not cleaner:
+        return jsonify({'error': 'Empleado no encontrado'}), 404
+    cleaner.active = bool(active)
+    db.session.commit()
+    return jsonify({'ok': True}), 200
+
+
 # ── WEB ADMIN – ZONAS DE LIMPIEZA ────────────────────────────────────────────
 
 @app.route('/zonas-limpieza')
@@ -1221,6 +1237,22 @@ def update_resident_group():
     if not r:
         return jsonify({'error': 'Residente no encontrado'}), 404
     r.group_id = int(group_id) if group_id else None
+    db.session.commit()
+    return jsonify({'ok': True}), 200
+
+
+@app.route('/residents/update-active', methods=['POST'])
+@login_required
+def update_resident_active():
+    data = request.json or {}
+    resident_id = data.get('resident_id')
+    active = data.get('active')
+    if not resident_id or active is None:
+        return jsonify({'error': 'resident_id y active requeridos'}), 400
+    r = db.session.get(Resident, int(resident_id))
+    if not r:
+        return jsonify({'error': 'Residente no encontrado'}), 404
+    r.active = bool(active)
     db.session.commit()
     return jsonify({'ok': True}), 200
 

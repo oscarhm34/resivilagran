@@ -134,11 +134,12 @@
                             </div>
                         </td>
                         <td>
-                            {% if r.active %}
-                            <span class="status-badge status-success">Alta</span>
-                            {% else %}
-                            <span class="status-badge status-muted">Baja</span>
-                            {% endif %}
+                            <div class="form-check form-switch m-0">
+                                <input type="checkbox" class="form-check-input toggle-active"
+                                       data-id="{{ r.id }}" role="switch"
+                                       {% if r.active %}checked{% endif %}
+                                       style="cursor:pointer;font-size:1.2rem">
+                            </div>
                         </td>
                         <td class="hide-mobile" style="color:var(--color-text-secondary);font-size:.85rem;max-width:200px">
                             {{ r.notes or '—' }}
@@ -254,6 +255,46 @@
             document.getElementById('delete-name').textContent = this.dataset.name;
             document.getElementById('delete-form').action      = this.dataset.action;
             new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        });
+    });
+
+    // Inline active toggle via AJAX
+    var estadoFiltro = '{{ estado_filtro }}';
+    document.querySelectorAll('.toggle-active').forEach(function (cb) {
+        cb.addEventListener('change', async function () {
+            var residentId = parseInt(this.dataset.id);
+            var active = this.checked;
+            var row = this.closest('tr');
+            try {
+                var res = await fetch('/residents/update-active', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ resident_id: residentId, active: active }),
+                });
+                if (res.ok) {
+                    this.style.outline = '2px solid var(--color-success)';
+                    var self = this;
+                    setTimeout(function () { self.style.outline = ''; }, 800);
+                    // Keep edit button data-active in sync
+                    var editBtn = row.querySelector('.edit-btn');
+                    if (editBtn) editBtn.dataset.active = active ? '1' : '';
+                    if ((estadoFiltro === 'altas' && !active) || (estadoFiltro === 'bajas' && active)) {
+                        row.style.transition = 'opacity .4s';
+                        row.style.opacity = '0';
+                        setTimeout(function () { row.remove(); }, 400);
+                    }
+                } else {
+                    this.checked = !active;
+                    this.style.outline = '2px solid var(--color-danger)';
+                    var self = this;
+                    setTimeout(function () { self.style.outline = ''; }, 1200);
+                }
+            } catch (e) {
+                this.checked = !active;
+                this.style.outline = '2px solid var(--color-danger)';
+                var self = this;
+                setTimeout(function () { self.style.outline = ''; }, 1200);
+            }
         });
     });
 
