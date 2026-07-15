@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Última Limpieza{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap">
+        <h1 class="h3 mb-0">Estado de Habitaciones</h1>
+        <span class="small mt-1 mt-md-0" style="color:var(--color-text-secondary)">
+            Última limpieza registrada por habitación
+        </span>
+    </div>
+
+    <!-- Leyenda -->
+    <div class="d-flex align-items-center flex-wrap gap-3 mb-3">
+        <span class="d-flex align-items-center gap-1">
+            <span class="status-badge status-danger">Nunca</span>
+            <small style="color:var(--color-text-secondary)">Sin registro</small>
+        </span>
+        <span class="d-flex align-items-center gap-1">
+            <span class="status-badge status-warning">+24h</span>
+            <small style="color:var(--color-text-secondary)">Más de 24 horas</small>
+        </span>
+        <span class="d-flex align-items-center gap-1">
+            <span class="status-badge status-success">Al día</span>
+            <small style="color:var(--color-text-secondary)">Menos de 24 horas</small>
+        </span>
+    </div>
+
+    <!-- Buscador rápido -->
+    <div class="mb-3">
+        <input type="search" id="search-room" class="form-control form-control-sm"
+               style="max-width:280px"
+               placeholder="Buscar habitación o descripción…"
+               aria-label="Buscar habitación">
+    </div>
+
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="cleaning-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Hab.</th>
+                        <th scope="col">Descripción</th>
+                        <th scope="col">Estado</th>
+                        <th scope="col" class="hide-mobile">Hora</th>
+                        <th scope="col" class="hide-mobile">Duración</th>
+                        <th scope="col" class="hide-mobile">Limpiadora</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for info in last_cleaning_info %}
+                    {% set h = info.get('hours_since') %}
+                    {% if info.last_cleaned_date == 'Nunca' %}
+                        {% set row_class = 'row-never' %}
+                    {% elif h is not none and h > 24 %}
+                        {% set row_class = 'row-warning' %}
+                    {% else %}
+                        {% set row_class = 'row-ok' %}
+                    {% endif %}
+                    <tr class="{{ row_class }}">
+                        <td><strong>{{ info.room_number }}</strong></td>
+                        <td>{{ info.room_description }}</td>
+                        <td>
+                            {% if info.last_cleaned_date == 'Nunca' %}
+                                <span class="status-badge status-danger">Nunca</span>
+                            {% elif h is not none and h > 24 %}
+                                <span class="status-badge status-warning">{{ info.last_cleaned_date }}</span>
+                            {% else %}
+                                <span class="status-badge status-success">{{ info.last_cleaned_date }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="hide-mobile" style="color:var(--color-text-secondary)">{{ info.last_cleaned_time }}</td>
+                        <td class="hide-mobile">
+                            {% if info.duration %}
+                            <span class="status-badge status-muted">{{ info.duration }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="hide-mobile">{{ info.cleaner }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if not last_cleaning_info %}
+        <div class="card-body text-center py-4" style="color:var(--color-text-secondary)">
+            No hay habitaciones registradas aún.
+        </div>
+        {% endif %}
+    </div>
+
+    {% set never_count = last_cleaning_info | selectattr('last_cleaned_date', 'equalto', 'Nunca') | list | length %}
+    {% if never_count > 0 %}
+    <div class="alert mt-3 d-flex align-items-center gap-2"
+         style="background:#fff3cd;border:1px solid #f5c400;border-radius:var(--radius-md);color:#7d5a00">
+        <strong>{{ never_count }}</strong> habitación{{ 'es' if never_count != 1 }} sin limpieza registrada.
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .row-never td:first-child { border-left: 3px solid var(--color-danger); }
+    .row-warning td:first-child { border-left: 3px solid var(--color-warning); }
+    .row-ok td:first-child { border-left: 3px solid var(--color-success); }
+</style>
+
+<script>
+(function () {
+    'use strict';
+    var searchInput = document.getElementById('search-room');
+    var rows = document.querySelectorAll('#cleaning-table tbody tr');
+    searchInput.addEventListener('input', function () {
+        var q = this.value.toUpperCase();
+        rows.forEach(function (row) {
+            row.style.display = row.textContent.toUpperCase().includes(q) ? '' : 'none';
+        });
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Fichajes por Trabajador{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap">
+        <h1 class="h3 mb-0">Fichajes por Trabajador</h1>
+        {% if records %}
+        <span class="small mt-1 mt-md-0" style="color:var(--color-text-secondary)">
+            {{ records|length }} fichaje{{ 's' if records|length != 1 }}
+        </span>
+        {% endif %}
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-4">
+        <div class="card-header">Filtros</div>
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('fichajes_trabajador') }}">
+                <div class="row g-3">
+                    <div class="col-sm-6 col-md-4">
+                        <label for="worker_id" class="form-label">Trabajador</label>
+                        <select id="worker_id" name="worker_id" class="form-select" required>
+                            <option value="">Seleccionar...</option>
+                            {% for w in workers %}
+                            <option value="{{ w.id }}"
+                                {{ 'selected' if filters.worker_id == w.id|string }}>
+                                {{ w.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-sm-6 col-md-4">
+                        <label for="month" class="form-label">Mes</label>
+                        <input type="month" id="month" name="month"
+                               class="form-control" required
+                               value="{{ filters.month }}">
+                    </div>
+                    <div class="col-sm-12 col-md-4 d-flex align-items-end gap-2 flex-wrap">
+                        <button type="submit" class="btn btn-primary">Aplicar filtros</button>
+                        <a href="{{ url_for('fichajes_trabajador') }}" class="btn btn-outline-secondary">Limpiar</a>
+                        {% if records %}
+                        <a href="{{ url_for('exportar_fichajes',
+                                            worker_id=filters.worker_id,
+                                            month=filters.month) }}"
+                           class="btn btn-outline-success">
+                            ↓ Exportar Excel
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if selected_worker %}
+    <p class="mb-3" style="color:var(--color-text-secondary)">
+        Fichajes de <strong style="color:var(--color-text)">{{ selected_worker.name }}</strong>
+        en <strong style="color:var(--color-text)">{{ filters.month }}</strong>
+    </p>
+    {% endif %}
+
+    <!-- Tabla -->
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col">Fecha</th>
+                        <th scope="col">Hora</th>
+                        <th scope="col">Tipo</th>
+                        <th scope="col">Actividad</th>
+                        <th scope="col" class="hide-mobile">Detalle</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in records %}
+                    <tr>
+                        <td>{{ r.date }}</td>
+                        <td><strong>{{ r.time }}</strong></td>
+                        <td>
+                            {% if r.type == 'Inicio' %}
+                                <span class="status-badge status-success">Inicio</span>
+                            {% else %}
+                                <span class="status-badge status-danger">Fin</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if r.category == 'Limpieza' %}
+                                <span class="status-badge status-info">{{ r.label }}</span>
+                            {% else %}
+                                <span class="status-badge status-warning">{{ r.label }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="hide-mobile" style="color:var(--color-text-secondary);font-size:.85rem">
+                            {{ r.detail }}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center py-4" style="color:var(--color-text-secondary)">
+                            {% if filters.worker_id and filters.month %}
+                                No hay fichajes para este trabajador en el mes seleccionado.
+                            {% else %}
+                                Selecciona un trabajador y un mes para ver sus fichajes.
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

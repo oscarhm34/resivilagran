@@ -1,0 +1,13 @@
+venv/
+venv_new/
+venvOld2/
+venv - copia/
+__pycache__/
+*.pyc
+instance/
+*.db
+*.sqbpro
+.env
+.codegpt
+Thumbs.db
+app/static/*.apk

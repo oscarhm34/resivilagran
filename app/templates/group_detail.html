@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% block title %}{{ group.name }}{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
+        <a href="{{ url_for('manage_groups') }}" class="btn btn-outline-secondary btn-sm">&larr; Grupos</a>
+        <span style="display:inline-block;width:24px;height:24px;border-radius:50%;background:{{ group.color }};vertical-align:middle;flex-shrink:0"></span>
+        <h1 class="h3 mb-0">{{ group.name }}</h1>
+    </div>
+
+    <!-- Residentes -->
+    <div class="card mb-4">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <span>Residentes</span>
+            <span class="badge bg-secondary">{{ residents|length }}</span>
+        </div>
+        {% if residents %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col">Nombre</th>
+                        <th scope="col">Habitación</th>
+                        <th scope="col" class="hide-mobile">Código NFC</th>
+                        <th scope="col">Estado</th>
+                        <th scope="col" class="hide-mobile">Notas</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in residents %}
+                    <tr>
+                        <td><strong>{{ r.name }}</strong></td>
+                        <td>{{ r.room_number or '—' }}</td>
+                        <td class="hide-mobile">
+                            <code style="color:var(--color-primary);background:var(--color-primary-lt);padding:1px 7px;border-radius:4px;font-size:.82rem">
+                                {{ r.nfc_code }}
+                            </code>
+                        </td>
+                        <td>
+                            {% if r.active %}
+                            <span class="status-badge status-success">Activo</span>
+                            {% else %}
+                            <span class="status-badge status-muted">Inactivo</span>
+                            {% endif %}
+                        </td>
+                        <td class="hide-mobile" style="color:var(--color-text-secondary);font-size:.85rem;max-width:200px">
+                            {{ r.notes or '—' }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card-body">
+            <p class="text-body-secondary mb-0">No hay residentes asignados a este grupo.
+                <a href="{{ url_for('manage_residents') }}">Gestionar residentes</a>
+            </p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Añadir residentes -->
+    <div class="card mb-4">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <span>Añadir residentes al grupo</span>
+            <button class="btn btn-sm btn-outline-primary" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#assign-section"
+                    aria-expanded="false" id="toggle-assign-btn">Mostrar</button>
+        </div>
+        <div class="collapse" id="assign-section">
+            <div class="card-body">
+                {% if available %}
+                <div class="mb-3">
+                    <input type="text" class="form-control form-control-sm" id="assign-search"
+                           placeholder="Buscar residente por nombre..." autocomplete="off">
+                </div>
+                <div style="max-height:350px;overflow-y:auto;border:1px solid var(--color-border);border-radius:var(--radius-md);padding:8px">
+                    {% for r in available %}
+                    <label class="d-flex align-items-center gap-2 py-1 px-2 assign-row" style="cursor:pointer;border-radius:6px"
+                           data-search="{{ r.name|lower }}">
+                        <input type="checkbox" class="form-check-input assign-cb" value="{{ r.id }}" style="margin:0">
+                        <span style="flex:1;font-size:.9rem">{{ r.name }}</span>
+                        <span style="font-size:.8rem;color:var(--color-text-secondary)">{{ r.room_number or '' }}</span>
+                        {% if r.group %}
+                        <span class="badge" style="background:{{ r.group.color }};color:#fff;font-size:.7rem">{{ r.group.name }}</span>
+                        {% endif %}
+                    </label>
+                    {% endfor %}
+                </div>
+                <div class="d-flex align-items-center gap-3 mt-3">
+                    <button type="button" class="btn btn-primary btn-sm" id="btn-assign" disabled>
+                        Añadir seleccionados
+                    </button>
+                    <small class="text-body-secondary" id="assign-count">0 seleccionados</small>
+                </div>
+                {% else %}
+                <p class="text-body-secondary mb-0">Todos los residentes activos ya están en este grupo.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Trabajadores -->
+    <div class="card">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <span>Trabajadores asignados</span>
+            <span class="badge bg-secondary">{{ group.workers|length }}</span>
+        </div>
+        {% if group.workers %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col">Nombre</th>
+                        <th scope="col">Usuario</th>
+                        <th scope="col">Rol</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for w in group.workers|sort(attribute='name') %}
+                    <tr>
+                        <td><strong>{{ w.name }}</strong></td>
+                        <td>
+                            <code style="color:var(--color-primary);background:var(--color-primary-lt);padding:1px 6px;border-radius:4px">
+                                {{ w.username }}
+                            </code>
+                        </td>
+                        <td>
+                            {% if w.is_admin %}
+                            <span class="status-badge status-info">Admin</span>
+                            {% else %}
+                            <span class="status-badge status-muted">Trabajador/a</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card-body">
+            <p class="text-body-secondary mb-0">No hay trabajadores asignados a este grupo.
+                <a href="{{ url_for('manage_workers') }}">Gestionar empleados</a>
+            </p>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    // Toggle button text
+    var assignSection = document.getElementById('assign-section');
+    var toggleBtn = document.getElementById('toggle-assign-btn');
+    if (assignSection && toggleBtn) {
+        assignSection.addEventListener('show.bs.collapse', function () { toggleBtn.textContent = 'Ocultar'; });
+        assignSection.addEventListener('hide.bs.collapse', function () { toggleBtn.textContent = 'Mostrar'; });
+    }
+
+    // Search filter
+    var searchInput = document.getElementById('assign-search');
+    if (searchInput) {
+        searchInput.addEventListener('input', function () {
+            var q = this.value.toLowerCase().trim();
+            document.querySelectorAll('.assign-row').forEach(function (row) {
+                row.style.display = (!q || row.dataset.search.includes(q)) ? '' : 'none';
+            });
+        });
+    }
+
+    // Checkbox count + enable button
+    var checkboxes = document.querySelectorAll('.assign-cb');
+    var btnAssign = document.getElementById('btn-assign');
+    var countLabel = document.getElementById('assign-count');
+    function updateCount() {
+        var checked = document.querySelectorAll('.assign-cb:checked').length;
+        if (btnAssign) btnAssign.disabled = checked === 0;
+        if (countLabel) countLabel.textContent = checked + ' seleccionado' + (checked !== 1 ? 's' : '');
+    }
+    checkboxes.forEach(function (cb) { cb.addEventListener('change', updateCount); });
+
+    // Assign button
+    if (btnAssign) {
+        btnAssign.addEventListener('click', async function () {
+            var ids = Array.from(document.querySelectorAll('.assign-cb:checked')).map(function (cb) {
+                return parseInt(cb.value);
+            });
+            if (!ids.length) return;
+            this.disabled = true;
+            this.textContent = 'Guardando…';
+            try {
+                var groupId = {{ group.id }};
+                var res = await fetch('/groups/' + groupId + '/assign-residents', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ resident_ids: ids }),
+                });
+                if (res.ok) {
+                    window.location.reload();
+                } else {
+                    this.textContent = 'Error — Reintentar';
+                    this.disabled = false;
+                }
+            } catch (e) {
+                this.textContent = 'Error — Reintentar';
+                this.disabled = false;
+            }
+        });
+    }
+})();
+</script>
+{% endblock %}

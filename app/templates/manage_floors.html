@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Plantas{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb bg-transparent p-0 mb-0" style="font-size:.875rem">
+            <li class="breadcrumb-item"><a href="{{ url_for('manage_cleaning_zones') }}">Zonas de Limpieza</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Plantas</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h1 class="h3 mb-0">Gestionar Plantas</h1>
+        <span class="badge bg-secondary">{{ floors|length }} planta{{ 's' if floors|length != 1 }}</span>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <span id="form-title">Añadir planta</span>
+            <span id="edit-badge" class="badge bg-warning text-dark d-none">Modo edición</span>
+        </div>
+        <div class="card-body">
+            <form id="floor-form" method="POST" action="{{ url_for('add_edit_floor') }}" novalidate>
+                <input type="hidden" name="floor_id" id="floor_id_hidden" value="">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-6">
+                        <label for="floor-name" class="form-label">
+                            Nombre de la planta <span class="text-danger" aria-hidden="true">*</span>
+                        </label>
+                        <input type="text" id="floor-name" name="name"
+                               class="form-control" required
+                               placeholder="ej. Planta Baja, Primera planta…">
+                        <div class="invalid-feedback">El nombre es obligatorio.</div>
+                    </div>
+                    <div class="col-md-6 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary" id="submit-btn">Añadir planta</button>
+                        <button type="button" class="btn btn-outline-secondary" id="cancel-btn" style="display:none">Cancelar</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Listado de plantas</div>
+        {% if floors %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="floors-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Nombre</th>
+                        <th scope="col" class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for floor in floors %}
+                    <tr id="floor-row-{{ floor.id }}">
+                        <td>{{ floor.name }}</td>
+                        <td class="text-end">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-secondary edit-floor me-1"
+                                    data-id="{{ floor.id }}" data-name="{{ floor.name }}"
+                                    aria-label="Editar planta {{ floor.name }}">Editar</button>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-danger delete-btn"
+                                    data-name="{{ floor.name }}"
+                                    data-action="{{ url_for('delete_floor', id=floor.id) }}"
+                                    aria-label="Eliminar planta {{ floor.name }}">Eliminar</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card-body">
+            <p class="text-body-secondary mb-0">Aún no hay plantas registradas.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="mt-3">
+        <a href="{{ url_for('manage_cleaning_zones') }}" class="btn btn-outline-secondary btn-sm">&larr; Volver</a>
+    </div>
+</div>
+
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-modal="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:var(--radius-lg);border:1px solid var(--color-border)">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Confirmar eliminación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                ¿Seguro que quieres eliminar la planta <strong id="delete-name"></strong>?<br>
+                <small class="text-body-secondary">Si alguna habitación está asignada a esta planta, no se podrá eliminar.</small>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form id="delete-form" method="POST" action="" class="m-0">
+                    <button type="submit" class="btn btn-danger">Eliminar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+    document.querySelectorAll('.edit-floor').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.getElementById('floor_id_hidden').value = this.dataset.id;
+            document.getElementById('floor-name').value      = this.dataset.name;
+            document.getElementById('submit-btn').textContent   = 'Guardar cambios';
+            document.getElementById('cancel-btn').style.display = 'inline-block';
+            document.getElementById('form-title').textContent   = 'Editando planta';
+            document.getElementById('edit-badge').classList.remove('d-none');
+            document.getElementById('floor-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+    document.getElementById('cancel-btn').addEventListener('click', function () {
+        document.getElementById('floor_id_hidden').value     = '';
+        document.getElementById('floor-name').value          = '';
+        document.getElementById('submit-btn').textContent    = 'Añadir planta';
+        document.getElementById('form-title').textContent    = 'Añadir planta';
+        document.getElementById('edit-badge').classList.add('d-none');
+        this.style.display = 'none';
+    });
+    document.querySelectorAll('.delete-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.getElementById('delete-name').textContent = this.dataset.name;
+            document.getElementById('delete-form').action      = this.dataset.action;
+            new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        });
+    });
+})();
+</script>
+{% endblock %}

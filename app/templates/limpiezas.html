@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}Registros de Limpieza{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap">
+        <h1 class="h3 mb-0">Registros de Limpieza</h1>
+        {% if pagination %}
+        <span class="small mt-1 mt-md-0" style="color:var(--color-text-secondary)">
+            {{ pagination.total }} registro{{ 's' if pagination.total != 1 }} en total
+        </span>
+        {% endif %}
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-4">
+        <div class="card-header">Filtros</div>
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('registros_limpieza') }}" id="filter-form">
+                <div class="row g-3">
+                    <div class="col-sm-6 col-md-3">
+                        <label for="start_date" class="form-label">Fecha inicio</label>
+                        <input type="date" id="start_date" name="start_date"
+                               class="form-control"
+                               value="{{ filters.start_date }}"
+                               max="{{ filters.end_date if filters.end_date else '' }}">
+                    </div>
+                    <div class="col-sm-6 col-md-3">
+                        <label for="end_date" class="form-label">Fecha fin</label>
+                        <input type="date" id="end_date" name="end_date"
+                               class="form-control"
+                               value="{{ filters.end_date }}"
+                               min="{{ filters.start_date if filters.start_date else '' }}">
+                    </div>
+                    <div class="col-sm-6 col-md-3">
+                        <label for="cleaner_id" class="form-label">Limpiadora</label>
+                        <select id="cleaner_id" name="cleaner_id" class="form-select">
+                            <option value="">Todas</option>
+                            {% for cleaner in cleaners %}
+                            <option value="{{ cleaner.id }}"
+                                {{ 'selected' if filters.cleaner_id == cleaner.id|string }}>
+                                {{ cleaner.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-sm-6 col-md-3">
+                        <label for="room_id" class="form-label">Habitación</label>
+                        <select id="room_id" name="room_id" class="form-select">
+                            <option value="">Todas</option>
+                            {% for room in rooms %}
+                            <option value="{{ room.id }}"
+                                {{ 'selected' if filters.room_id == room.id|string }}>
+                                {{ room.number }} &mdash; {{ room.description }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    <button type="submit" class="btn btn-primary">Aplicar filtros</button>
+                    <a href="{{ url_for('registros_limpieza') }}" class="btn btn-outline-secondary">Limpiar</a>
+                    <a href="{{ url_for('exportar_excel',
+                                       room_id=filters.room_id,
+                                       cleaner_id=filters.cleaner_id,
+                                       start_date=filters.start_date,
+                                       end_date=filters.end_date) }}"
+                       class="btn btn-outline-success ms-auto">
+                        ↓ Exportar Excel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla -->
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col">Limpiadora</th>
+                        <th scope="col">Hab.</th>
+                        <th scope="col" class="hide-mobile">Descripción</th>
+                        <th scope="col" class="hide-mobile">Tipo</th>
+                        <th scope="col">Fecha</th>
+                        <th scope="col" class="hide-mobile">Hora</th>
+                        <th scope="col">Duración</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in records %}
+                    <tr>
+                        <td>{{ record.cleaner.name if record.cleaner else '—' }}</td>
+                        <td><strong>{{ record.room.number if record.room else '—' }}</strong></td>
+                        <td class="hide-mobile" style="color:var(--color-text-secondary);font-size:.85rem">
+                            {{ record.room.description if record.room else '—' }}
+                        </td>
+                        <td class="hide-mobile">
+                            {% if record.room and record.room.room_type %}
+                            <span class="status-badge status-muted">{{ record.room.room_type.name }}</span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td>{{ record.start_time.strftime('%d/%m/%Y') if record.start_time else '—' }}</td>
+                        <td class="hide-mobile" style="color:var(--color-text-secondary)">
+                            {{ record.start_time.strftime('%H:%M') if record.start_time else '—' }}
+                        </td>
+                        <td>
+                            {% if record.duration and record.duration != 'N/A' %}
+                                <span class="status-badge status-muted">{{ record.duration }}</span>
+                            {% else %}
+                                <span class="status-badge status-info">En curso</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4" style="color:var(--color-text-secondary)">
+                            No hay registros para los filtros seleccionados.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Paginación -->
+    {% if pagination and pagination.pages > 1 %}
+    <div class="d-flex align-items-center justify-content-between flex-wrap mt-3">
+        <p class="small mb-2" style="color:var(--color-text-secondary)">
+            Página <strong>{{ pagination.page }}</strong> de <strong>{{ pagination.pages }}</strong>
+        </p>
+        <nav aria-label="Paginación">
+            <ul class="pagination pagination-sm mb-0 flex-wrap">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('registros_limpieza', page=pagination.prev_num,
+                        room_id=filters.room_id, cleaner_id=filters.cleaner_id,
+                        start_date=filters.start_date, end_date=filters.end_date) }}">&laquo;</a>
+                </li>
+                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                {% if page_num %}
+                <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('registros_limpieza', page=page_num,
+                        room_id=filters.room_id, cleaner_id=filters.cleaner_id,
+                        start_date=filters.start_date, end_date=filters.end_date) }}">{{ page_num }}</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><a class="page-link">&hellip;</a></li>
+                {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('registros_limpieza', page=pagination.next_num,
+                        room_id=filters.room_id, cleaner_id=filters.cleaner_id,
+                        start_date=filters.start_date, end_date=filters.end_date) }}">&raquo;</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+(function () {
+    'use strict';
+    var startInput = document.getElementById('start_date');
+    var endInput   = document.getElementById('end_date');
+    startInput.addEventListener('change', function () {
+        if (endInput.value && endInput.value < this.value) endInput.value = this.value;
+        endInput.min = this.value;
+    });
+    endInput.addEventListener('change', function () {
+        if (startInput.value && startInput.value > this.value) startInput.value = this.value;
+        startInput.max = this.value;
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+{% block title %}Zonas de Limpieza{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap">
+        <h1 class="h3 mb-0">Zonas de Limpieza</h1>
+        <div class="mt-2 mt-md-0 d-flex gap-2">
+            <a href="{{ url_for('manage_floors') }}" class="btn btn-sm btn-outline-secondary">Plantas</a>
+            <a href="{{ url_for('manage_room_types') }}" class="btn btn-sm btn-outline-secondary">Tipos de espacio</a>
+        </div>
+    </div>
+
+    <!-- Formulario añadir / editar espacio -->
+    <div class="card mb-4">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <span id="form-title">{{ 'Editar espacio' if edit_mode else 'Añadir nuevo espacio' }}</span>
+            {% if edit_mode %}
+            <span class="badge bg-warning text-dark">Modo edición</span>
+            {% else %}
+            <span id="edit-badge" class="badge bg-warning text-dark d-none">Modo edición</span>
+            {% endif %}
+        </div>
+        <div class="card-body">
+            <form id="room-form" method="post" action="{{ url_for('add_edit_room') }}" novalidate>
+                {% if edit_mode %}
+                <input type="hidden" name="room_id" value="{{ room.id }}">
+                {% else %}
+                <input type="hidden" name="room_id" id="room_id_hidden" value="">
+                {% endif %}
+
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label for="number" class="form-label">
+                            Número / Código <span class="text-danger" aria-hidden="true">*</span>
+                        </label>
+                        <input type="text" id="number" name="number"
+                               class="form-control" required placeholder="ej. 101"
+                               value="{{ form_data.number if form_data.number else (room.number if edit_mode else '') }}">
+                        <div class="invalid-feedback">El número es obligatorio.</div>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="room_type_id" class="form-label">
+                            Tipo de espacio <span class="text-danger" aria-hidden="true">*</span>
+                        </label>
+                        <select id="room_type_id" name="room_type_id" class="form-select" required>
+                            <option value="">-- Selecciona --</option>
+                            {% for type in room_types %}
+                            <option value="{{ type.id }}"
+                                {{ 'selected' if (form_data.room_type_id and form_data.room_type_id == type.id)
+                                              or (edit_mode and room.room_type_id == type.id) }}>
+                                {{ type.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="invalid-feedback">Selecciona un tipo de espacio.</div>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="floor_id" class="form-label">
+                            Planta <span class="text-danger" aria-hidden="true">*</span>
+                        </label>
+                        <select id="floor_id" name="floor_id" class="form-select" required>
+                            <option value="">-- Selecciona --</option>
+                            {% for floor in floors %}
+                            <option value="{{ floor.id }}"
+                                {{ 'selected' if (form_data.floor_id and form_data.floor_id == floor.id)
+                                              or (edit_mode and room.floor_id == floor.id) }}>
+                                {{ floor.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="invalid-feedback">Selecciona una planta.</div>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="description" class="form-label">
+                            Descripción <span class="text-danger" aria-hidden="true">*</span>
+                        </label>
+                        <input type="text" id="description" name="description"
+                               class="form-control" required
+                               placeholder="ej. Habitación individual sur"
+                               value="{{ form_data.description if form_data.description else (room.description if edit_mode else '') }}">
+                        <div class="invalid-feedback">La descripción es obligatoria.</div>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2 mt-3">
+                    <button type="submit" class="btn btn-primary" id="submit-btn">
+                        {{ 'Guardar cambios' if edit_mode else 'Añadir espacio' }}
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary"
+                            id="cancel-btn" {% if not edit_mode %}style="display:none"{% endif %}>
+                        Cancelar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla de habitaciones -->
+    <div class="card">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <span>Listado de habitaciones</span>
+            <span class="badge bg-secondary rooms-count">{{ rooms|length }}</span>
+        </div>
+
+        {% if rooms %}
+        <div class="card-body border-bottom pb-3 pt-3" style="border-color:var(--color-border)!important">
+            <div class="row g-2">
+                <div class="col-6 col-md-3">
+                    <input type="search" id="filterNumber" class="form-control form-control-sm"
+                           placeholder="Número…" aria-label="Filtrar por número">
+                </div>
+                <div class="col-6 col-md-3">
+                    <input type="search" id="filterDescription" class="form-control form-control-sm"
+                           placeholder="Descripción…" aria-label="Filtrar por descripción">
+                </div>
+                <div class="col-6 col-md-3">
+                    <input type="search" id="filterRoomType" class="form-control form-control-sm"
+                           placeholder="Tipo…" aria-label="Filtrar por tipo">
+                </div>
+                <div class="col-6 col-md-3">
+                    <input type="search" id="filterFloor" class="form-control form-control-sm"
+                           placeholder="Planta…" aria-label="Filtrar por planta">
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="rooms-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Número</th>
+                        <th scope="col" class="hide-mobile">Descripción</th>
+                        <th scope="col">Tipo</th>
+                        <th scope="col">Planta</th>
+                        <th scope="col" class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for room in rooms %}
+                    <tr>
+                        <td><strong>{{ room.number }}</strong></td>
+                        <td class="hide-mobile">{{ room.description }}</td>
+                        <td><span class="status-badge status-muted">{{ room.room_type.name }}</span></td>
+                        <td>{{ room.floor.name }}</td>
+                        <td class="text-end">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-secondary edit-room me-1"
+                                    data-id="{{ room.id }}"
+                                    data-number="{{ room.number }}"
+                                    data-room-type-id="{{ room.room_type.id }}"
+                                    data-floor-id="{{ room.floor.id }}"
+                                    data-description="{{ room.description }}"
+                                    aria-label="Editar habitación {{ room.number }}">Editar</button>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-danger delete-btn"
+                                    data-name="{{ room.number }} — {{ room.description }}"
+                                    data-action="{{ url_for('delete_room', id=room.id) }}"
+                                    aria-label="Eliminar habitación {{ room.number }}">Eliminar</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div id="no-results" class="text-center py-4" style="display:none;color:var(--color-text-secondary)">
+            Ninguna habitación coincide con los filtros.
+        </div>
+
+        {% else %}
+        <div class="card-body">
+            <p class="text-body-secondary mb-0">
+                Aún no hay espacios registrados.
+                {% if not room_types %}
+                    <a href="{{ url_for('manage_room_types') }}">Crea al menos un tipo de espacio</a>.
+                {% elif not floors %}
+                    <a href="{{ url_for('manage_floors') }}">Crea al menos una planta</a>.
+                {% else %}
+                    Usa el formulario de arriba.
+                {% endif %}
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal eliminación -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-modal="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:var(--radius-lg);border:1px solid var(--color-border)">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Confirmar eliminación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                ¿Seguro que quieres eliminar <strong id="delete-name"></strong>?<br>
+                <small class="text-body-secondary">Si el espacio tiene registros de limpieza no se podrá eliminar.</small>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form id="delete-form" method="post" action="" class="m-0">
+                    <button type="submit" class="btn btn-danger">Eliminar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    document.querySelectorAll('.edit-room').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var form = document.getElementById('room-form');
+            var hiddenId = form.querySelector('[name="room_id"]');
+            if (hiddenId) hiddenId.value = this.dataset.id;
+            form.querySelector('[name="number"]').value       = this.dataset.number;
+            form.querySelector('[name="room_type_id"]').value = this.dataset.roomTypeId;
+            form.querySelector('[name="floor_id"]').value     = this.dataset.floorId;
+            form.querySelector('[name="description"]').value  = this.dataset.description;
+            document.getElementById('submit-btn').textContent   = 'Guardar cambios';
+            document.getElementById('cancel-btn').style.display = 'inline-block';
+            document.getElementById('form-title').textContent   = 'Editando espacio';
+            var badge = document.getElementById('edit-badge');
+            if (badge) badge.classList.remove('d-none');
+            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+
+    var cancelBtn = document.getElementById('cancel-btn');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', function () {
+            var form = document.getElementById('room-form');
+            form.reset();
+            var hiddenId = form.querySelector('[name="room_id"]');
+            if (hiddenId) hiddenId.value = '';
+            document.getElementById('submit-btn').textContent = 'Añadir espacio';
+            document.getElementById('form-title').textContent = 'Añadir nuevo espacio';
+            var badge = document.getElementById('edit-badge');
+            if (badge) badge.classList.add('d-none');
+            this.style.display = 'none';
+        });
+    }
+
+    document.querySelectorAll('.delete-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.getElementById('delete-name').textContent = this.dataset.name;
+            document.getElementById('delete-form').action      = this.dataset.action;
+            new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        });
+    });
+
+    var filterInputs = ['filterNumber', 'filterDescription', 'filterRoomType', 'filterFloor'];
+    filterInputs.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('input', filterRows);
+    });
+
+    function filterRows() {
+        var filters = filterInputs.map(function (id) {
+            var el = document.getElementById(id);
+            return el ? el.value.toUpperCase() : '';
+        });
+        var rows    = document.querySelectorAll('#rooms-table tbody tr');
+        var visible = 0;
+        rows.forEach(function (row) {
+            var cells = row.querySelectorAll('td');
+            var match = filters.every(function (f, i) {
+                return !f || (cells[i] && cells[i].textContent.toUpperCase().includes(f));
+            });
+            row.style.display = match ? '' : 'none';
+            if (match) visible++;
+        });
+        var noResults = document.getElementById('no-results');
+        if (noResults) noResults.style.display = visible === 0 ? 'block' : 'none';
+        var counter = document.querySelector('.rooms-count');
+        if (counter) counter.textContent = visible + ' / ' + rows.length;
+    }
+})();
+</script>
+{% endblock %}

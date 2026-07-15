@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Tipos de Espacio{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb bg-transparent p-0 mb-0" style="font-size:.875rem">
+            <li class="breadcrumb-item"><a href="{{ url_for('manage_cleaning_zones') }}">Zonas de Limpieza</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Tipos de Espacio</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h1 class="h3 mb-0">Tipos de Espacio</h1>
+        <span class="badge bg-secondary">{{ room_types|length }} tipo{{ 's' if room_types|length != 1 }}</span>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <span id="form-title">Añadir tipo de espacio</span>
+            <span id="edit-badge" class="badge bg-warning text-dark d-none">Modo edición</span>
+        </div>
+        <div class="card-body">
+            <form id="room-type-form" method="POST" action="{{ url_for('add_edit_room_type') }}" novalidate>
+                <input type="hidden" name="room_type_id" id="room_type_id_hidden" value="">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-6">
+                        <label for="type-name" class="form-label">
+                            Nombre del tipo <span class="text-danger" aria-hidden="true">*</span>
+                        </label>
+                        <input type="text" id="type-name" name="name"
+                               class="form-control" required
+                               placeholder="ej. Habitación individual, Sala común, Baño…">
+                        <div class="invalid-feedback">El nombre es obligatorio.</div>
+                    </div>
+                    <div class="col-md-6 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary" id="submit-btn">Añadir tipo</button>
+                        <button type="button" class="btn btn-outline-secondary" id="cancel-btn" style="display:none">Cancelar</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Listado de tipos de espacio</div>
+        {% if room_types %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="room-types-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Nombre</th>
+                        <th scope="col" class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for room_type in room_types %}
+                    <tr id="room-type-row-{{ room_type.id }}">
+                        <td>{{ room_type.name }}</td>
+                        <td class="text-end">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-secondary edit-room-type me-1"
+                                    data-id="{{ room_type.id }}" data-name="{{ room_type.name }}"
+                                    aria-label="Editar tipo {{ room_type.name }}">Editar</button>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-danger delete-btn"
+                                    data-name="{{ room_type.name }}"
+                                    data-action="{{ url_for('delete_room_type', id=room_type.id) }}"
+                                    aria-label="Eliminar tipo {{ room_type.name }}">Eliminar</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card-body">
+            <p class="text-body-secondary mb-0">Aún no hay tipos de espacio registrados.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="mt-3">
+        <a href="{{ url_for('manage_cleaning_zones') }}" class="btn btn-outline-secondary btn-sm">&larr; Volver</a>
+    </div>
+</div>
+
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-modal="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:var(--radius-lg);border:1px solid var(--color-border)">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Confirmar eliminación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                ¿Seguro que quieres eliminar el tipo <strong id="delete-name"></strong>?<br>
+                <small class="text-body-secondary">Si alguna habitación usa este tipo, no se podrá eliminar.</small>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form id="delete-form" method="POST" action="" class="m-0">
+                    <button type="submit" class="btn btn-danger">Eliminar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+    document.querySelectorAll('.edit-room-type').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.getElementById('room_type_id_hidden').value = this.dataset.id;
+            document.getElementById('type-name').value           = this.dataset.name;
+            document.getElementById('submit-btn').textContent   = 'Guardar cambios';
+            document.getElementById('cancel-btn').style.display = 'inline-block';
+            document.getElementById('form-title').textContent   = 'Editando tipo';
+            document.getElementById('edit-badge').classList.remove('d-none');
+            document.getElementById('room-type-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+    document.getElementById('cancel-btn').addEventListener('click', function () {
+        document.getElementById('room_type_id_hidden').value = '';
+        document.getElementById('type-name').value           = '';
+        document.getElementById('submit-btn').textContent    = 'Añadir tipo';
+        document.getElementById('form-title').textContent    = 'Añadir tipo de espacio';
+        document.getElementById('edit-badge').classList.add('d-none');
+        this.style.display = 'none';
+    });
+    document.querySelectorAll('.delete-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.getElementById('delete-name').textContent = this.dataset.name;
+            document.getElementById('delete-form').action      = this.dataset.action;
+            new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        });
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Grupos de Residentes{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+        <h1 class="h3 mb-0">Grupos de Residentes</h1>
+        <span class="badge bg-secondary ms-auto">{{ groups|length }} grupo{{ 's' if groups|length != 1 }}</span>
+    </div>
+
+    <div class="alert alert-info mb-4" role="note" style="font-size:.9rem">
+        Los grupos permiten organizar residentes y asignarlos a trabajadores.
+        Cada grupo se identifica por un color.
+    </div>
+
+    <!-- Formulario -->
+    <div class="card mb-4">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <span id="form-title">Añadir grupo</span>
+            <span id="edit-badge" class="badge bg-warning text-dark d-none">Modo edición</span>
+        </div>
+        <div class="card-body">
+            <form id="grp-form" method="POST" action="{{ url_for('add_edit_group') }}" novalidate>
+                <input type="hidden" name="group_id" value="">
+                <div class="row g-3 align-items-end">
+                    <div class="col-sm-5 col-md-4">
+                        <label for="name" class="form-label">Nombre <span class="text-danger">*</span></label>
+                        <input type="text" id="name" name="name" class="form-control" required placeholder="ej. Grupo A">
+                    </div>
+                    <div class="col-sm-3 col-md-2">
+                        <label for="color" class="form-label">Color <span class="text-danger">*</span></label>
+                        <input type="color" id="color" name="color" class="form-control form-control-color" value="#3b82f6" required>
+                    </div>
+                    <div class="col-auto d-flex gap-2">
+                        <button type="submit" class="btn btn-primary" id="submit-btn">Añadir grupo</button>
+                        <button type="button" class="btn btn-outline-secondary" id="cancel-btn" style="display:none">Cancelar</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla -->
+    {% if groups %}
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col">Color</th>
+                        <th scope="col">Nombre</th>
+                        <th scope="col">Residentes</th>
+                        <th scope="col">Trabajadores</th>
+                        <th scope="col" class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for g in groups %}
+                    <tr>
+                        <td>
+                            <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:{{ g.color }};vertical-align:middle"></span>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('group_detail', id=g.id) }}" style="font-weight:600;text-decoration:none;color:var(--color-text)">
+                                {{ g.name }}
+                            </a>
+                        </td>
+                        <td>{{ g.residents|length }}</td>
+                        <td>{{ g.workers|length }}</td>
+                        <td class="text-end">
+                            <a href="{{ url_for('group_detail', id=g.id) }}"
+                               class="btn btn-sm btn-outline-primary me-1"
+                               aria-label="Ver grupo {{ g.name }}">Ver</a>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-secondary edit-btn me-1"
+                                    data-id="{{ g.id }}" data-name="{{ g.name }}" data-color="{{ g.color }}"
+                                    aria-label="Editar grupo {{ g.name }}">Editar</button>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-danger delete-btn"
+                                    data-name="{{ g.name }}"
+                                    data-action="{{ url_for('delete_group', id=g.id) }}"
+                                    aria-label="Eliminar grupo {{ g.name }}">Eliminar</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info" role="status">
+        No hay grupos creados. Añade uno usando el formulario de arriba.
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal eliminación -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-modal="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:var(--radius-lg);border:1px solid var(--color-border)">
+            <div class="modal-header" style="border-color:var(--color-border)!important">
+                <h5 class="modal-title" id="deleteModalLabel">Confirmar eliminación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">¿Eliminar el grupo <strong id="delete-name"></strong>?</div>
+            <div class="modal-footer" style="border-color:var(--color-border)!important">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form id="delete-form" method="post" action="" class="m-0">
+                    <button type="submit" class="btn btn-danger">Eliminar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+    document.querySelectorAll('.edit-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var form = document.getElementById('grp-form');
+            form.querySelector('[name="group_id"]').value = this.dataset.id;
+            form.querySelector('[name="name"]').value     = this.dataset.name;
+            form.querySelector('[name="color"]').value    = this.dataset.color;
+            document.getElementById('submit-btn').textContent   = 'Guardar cambios';
+            document.getElementById('cancel-btn').style.display = 'inline-block';
+            document.getElementById('form-title').textContent   = 'Editando grupo';
+            document.getElementById('edit-badge').classList.remove('d-none');
+            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+    document.getElementById('cancel-btn').addEventListener('click', function () {
+        var form = document.getElementById('grp-form');
+        form.reset();
+        form.querySelector('[name="group_id"]').value = '';
+        form.querySelector('[name="color"]').value    = '#3b82f6';
+        document.getElementById('submit-btn').textContent  = 'Añadir grupo';
+        document.getElementById('form-title').textContent  = 'Añadir grupo';
+        document.getElementById('edit-badge').classList.add('d-none');
+        this.style.display = 'none';
+    });
+    document.querySelectorAll('.delete-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.getElementById('delete-name').textContent = this.dataset.name;
+            document.getElementById('delete-form').action      = this.dataset.action;
+            new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        });
+    });
+})();
+</script>
+{% endblock %}

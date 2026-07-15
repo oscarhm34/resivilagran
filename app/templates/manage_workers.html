@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+{% block title %}Empleados{% endblock %}
+
+{% block content %}
+<style>
+    .group-chip { cursor:pointer; user-select:none; }
+    .group-chip-input { display:none; }
+    .group-chip-label {
+        display:inline-flex; align-items:center; gap:6px;
+        padding:5px 12px; border-radius:20px;
+        border:2px solid var(--color-border);
+        font-size:.85rem; font-weight:500;
+        background:var(--color-surface);
+        transition:border-color .15s, background .15s;
+    }
+    .group-chip-dot { display:inline-block; width:12px; height:12px; border-radius:50%; flex-shrink:0; }
+    .group-chip-input:checked + .group-chip-label {
+        border-color:var(--chip-color);
+        background:color-mix(in srgb, var(--chip-color) 12%, white);
+        font-weight:600;
+    }
+</style>
+<div class="py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <h1 class="h3 mb-0">Empleados</h1>
+        <span class="badge bg-secondary">{{ cleaners|length }} empleado{{ 's' if cleaners|length != 1 }}</span>
+    </div>
+
+    <!-- Formulario añadir / editar -->
+    <div class="card mb-4">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <span id="form-title">Añadir empleado</span>
+            <span id="edit-badge" class="badge bg-warning text-dark d-none">Modo edición</span>
+        </div>
+        <div class="card-body">
+            <form id="worker-form" method="POST" action="{{ url_for('add_edit_cleaner') }}" novalidate>
+                <input type="hidden" name="cleaner_id" value="">
+
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label for="username" class="form-label">Usuario <span class="text-danger" aria-hidden="true">*</span></label>
+                        <input type="text" id="username" name="username"
+                               class="form-control" required autocomplete="off"
+                               placeholder="ej. maria.garcia">
+                        <div class="invalid-feedback">El usuario es obligatorio.</div>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="name" class="form-label">Nombre completo <span class="text-danger" aria-hidden="true">*</span></label>
+                        <input type="text" id="name" name="name"
+                               class="form-control" required placeholder="ej. María García">
+                        <div class="invalid-feedback">El nombre es obligatorio.</div>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="password" class="form-label">
+                            Contraseña
+                            <small class="text-body-secondary" id="pwd-hint">(dejar vacío = no cambiar)</small>
+                        </label>
+                        <div class="input-group">
+                            <input type="password" id="password" name="password"
+                                   class="form-control" autocomplete="new-password"
+                                   placeholder="Nueva contraseña">
+                            <button type="button" class="btn btn-outline-secondary"
+                                    id="toggle-password" tabindex="-1"
+                                    aria-label="Mostrar u ocultar contraseña">&#128065;</button>
+                        </div>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end pb-1">
+                        <div class="form-check">
+                            <input type="checkbox" id="is_admin" name="is_admin"
+                                   class="form-check-input" value="1">
+                            <label class="form-check-label" for="is_admin">Administrador del panel</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3 mt-0">
+                    <div class="col-md-8">
+                        <label class="form-label">Grupos de residentes</label>
+                        <div id="group-checkboxes" class="d-flex flex-wrap gap-2">
+                            {% if groups %}
+                            {% for g in groups %}
+                            <label class="group-chip" style="--chip-color:{{ g.color }}">
+                                <input type="checkbox" name="group_ids" value="{{ g.id }}" class="group-chip-input">
+                                <span class="group-chip-label">
+                                    <span class="group-chip-dot" style="background:{{ g.color }}"></span>
+                                    {{ g.name }}
+                                </span>
+                            </label>
+                            {% endfor %}
+                            {% else %}
+                            <span class="text-body-secondary" style="font-size:.85rem">No hay grupos creados</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex align-items-center gap-2 mt-3">
+                    <button type="submit" class="btn btn-primary" id="submit-btn">Añadir empleado</button>
+                    <button type="button" class="btn btn-outline-secondary" id="cancel-btn" style="display:none">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla de empleados -->
+    {% if cleaners %}
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col">Usuario</th>
+                        <th scope="col">Nombre</th>
+                        <th scope="col">Rol</th>
+                        <th scope="col" class="hide-mobile">Grupos</th>
+                        <th scope="col" class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cleaner in cleaners %}
+                    <tr>
+                        <td><code style="color:var(--color-primary);background:var(--color-primary-lt);padding:1px 6px;border-radius:4px">{{ cleaner.username }}</code></td>
+                        <td>{{ cleaner.name }}</td>
+                        <td>
+                            {% if cleaner.is_admin %}
+                            <span class="status-badge status-info">Admin</span>
+                            {% else %}
+                            <span class="status-badge status-muted">Limpiadora</span>
+                            {% endif %}
+                        </td>
+                        <td class="hide-mobile">
+                            <div class="dropdown inline-cleaner-groups" data-cleaner-id="{{ cleaner.id }}">
+                                <button type="button" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1 icg-btn"
+                                        data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"
+                                        style="font-size:.8rem;padding:3px 10px;min-width:100px">
+                                    {% for g in cleaner.groups %}
+                                    <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{{ g.color }};flex-shrink:0"></span>
+                                    {% else %}
+                                    <span class="text-body-secondary">Sin grupo</span>
+                                    {% endfor %}
+                                    <span style="font-size:10px;color:var(--color-text-secondary);margin-left:auto">▾</span>
+                                </button>
+                                <ul class="dropdown-menu" style="font-size:.85rem;min-width:180px">
+                                    {% for g in groups %}
+                                    <li>
+                                        <label class="dropdown-item d-flex align-items-center gap-2" style="cursor:pointer">
+                                            <input type="checkbox" class="form-check-input icg-cb" value="{{ g.id }}"
+                                                   {% if g in cleaner.groups %}checked{% endif %} style="margin:0">
+                                            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{{ g.color }};flex-shrink:0"></span>
+                                            {{ g.name }}
+                                        </label>
+                                    </li>
+                                    {% endfor %}
+                                    {% if not groups %}
+                                    <li><span class="dropdown-item text-body-secondary">No hay grupos creados</span></li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                        </td>
+                        <td class="text-end">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-secondary edit-cleaner me-1"
+                                    data-id="{{ cleaner.id }}"
+                                    data-username="{{ cleaner.username }}"
+                                    data-name="{{ cleaner.name }}"
+                                    data-is-admin="{{ '1' if cleaner.is_admin else '' }}"
+                                    data-groups="{{ cleaner.groups|map(attribute='id')|list|join(',') }}"
+                                    aria-label="Editar a {{ cleaner.name }}">Editar</button>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-danger delete-btn"
+                                    data-name="{{ cleaner.name }}"
+                                    data-action="{{ url_for('delete_cleaner', id=cleaner.id) }}"
+                                    aria-label="Eliminar a {{ cleaner.name }}">Eliminar</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info" role="status">Aún no hay empleados registrados.</div>
+    {% endif %}
+</div>
+
+<!-- Modal eliminación -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-modal="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:var(--radius-lg);border:1px solid var(--color-border)">
+            <div class="modal-header border-bottom" style="border-color:var(--color-border)!important">
+                <h5 class="modal-title" id="deleteModalLabel">Confirmar eliminación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                ¿Seguro que quieres eliminar a <strong id="delete-name"></strong>?<br>
+                <small class="text-body-secondary">Si el empleado tiene registros de limpieza asociados, no se podrá eliminar.</small>
+            </div>
+            <div class="modal-footer border-top" style="border-color:var(--color-border)!important">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form id="delete-form" method="post" action="" class="m-0">
+                    <button type="submit" class="btn btn-danger">Eliminar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    var toggleBtn = document.getElementById('toggle-password');
+    var pwdInput  = document.getElementById('password');
+    toggleBtn.addEventListener('click', function () {
+        var hidden = pwdInput.type === 'password';
+        pwdInput.type = hidden ? 'text' : 'password';
+        this.textContent = hidden ? '🙈' : '👁️';
+    });
+
+    document.querySelectorAll('.edit-cleaner').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var form = document.getElementById('worker-form');
+            form.querySelector('[name="cleaner_id"]').value = this.dataset.id;
+            form.querySelector('[name="username"]').value   = this.dataset.username;
+            form.querySelector('[name="name"]').value       = this.dataset.name;
+            form.querySelector('[name="password"]').value   = '';
+            form.querySelector('[name="is_admin"]').checked = this.dataset.isAdmin === '1';
+            var groupIds = this.dataset.groups ? this.dataset.groups.split(',') : [];
+            form.querySelectorAll('[name="group_ids"]').forEach(function(cb) {
+                cb.checked = groupIds.indexOf(cb.value) !== -1;
+            });
+            document.getElementById('submit-btn').textContent   = 'Guardar cambios';
+            document.getElementById('cancel-btn').style.display = 'inline-block';
+            document.getElementById('form-title').textContent   = 'Editando empleado';
+            document.getElementById('edit-badge').classList.remove('d-none');
+            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+
+    document.getElementById('cancel-btn').addEventListener('click', function () {
+        var form = document.getElementById('worker-form');
+        form.reset();
+        form.querySelector('[name="cleaner_id"]').value = '';
+        document.getElementById('submit-btn').textContent  = 'Añadir empleado';
+        document.getElementById('form-title').textContent  = 'Añadir empleado';
+        document.getElementById('edit-badge').classList.add('d-none');
+        this.style.display = 'none';
+    });
+
+    document.querySelectorAll('.delete-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.getElementById('delete-name').textContent = this.dataset.name;
+            document.getElementById('delete-form').action      = this.dataset.action;
+            new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        });
+    });
+
+    // Inline group assignment for workers via AJAX
+    document.querySelectorAll('.inline-cleaner-groups').forEach(function (dd) {
+        var cleanerId = parseInt(dd.dataset.cleanerId);
+        dd.querySelectorAll('.icg-cb').forEach(function (cb) {
+            cb.addEventListener('change', async function () {
+                var checked = Array.from(dd.querySelectorAll('.icg-cb:checked')).map(function (c) {
+                    return parseInt(c.value);
+                });
+                var btn = dd.querySelector('.icg-btn');
+                try {
+                    var res = await fetch('/cleaners/update-groups', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ cleaner_id: cleanerId, group_ids: checked }),
+                    });
+                    // Update button dots
+                    var dotsHtml = '';
+                    dd.querySelectorAll('.icg-cb:checked').forEach(function (c) {
+                        var color = c.closest('label').querySelector('span[style]').style.background;
+                        dotsHtml += '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + color + ';flex-shrink:0"></span>';
+                    });
+                    if (!dotsHtml) dotsHtml = '<span class="text-body-secondary">Sin grupo</span>';
+                    dotsHtml += '<span style="font-size:10px;color:var(--color-text-secondary);margin-left:auto">▾</span>';
+                    btn.innerHTML = dotsHtml;
+
+                    if (res.ok) {
+                        btn.style.outline = '2px solid var(--color-success)';
+                        setTimeout(function () { btn.style.outline = ''; }, 800);
+                    } else {
+                        btn.style.outline = '2px solid var(--color-danger)';
+                        setTimeout(function () { btn.style.outline = ''; }, 1200);
+                    }
+                } catch (e) {
+                    btn.style.outline = '2px solid var(--color-danger)';
+                    setTimeout(function () { btn.style.outline = ''; }, 1200);
+                }
+            });
+        });
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Registros de Atención{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap">
+        <h1 class="h3 mb-0">Registros de Atención</h1>
+        {% if pagination %}
+        <span class="small mt-1 mt-md-0" style="color:var(--color-text-secondary)">
+            {{ pagination.total }} registro{{ 's' if pagination.total != 1 }} en total
+        </span>
+        {% endif %}
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-4">
+        <div class="card-header">Filtros</div>
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('registros_atencion') }}">
+                <div class="row g-3">
+                    <div class="col-sm-6 col-md-3">
+                        <label for="start_date" class="form-label">Fecha inicio</label>
+                        <input type="date" id="start_date" name="start_date" class="form-control" value="{{ filters.start_date }}" max="{{ filters.end_date if filters.end_date else '' }}">
+                    </div>
+                    <div class="col-sm-6 col-md-3">
+                        <label for="end_date" class="form-label">Fecha fin</label>
+                        <input type="date" id="end_date" name="end_date" class="form-control" value="{{ filters.end_date }}" min="{{ filters.start_date if filters.start_date else '' }}">
+                    </div>
+                    <div class="col-sm-6 col-md-2">
+                        <label for="worker_id" class="form-label">Trabajador/a</label>
+                        <select id="worker_id" name="worker_id" class="form-select">
+                            <option value="">Todos</option>
+                            {% for w in workers %}
+                            <option value="{{ w.id }}" {{ 'selected' if filters.worker_id == w.id|string }}>{{ w.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-sm-6 col-md-2">
+                        <label for="resident_id" class="form-label">Residente</label>
+                        <select id="resident_id" name="resident_id" class="form-select">
+                            <option value="">Todos</option>
+                            {% for r in residents %}
+                            <option value="{{ r.id }}" {{ 'selected' if filters.resident_id == r.id|string }}>{{ r.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-sm-6 col-md-2">
+                        <label for="care_type_id" class="form-label">Tipo</label>
+                        <select id="care_type_id" name="care_type_id" class="form-select">
+                            <option value="">Todos</option>
+                            {% for ct in care_types %}
+                            <option value="{{ ct.id }}" {{ 'selected' if filters.care_type_id == ct.id|string }}>{{ ct.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    <button type="submit" class="btn btn-primary">Aplicar filtros</button>
+                    <a href="{{ url_for('registros_atencion') }}" class="btn btn-outline-secondary">Limpiar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla -->
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col">Residente</th>
+                        <th scope="col" class="hide-mobile">Tipo</th>
+                        <th scope="col">Trabajador/a</th>
+                        <th scope="col">Fecha</th>
+                        <th scope="col" class="hide-mobile">Hora</th>
+                        <th scope="col">Duración</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in records %}
+                    <tr>
+                        <td><strong>{{ record.resident.name if record.resident else '—' }}</strong></td>
+                        <td class="hide-mobile">
+                            {% if record.care_type %}
+                            <span class="status-badge status-info">{{ record.care_type.name }}</span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td>{{ record.worker.name if record.worker else '—' }}</td>
+                        <td>{{ record.start_time.strftime('%d/%m/%Y') if record.start_time else '—' }}</td>
+                        <td class="hide-mobile" style="color:var(--color-text-secondary)">
+                            {{ record.start_time.strftime('%H:%M') if record.start_time else '—' }}
+                        </td>
+                        <td>
+                            {% if record.duration and record.duration != 'N/A' %}
+                            <span class="status-badge status-muted">{{ record.duration }}</span>
+                            {% else %}
+                            <span class="status-badge status-info">En curso</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4" style="color:var(--color-text-secondary)">
+                            No hay registros para los filtros seleccionados.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Paginación -->
+    {% if pagination and pagination.pages > 1 %}
+    <div class="d-flex align-items-center justify-content-between flex-wrap mt-3">
+        <p class="small mb-2" style="color:var(--color-text-secondary)">
+            Página <strong>{{ pagination.page }}</strong> de <strong>{{ pagination.pages }}</strong>
+        </p>
+        <nav aria-label="Paginación">
+            <ul class="pagination pagination-sm mb-0 flex-wrap">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('registros_atencion', page=pagination.prev_num,
+                        worker_id=filters.worker_id, resident_id=filters.resident_id,
+                        care_type_id=filters.care_type_id, start_date=filters.start_date, end_date=filters.end_date) }}">&laquo;</a>
+                </li>
+                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                {% if page_num %}
+                <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('registros_atencion', page=page_num,
+                        worker_id=filters.worker_id, resident_id=filters.resident_id,
+                        care_type_id=filters.care_type_id, start_date=filters.start_date, end_date=filters.end_date) }}">{{ page_num }}</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><a class="page-link">&hellip;</a></li>
+                {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('registros_atencion', page=pagination.next_num,
+                        worker_id=filters.worker_id, resident_id=filters.resident_id,
+                        care_type_id=filters.care_type_id, start_date=filters.start_date, end_date=filters.end_date) }}">&raquo;</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+(function () {
+    'use strict';
+    var startInput = document.getElementById('start_date');
+    var endInput   = document.getElementById('end_date');
+    startInput.addEventListener('change', function () {
+        if (endInput.value && endInput.value < this.value) endInput.value = this.value;
+        endInput.min = this.value;
+    });
+    endInput.addEventListener('change', function () {
+        if (startInput.value && startInput.value > this.value) startInput.value = this.value;
+        startInput.max = this.value;
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}Inicio{% endblock %}
+
+{% block content %}
+<div class="py-4">
+    <h1 class="h3 mb-1">Bienvenido, {{ current_user.name }}</h1>
+    <p class="mb-4" style="color:var(--color-text-secondary)">Panel de gestión del Servicio de Limpieza &mdash; La Vila Gran</p>
+
+    <!-- Estadísticas rápidas — Limpiezas -->
+    <p class="mb-2" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--color-text-secondary)">🧹 Limpiezas</p>
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-4">
+            <div class="stat-card">
+                <div class="stat-value">{{ limpiezas_hoy | default(0) }}</div>
+                <div class="stat-label">Iniciadas hoy</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-4">
+            <div class="stat-card">
+                {% set _en_curso = en_curso | default(0) %}
+                <div class="stat-value" style="color:{% if _en_curso > 0 %}var(--color-success){% else %}var(--color-text-secondary){% endif %}">
+                    {{ _en_curso }}
+                </div>
+                <div class="stat-label">En curso ahora</div>
+                {% if _en_curso > 0 %}
+                <div class="stat-trend trend-up">&#9679; Activas</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-6 col-lg-4">
+            <div class="stat-card">
+                {% set _sin_limpiar = habitaciones_sin_limpiar | default(0) %}
+                <div class="stat-value" style="color:{% if _sin_limpiar > 0 %}var(--color-danger){% else %}var(--color-success){% endif %}">
+                    {{ _sin_limpiar }}
+                </div>
+                <div class="stat-label">Sin limpiar nunca</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Estadísticas rápidas — Atenciones -->
+    <p class="mb-2" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--color-text-secondary)">🤲 Atenciones a residentes</p>
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-4">
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--color-success)">{{ atenciones_hoy | default(0) }}</div>
+                <div class="stat-label">Iniciadas hoy</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-4">
+            <div class="stat-card">
+                {% set _atc = atenciones_en_curso | default(0) %}
+                <div class="stat-value" style="color:{% if _atc > 0 %}var(--color-success){% else %}var(--color-text-secondary){% endif %}">
+                    {{ _atc }}
+                </div>
+                <div class="stat-label">En curso ahora</div>
+                {% if _atc > 0 %}
+                <div class="stat-trend trend-up">&#9679; Activas</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Accesos rápidos -->
+    <div class="row g-3">
+        <div class="col-6 col-lg-3">
+            <a href="{{ url_for('manage_workers') }}" class="text-decoration-none">
+                <div class="card h-100 text-center p-3 home-card">
+                    <div class="home-card-icon mb-2" aria-hidden="true">&#128101;</div>
+                    <h2 class="h6 mb-1">Empleados</h2>
+                    <p class="small mb-0" style="color:var(--color-text-secondary)">Gestiona limpiadoras y permisos</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-lg-3">
+            <a href="{{ url_for('manage_residents') }}" class="text-decoration-none">
+                <div class="card h-100 text-center p-3 home-card">
+                    <div class="home-card-icon mb-2" aria-hidden="true">&#128116;</div>
+                    <h2 class="h6 mb-1">Residentes</h2>
+                    <p class="small mb-0" style="color:var(--color-text-secondary)">Gestiona residentes y pulseras NFC</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-lg-3">
+            <a href="{{ url_for('manage_cleaning_zones') }}" class="text-decoration-none">
+                <div class="card h-100 text-center p-3 home-card">
+                    <div class="home-card-icon mb-2" aria-hidden="true">&#127968;</div>
+                    <h2 class="h6 mb-1">Zonas de Limpieza</h2>
+                    <p class="small mb-0" style="color:var(--color-text-secondary)">Habitaciones, plantas y tipos</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-lg-3">
+            <a href="{{ url_for('registros_limpieza') }}" class="text-decoration-none">
+                <div class="card h-100 text-center p-3 home-card">
+                    <div class="home-card-icon mb-2" aria-hidden="true">&#128203;</div>
+                    <h2 class="h6 mb-1">Limpiezas</h2>
+                    <p class="small mb-0" style="color:var(--color-text-secondary)">Historial con filtros y exportación</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-lg-3">
+            <a href="{{ url_for('registros_atencion') }}" class="text-decoration-none">
+                <div class="card h-100 text-center p-3 home-card">
+                    <div class="home-card-icon mb-2" aria-hidden="true">&#129293;</div>
+                    <h2 class="h6 mb-1">Atenciones</h2>
+                    <p class="small mb-0" style="color:var(--color-text-secondary)">Historial de atenciones a residentes</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-lg-3">
+            <a href="{{ url_for('ultima_limpieza') }}" class="text-decoration-none">
+                <div class="card h-100 text-center p-3 home-card">
+                    <div class="home-card-icon mb-2" aria-hidden="true">&#9200;</div>
+                    <h2 class="h6 mb-1">Última Limpieza</h2>
+                    <p class="small mb-0" style="color:var(--color-text-secondary)">Estado actual de cada habitación</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-lg-3">
+            <a href="{{ url_for('worker') }}" class="text-decoration-none" target="_blank">
+                <div class="card h-100 text-center p-3 home-card" style="border-color:var(--color-primary)">
+                    <div class="home-card-icon mb-2" aria-hidden="true">&#128241;</div>
+                    <h2 class="h6 mb-1" style="color:var(--color-primary)">App Trabajadores</h2>
+                    <p class="small mb-0" style="color:var(--color-text-secondary)">Abrir WebApp de limpiezas y atenciones</p>
+                </div>
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+    .stat-card {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        padding: 1.25rem 1.5rem;
+        box-shadow: var(--shadow-sm);
+        transition: box-shadow .15s, transform .15s;
+        height: 100%;
+    }
+    .stat-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+    .stat-value {
+        font-family: 'Outfit', sans-serif;
+        font-size: 2.25rem;
+        font-weight: 700;
+        line-height: 1;
+        color: var(--color-primary);
+    }
+    .stat-label {
+        font-size: .75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+        color: var(--color-text-secondary);
+        margin-top: .35rem;
+    }
+    .stat-trend { font-size: .78rem; margin-top: .5rem; }
+    .trend-up   { color: var(--color-success); }
+
+    .home-card {
+        border-radius: var(--radius-lg) !important;
+        color: var(--color-text);
+        transition: box-shadow .15s, transform .15s, border-color .15s;
+    }
+    .home-card:hover {
+        box-shadow: var(--shadow-md) !important;
+        transform: translateY(-2px);
+        border-color: var(--color-primary) !important;
+    }
+    .home-card-icon { font-size: 2rem; line-height: 1; }
+</style>
+{% endblock %}

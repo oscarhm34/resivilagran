@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Servicio de Limpieza{% endblock %} - La Vila Gran</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* ── Tokens de diseño ───────────────────────────────────── */
+        :root {
+            --color-primary:          #0069d9;
+            --color-primary-dk:       #004fa3;
+            --color-primary-lt:       #e8f1fb;
+            --color-success:          #1a7f37;
+            --color-warning:          #bf8700;
+            --color-danger:           #cf222e;
+            --color-info:             #0550ae;
+            --color-bg:               #f4f6f9;
+            --color-surface:          #ffffff;
+            --color-border:           #d0d7de;
+            --color-text:             #1f2328;
+            --color-text-secondary:   #656d76;
+            --navbar-height:          62px;
+            --radius-sm:              4px;
+            --radius-md:              8px;
+            --radius-lg:              12px;
+            --shadow-sm:              0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+            --shadow-md:              0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.06);
+        }
+
+        /* ── Base ───────────────────────────────────────────────── */
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            font-size: 15px;
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            padding-top: var(--navbar-height);
+        }
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Outfit', system-ui, sans-serif;
+        }
+        main.container {
+            padding-top: 1.5rem;
+            padding-bottom: 2rem;
+        }
+
+        /* ── Navbar ─────────────────────────────────────────────── */
+        .navbar {
+            height: var(--navbar-height);
+            box-shadow: var(--shadow-sm);
+            background-color: var(--color-surface) !important;
+        }
+        .navbar-brand img { height: 40px; }
+        .navbar .nav-link {
+            font-weight: 500;
+            font-size: .9rem;
+            color: var(--color-text-secondary);
+            padding: .25rem .75rem;
+            border-radius: var(--radius-sm);
+            transition: color .15s, background .15s;
+        }
+        .navbar .nav-link:hover {
+            color: var(--color-primary);
+            background: var(--color-primary-lt);
+        }
+        .navbar .nav-link.active {
+            color: var(--color-primary) !important;
+            background: var(--color-primary-lt);
+            font-weight: 600;
+        }
+
+        /* ── Botón APK ──────────────────────────────────────────── */
+        .nav-apk-link {
+            display: flex;
+            align-items: center;
+            gap: .4rem;
+            font-size: .8rem;
+            color: var(--color-text-secondary);
+            text-decoration: none;
+            padding: .25rem .6rem;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            transition: background .15s, border-color .15s;
+        }
+        .nav-apk-link:hover {
+            background: var(--color-bg);
+            border-color: var(--color-primary);
+            color: var(--color-primary);
+        }
+        .nav-apk-link img { height: 26px; width: 26px; }
+
+        /* ── Flash ──────────────────────────────────────────────── */
+        .flash-container {
+            position: sticky;
+            top: var(--navbar-height);
+            z-index: 1020;
+        }
+
+        /* ── Cards ──────────────────────────────────────────────── */
+        .card {
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-sm);
+        }
+        .card-header {
+            background: var(--color-bg);
+            border-bottom: 1px solid var(--color-border);
+            padding: .75rem 1.25rem;
+            font-weight: 600;
+            font-size: .9rem;
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
+        }
+
+        /* ── Tablas ─────────────────────────────────────────────── */
+        .table thead th {
+            font-size: .72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            color: var(--color-text-secondary);
+            background: var(--color-bg);
+            border-bottom: 2px solid var(--color-border);
+            padding: .6rem 1rem;
+            white-space: nowrap;
+        }
+        .table tbody td {
+            padding: .7rem 1rem;
+            vertical-align: middle;
+            border-bottom: 1px solid var(--color-border);
+            font-size: .9rem;
+        }
+        .table tbody tr:last-child td { border-bottom: none; }
+        .table-hover tbody tr:hover { background: var(--color-primary-lt); }
+
+        /* ── Botones ────────────────────────────────────────────── */
+        .btn {
+            font-weight: 500;
+            border-radius: var(--radius-md);
+            transition: background .15s, box-shadow .15s, transform .1s;
+        }
+        .btn:active { transform: scale(.97); }
+        .btn-primary {
+            background-color: var(--color-primary);
+            border-color: var(--color-primary);
+        }
+        .btn-primary:hover {
+            background-color: var(--color-primary-dk);
+            border-color: var(--color-primary-dk);
+        }
+        .btn:focus-visible {
+            outline: 2px solid var(--color-primary);
+            outline-offset: 2px;
+        }
+
+        /* ── Badges de estado ───────────────────────────────────── */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 9px;
+            border-radius: 20px;
+            font-size: .72rem;
+            font-weight: 600;
+            letter-spacing: .02em;
+        }
+        .status-badge::before {
+            content: '';
+            display: inline-block;
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+        .status-success { color: var(--color-success); background: #d1f0da; }
+        .status-warning  { color: var(--color-warning); background: #fff3cd; }
+        .status-danger   { color: var(--color-danger);  background: #ffddd9; }
+        .status-info     { color: var(--color-info);    background: #dbeafe; }
+        .status-muted    { color: var(--color-text-secondary); background: #f0f0f0; }
+
+        /* ── Formularios ────────────────────────────────────────── */
+        .form-control, .form-select {
+            border-color: var(--color-border);
+            border-radius: var(--radius-md);
+            font-size: .9rem;
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px rgba(0,105,217,.15);
+        }
+        .form-label {
+            font-weight: 500;
+            font-size: .875rem;
+            color: var(--color-text);
+            margin-bottom: .35rem;
+        }
+
+        /* ── Alertas flash ──────────────────────────────────────── */
+        .alert { border-radius: var(--radius-md); font-size: .9rem; }
+
+        /* ── Footer ─────────────────────────────────────────────── */
+        .footer {
+            border-top: 1px solid var(--color-border);
+            font-size: .82rem;
+            color: var(--color-text-secondary);
+        }
+
+        /* ── Animación de entrada ───────────────────────────────── */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .card { animation: fadeInUp .2s ease both; }
+        .card:nth-child(2) { animation-delay: .04s; }
+        .card:nth-child(3) { animation-delay: .08s; }
+        .card:nth-child(4) { animation-delay: .12s; }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: .01ms !important; }
+        }
+
+        /* ── Responsive ─────────────────────────────────────────── */
+        @media (max-width: 767px) {
+            .hide-mobile { display: none !important; }
+            .table tbody td, .table thead th { font-size: .82rem; padding: .5rem .75rem; }
+        }
+    </style>
+</head>
+<body>
+    <header class="navbar navbar-expand-md fixed-top">
+        <div class="container">
+            <a href="{{ url_for('index') }}" class="navbar-brand">
+                <img src="{{ url_for('static', filename='logoLaVilaGranBanner.png') }}" alt="La Vila Gran">
+            </a>
+
+            <button class="navbar-toggler border-0" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#navMenu"
+                    aria-controls="navMenu" aria-expanded="false" aria-label="Abrir menú">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navMenu">
+                <ul class="navbar-nav me-auto gap-1">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'manage_workers' %}active{% endif %}"
+                           href="{{ url_for('manage_workers') }}">Empleados</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint in ('manage_residents','manage_care_types') %}active{% endif %}"
+                           href="{{ url_for('manage_residents') }}">Residentes</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'manage_groups' %}active{% endif %}"
+                           href="{{ url_for('manage_groups') }}">Grupos</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'manage_cleaning_zones' %}active{% endif %}"
+                           href="{{ url_for('manage_cleaning_zones') }}">Zonas</a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if request.endpoint in ('registros_limpieza','registros_atencion','ultima_limpieza','fichajes_trabajador') %}active{% endif %}"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Registros</a>
+                        <ul class="dropdown-menu shadow-sm" style="border-color:var(--color-border);border-radius:var(--radius-md)">
+                            <li><a class="dropdown-item" href="{{ url_for('registros_limpieza') }}"><span aria-hidden="true">🧹</span> Limpiezas</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('registros_atencion') }}"><span aria-hidden="true">🤲</span> Atenciones</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('fichajes_trabajador') }}"><span aria-hidden="true">📋</span> Fichajes por trabajador</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('ultima_limpieza') }}"><span aria-hidden="true">⏰</span> Última limpieza</a></li>
+                        </ul>
+                    </li>
+                </ul>
+
+                <ul class="navbar-nav ms-auto align-items-center gap-2">
+                    {% if current_user.is_authenticated %}
+                    <li class="nav-item">
+                        <span class="navbar-text small" style="color:var(--color-text-secondary)">
+                            <strong style="color:var(--color-text)">{{ current_user.name }}</strong>
+                        </span>
+                    </li>
+                    <li class="nav-item">
+                        <form method="POST" action="{{ url_for('admin_logout') }}" class="m-0">
+                            <button type="submit" class="btn btn-outline-secondary btn-sm">
+                                Cerrar sesión
+                            </button>
+                        </form>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <a href="{{ url_for('worker') }}"
+                           class="nav-apk-link" title="Abrir WebApp de trabajadores" target="_blank" rel="noopener noreferrer">
+                            <img src="{{ url_for('static', filename='frame.png') }}" alt="">
+                            <span class="d-none d-lg-inline">App Trabajadores</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </header>
+
+    <div class="flash-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="container pt-2">
+            {% for category, message in messages %}
+            {% set bs_class = 'danger' if category == 'error' else category %}
+            <div class="alert alert-{{ bs_class }} alert-dismissible fade show mb-2" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+    </div>
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer bg-white py-3 mt-5">
+        <div class="container">
+            &copy; {{ now.year if now else 2025 }} La Vila Gran &mdash; Panel de Administración
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

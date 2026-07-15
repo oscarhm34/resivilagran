@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" content="#0069d9">
+    <title>La Vila Gran</title>
+    <link rel="manifest" href="/worker/manifest.json">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --blue:    #0069d9; --blue-dk: #004fa3; --blue-lt: #e8f1fb;
+            --green:   #1a7f37; --green-dk:#145c28; --green-lt:#d1f0da;
+            --danger:  #cf222e;
+            --bg:      #f4f6f9; --surface: #ffffff;
+            --text:    #1f2328; --text-2:  #656d76; --border: #d0d7de;
+        }
+
+        html, body { height: 100%; font-family: 'Inter', system-ui, sans-serif; background: #e8ecf0; color: var(--text); -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+
+        #app { min-height: 100vh; max-width: 480px; margin: 0 auto; background: var(--surface); box-shadow: 0 0 60px rgba(0,0,0,.18); display: flex; flex-direction: column; }
+
+        .screen { display: none; flex-direction: column; min-height: 100vh; padding: 28px 22px 32px; }
+        .screen.active { display: flex; animation:fadeIn .25s ease; }
+
+        /* ── LOGIN ── */
+        #screen-login { justify-content: center; align-items: center; gap: 28px; background: linear-gradient(155deg,#0069d9 0%,#004fa3 60%,#003d80 100%); color:#fff; padding:48px 28px; }
+        .login-logo { width:180px; filter:brightness(0) invert(1); }
+        .login-tagline { font-size:13px; opacity:.7; text-align:center; }
+        .login-form { width:100%; display:flex; flex-direction:column; gap:10px; }
+        .login-input { width:100%; padding:15px 16px; border-radius:14px; border:1.5px solid rgba(255,255,255,.25); background:rgba(255,255,255,.12); color:#fff; font-size:16px; outline:none; transition:border-color .2s,background .2s; font-family:inherit; }
+        .login-input::placeholder { color:rgba(255,255,255,.55); }
+        .login-input:focus { border-color:rgba(255,255,255,.7); background:rgba(255,255,255,.2); }
+        .btn-login { padding:15px; border-radius:14px; border:none; background:#fff; color:var(--blue); font-size:16px; font-weight:700; font-family:'Outfit',system-ui,sans-serif; cursor:pointer; box-shadow:0 6px 20px rgba(0,0,0,.2); margin-top:4px; transition:transform .1s; }
+        .btn-login:active { transform:scale(.97); }
+        .login-error { color:#ffd0d0; font-size:13px; text-align:center; min-height:18px; }
+
+        /* ── HOME ── */
+        .home-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:22px; }
+        .home-greeting { font-size:12px; color:var(--text-2); font-weight:500; text-transform:uppercase; letter-spacing:.04em; }
+        .home-name { font-family:'Outfit',system-ui,sans-serif; font-size:24px; font-weight:700; margin-top:2px; }
+        .btn-logout { background:none; border:1.5px solid var(--border); border-radius:20px; padding:6px 14px; font-size:12px; color:var(--text-2); cursor:pointer; font-family:inherit; transition:border-color .2s,color .2s; flex-shrink:0; margin-top:2px; }
+        .btn-logout:hover { border-color:var(--danger); color:var(--danger); }
+
+        .section-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--text-2); margin-bottom:10px; }
+
+        /* ── Active session cards ── */
+        #active-sessions { margin-bottom:24px; }
+        .asc {
+            border-radius:16px; padding:14px 16px; margin-bottom:10px;
+            display:flex; align-items:center; gap:12px;
+            border:2px solid transparent; background:var(--bg);
+        }
+        .asc.cleaning { border-color:rgba(0,105,217,.25); background:var(--blue-lt); }
+        .asc.care     { border-color:rgba(26,127,55,.25);  background:var(--green-lt); }
+
+        .asc-icon { width:40px; height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+        .asc.cleaning .asc-icon { background:rgba(0,105,217,.15); }
+        .asc.care     .asc-icon { background:rgba(26,127,55,.15); }
+
+        .asc-info { flex:1; min-width:0; }
+        .asc-subject { font-weight:700; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .asc.cleaning .asc-subject { color:var(--blue); }
+        .asc.care     .asc-subject { color:var(--green); }
+        .asc-sub { font-size:12px; color:var(--text-2); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+        .asc-right { display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0; }
+        .asc-timer { font-family:'Outfit',monospace; font-size:20px; font-weight:800; letter-spacing:-0.5px; line-height:1; }
+        .asc.cleaning .asc-timer { color:var(--blue); }
+        .asc.care     .asc-timer { color:var(--green); }
+
+        .asc-btns { display:flex; gap:6px; }
+        .btn-asc-end {
+            padding:10px 16px; min-height:44px; border-radius:20px; border:none; font-size:12px; font-weight:600;
+            cursor:pointer; font-family:inherit; transition:opacity .15s, transform .1s;
+        }
+        .asc.cleaning .btn-asc-end { background:var(--blue); color:#fff; }
+        .asc.care     .btn-asc-end { background:var(--green); color:#fff; }
+        .btn-asc-end:active { transform:scale(.94); opacity:.85; }
+
+        .btn-asc-cancel { padding:10px 14px; min-height:44px; border-radius:20px; border:1.5px solid var(--border); background:none; font-size:12px; color:var(--text-2); cursor:pointer; font-family:inherit; transition:border-color .15s, color .15s; }
+        .btn-asc-cancel:hover { border-color:var(--danger); color:var(--danger); }
+
+        /* ── Mode cards ── */
+        .mode-cards { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:24px; }
+        .mode-card { border-radius:18px; padding:22px 14px; border:2px solid transparent; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:10px; transition:transform .15s,border-color .15s; user-select:none; -webkit-user-select:none; background:none; font-family:inherit; width:100%; }
+        .mode-card:active { transform:scale(.94); }
+        .mode-card.cleaning { background:var(--blue-lt); border-color:rgba(0,105,217,.15); }
+        .mode-card.cleaning:hover { border-color:var(--blue); }
+        .mode-card.care { background:var(--green-lt); border-color:rgba(26,127,55,.15); }
+        .mode-card.care:hover { border-color:var(--green); }
+        .mode-icon { font-size:38px; line-height:1; }
+        .mode-label { font-family:'Outfit',system-ui,sans-serif; font-size:16px; font-weight:700; }
+        .mode-card.cleaning .mode-label { color:var(--blue); }
+        .mode-card.care     .mode-label { color:var(--green); }
+
+        /* ── History (completed) ── */
+        .hist-list { display:flex; flex-direction:column; gap:8px; }
+        .hist-item { background:var(--bg); border-radius:14px; padding:12px 14px; display:flex; align-items:center; gap:12px; }
+        .hist-icon { width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+        .hist-icon.cleaning { background:var(--blue-lt); }
+        .hist-icon.care     { background:var(--green-lt); }
+        .hist-info { flex:1; min-width:0; }
+        .hist-name { font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .hist-sub  { font-size:12px; color:var(--text-2); margin-top:1px; }
+        .hist-dur  { font-family:'Outfit',monospace; font-size:13px; font-weight:600; color:var(--text-2); flex-shrink:0; }
+        .hist-empty { color:var(--text-2); font-size:13px; text-align:center; padding:20px 0; }
+
+        /* ── SCAN ── */
+        #screen-scan { align-items:center; justify-content:space-between; gap:16px; }
+        .scan-header { width:100%; display:flex; align-items:center; gap:14px; }
+        .btn-back { background:var(--bg); border:none; width:42px; height:42px; border-radius:50%; font-size:20px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+        .mode-badge { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:20px; font-size:13px; font-weight:600; }
+        .mode-badge.cleaning { background:var(--blue-lt); color:var(--blue); }
+        .mode-badge.care     { background:var(--green-lt); color:var(--green); }
+
+        .scan-center { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px; width:100%; }
+        .nfc-ring { position:relative; width:210px; height:210px; display:flex; align-items:center; justify-content:center; }
+        .ring-pulse { position:absolute; border-radius:50%; border:2.5px solid var(--ring-color,#0069d9); opacity:0; animation:rpulse 2.4s ease-out infinite; }
+        .ring-pulse:nth-child(2) { animation-delay:.6s; }
+        .ring-pulse:nth-child(3) { animation-delay:1.2s; }
+        @keyframes rpulse { 0% { width:120px;height:120px;opacity:.55;top:45px;left:45px; } 100% { width:210px;height:210px;opacity:0;top:0;left:0; } }
+        .nfc-inner { width:120px; height:120px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:54px; position:relative; z-index:1; box-shadow:0 4px 20px rgba(0,0,0,.08); }
+        .nfc-inner.cleaning { background:var(--blue-lt); }
+        .nfc-inner.care     { background:var(--green-lt); }
+
+        .scan-instruction { text-align:center; font-size:17px; font-weight:500; max-width:270px; line-height:1.45; }
+        .scan-sub { font-size:13px; color:var(--text-2); text-align:center; }
+        .nfc-unsupported { background:#fff8e1; border:1px solid #f5c400; border-radius:10px; padding:10px 14px; font-size:12px; color:#7c5a00; text-align:center; display:none; }
+        .nfc-unsupported.visible { display:block; }
+        .scan-fallback { width:100%; border-top:1px solid var(--border); padding-top:20px; }
+        .fallback-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--text-2); margin-bottom:10px; text-align:center; }
+        .fallback-row { display:flex; gap:8px; }
+        .fallback-input { flex:1; padding:13px 14px; border-radius:12px; border:1.5px solid var(--border); font-size:15px; outline:none; font-family:inherit; transition:border-color .2s; }
+        .btn-ok { padding:13px 18px; border-radius:12px; border:none; background:var(--blue); color:#fff; font-weight:600; font-size:15px; cursor:pointer; font-family:inherit; }
+        .btn-ok.care { background:var(--green); }
+
+        /* ── CARE TYPE ── */
+        #screen-care-type { gap:20px; }
+        .ct-header { text-align:center; }
+        .ct-resident { font-family:'Outfit',system-ui,sans-serif; font-size:22px; font-weight:700; color:var(--green); }
+        .ct-prompt { font-size:14px; color:var(--text-2); margin-top:4px; }
+        .ct-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; flex:1; }
+        .ct-btn { padding:18px 10px; border-radius:16px; border:2px solid var(--border); background:var(--surface); cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:8px; transition:border-color .15s,background .15s,transform .1s; font-family:inherit; }
+        .ct-btn:hover { border-color:var(--green); background:var(--green-lt); }
+        .ct-btn:active { transform:scale(.94); }
+        .ct-icon { font-size:28px; }
+        .ct-label { font-size:13px; font-weight:600; text-align:center; line-height:1.3; color:var(--text); }
+        .ct-cancel { align-self:center; background:none; border:1.5px solid var(--border); border-radius:20px; padding:8px 20px; font-size:13px; color:var(--text-2); cursor:pointer; font-family:inherit; margin-top:4px; }
+
+        /* ── RESULT ── */
+        #screen-result { align-items:center; justify-content:center; gap:18px; }
+        .result-check { width:90px; height:90px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:46px; animation:pop .4s cubic-bezier(.34,1.56,.64,1); }
+        .result-check.cleaning { background:var(--blue-lt); }
+        .result-check.care     { background:var(--green-lt); }
+        @keyframes pop { from { transform:scale(0);opacity:0; } to { transform:scale(1);opacity:1; } }
+        .result-title { font-family:'Outfit',system-ui,sans-serif; font-size:24px; font-weight:700; text-align:center; }
+        .result-who  { font-size:16px; color:var(--text-2); text-align:center; }
+        .result-card { background:var(--bg); border-radius:18px; padding:22px 36px; text-align:center; }
+        .result-card-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--text-2); }
+        .result-time { font-family:'Outfit',monospace; font-size:52px; font-weight:800; color:var(--text); letter-spacing:-2px; line-height:1.1; }
+        .result-bar-wrap { width:100%; background:var(--border); border-radius:4px; height:4px; overflow:hidden; }
+        .result-bar { height:100%; border-radius:4px; transition:width 3s linear; width:0%; }
+        .result-bar.cleaning { background:var(--blue); }
+        .result-bar.care     { background:var(--green); }
+        .result-hint { font-size:12px; color:var(--text-2); text-align:center; }
+
+        /* ── Groups ── */
+        #my-groups-section { margin-bottom:24px; }
+        .grp-card { border-radius:16px; margin-bottom:12px; border:1.5px solid var(--border); overflow:hidden; }
+        .grp-header { padding:10px 14px; display:flex; align-items:center; gap:8px; font-family:'Outfit',system-ui,sans-serif; font-weight:700; font-size:15px; color:#fff; }
+        .grp-items { padding:6px 0; }
+        .grp-item { display:flex; align-items:center; gap:10px; padding:8px 14px; }
+        .grp-item + .grp-item { border-top:1px solid var(--border); }
+        .grp-info { flex:1; min-width:0; }
+        .grp-name { font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .grp-room { font-size:12px; color:var(--text-2); margin-top:1px; }
+        .grp-status { flex-shrink:0; font-size:12px; font-weight:600; padding:3px 10px; border-radius:20px; }
+        .grp-status.done { background:var(--green-lt); color:var(--green); }
+        .grp-status.pending { background:#f0f0f0; color:var(--text-2); }
+        .grp-empty { padding:16px 14px; font-size:13px; color:var(--text-2); text-align:center; }
+
+        /* ── Select screen ── */
+        #screen-select { gap:0; }
+        .sel-group { margin-bottom:16px; }
+        .sel-group-header { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; padding:8px 0 4px; color:var(--text-2); display:flex; align-items:center; gap:8px; }
+        .sel-group-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+        .sel-item { display:flex; align-items:center; gap:12px; padding:14px; border-radius:14px; background:var(--bg); margin-bottom:6px; cursor:pointer; transition:background .15s,transform .1s; border:none; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit; }
+        .sel-item:active { transform:scale(.97); }
+        .sel-item.cleaning:hover { background:var(--blue-lt); }
+        .sel-item.care:hover { background:var(--green-lt); }
+        .sel-icon { width:40px; height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+        .sel-item.cleaning .sel-icon { background:var(--blue-lt); }
+        .sel-item.care .sel-icon { background:var(--green-lt); }
+        .sel-info { flex:1; min-width:0; }
+        .sel-name { font-weight:600; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .sel-sub { font-size:12px; color:var(--text-2); margin-top:1px; }
+        .sel-empty { color:var(--text-2); font-size:13px; text-align:center; padding:30px 0; }
+        .sel-nfc-bar { border-top:1px solid var(--border); padding-top:16px; margin-top:12px; text-align:center; flex-shrink:0; }
+
+        /* ── Shared ── */
+        .spacer { flex:1; }
+        .toast { position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(80px); background:#1f2328; color:#fff; padding:13px 22px; border-radius:14px; font-size:14px; font-weight:500; z-index:9999; transition:transform .3s cubic-bezier(.34,1.56,.64,1); white-space:nowrap; box-shadow:0 10px 30px rgba(0,0,0,.25); pointer-events:none; }
+        .toast.show { transform:translateX(-50%) translateY(0); }
+        .spinner { display:inline-block; width:18px; height:18px; border:2.5px solid rgba(0,105,217,.25); border-top-color:var(--blue); border-radius:50%; animation:spin .6s linear infinite; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        .sr-only { position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap; }
+        #cancel-dialog::backdrop { background:rgba(0,0,0,.4); }
+        @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+    </style>
+</head>
+<body>
+<div id="app">
+
+    <!-- ══ LOGIN ══ -->
+    <div id="screen-login" class="screen active">
+        <div class="spacer"></div>
+        <img class="login-logo" src="{{ url_for('static', filename='logoLaVilaGranBanner.png') }}" alt="La Vila Gran">
+        <p class="login-tagline">Sistema de gestión · Limpiezas y Atenciones</p>
+        <form class="login-form" id="login-form" autocomplete="on" novalidate>
+            <label for="inp-user" class="sr-only">Usuario</label>
+            <input class="login-input" type="text"     id="inp-user" name="username" placeholder="Usuario"    autocomplete="username"         required>
+            <label for="inp-pass" class="sr-only">Contraseña</label>
+            <input class="login-input" type="password" id="inp-pass" name="password" placeholder="Contraseña" autocomplete="current-password" required>
+            <div id="login-error" class="login-error"></div>
+            <button class="btn-login" type="submit" id="btn-login">Entrar</button>
+        </form>
+        <div class="spacer"></div>
+    </div>
+
+    <!-- ══ HOME ══ -->
+    <div id="screen-home" class="screen">
+        <div class="home-header">
+            <div>
+                <div class="home-greeting">Bienvenido</div>
+                <div class="home-name" id="home-name">—</div>
+            </div>
+            <button class="btn-logout" id="btn-logout">Cerrar sesión</button>
+        </div>
+
+        <!-- Sesiones activas -->
+        <div id="active-sessions" style="display:none">
+            <div class="section-label" id="active-label">En curso</div>
+            <div id="active-list"></div>
+        </div>
+
+        <!-- Selector de modo -->
+        <div class="section-label">¿Qué vas a hacer?</div>
+        <div class="mode-cards">
+            <button class="mode-card cleaning" id="btn-cleaning">
+                <div class="mode-icon">🧹</div>
+                <div class="mode-label">Limpieza</div>
+            </button>
+            <button class="mode-card care" id="btn-care">
+                <div class="mode-icon">🤲</div>
+                <div class="mode-label">Atención</div>
+            </button>
+        </div>
+
+        <!-- Botón consulta grupo -->
+        <div id="my-groups-btn-wrap" style="display:none;margin-bottom:20px">
+            <button class="mode-card care" id="btn-my-group" style="grid-column:1/-1;flex-direction:row;padding:14px 18px;border-radius:14px;gap:12px">
+                <div class="mode-icon" style="font-size:22px">👥</div>
+                <div style="text-align:left;flex:1">
+                    <div class="mode-label" style="font-size:14px">Mi grupo de residentes</div>
+                    <div style="font-size:12px;color:var(--text-2);font-family:'Inter',system-ui,sans-serif;font-weight:400;margin-top:2px" id="my-group-summary">Ver residentes y habitaciones</div>
+                </div>
+                <div style="font-size:18px;color:var(--text-2)">→</div>
+            </button>
+        </div>
+
+        <!-- Historial completado hoy -->
+        <div class="section-label" id="hist-label">Sin registros hoy</div>
+        <div class="hist-list" id="hist-list"></div>
+    </div>
+
+    <!-- ══ MY GROUP ══ -->
+    <div id="screen-mygroup" class="screen">
+        <div class="scan-header">
+            <button class="btn-back" id="mygroup-back" aria-label="Volver">←</button>
+            <span class="mode-badge care">👥 Mi grupo</span>
+        </div>
+        <div style="margin:12px 0 8px">
+            <input class="fallback-input" type="text" id="mygroup-search"
+                   placeholder="Buscar residente..." autocomplete="off" style="width:100%">
+        </div>
+        <div id="mygroup-list" style="flex:1;overflow-y:auto"></div>
+    </div>
+
+    <!-- ══ SELECT ══ -->
+    <div id="screen-select" class="screen">
+        <div class="scan-header">
+            <button class="btn-back" id="select-back" aria-label="Volver">←</button>
+            <span class="mode-badge cleaning" id="select-badge">🧹 Limpieza</span>
+        </div>
+        <div style="margin:12px 0 8px">
+            <input class="fallback-input" type="text" id="select-search"
+                   placeholder="Buscar..." autocomplete="off" style="width:100%">
+        </div>
+        <div id="select-list" style="flex:1;overflow-y:auto"></div>
+        <div class="sel-nfc-bar">
+            <button class="ct-cancel" id="select-nfc-btn">📡 Escanear NFC</button>
+        </div>
+    </div>
+
+    <!-- ══ SCAN ══ -->
+    <div id="screen-scan" class="screen">
+        <div class="scan-header">
+            <button class="btn-back" id="scan-back" aria-label="Volver">←</button>
+            <span class="mode-badge cleaning" id="scan-badge">🧹 Limpieza</span>
+        </div>
+        <div class="scan-center">
+            <div class="nfc-ring">
+                <div class="ring-pulse"></div>
+                <div class="ring-pulse"></div>
+                <div class="ring-pulse"></div>
+                <div class="nfc-inner cleaning" id="nfc-inner">📡</div>
+            </div>
+            <p class="scan-instruction" id="scan-instr">Acerca el NFC a la habitación</p>
+            <p class="scan-sub" id="scan-sub">Preparando lector NFC…</p>
+        </div>
+        <div class="nfc-unsupported" id="nfc-unsupported">
+            Tu navegador no soporta Web NFC. Usa Chrome en Android o introduce el código manualmente.
+        </div>
+        <div class="scan-fallback" id="scan-fallback" style="display:none">
+            <div class="fallback-label">O introduce el código manualmente</div>
+            <div class="fallback-row">
+                <input class="fallback-input" type="text" id="manual-code" placeholder="Número habitación…" autocomplete="off" inputmode="numeric">
+                <button class="btn-ok" id="btn-manual">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══ CARE TYPE ══ -->
+    <div id="screen-care-type" class="screen">
+        <div class="ct-header">
+            <div class="ct-resident" id="ct-resident-name">—</div>
+            <div class="ct-prompt">Selecciona el tipo de atención</div>
+        </div>
+        <div class="ct-grid" id="ct-grid"></div>
+        <button class="ct-cancel" id="ct-cancel">← Cancelar</button>
+    </div>
+
+    <!-- ══ RESULT ══ -->
+    <div id="screen-result" class="screen">
+        <div class="spacer"></div>
+        <div class="result-check cleaning" id="result-check">✓</div>
+        <div class="result-title" id="result-title">¡Completado!</div>
+        <div class="result-who"  id="result-who"></div>
+        <div class="result-card">
+            <div class="result-card-label">Tiempo empleado</div>
+            <div class="result-time" id="result-time">00:00:00</div>
+        </div>
+        <div class="spacer"></div>
+        <div class="result-bar-wrap"><div class="result-bar cleaning" id="result-bar"></div></div>
+        <p class="result-hint" id="result-hint">Volviendo al inicio…</p>
+        <button class="ct-cancel" id="result-back" style="margin-top:8px">← Volver ya</button>
+    </div>
+
+    <dialog id="cancel-dialog" style="border-radius:18px;border:none;padding:0;max-width:320px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.3);background:var(--surface)">
+        <div style="padding:24px">
+            <p style="font-weight:700;font-size:16px;font-family:'Outfit',system-ui,sans-serif;margin:0 0 6px">Cancelar sesión</p>
+            <p style="color:var(--text-2);font-size:14px;margin:0 0 22px">Esta sesión no quedará registrada. ¿Continuar?</p>
+            <div style="display:flex;gap:10px;justify-content:flex-end">
+                <button id="cancel-dialog-no" style="padding:10px 18px;border-radius:12px;border:1.5px solid var(--border);background:none;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Mantener</button>
+                <button id="cancel-dialog-yes" style="padding:10px 18px;border-radius:12px;border:none;background:var(--danger);color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Cancelar sesión</button>
+            </div>
+        </div>
+    </dialog>
+
+</div>
+
+<div class="toast" id="toast" aria-live="assertive"></div>
+
+<script>
+'use strict';
+
+// ── State ──────────────────────────────────────────────────────────────────
+const S = {
+    token:       localStorage.getItem('wt'),
+    workerId:    localStorage.getItem('wid'),
+    workerName:  localStorage.getItem('wname'),
+    mode:        null,           // 'cleaning' | 'care' (current scan mode)
+    sessions:    [],             // active sessions array
+    careTypes:   [],
+    pendingCode: null,
+    pendingRName:null,
+    timerInt:    null,
+    pendingCancel: null,
+    myGroupsData: [],
+    resultTimeout: null,
+};
+
+const CARE_ICONS = {
+    'Aseo e higiene':'🛁','Medicación':'💊','Fisioterapia':'🏃',
+    'Comida':'🍽️','Compañía':'💬','Cambio de postura':'🔄',
+    'Cura / Heridas':'🩹','Otro':'📋',
+};
+
+// ── DOM ────────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
+function show(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    $(id).classList.add('active');
+}
+
+let toastT;
+function toast(msg, ms = 3500) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastT);
+    toastT = setTimeout(() => t.classList.remove('show'), ms);
+}
+
+// ── API ────────────────────────────────────────────────────────────────────
+async function api(path, method = 'GET', body = null) {
+    const opts = { method, headers: { 'Content-Type': 'application/json' } };
+    if (S.token) opts.headers['Authorization'] = 'Bearer ' + S.token;
+    if (body)    opts.body = JSON.stringify(body);
+    try {
+        const res  = await fetch(path, opts);
+        const data = await res.json().catch(() => ({}));
+        return { ok: res.ok, data };
+    } catch {
+        return { ok: false, data: { error: 'Sin conexión con el servidor' } };
+    }
+}
+
+// ── Timer ──────────────────────────────────────────────────────────────────
+function fmt(secs) {
+    secs = Math.max(0, Math.floor(secs));
+    const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60), s = secs % 60;
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+function elapsed(iso) { return (Date.now() - new Date(iso).getTime()) / 1000; }
+
+function startGlobalTimer() {
+    clearInterval(S.timerInt);
+    S.timerInt = setInterval(() => {
+        S.sessions.forEach(sess => {
+            const el = $(`timer-${sess.record_id}`);
+            if (el) el.textContent = fmt(elapsed(sess.start_time));
+        });
+    }, 1000);
+}
+
+// ── Auth ───────────────────────────────────────────────────────────────────
+$('login-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = $('btn-login');
+    btn.innerHTML = '<span class="spinner" style="margin-right:8px"></span> Entrando…';
+    btn.disabled  = true;
+    $('login-error').textContent = '';
+
+    const { ok, data } = await api('/login', 'POST', {
+        username: $('inp-user').value.trim(),
+        password: $('inp-pass').value,
+    });
+
+    if (ok && data.access_token) {
+        S.token      = data.access_token;
+        S.workerId   = String(data.id_cleaner);
+        S.workerName = data.cleaner_name;
+        localStorage.setItem('wt',    S.token);
+        localStorage.setItem('wid',   S.workerId);
+        localStorage.setItem('wname', S.workerName);
+        await initHome();
+    } else {
+        $('login-error').textContent = data.error || 'Error de conexión. Inténtalo de nuevo.';
+    }
+    btn.innerHTML = 'Entrar';
+    btn.disabled  = false;
+});
+
+function doLogout() {
+    clearInterval(S.timerInt);
+    stopNfc();
+    S.token = S.workerId = S.workerName = null;
+    S.sessions = [];
+    ['wt','wid','wname'].forEach(k => localStorage.removeItem(k));
+    show('screen-login');
+}
+$('btn-logout').addEventListener('click', doLogout);
+
+// ── Home ───────────────────────────────────────────────────────────────────
+async function initHome() {
+    $('home-name').textContent = S.workerName || '—';
+    show('screen-home');
+    await Promise.all([loadActiveSessions(), loadHistory(), loadCareTypes(), loadMyGroups()]);
+    startGlobalTimer();
+}
+
+async function loadActiveSessions() {
+    if (!S.workerId) return;
+    const { ok, data } = await api(`/api/worker/active-sessions?worker_id=${S.workerId}`);
+    if (!ok) return;
+    S.sessions = Array.isArray(data) ? data : [];
+    renderActiveSessions();
+}
+
+function renderActiveSessions() {
+    const wrap  = $('active-sessions');
+    const list  = $('active-list');
+    const label = $('active-label');
+
+    if (!S.sessions.length) {
+        wrap.style.display = 'none';
+        list.innerHTML = '';
+        return;
+    }
+
+    wrap.style.display = 'block';
+    label.textContent  = `${S.sessions.length} en curso ahora`;
+
+    list.innerHTML = S.sessions.map(sess => {
+        const isCare   = sess.type === 'care';
+        const timeStr  = fmt(elapsed(sess.start_time));
+        const subLabel = sess.subject_sub || (isCare ? 'Atención' : 'Limpieza');
+        return `
+        <div class="asc ${sess.type}" id="asc-${sess.record_id}">
+            <div class="asc-icon">${isCare ? '🤲' : '🧹'}</div>
+            <div class="asc-info">
+                <div class="asc-subject">${sess.subject}</div>
+                <div class="asc-sub">${subLabel}</div>
+            </div>
+            <div class="asc-right">
+                <div class="asc-timer" id="timer-${sess.record_id}">${timeStr}</div>
+                <div class="asc-btns">
+                    <button class="btn-asc-end"
+                            data-id="${sess.record_id}"
+                            data-mode="${sess.type}">Finalizar</button>
+                    <button class="btn-asc-cancel"
+                            data-id="${sess.record_id}"
+                            data-mode="${sess.type}">✕</button>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+
+    // Listeners con data-* — sin onclick inline, sin problemas de escaping
+    list.querySelectorAll('.btn-asc-end').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            if (btn.disabled) return;
+            btn.disabled    = true;
+            btn.textContent = '…';
+            await endByCard(parseInt(btn.dataset.id), btn.dataset.mode);
+            // Si falla, re-habilitar el botón
+            btn.disabled    = false;
+            btn.textContent = 'Finalizar';
+        });
+    });
+
+    list.querySelectorAll('.btn-asc-cancel').forEach(btn => {
+        btn.addEventListener('click', () =>
+            cancelByCard(parseInt(btn.dataset.id), btn.dataset.mode));
+    });
+}
+
+async function endByCard(recordId, mode) {
+    const payload = { worker_id: parseInt(S.workerId), record_id: recordId, mode };
+    console.log('[endByCard] enviando →', JSON.stringify(payload));
+    const { ok, data } = await api('/api/nfc/end-session', 'POST', payload);
+    console.log('[endByCard] respuesta ←', ok, JSON.stringify(data));
+    if (ok) {
+        S.sessions = S.sessions.filter(s => s.record_id !== recordId);
+        renderActiveSessions();
+        if (!S.sessions.length) { clearInterval(S.timerInt); S.timerInt = null; }
+        showResult(mode, data);
+    } else {
+        toast(data.error || 'Error al finalizar');
+    }
+}
+
+async function cancelByCard(recordId, mode) {
+    S.pendingCancel = { recordId, mode };
+    $('cancel-dialog').showModal();
+}
+
+async function loadHistory() {
+    if (!S.workerId) return;
+    const { ok, data } = await api(`/api/worker/today?worker_id=${S.workerId}`);
+    if (!ok) return;
+    const sessions = (data.sessions || []).filter(s => s.duration);
+    const label = $('hist-label');
+    const list  = $('hist-list');
+    if (!sessions.length) {
+        label.textContent = 'Sin registros completados hoy';
+        list.innerHTML = '<p class="hist-empty">Las sesiones finalizadas aparecerán aquí</p>';
+        return;
+    }
+    label.textContent = `Completado hoy — ${sessions.length}`;
+    list.innerHTML = sessions.map(s => `
+        <div class="hist-item">
+            <div class="hist-icon ${s.type}">${s.type === 'care' ? '🤲' : '🧹'}</div>
+            <div class="hist-info">
+                <div class="hist-name">${s.subject}</div>
+                <div class="hist-sub">${s.subject_sub ? s.subject_sub + ' · ' : ''}${s.start_time}</div>
+            </div>
+            <div class="hist-dur">${s.duration}</div>
+        </div>`).join('');
+}
+
+async function loadCareTypes() {
+    const { ok, data } = await api('/api/care-types');
+    if (ok && Array.isArray(data)) S.careTypes = data;
+}
+
+// ── Groups ────────────────────────────────────────────────────────────────
+async function loadMyGroups() {
+    if (!S.workerId) return;
+    const { ok, data } = await api(`/api/worker/my-groups?worker_id=${S.workerId}`);
+    S.myGroupsData = (ok && data.groups) ? data.groups : [];
+    const wrap = $('my-groups-btn-wrap');
+    if (!S.myGroupsData.length) {
+        wrap.style.display = 'none';
+        return;
+    }
+    wrap.style.display = 'block';
+    const total = S.myGroupsData.reduce((n, g) => n + g.residents.length, 0);
+    const names = S.myGroupsData.map(g => g.name).join(', ');
+    $('my-group-summary').textContent = `${total} residentes · ${names}`;
+}
+
+function showMyGroup() {
+    const list = $('mygroup-list');
+    $('mygroup-search').value = '';
+    if (!S.myGroupsData || !S.myGroupsData.length) {
+        list.innerHTML = '<p class="sel-empty">No tienes grupos asignados</p>';
+        show('screen-mygroup');
+        return;
+    }
+    let html = '';
+    for (const g of S.myGroupsData) {
+        html += `<div class="sel-group" data-group>
+            <div class="sel-group-header">
+                <span class="sel-group-dot" style="background:${g.color}"></span>
+                ${g.name} — ${g.residents.length} residentes
+            </div>`;
+        if (g.residents.length) {
+            for (const r of g.residents) {
+                html += `<div class="grp-item" data-search="${r.name} ${r.room_number}" style="background:var(--bg);border-radius:12px;margin-bottom:4px;padding:12px 14px">
+                    <div class="grp-info">
+                        <div class="grp-name">${r.name}</div>
+                        <div class="grp-room">${r.room_number ? '🏠 Hab. ' + r.room_number : 'Sin habitación'}</div>
+                    </div>
+                    <div class="grp-status ${r.has_care_today ? 'done' : 'pending'}">
+                        ${r.has_care_today ? '✓ ' + r.care_count_today + ' atención' + (r.care_count_today > 1 ? 'es' : '') : 'Pendiente'}
+                    </div>
+                </div>`;
+            }
+        } else {
+            html += '<div class="grp-empty">No hay residentes en este grupo</div>';
+        }
+        html += '</div>';
+    }
+    list.innerHTML = html;
+    show('screen-mygroup');
+}
+
+$('btn-my-group').addEventListener('click', showMyGroup);
+$('mygroup-back').addEventListener('click', () => show('screen-home'));
+$('mygroup-search').addEventListener('input', function () {
+    const q = this.value.toLowerCase().trim();
+    const items = $('mygroup-list').querySelectorAll('.grp-item');
+    items.forEach(item => {
+        const match = !q || (item.dataset.search || '').toLowerCase().includes(q);
+        item.style.display = match ? '' : 'none';
+    });
+    $('mygroup-list').querySelectorAll('[data-group]').forEach(g => {
+        const visible = g.querySelectorAll('.grp-item:not([style*="display: none"])').length;
+        g.style.display = visible ? '' : 'none';
+    });
+});
+
+// ── Mode / Scan ────────────────────────────────────────────────────────────
+// ── Select screen ──────────────────────────────────────────────────────────
+function enterSelect(mode) {
+    S.mode = mode;
+    const isCare = mode === 'care';
+    const badge = $('select-badge');
+    badge.className = `mode-badge ${mode}`;
+    badge.textContent = isCare ? '🤲 Atención' : '🧹 Limpieza';
+    $('select-search').value = '';
+    $('select-list').innerHTML = '<p class="sel-empty"><span class="spinner"></span></p>';
+    show('screen-select');
+    if (isCare) {
+        loadResidentsList();
+    } else {
+        loadRoomsList();
+    }
+}
+
+async function loadRoomsList() {
+    const { ok, data } = await api('/api/rooms');
+    const list = $('select-list');
+    if (!ok || !data.floors || !data.floors.length) {
+        list.innerHTML = '<p class="sel-empty">No hay zonas disponibles</p>';
+        return;
+    }
+    let html = '';
+    for (const floor of data.floors) {
+        html += `<div class="sel-group" data-group>
+            <div class="sel-group-header">${floor.name}</div>`;
+        for (const room of floor.rooms) {
+            html += `<button class="sel-item cleaning" data-code="${room.number}" data-search="${room.number} ${room.description}">
+                <div class="sel-icon">🏠</div>
+                <div class="sel-info">
+                    <div class="sel-name">Hab. ${room.number}</div>
+                    <div class="sel-sub">${room.description}</div>
+                </div>
+            </button>`;
+        }
+        html += '</div>';
+    }
+    list.innerHTML = html;
+    list.querySelectorAll('.sel-item').forEach(btn =>
+        btn.addEventListener('click', () => handleCode(btn.dataset.code)));
+}
+
+async function loadResidentsList() {
+    const { ok, data } = await api(`/api/residents?worker_id=${S.workerId}`);
+    const list = $('select-list');
+    if (!ok) {
+        list.innerHTML = '<p class="sel-empty">Error al cargar residentes</p>';
+        return;
+    }
+    const groups = data.groups || [];
+    const ungrouped = data.ungrouped || [];
+    if (!groups.length && !ungrouped.length) {
+        list.innerHTML = '<p class="sel-empty">No hay residentes disponibles</p>';
+        return;
+    }
+    let html = '';
+    for (const g of groups) {
+        html += `<div class="sel-group" data-group>
+            <div class="sel-group-header">
+                <span class="sel-group-dot" style="background:${g.color}"></span>
+                ${g.name}
+            </div>`;
+        for (const r of g.residents) {
+            html += `<button class="sel-item care" data-code="${r.nfc_code}" data-search="${r.name} ${r.room_number}">
+                <div class="sel-icon">🤲</div>
+                <div class="sel-info">
+                    <div class="sel-name">${r.name}</div>
+                    <div class="sel-sub">${r.room_number ? 'Hab. ' + r.room_number : ''}</div>
+                </div>
+            </button>`;
+        }
+        html += '</div>';
+    }
+    if (ungrouped.length) {
+        html += `<div class="sel-group" data-group>
+            <div class="sel-group-header">Sin grupo</div>`;
+        for (const r of ungrouped) {
+            html += `<button class="sel-item care" data-code="${r.nfc_code}" data-search="${r.name} ${r.room_number}">
+                <div class="sel-icon">🤲</div>
+                <div class="sel-info">
+                    <div class="sel-name">${r.name}</div>
+                    <div class="sel-sub">${r.room_number ? 'Hab. ' + r.room_number : ''}</div>
+                </div>
+            </button>`;
+        }
+        html += '</div>';
+    }
+    list.innerHTML = html;
+    list.querySelectorAll('.sel-item').forEach(btn =>
+        btn.addEventListener('click', () => handleCode(btn.dataset.code)));
+}
+
+// Search filter
+$('select-search').addEventListener('input', function () {
+    const q = this.value.toLowerCase().trim();
+    const items = $('select-list').querySelectorAll('.sel-item');
+    items.forEach(item => {
+        const match = !q || (item.dataset.search || '').toLowerCase().includes(q);
+        item.style.display = match ? '' : 'none';
+    });
+    // Hide empty groups
+    $('select-list').querySelectorAll('[data-group]').forEach(g => {
+        const visible = g.querySelectorAll('.sel-item:not([style*="display: none"])').length;
+        g.style.display = visible ? '' : 'none';
+    });
+});
+
+$('select-back').addEventListener('click', () => show('screen-home'));
+$('select-nfc-btn').addEventListener('click', () => enterScan(S.mode));
+
+// ── Mode / Scan ───────────────────────────────────────────────────────────
+function enterScan(mode) {
+    S.mode = mode;
+    const isCare = mode === 'care';
+    const badge  = $('scan-badge');
+    badge.className = `mode-badge ${mode}`;
+    badge.textContent = isCare ? '🤲 Atención' : '🧹 Limpieza';
+    $('scan-instr').textContent  = isCare ? 'Acerca la pulsera NFC del residente' : 'Acerca el NFC a la habitación';
+    $('manual-code').placeholder = isCare ? 'Código pulsera…' : 'Número habitación…';
+    $('manual-code').value       = '';
+    $('scan-sub').textContent    = 'Preparando lector NFC…';
+    $('nfc-inner').className     = `nfc-inner ${mode}`;
+    $('btn-manual').className    = `btn-ok ${isCare ? 'care' : ''}`;
+    $('nfc-unsupported').classList.remove('visible');
+    show('screen-scan');
+    startNfc();
+    setTimeout(() => { if ($('scan-fallback')) $('scan-fallback').style.display = ''; }, 5000);
+}
+
+$('btn-cleaning').addEventListener('click', () => enterSelect('cleaning'));
+$('btn-care').addEventListener('click',     () => enterSelect('care'));
+$('scan-back').addEventListener('click',    () => { stopNfc(); show('screen-select'); });
+$('btn-manual').addEventListener('click',   () => { const c = $('manual-code').value.trim(); if (c) handleCode(c); });
+$('manual-code').addEventListener('keydown', e => { if (e.key === 'Enter') { const c = $('manual-code').value.trim(); if (c) handleCode(c); } });
+
+// ── Web NFC ────────────────────────────────────────────────────────────────
+let nfcAbort = null;
+
+async function startNfc() {
+    if (!('NDEFReader' in window)) {
+        $('nfc-unsupported').classList.add('visible');
+        $('scan-sub').textContent = 'NFC no disponible — usa el campo manual';
+        $('scan-fallback').style.display = '';
+        return;
+    }
+    stopNfc();
+    nfcAbort = new AbortController();
+    try {
+        const reader = new NDEFReader();
+        await reader.scan({ signal: nfcAbort.signal });
+        $('scan-sub').textContent = 'Lector NFC activo ✓';
+        reader.addEventListener('reading', ({ message }) => {
+            for (const rec of message.records) {
+                if (rec.recordType === 'text') {
+                    const text = new TextDecoder(rec.encoding || 'utf-8').decode(rec.data).trim();
+                    if (text) { handleCode(text); break; }
+                }
+            }
+        });
+        reader.addEventListener('readingerror', () => toast('Error al leer el NFC. Inténtalo de nuevo.'));
+    } catch (err) {
+        if (err.name === 'AbortError') return;
+        $('nfc-unsupported').classList.add('visible');
+        $('scan-sub').textContent = 'NFC no disponible — usa el campo manual';
+        $('scan-fallback').style.display = '';
+    }
+}
+
+function stopNfc() { if (nfcAbort) { nfcAbort.abort(); nfcAbort = null; } }
+
+// ── NFC handler ────────────────────────────────────────────────────────────
+async function handleCode(code) {
+    $('scan-sub').textContent    = 'Procesando…';
+    $('manual-code').disabled    = true;
+    $('btn-manual').disabled     = true;
+
+    const { ok, data } = await api('/api/nfc/scan', 'POST', {
+        nfc_code: code, worker_id: parseInt(S.workerId), mode: S.mode,
+    });
+
+    $('manual-code').disabled = false;
+    $('btn-manual').disabled  = false;
+    $('scan-sub').textContent = 'Lector NFC activo ✓';
+
+    if (!ok) { toast(data.error || 'No se pudo procesar el código'); return; }
+
+    stopNfc();
+
+    if (data.action === 'started') {
+        // Add to active sessions and go home
+        S.sessions.push({
+            type:        S.mode,
+            record_id:   data.record_id,
+            start_time:  data.start_time,
+            subject:     data.subject,
+            subject_sub: data.subject_sub || '',
+        });
+        renderActiveSessions();
+        startGlobalTimer();
+        show('screen-home');
+        toast(`✓ ${S.mode === 'care' ? 'Atención' : 'Limpieza'} iniciada — ${data.subject}`);
+
+    } else if (data.action === 'ended') {
+        S.sessions = S.sessions.filter(s => s.record_id !== data.record_id);
+        renderActiveSessions();
+        if (!S.sessions.length) { clearInterval(S.timerInt); S.timerInt = null; }
+        stopNfc();
+        showResult(S.mode, data);
+
+    } else if (data.action === 'select_care_type') {
+        S.pendingCode  = code;
+        S.pendingRName = data.resident_name;
+        showCareTypes(data.resident_name);
+    }
+}
+
+// ── Care type screen ───────────────────────────────────────────────────────
+function showCareTypes(name) {
+    $('ct-resident-name').textContent = name;
+    const grid = $('ct-grid');
+    if (!S.careTypes.length) {
+        grid.innerHTML = '<p style="color:var(--text-2);font-size:14px;grid-column:1/-1;text-align:center;padding:20px 0">No hay tipos configurados.<br>Añádelos en el panel de administración.</p>';
+    } else {
+        grid.innerHTML = S.careTypes.map(ct => `
+            <button class="ct-btn" data-id="${ct.id}" data-name="${ct.name}">
+                <span class="ct-icon">${CARE_ICONS[ct.name] || '❤️'}</span>
+                <span class="ct-label">${ct.name}</span>
+            </button>`).join('');
+        grid.querySelectorAll('.ct-btn').forEach(btn =>
+            btn.addEventListener('click', () => pickCareType(parseInt(btn.dataset.id), btn.dataset.name)));
+    }
+    show('screen-care-type');
+}
+
+async function pickCareType(ctId, ctName) {
+    const { ok, data } = await api('/api/nfc/scan', 'POST', {
+        nfc_code: S.pendingCode, worker_id: parseInt(S.workerId), mode: 'care', care_type_id: ctId,
+    });
+    if (!ok) { toast(data.error || 'Error al iniciar la atención'); return; }
+    if (data.action === 'started') {
+        S.sessions.push({
+            type:        'care',
+            record_id:   data.record_id,
+            start_time:  data.start_time,
+            subject:     data.subject,
+            subject_sub: ctName,
+        });
+        renderActiveSessions();
+        startGlobalTimer();
+        show('screen-home');
+        toast(`✓ Atención iniciada — ${data.subject}`);
+    }
+}
+
+$('ct-cancel').addEventListener('click', () => {
+    S.pendingCode = S.pendingRName = null;
+    show('screen-scan');
+});
+
+// ── Result screen ──────────────────────────────────────────────────────────
+function showResult(mode, data) {
+    const isCare = mode === 'care';
+    const check  = $('result-check');
+    const bar    = $('result-bar');
+    check.className = `result-check ${mode}`;
+    bar.className   = `result-bar ${mode}`;
+    bar.style.width = '0%';
+    $('result-title').textContent = isCare ? '¡Atención completada!' : '¡Limpieza completada!';
+    $('result-who').textContent   = data.subject || '';
+    $('result-time').textContent  = data.duration_display || fmt(data.duration || 0);
+    show('screen-result');
+    requestAnimationFrame(() => { bar.style.width = '100%'; });
+    if (S.resultTimeout) clearTimeout(S.resultTimeout);
+    S.resultTimeout = setTimeout(async () => {
+        // Las sesiones ya están actualizadas en S.sessions y el DOM.
+        // Solo recargamos el historial y volvemos al home.
+        await loadHistory();
+        show('screen-home');
+        if (S.sessions.length) startGlobalTimer();
+    }, 3300);
+}
+
+$('cancel-dialog-no').addEventListener('click', () => $('cancel-dialog').close());
+$('cancel-dialog-yes').addEventListener('click', async () => {
+    $('cancel-dialog').close();
+    const { recordId, mode } = S.pendingCancel;
+    const { ok, data } = await api('/api/nfc/cancel-session', 'POST', {
+        worker_id: parseInt(S.workerId), record_id: recordId, mode,
+    });
+    if (!ok) { toast(data.error || 'Error al cancelar'); return; }
+    S.sessions = S.sessions.filter(s => s.record_id !== recordId);
+    renderActiveSessions();
+    if (!S.sessions.length) { clearInterval(S.timerInt); S.timerInt = null; }
+});
+
+$('result-back').addEventListener('click', async () => {
+    if (S.resultTimeout) clearTimeout(S.resultTimeout);
+    await loadHistory();
+    show('screen-home');
+    if (S.sessions.length) startGlobalTimer();
+});
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+(async function boot() {
+    if (!S.token) { show('screen-login'); return; }
+    await initHome();
+})();
+</script>
+</body>
+</html>
