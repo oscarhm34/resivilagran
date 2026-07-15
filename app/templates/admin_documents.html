@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Documentos legales{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 style="font-family:'Outfit',system-ui,sans-serif;font-weight:700;font-size:22px;margin:0">
+        Documentos legales
+    </h2>
+    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#docModal"
+            onclick="resetDocForm()">+ Nuevo documento</button>
+</div>
+
+{% if documents %}
+<div class="table-responsive">
+    <table class="table align-middle">
+        <thead>
+            <tr>
+                <th>Título</th>
+                <th>Tipo</th>
+                <th>Firmado</th>
+                <th>Estado</th>
+                <th class="text-end">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for doc in documents %}
+            <tr>
+                <td style="font-weight:600">{{ doc.title }}</td>
+                <td><span class="text-body-secondary">{{ doc.doc_type or '—' }}</span></td>
+                <td>
+                    <a href="{{ url_for('document_signatures', doc_id=doc.id) }}"
+                       style="text-decoration:none">
+                        {{ doc.signatures|length }} / {{ workers|length }}
+                    </a>
+                </td>
+                <td>
+                    {% if doc.active %}
+                    <span class="status-badge status-success">Activo</span>
+                    {% else %}
+                    <span class="status-badge status-muted">Inactivo</span>
+                    {% endif %}
+                </td>
+                <td class="text-end">
+                    {% if not doc.signatures %}
+                    <button class="btn btn-sm btn-outline-secondary me-1"
+                            onclick="editDoc({{ doc.id }}, {{ doc.title|tojson }}, {{ doc.content|tojson }}, {{ (doc.doc_type or '')|tojson }})">Editar</button>
+                    {% endif %}
+                    <form method="post" action="{{ url_for('toggle_document', doc_id=doc.id) }}"
+                          class="d-inline">
+                        <button class="btn btn-sm btn-outline-{{ 'warning' if doc.active else 'success' }}">
+                            {{ 'Desactivar' if doc.active else 'Activar' }}
+                        </button>
+                    </form>
+                    {% if not doc.signatures %}
+                    <form method="post" action="{{ url_for('delete_document', doc_id=doc.id) }}"
+                          class="d-inline" onsubmit="return confirm('¿Eliminar este documento?')">
+                        <button class="btn btn-sm btn-outline-danger">Eliminar</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="alert alert-info">Aún no hay documentos. Crea el primero.</div>
+{% endif %}
+
+<!-- Modal crear/editar -->
+<div class="modal fade" id="docModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content" style="border-radius:var(--radius-lg);border:1px solid var(--color-border)">
+            <form id="docForm" method="post" action="{{ url_for('create_document') }}">
+                <div class="modal-header" style="border-color:var(--color-border)!important">
+                    <h5 class="modal-title" id="docModalTitle">Nuevo documento</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Título</label>
+                        <input type="text" class="form-control" name="title" id="doc-title" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tipo</label>
+                        <select class="form-select" name="doc_type" id="doc-type">
+                            <option value="">Sin tipo</option>
+                            <option value="disciplinary">Régimen disciplinario</option>
+                            <option value="prl">Prevención de riesgos</option>
+                            <option value="training">Compromiso de formación</option>
+                            <option value="rules">Normas de funcionamiento</option>
+                            <option value="other">Otro</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Contenido</label>
+                        <textarea class="form-control" name="content" id="doc-content"
+                                  rows="12" style="min-height:300px"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-color:var(--color-border)!important">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="doc-submit-btn">Crear documento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+<script>
+(function () {
+    tinymce.init({
+        selector: '#doc-content',
+        height: 350,
+        menubar: false,
+        plugins: 'lists link',
+        toolbar: 'undo redo | bold italic underline | bullist numlist | link',
+        branding: false,
+        promotion: false,
+    });
+
+    window.resetDocForm = function () {
+        document.getElementById('docForm').action = '{{ url_for("create_document") }}';
+        document.getElementById('docModalTitle').textContent = 'Nuevo documento';
+        document.getElementById('doc-submit-btn').textContent = 'Crear documento';
+        document.getElementById('doc-title').value = '';
+        document.getElementById('doc-type').value = '';
+        tinymce.get('doc-content').setContent('');
+    };
+
+    window.editDoc = function (id, title, content, docType) {
+        document.getElementById('docForm').action = '/admin/documents/' + id + '/edit';
+        document.getElementById('docModalTitle').textContent = 'Editar documento';
+        document.getElementById('doc-submit-btn').textContent = 'Guardar cambios';
+        document.getElementById('doc-title').value = title;
+        document.getElementById('doc-type').value = docType;
+        tinymce.get('doc-content').setContent(content);
+        new bootstrap.Modal(document.getElementById('docModal')).show();
+    };
+})();
+</script>
+{% endblock %}

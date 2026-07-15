@@ -1,7 +1,10 @@
 from __future__ import annotations
 from . import app, db
-from .models import Cleaner, Room, CleaningRecord, Floor, RoomType, Resident, CareType, CareRecord, ResidentGroup, cleaner_groups
-from flask import request, jsonify, render_template, redirect, url_for, flash, send_file, abort
+from .models import (Cleaner, Room, CleaningRecord, Floor, RoomType, Resident,
+                      CareType, CareRecord, ResidentGroup, cleaner_groups,
+                      WorkerSelfie, LegalDocument, DocumentSignature,
+                      TrainingPill, TrainingQuestion, TrainingCompletion)
+from flask import request, jsonify, render_template, redirect, url_for, flash, send_file, send_from_directory, abort
 from flask_login import login_user, logout_user, login_required, current_user
 from flask_jwt_extended import create_access_token, jwt_required
 from datetime import datetime, timedelta
@@ -11,6 +14,11 @@ import pandas as pd
 from io import BytesIO
 import time
 import click
+import base64
+import os
+import hashlib
+import json
+import random
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
@@ -1603,3 +1611,574 @@ def registros_atencion():
         care_types=CareType.query.order_by(CareType.name).all(),
         filters=filters,
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  UPLOADS — Servir fitxers
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _save_base64_photo(b64_data: str, subfolder: str, cleaner_id: int) -> str:
+    """Decodifica base64 (data URI o raw), guarda com a JPEG i retorna el path relatiu."""
+    if ',' in b64_data:
+        b64_data = b64_data.split(',', 1)[1]
+    img_bytes = base64.b64decode(b64_data)
+    # Validar magic bytes JPEG/PNG
+    if img_bytes[:2] not in (b'\xff\xd8', b'\x89P'):
+        raise ValueError('Format d\'imatge no vàlid')
+    ts = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+    filename = f'{cleaner_id}_{ts}.jpg'
+    folder = os.path.join(app.config['UPLOAD_FOLDER'], subfolder)
+    os.makedirs(folder, exist_ok=True)
+    filepath = os.path.join(folder, filename)
+    with open(filepath, 'wb') as f:
+        f.write(img_bytes)
+    return f'{subfolder}/{filename}'
+
+
+@app.route('/uploads/<path:filename>')
+@login_required
+def serve_upload(filename: str):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+
+@app.route('/api/uploads/<path:filename>')
+@jwt_required()
+def api_serve_upload(filename: str):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  IDENTITAT — Selfie d'alta
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/worker/identity-status')
+@jwt_required()
+def worker_identity_status():
+    worker_id = request.args.get('worker_id', type=int)
+    if not worker_id:
+        return jsonify({'error': 'worker_id requerido'}), 400
+    cleaner = db.session.get(Cleaner, worker_id)
+    if not cleaner:
+        return jsonify({'error': 'Trabajador no encontrado'}), 404
+    return jsonify({'verified': cleaner.identity_verified})
+
+
+@app.route('/api/worker/enroll-selfie', methods=['POST'])
+@jwt_required()
+def enroll_selfie():
+    data = request.json or {}
+    worker_id = data.get('worker_id')
+    photo = data.get('photo')
+    if not worker_id or not photo:
+        return jsonify({'error': 'worker_id y photo requeridos'}), 400
+    cleaner = db.session.get(Cleaner, int(worker_id))
+    if not cleaner:
+        return jsonify({'error': 'Trabajador no encontrado'}), 404
+    try:
+        path = _save_base64_photo(photo, 'selfies', cleaner.id)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    selfie = WorkerSelfie(
+        cleaner_id=cleaner.id, photo_path=path,
+        is_reference=True, purpose='enrollment',
+    )
+    db.session.add(selfie)
+    cleaner.identity_verified = True
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/worker/verify-selfie', methods=['POST'])
+@jwt_required()
+def verify_selfie():
+    """Guarda una selfie de verificació (per signatura o formació)."""
+    data = request.json or {}
+    worker_id = data.get('worker_id')
+    photo = data.get('photo')
+    purpose = data.get('purpose', 'verification')
+    if not worker_id or not photo:
+        return jsonify({'error': 'worker_id y photo requeridos'}), 400
+    cleaner = db.session.get(Cleaner, int(worker_id))
+    if not cleaner:
+        return jsonify({'error': 'Trabajador no encontrado'}), 404
+    try:
+        subfolder = 'signing_selfies' if purpose == 'signing' else 'selfies'
+        path = _save_base64_photo(photo, subfolder, cleaner.id)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    selfie = WorkerSelfie(
+        cleaner_id=cleaner.id, photo_path=path,
+        is_reference=False, purpose=purpose,
+    )
+    db.session.add(selfie)
+    db.session.commit()
+    return jsonify({'ok': True, 'path': path})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  DOCUMENTS LEGALS — Admin
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/admin/documents')
+@login_required
+def admin_documents():
+    docs = LegalDocument.query.order_by(LegalDocument.created_at.desc()).all()
+    workers = Cleaner.query.filter_by(active=True).order_by(Cleaner.name).all()
+    return render_template('admin_documents.html', documents=docs, workers=workers)
+
+
+@app.route('/admin/documents/create', methods=['POST'])
+@login_required
+def create_document():
+    title = request.form.get('title', '').strip()
+    content = request.form.get('content', '').strip()
+    doc_type = request.form.get('doc_type', '').strip()
+    if not title or not content:
+        flash('El título y el contenido son obligatorios.', 'error')
+        return redirect(url_for('admin_documents'))
+    doc = LegalDocument(
+        title=title, content=content, doc_type=doc_type or None,
+        created_by=current_user.id,
+    )
+    db.session.add(doc)
+    db.session.commit()
+    flash('Documento creado correctamente.', 'success')
+    return redirect(url_for('admin_documents'))
+
+
+@app.route('/admin/documents/<int:doc_id>/edit', methods=['POST'])
+@login_required
+def edit_document(doc_id: int):
+    doc = db.session.get(LegalDocument, doc_id)
+    if not doc:
+        abort(404)
+    if doc.signatures:
+        flash('No se puede editar un documento que ya tiene firmas.', 'error')
+        return redirect(url_for('admin_documents'))
+    doc.title = request.form.get('title', '').strip() or doc.title
+    doc.content = request.form.get('content', '').strip() or doc.content
+    doc.doc_type = request.form.get('doc_type', '').strip() or doc.doc_type
+    db.session.commit()
+    flash('Documento actualizado.', 'success')
+    return redirect(url_for('admin_documents'))
+
+
+@app.route('/admin/documents/<int:doc_id>/delete', methods=['POST'])
+@login_required
+def delete_document(doc_id: int):
+    doc = db.session.get(LegalDocument, doc_id)
+    if not doc:
+        abort(404)
+    if doc.signatures:
+        flash('No se puede eliminar un documento que ya tiene firmas.', 'error')
+        return redirect(url_for('admin_documents'))
+    db.session.delete(doc)
+    db.session.commit()
+    flash('Documento eliminado.', 'success')
+    return redirect(url_for('admin_documents'))
+
+
+@app.route('/admin/documents/<int:doc_id>/toggle', methods=['POST'])
+@login_required
+def toggle_document(doc_id: int):
+    doc = db.session.get(LegalDocument, doc_id)
+    if not doc:
+        abort(404)
+    doc.active = not doc.active
+    db.session.commit()
+    flash(f'Documento {"activado" if doc.active else "desactivado"}.', 'success')
+    return redirect(url_for('admin_documents'))
+
+
+@app.route('/admin/documents/<int:doc_id>/signatures')
+@login_required
+def document_signatures(doc_id: int):
+    doc = db.session.get(LegalDocument, doc_id)
+    if not doc:
+        abort(404)
+    sigs = DocumentSignature.query.filter_by(document_id=doc_id)\
+        .options(joinedload(DocumentSignature.cleaner))\
+        .order_by(DocumentSignature.signed_at.desc()).all()
+    workers = Cleaner.query.filter_by(active=True).order_by(Cleaner.name).all()
+    signed_ids = {s.cleaner_id for s in sigs}
+    unsigned = [w for w in workers if w.id not in signed_ids]
+    return render_template('admin_document_signatures.html',
+                           document=doc, signatures=sigs, unsigned=unsigned)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  DOCUMENTS LEGALS — Worker API
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/worker/pending-documents')
+@jwt_required()
+def pending_documents():
+    worker_id = request.args.get('worker_id', type=int)
+    if not worker_id:
+        return jsonify({'error': 'worker_id requerido'}), 400
+    signed = db.session.query(DocumentSignature.document_id)\
+        .filter_by(cleaner_id=worker_id).subquery()
+    docs = LegalDocument.query.filter_by(active=True)\
+        .filter(~LegalDocument.id.in_(signed))\
+        .order_by(LegalDocument.created_at).all()
+    return jsonify([{
+        'id': d.id, 'title': d.title, 'doc_type': d.doc_type or '',
+    } for d in docs])
+
+
+@app.route('/api/worker/document/<int:doc_id>')
+@jwt_required()
+def get_document(doc_id: int):
+    doc = db.session.get(LegalDocument, doc_id)
+    if not doc:
+        return jsonify({'error': 'Documento no encontrado'}), 404
+    return jsonify({
+        'id': doc.id, 'title': doc.title, 'content': doc.content,
+        'doc_type': doc.doc_type or '',
+    })
+
+
+@app.route('/api/worker/document/<int:doc_id>/sign', methods=['POST'])
+@jwt_required()
+def sign_document(doc_id: int):
+    data = request.json or {}
+    worker_id = data.get('worker_id')
+    photo = data.get('photo')
+    if not worker_id:
+        return jsonify({'error': 'worker_id requerido'}), 400
+    doc = db.session.get(LegalDocument, doc_id)
+    if not doc:
+        return jsonify({'error': 'Documento no encontrado'}), 404
+    existing = DocumentSignature.query.filter_by(
+        document_id=doc_id, cleaner_id=worker_id).first()
+    if existing:
+        return jsonify({'error': 'Ya has firmado este documento'}), 400
+    selfie_path = None
+    if photo:
+        try:
+            selfie_path = _save_base64_photo(photo, 'signing_selfies', int(worker_id))
+        except ValueError:
+            pass
+    content_hash = hashlib.sha256(doc.content.encode()).hexdigest()
+    sig = DocumentSignature(
+        document_id=doc_id, cleaner_id=int(worker_id),
+        ip_address=request.remote_addr,
+        user_agent=request.headers.get('User-Agent', '')[:500],
+        selfie_path=selfie_path, content_hash=content_hash,
+    )
+    db.session.add(sig)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  PÍNDOLES FORMATIVES — Admin
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/admin/training')
+@login_required
+def admin_training():
+    pills = TrainingPill.query.order_by(TrainingPill.created_at.desc()).all()
+    total_workers = Cleaner.query.filter_by(active=True, is_admin=False).count()
+    pills_json = {p.id: {
+        'title': p.title, 'description': p.description or '',
+        'video_url': p.video_url or '',
+        'video_duration_seconds': p.video_duration_seconds or '',
+        'pass_threshold': p.pass_threshold,
+        'questions': [{
+            'question_text': q.question_text,
+            'option_a': q.option_a, 'option_b': q.option_b,
+            'option_c': q.option_c, 'option_d': q.option_d,
+            'correct_option': q.correct_option,
+        } for q in p.questions],
+    } for p in pills}
+    return render_template('admin_training.html', pills=pills,
+                           total_workers=total_workers, pills_json=pills_json)
+
+
+@app.route('/admin/training/create', methods=['POST'])
+@login_required
+def create_training():
+    title = request.form.get('title', '').strip()
+    description = request.form.get('description', '').strip()
+    video_url = request.form.get('video_url', '').strip()
+    duration = request.form.get('video_duration_seconds', type=int) or None
+    threshold = request.form.get('pass_threshold', 80, type=int)
+    if not title:
+        flash('El título es obligatorio.', 'error')
+        return redirect(url_for('admin_training'))
+    pill = TrainingPill(
+        title=title, description=description or None,
+        video_url=video_url or None, video_duration_seconds=duration,
+        pass_threshold=threshold, created_by=current_user.id,
+    )
+    db.session.add(pill)
+    db.session.flush()
+    # Preguntes
+    idx = 0
+    while request.form.get(f'q_{idx}_text'):
+        q = TrainingQuestion(
+            pill_id=pill.id,
+            question_text=request.form[f'q_{idx}_text'].strip(),
+            option_a=request.form.get(f'q_{idx}_a', '').strip(),
+            option_b=request.form.get(f'q_{idx}_b', '').strip(),
+            option_c=request.form.get(f'q_{idx}_c', '').strip(),
+            option_d=request.form.get(f'q_{idx}_d', '').strip(),
+            correct_option=request.form.get(f'q_{idx}_correct', 'a').strip(),
+            sort_order=idx,
+        )
+        db.session.add(q)
+        idx += 1
+    db.session.commit()
+    flash('Píldora formativa creada.', 'success')
+    return redirect(url_for('admin_training'))
+
+
+@app.route('/admin/training/<int:pill_id>/edit', methods=['POST'])
+@login_required
+def edit_training(pill_id: int):
+    pill = db.session.get(TrainingPill, pill_id)
+    if not pill:
+        abort(404)
+    pill.title = request.form.get('title', '').strip() or pill.title
+    pill.description = request.form.get('description', '').strip() or None
+    pill.video_url = request.form.get('video_url', '').strip() or None
+    pill.video_duration_seconds = request.form.get('video_duration_seconds', type=int) or None
+    pill.pass_threshold = request.form.get('pass_threshold', 80, type=int)
+    # Reemplaçar preguntes
+    TrainingQuestion.query.filter_by(pill_id=pill.id).delete()
+    idx = 0
+    while request.form.get(f'q_{idx}_text'):
+        q = TrainingQuestion(
+            pill_id=pill.id,
+            question_text=request.form[f'q_{idx}_text'].strip(),
+            option_a=request.form.get(f'q_{idx}_a', '').strip(),
+            option_b=request.form.get(f'q_{idx}_b', '').strip(),
+            option_c=request.form.get(f'q_{idx}_c', '').strip(),
+            option_d=request.form.get(f'q_{idx}_d', '').strip(),
+            correct_option=request.form.get(f'q_{idx}_correct', 'a').strip(),
+            sort_order=idx,
+        )
+        db.session.add(q)
+        idx += 1
+    db.session.commit()
+    flash('Píldora formativa actualizada.', 'success')
+    return redirect(url_for('admin_training'))
+
+
+@app.route('/admin/training/<int:pill_id>/delete', methods=['POST'])
+@login_required
+def delete_training(pill_id: int):
+    pill = db.session.get(TrainingPill, pill_id)
+    if not pill:
+        abort(404)
+    TrainingCompletion.query.filter_by(pill_id=pill.id).delete()
+    TrainingQuestion.query.filter_by(pill_id=pill.id).delete()
+    db.session.delete(pill)
+    db.session.commit()
+    flash('Píldora formativa eliminada.', 'success')
+    return redirect(url_for('admin_training'))
+
+
+@app.route('/admin/training/<int:pill_id>/toggle', methods=['POST'])
+@login_required
+def toggle_training(pill_id: int):
+    pill = db.session.get(TrainingPill, pill_id)
+    if not pill:
+        abort(404)
+    pill.active = not pill.active
+    db.session.commit()
+    flash(f'Píldora {"activada" if pill.active else "desactivada"}.', 'success')
+    return redirect(url_for('admin_training'))
+
+
+@app.route('/admin/training/<int:pill_id>/results')
+@login_required
+def training_results(pill_id: int):
+    pill = db.session.get(TrainingPill, pill_id)
+    if not pill:
+        abort(404)
+    completions = TrainingCompletion.query.filter_by(pill_id=pill_id)\
+        .options(joinedload(TrainingCompletion.cleaner))\
+        .order_by(TrainingCompletion.completed_at.desc()).all()
+    workers = Cleaner.query.filter_by(active=True, is_admin=False).order_by(Cleaner.name).all()
+    completed_ids = {c.cleaner_id for c in completions if c.passed}
+    pending = [w for w in workers if w.id not in completed_ids]
+    return render_template('admin_training_results.html',
+                           pill=pill, completions=completions, pending=pending)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  PÍNDOLES FORMATIVES — Worker API
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/worker/pending-training')
+@jwt_required()
+def pending_training():
+    worker_id = request.args.get('worker_id', type=int)
+    if not worker_id:
+        return jsonify({'error': 'worker_id requerido'}), 400
+    passed = db.session.query(TrainingCompletion.pill_id)\
+        .filter_by(cleaner_id=worker_id, passed=True).subquery()
+    pills = TrainingPill.query.filter_by(active=True)\
+        .filter(~TrainingPill.id.in_(passed))\
+        .order_by(TrainingPill.created_at).all()
+    return jsonify([{
+        'id': p.id, 'title': p.title,
+        'description': p.description or '',
+        'question_count': len(p.questions),
+    } for p in pills])
+
+
+@app.route('/api/worker/training/<int:pill_id>')
+@jwt_required()
+def get_training(pill_id: int):
+    pill = db.session.get(TrainingPill, pill_id)
+    if not pill:
+        return jsonify({'error': 'Píldora no encontrada'}), 404
+    return jsonify({
+        'id': pill.id, 'title': pill.title,
+        'description': pill.description or '',
+        'video_url': pill.video_url or '',
+        'video_duration_seconds': pill.video_duration_seconds or 60,
+        'pass_threshold': pill.pass_threshold,
+        'question_count': len(pill.questions),
+    })
+
+
+@app.route('/api/worker/training/<int:pill_id>/start', methods=['POST'])
+@jwt_required()
+def start_training(pill_id: int):
+    data = request.json or {}
+    worker_id = data.get('worker_id')
+    photo = data.get('photo')
+    if not worker_id:
+        return jsonify({'error': 'worker_id requerido'}), 400
+    pill = db.session.get(TrainingPill, pill_id)
+    if not pill:
+        return jsonify({'error': 'Píldora no encontrada'}), 404
+    # Guardar selfie si la hi ha
+    if photo:
+        try:
+            _save_base64_photo(photo, 'selfies', int(worker_id))
+        except ValueError:
+            pass
+    # Crear o reaprofitar completions anteriors no aprovades
+    completion = TrainingCompletion.query.filter_by(
+        pill_id=pill_id, cleaner_id=int(worker_id), passed=False,
+    ).first()
+    if not completion:
+        completion = TrainingCompletion(
+            pill_id=pill_id, cleaner_id=int(worker_id),
+        )
+        db.session.add(completion)
+    else:
+        completion.started_at = datetime.utcnow()
+        completion.video_watched = False
+        completion.completed_at = None
+        completion.score = None
+        completion.passed = None
+    db.session.commit()
+    return jsonify({'ok': True, 'completion_id': completion.id})
+
+
+@app.route('/api/worker/training/<int:pill_id>/video-complete', methods=['POST'])
+@jwt_required()
+def training_video_complete(pill_id: int):
+    data = request.json or {}
+    worker_id = data.get('worker_id')
+    if not worker_id:
+        return jsonify({'error': 'worker_id requerido'}), 400
+    completion = TrainingCompletion.query.filter_by(
+        pill_id=pill_id, cleaner_id=int(worker_id),
+    ).order_by(TrainingCompletion.started_at.desc()).first()
+    if not completion:
+        return jsonify({'error': 'No hay sesión activa'}), 400
+    # Anti-trampa: mínim 50% de la durada del vídeo
+    pill = db.session.get(TrainingPill, pill_id)
+    min_secs = (pill.video_duration_seconds or 60) * 0.5
+    elapsed = (datetime.utcnow() - completion.started_at).total_seconds()
+    if elapsed < min_secs:
+        return jsonify({'error': 'Debes ver el vídeo completo', 'wait': int(min_secs - elapsed)}), 400
+    completion.video_watched = True
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/worker/training/<int:pill_id>/questions')
+@jwt_required()
+def training_questions(pill_id: int):
+    worker_id = request.args.get('worker_id', type=int)
+    if not worker_id:
+        return jsonify({'error': 'worker_id requerido'}), 400
+    pill = db.session.get(TrainingPill, pill_id)
+    if not pill:
+        return jsonify({'error': 'Píldora no encontrada'}), 404
+    completion = TrainingCompletion.query.filter_by(
+        pill_id=pill_id, cleaner_id=worker_id,
+    ).order_by(TrainingCompletion.started_at.desc()).first()
+    if not completion or not completion.video_watched:
+        return jsonify({'error': 'Primero debes ver el vídeo'}), 400
+    # Barrejar preguntes i opcions
+    questions = list(pill.questions)
+    random.shuffle(questions)
+    shuffle_map = {}  # {shuffled_q_index: {question_id, option_map: {a: orig, b: orig...}}}
+    result = []
+    for i, q in enumerate(questions):
+        options = [('a', q.option_a), ('b', q.option_b), ('c', q.option_c), ('d', q.option_d)]
+        random.shuffle(options)
+        option_map = {}
+        shuffled_options = {}
+        for new_key, (orig_key, text) in zip(['a', 'b', 'c', 'd'], options):
+            option_map[new_key] = orig_key
+            shuffled_options[new_key] = text
+        shuffle_map[str(i)] = {'question_id': q.id, 'option_map': option_map}
+        result.append({
+            'index': i,
+            'question': q.question_text,
+            'options': shuffled_options,
+        })
+    completion.shuffle_map = json.dumps(shuffle_map)
+    db.session.commit()
+    return jsonify(result)
+
+
+@app.route('/api/worker/training/<int:pill_id>/submit', methods=['POST'])
+@jwt_required()
+def submit_training(pill_id: int):
+    data = request.json or {}
+    worker_id = data.get('worker_id')
+    answers = data.get('answers', {})  # {"0": "a", "1": "c", ...}
+    if not worker_id:
+        return jsonify({'error': 'worker_id requerido'}), 400
+    completion = TrainingCompletion.query.filter_by(
+        pill_id=pill_id, cleaner_id=int(worker_id),
+    ).order_by(TrainingCompletion.started_at.desc()).first()
+    if not completion or not completion.video_watched:
+        return jsonify({'error': 'Sesión no válida'}), 400
+    if not completion.shuffle_map:
+        return jsonify({'error': 'Preguntas no cargadas'}), 400
+    smap = json.loads(completion.shuffle_map)
+    correct = 0
+    total = len(smap)
+    for q_idx, mapping in smap.items():
+        q = db.session.get(TrainingQuestion, mapping['question_id'])
+        user_answer = answers.get(q_idx)
+        if user_answer and mapping['option_map'].get(user_answer) == q.correct_option:
+            correct += 1
+    score = int(correct / total * 100) if total else 0
+    pill = db.session.get(TrainingPill, pill_id)
+    completion.score = score
+    completion.passed = score >= pill.pass_threshold
+    completion.completed_at = datetime.utcnow()
+    completion.answers_json = json.dumps(answers)
+    completion.time_spent_seconds = int(
+        (completion.completed_at - completion.started_at).total_seconds())
+    db.session.commit()
+    return jsonify({
+        'score': score,
+        'passed': completion.passed,
+        'correct': correct,
+        'total': total,
+        'threshold': pill.pass_threshold,
+    })

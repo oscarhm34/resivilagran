@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Firmas — {{ document.title }}{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+    <a href="{{ url_for('admin_documents') }}" class="btn btn-outline-secondary btn-sm">← Documentos</a>
+</div>
+<h2 style="font-family:'Outfit',system-ui,sans-serif;font-weight:700;font-size:22px;margin:0 0 4px">
+    {{ document.title }}
+</h2>
+<p class="text-body-secondary mb-4">
+    {{ signatures|length }} firmado{{ 's' if signatures|length != 1 else '' }}
+    · {{ unsigned|length }} pendiente{{ 's' if unsigned|length != 1 else '' }}
+</p>
+
+{% if signatures %}
+<h5 style="font-weight:600;font-size:15px" class="mb-2">Firmado</h5>
+<div class="table-responsive mb-4">
+    <table class="table align-middle">
+        <thead>
+            <tr>
+                <th>Trabajador</th>
+                <th>Fecha</th>
+                <th>IP</th>
+                <th>Selfie</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sig in signatures %}
+            <tr>
+                <td style="font-weight:600">{{ sig.cleaner.name }}</td>
+                <td>{{ sig.signed_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td class="text-body-secondary" style="font-size:.85rem">{{ sig.ip_address or '—' }}</td>
+                <td>
+                    {% if sig.selfie_path %}
+                    <a href="{{ url_for('serve_upload', filename=sig.selfie_path) }}" target="_blank">
+                        <img src="{{ url_for('serve_upload', filename=sig.selfie_path) }}"
+                             alt="Selfie" style="width:48px;height:48px;object-fit:cover;border-radius:8px">
+                    </a>
+                    {% else %}
+                    <span class="text-body-secondary">—</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% if unsigned %}
+<h5 style="font-weight:600;font-size:15px" class="mb-2">Pendiente de firma</h5>
+<div class="table-responsive">
+    <table class="table align-middle">
+        <tbody>
+            {% for w in unsigned %}
+            <tr>
+                <td>{{ w.name }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}

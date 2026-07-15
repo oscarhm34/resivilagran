@@ -205,6 +205,39 @@
         .sel-empty { color:var(--text-2); font-size:13px; text-align:center; padding:30px 0; }
         .sel-nfc-bar { border-top:1px solid var(--border); padding-top:16px; margin-top:12px; text-align:center; flex-shrink:0; }
 
+        /* ── Selfie / Camera ── */
+        #screen-selfie-enroll { align-items:center; justify-content:center; gap:18px; text-align:center; }
+        .cam-wrap { position:relative; width:220px; height:220px; border-radius:50%; overflow:hidden; border:4px solid var(--blue); }
+        .cam-wrap video, .cam-wrap img { width:100%; height:100%; object-fit:cover; }
+        .cam-preview { display:none; }
+        .cam-actions { display:flex; gap:10px; }
+        .btn-cam { padding:12px 24px; border-radius:14px; border:none; font-size:15px; font-weight:600; cursor:pointer; font-family:inherit; }
+        .btn-cam.primary { background:var(--blue); color:#fff; }
+        .btn-cam.secondary { background:var(--bg); color:var(--text); border:1.5px solid var(--border); }
+
+        /* ── Pending badges ── */
+        .pending-section { display:flex; flex-direction:column; gap:8px; margin-bottom:20px; }
+        .pending-card { display:flex; align-items:center; gap:12px; padding:14px 16px; border-radius:14px; background:var(--bg); cursor:pointer; border:none; width:100%; text-align:left; font-family:inherit; transition:background .15s; }
+        .pending-card:hover { background:#e8ecf0; }
+        .pending-icon { width:40px; height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+        .pending-icon.docs { background:#fff3e0; }
+        .pending-icon.training { background:#e8f5e9; }
+        .pending-info { flex:1; }
+        .pending-title { font-weight:600; font-size:14px; }
+        .pending-sub { font-size:12px; color:var(--text-2); margin-top:1px; }
+        .pending-badge { background:var(--danger); color:#fff; border-radius:20px; padding:2px 10px; font-size:12px; font-weight:700; flex-shrink:0; }
+
+        /* ── Document viewer ── */
+        .doc-content { flex:1; overflow-y:auto; background:#fff; border:1px solid var(--border); border-radius:12px; padding:16px; font-size:14px; line-height:1.6; margin:12px 0; }
+
+        /* ── Training quiz ── */
+        .quiz-q { font-weight:600; font-size:15px; margin-bottom:12px; }
+        .quiz-opt { display:block; padding:12px 14px; border:1.5px solid var(--border); border-radius:12px; margin-bottom:8px; cursor:pointer; transition:border-color .15s,background .15s; }
+        .quiz-opt:hover { background:var(--bg); }
+        .quiz-opt input { margin-right:10px; }
+        .quiz-opt.selected { border-color:var(--blue); background:var(--blue-lt); }
+        .quiz-progress { font-size:12px; color:var(--text-2); text-align:center; margin-bottom:8px; }
+
         /* ── Shared ── */
         .spacer { flex:1; }
         .toast { position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(80px); background:#1f2328; color:#fff; padding:13px 22px; border-radius:14px; font-size:14px; font-weight:500; z-index:9999; transition:transform .3s cubic-bezier(.34,1.56,.64,1); white-space:nowrap; box-shadow:0 10px 30px rgba(0,0,0,.25); pointer-events:none; }
@@ -249,6 +282,27 @@
         <div id="active-sessions" style="display:none">
             <div class="section-label" id="active-label">En curso</div>
             <div id="active-list"></div>
+        </div>
+
+        <!-- Pendientes -->
+        <div class="pending-section" id="pending-section" style="display:none">
+            <div class="section-label">Pendiente</div>
+            <button class="pending-card" id="pending-docs-card" style="display:none" onclick="showDocsList()">
+                <div class="pending-icon docs">📄</div>
+                <div class="pending-info">
+                    <div class="pending-title">Documentos por firmar</div>
+                    <div class="pending-sub" id="pending-docs-sub">—</div>
+                </div>
+                <span class="pending-badge" id="pending-docs-count">0</span>
+            </button>
+            <button class="pending-card" id="pending-train-card" style="display:none" onclick="showTrainList()">
+                <div class="pending-icon training">🎓</div>
+                <div class="pending-info">
+                    <div class="pending-title">Formaciones pendientes</div>
+                    <div class="pending-sub" id="pending-train-sub">—</div>
+                </div>
+                <span class="pending-badge" id="pending-train-count">0</span>
+            </button>
         </div>
 
         <!-- Selector de modo -->
@@ -362,6 +416,117 @@
         <div class="result-bar-wrap"><div class="result-bar cleaning" id="result-bar"></div></div>
         <p class="result-hint" id="result-hint">Volviendo al inicio…</p>
         <button class="ct-cancel" id="result-back" style="margin-top:8px">← Volver ya</button>
+    </div>
+
+    <!-- ══ SELFIE ENROLLMENT ══ -->
+    <div id="screen-selfie-enroll" class="screen">
+        <div class="spacer"></div>
+        <h3 style="font-family:'Outfit',system-ui,sans-serif;font-weight:700;font-size:20px">Verificación de identidad</h3>
+        <p style="font-size:13px;color:var(--text-2);max-width:280px">
+            Para poder firmar documentos y realizar formaciones, necesitamos una foto tuya.
+            Se usará como evidencia de identidad.
+        </p>
+        <div class="cam-wrap" id="selfie-cam-wrap">
+            <video id="selfie-video" autoplay playsinline muted></video>
+            <img id="selfie-preview" class="cam-preview" alt="Preview">
+        </div>
+        <div class="cam-actions" id="selfie-actions">
+            <button class="btn-cam primary" id="selfie-capture">Hacer foto</button>
+        </div>
+        <div class="cam-actions" id="selfie-confirm" style="display:none">
+            <button class="btn-cam secondary" id="selfie-retake">Repetir</button>
+            <button class="btn-cam primary" id="selfie-save">Confirmar</button>
+        </div>
+        <canvas id="selfie-canvas" style="display:none"></canvas>
+        <div class="spacer"></div>
+    </div>
+
+    <!-- ══ DOCUMENTS LIST ══ -->
+    <div id="screen-documents-list" class="screen">
+        <div class="scan-header">
+            <button class="btn-back" id="docs-back" aria-label="Volver">←</button>
+            <span class="mode-badge" style="background:#fff3e0;color:#e65100">📄 Documentos pendientes</span>
+        </div>
+        <div id="docs-list" style="margin-top:12px;flex:1;overflow-y:auto"></div>
+    </div>
+
+    <!-- ══ DOCUMENT VIEWER ══ -->
+    <div id="screen-document-view" class="screen">
+        <div class="scan-header">
+            <button class="btn-back" id="docview-back" aria-label="Volver">←</button>
+            <span style="font-weight:600;font-size:14px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="docview-title">—</span>
+        </div>
+        <div class="doc-content" id="docview-content"></div>
+        <button class="btn-cam primary" id="docview-sign" style="width:100%;margin-top:8px">Firmar este documento</button>
+    </div>
+
+    <!-- ══ SIGNING CAMERA ══ -->
+    <div id="screen-sign-camera" class="screen" style="align-items:center;justify-content:center;gap:18px;text-align:center">
+        <h3 style="font-family:'Outfit',system-ui,sans-serif;font-weight:700;font-size:18px">Verificación para firmar</h3>
+        <p style="font-size:13px;color:var(--text-2);max-width:260px">Hazte una foto para confirmar tu identidad al firmar.</p>
+        <div class="cam-wrap" id="sign-cam-wrap">
+            <video id="sign-video" autoplay playsinline muted></video>
+            <img id="sign-preview" class="cam-preview" alt="Preview">
+        </div>
+        <div class="cam-actions" id="sign-actions">
+            <button class="btn-cam primary" id="sign-capture">Hacer foto</button>
+        </div>
+        <div class="cam-actions" id="sign-confirm" style="display:none">
+            <button class="btn-cam secondary" id="sign-retake">Repetir</button>
+            <button class="btn-cam primary" id="sign-submit">Firmar</button>
+        </div>
+        <button class="btn-cam secondary" id="sign-cancel" style="margin-top:4px">Cancelar</button>
+        <canvas id="sign-canvas" style="display:none"></canvas>
+    </div>
+
+    <!-- ══ TRAINING LIST ══ -->
+    <div id="screen-training-list" class="screen">
+        <div class="scan-header">
+            <button class="btn-back" id="train-back" aria-label="Volver">←</button>
+            <span class="mode-badge" style="background:#e8f5e9;color:#2e7d32">🎓 Formaciones pendientes</span>
+        </div>
+        <div id="train-list" style="margin-top:12px;flex:1;overflow-y:auto"></div>
+    </div>
+
+    <!-- ══ TRAINING VIDEO ══ -->
+    <div id="screen-training-video" class="screen">
+        <div class="scan-header">
+            <button class="btn-back" id="trainvid-back" aria-label="Volver">←</button>
+            <span style="font-weight:600;font-size:14px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="trainvid-title">—</span>
+        </div>
+        <p style="font-size:13px;color:var(--text-2);margin:8px 0" id="trainvid-desc"></p>
+        <div style="flex:1;display:flex;flex-direction:column;gap:12px">
+            <div style="position:relative;width:100%;padding-bottom:56.25%;border-radius:12px;overflow:hidden;background:#000">
+                <iframe id="trainvid-iframe" style="position:absolute;top:0;left:0;width:100%;height:100%;border:none"
+                        allowfullscreen></iframe>
+            </div>
+            <div style="text-align:center">
+                <div style="font-size:12px;color:var(--text-2);margin-bottom:8px" id="trainvid-timer">Mira el vídeo antes de continuar</div>
+                <button class="btn-cam primary" id="trainvid-continue" disabled style="opacity:.5">He visto el vídeo</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══ TRAINING QUIZ ══ -->
+    <div id="screen-training-quiz" class="screen">
+        <div class="scan-header">
+            <button class="btn-back" id="quiz-back" aria-label="Volver">←</button>
+            <span style="font-weight:600;font-size:14px" id="quiz-title">Test</span>
+        </div>
+        <div class="quiz-progress" id="quiz-progress">Pregunta 1 de 5</div>
+        <div id="quiz-container" style="flex:1;overflow-y:auto"></div>
+        <button class="btn-cam primary" id="quiz-next" style="width:100%;margin-top:8px">Siguiente</button>
+    </div>
+
+    <!-- ══ TRAINING RESULT ══ -->
+    <div id="screen-training-result" class="screen" style="align-items:center;justify-content:center;gap:16px">
+        <div class="spacer"></div>
+        <div id="train-result-icon" style="width:90px;height:90px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:46px;animation:pop .4s cubic-bezier(.34,1.56,.64,1)"></div>
+        <div id="train-result-title" style="font-family:'Outfit',system-ui,sans-serif;font-size:24px;font-weight:700;text-align:center"></div>
+        <div id="train-result-score" style="font-size:48px;font-weight:800;font-family:'Outfit',monospace;letter-spacing:-2px"></div>
+        <div id="train-result-detail" style="font-size:14px;color:var(--text-2);text-align:center"></div>
+        <div class="spacer"></div>
+        <button class="btn-cam secondary" id="train-result-back" style="width:100%">Volver</button>
     </div>
 
     <dialog id="cancel-dialog" style="border-radius:18px;border:none;padding:0;max-width:320px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.3);background:var(--surface)">
@@ -495,7 +660,7 @@ $('btn-logout').addEventListener('click', doLogout);
 async function initHome() {
     $('home-name').textContent = S.workerName || '—';
     show('screen-home');
-    await Promise.all([loadActiveSessions(), loadHistory(), loadCareTypes(), loadMyGroups()]);
+    await Promise.all([loadActiveSessions(), loadHistory(), loadCareTypes(), loadMyGroups(), loadPendingItems()]);
     startGlobalTimer();
 }
 
@@ -986,9 +1151,404 @@ $('result-back').addEventListener('click', async () => {
     if (S.sessions.length) startGlobalTimer();
 });
 
+// ══════════════════════════════════════════════════════════════════════════
+//  CAMERA UTILS
+// ══════════════════════════════════════════════════════════════════════════
+
+async function startCamera(videoEl) {
+    const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 } },
+        audio: false,
+    });
+    videoEl.srcObject = stream;
+    await videoEl.play();
+    return stream;
+}
+
+function stopCamera(videoEl) {
+    if (videoEl.srcObject) {
+        videoEl.srcObject.getTracks().forEach(t => t.stop());
+        videoEl.srcObject = null;
+    }
+}
+
+function capturePhoto(videoEl, canvasEl) {
+    canvasEl.width = videoEl.videoWidth;
+    canvasEl.height = videoEl.videoHeight;
+    canvasEl.getContext('2d').drawImage(videoEl, 0, 0);
+    return canvasEl.toDataURL('image/jpeg', 0.85);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  SELFIE ENROLLMENT
+// ══════════════════════════════════════════════════════════════════════════
+
+let enrollStream = null;
+let enrollPhoto = null;
+
+async function showSelfieEnroll() {
+    show('screen-selfie-enroll');
+    $('selfie-preview').style.display = 'none';
+    $('selfie-video').style.display = '';
+    $('selfie-actions').style.display = '';
+    $('selfie-confirm').style.display = 'none';
+    try { enrollStream = await startCamera($('selfie-video')); }
+    catch { toast('No se pudo acceder a la cámara'); show('screen-home'); }
+}
+
+$('selfie-capture').addEventListener('click', () => {
+    enrollPhoto = capturePhoto($('selfie-video'), $('selfie-canvas'));
+    $('selfie-preview').src = enrollPhoto;
+    $('selfie-preview').style.display = '';
+    $('selfie-video').style.display = 'none';
+    $('selfie-actions').style.display = 'none';
+    $('selfie-confirm').style.display = '';
+});
+
+$('selfie-retake').addEventListener('click', () => {
+    $('selfie-preview').style.display = 'none';
+    $('selfie-video').style.display = '';
+    $('selfie-actions').style.display = '';
+    $('selfie-confirm').style.display = 'none';
+});
+
+$('selfie-save').addEventListener('click', async () => {
+    $('selfie-save').disabled = true;
+    $('selfie-save').textContent = 'Guardando…';
+    const { ok } = await api('/api/worker/enroll-selfie', 'POST', {
+        worker_id: parseInt(S.workerId), photo: enrollPhoto,
+    });
+    stopCamera($('selfie-video'));
+    enrollStream = null;
+    if (ok) {
+        toast('✓ Identidad verificada');
+        await initHome();
+    } else {
+        toast('Error al guardar la foto');
+        $('selfie-save').disabled = false;
+        $('selfie-save').textContent = 'Confirmar';
+    }
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+//  PENDING ITEMS
+// ══════════════════════════════════════════════════════════════════════════
+
+let pendingDocs = [];
+let pendingTrains = [];
+
+async function loadPendingItems() {
+    const [docsRes, trainRes] = await Promise.all([
+        api(`/api/worker/pending-documents?worker_id=${S.workerId}`),
+        api(`/api/worker/pending-training?worker_id=${S.workerId}`),
+    ]);
+    pendingDocs = docsRes.ok ? docsRes.data : [];
+    pendingTrains = trainRes.ok ? trainRes.data : [];
+
+    const section = $('pending-section');
+    const docsCard = $('pending-docs-card');
+    const trainCard = $('pending-train-card');
+
+    if (pendingDocs.length) {
+        docsCard.style.display = '';
+        $('pending-docs-count').textContent = pendingDocs.length;
+        $('pending-docs-sub').textContent = pendingDocs.length + ' documento' + (pendingDocs.length > 1 ? 's' : '');
+    } else {
+        docsCard.style.display = 'none';
+    }
+
+    if (pendingTrains.length) {
+        trainCard.style.display = '';
+        $('pending-train-count').textContent = pendingTrains.length;
+        $('pending-train-sub').textContent = pendingTrains.length + ' formación' + (pendingTrains.length > 1 ? 'es' : '');
+    } else {
+        trainCard.style.display = 'none';
+    }
+
+    section.style.display = (pendingDocs.length || pendingTrains.length) ? '' : 'none';
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  DOCUMENTS
+// ══════════════════════════════════════════════════════════════════════════
+
+let currentDocId = null;
+
+function showDocsList() {
+    const list = $('docs-list');
+    if (!pendingDocs.length) {
+        list.innerHTML = '<p class="sel-empty">No hay documentos pendientes</p>';
+    } else {
+        list.innerHTML = pendingDocs.map(d => `
+            <button class="pending-card" data-doc-id="${d.id}" style="margin-bottom:8px">
+                <div class="pending-icon docs">📄</div>
+                <div class="pending-info">
+                    <div class="pending-title">${d.title}</div>
+                    <div class="pending-sub">${d.doc_type || 'Documento'}</div>
+                </div>
+                <div style="font-size:18px;color:var(--text-2)">→</div>
+            </button>`).join('');
+        list.querySelectorAll('[data-doc-id]').forEach(btn =>
+            btn.addEventListener('click', () => showDocument(parseInt(btn.dataset.docId))));
+    }
+    show('screen-documents-list');
+}
+
+async function showDocument(docId) {
+    currentDocId = docId;
+    $('docview-content').innerHTML = '<p class="sel-empty"><span class="spinner"></span></p>';
+    show('screen-document-view');
+    const { ok, data } = await api(`/api/worker/document/${docId}`);
+    if (!ok) { toast('Error al cargar el documento'); return; }
+    $('docview-title').textContent = data.title;
+    $('docview-content').innerHTML = data.content;
+}
+
+$('docs-back').addEventListener('click', () => show('screen-home'));
+$('docview-back').addEventListener('click', () => showDocsList());
+$('docview-sign').addEventListener('click', () => startSigningCamera());
+
+// ── Signing camera ──
+let signStream = null;
+let signPhoto = null;
+
+async function startSigningCamera() {
+    show('screen-sign-camera');
+    $('sign-preview').style.display = 'none';
+    $('sign-video').style.display = '';
+    $('sign-actions').style.display = '';
+    $('sign-confirm').style.display = 'none';
+    try { signStream = await startCamera($('sign-video')); }
+    catch { toast('No se pudo acceder a la cámara'); show('screen-document-view'); }
+}
+
+$('sign-capture').addEventListener('click', () => {
+    signPhoto = capturePhoto($('sign-video'), $('sign-canvas'));
+    $('sign-preview').src = signPhoto;
+    $('sign-preview').style.display = '';
+    $('sign-video').style.display = 'none';
+    $('sign-actions').style.display = 'none';
+    $('sign-confirm').style.display = '';
+});
+
+$('sign-retake').addEventListener('click', () => {
+    $('sign-preview').style.display = 'none';
+    $('sign-video').style.display = '';
+    $('sign-actions').style.display = '';
+    $('sign-confirm').style.display = 'none';
+});
+
+$('sign-cancel').addEventListener('click', () => {
+    stopCamera($('sign-video'));
+    signStream = null;
+    show('screen-document-view');
+});
+
+$('sign-submit').addEventListener('click', async () => {
+    $('sign-submit').disabled = true;
+    $('sign-submit').textContent = 'Firmando…';
+    const { ok, data } = await api(`/api/worker/document/${currentDocId}/sign`, 'POST', {
+        worker_id: parseInt(S.workerId), photo: signPhoto,
+    });
+    stopCamera($('sign-video'));
+    signStream = null;
+    if (ok) {
+        toast('✓ Documento firmado correctamente');
+        pendingDocs = pendingDocs.filter(d => d.id !== currentDocId);
+        await loadPendingItems();
+        show('screen-home');
+    } else {
+        toast(data.error || 'Error al firmar');
+        show('screen-document-view');
+    }
+    $('sign-submit').disabled = false;
+    $('sign-submit').textContent = 'Firmar';
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+//  TRAINING
+// ══════════════════════════════════════════════════════════════════════════
+
+let currentPillId = null;
+let quizQuestions = [];
+let quizAnswers = {};
+let quizIndex = 0;
+let trainVideoTimer = null;
+
+function showTrainList() {
+    const list = $('train-list');
+    if (!pendingTrains.length) {
+        list.innerHTML = '<p class="sel-empty">No hay formaciones pendientes</p>';
+    } else {
+        list.innerHTML = pendingTrains.map(p => `
+            <button class="pending-card" data-pill-id="${p.id}" style="margin-bottom:8px">
+                <div class="pending-icon training">🎓</div>
+                <div class="pending-info">
+                    <div class="pending-title">${p.title}</div>
+                    <div class="pending-sub">${p.question_count} preguntas</div>
+                </div>
+                <div style="font-size:18px;color:var(--text-2)">→</div>
+            </button>`).join('');
+        list.querySelectorAll('[data-pill-id]').forEach(btn =>
+            btn.addEventListener('click', () => startTraining(parseInt(btn.dataset.pillId))));
+    }
+    show('screen-training-list');
+}
+
+async function startTraining(pillId) {
+    currentPillId = pillId;
+    // Start session (amb selfie si es vol, per ara sense)
+    const startRes = await api(`/api/worker/training/${pillId}/start`, 'POST', {
+        worker_id: parseInt(S.workerId),
+    });
+    if (!startRes.ok) { toast(startRes.data.error || 'Error'); return; }
+    // Get pill details
+    const { ok, data } = await api(`/api/worker/training/${pillId}`);
+    if (!ok) { toast('Error al cargar la formación'); return; }
+    $('trainvid-title').textContent = data.title;
+    $('trainvid-desc').textContent = data.description || '';
+    // Convert YouTube URL to embed
+    let embedUrl = data.video_url || '';
+    const ytMatch = embedUrl.match(/(?:watch\?v=|youtu\.be\/|\/embed\/)([a-zA-Z0-9_-]{11})/);
+    if (ytMatch) embedUrl = 'https://www.youtube.com/embed/' + ytMatch[1];
+    $('trainvid-iframe').src = embedUrl;
+    // Timer: enable button after min time (50% of duration)
+    const minWait = Math.max(10, (data.video_duration_seconds || 60) * 0.5);
+    $('trainvid-continue').disabled = true;
+    $('trainvid-continue').style.opacity = '.5';
+    let remaining = Math.ceil(minWait);
+    $('trainvid-timer').textContent = `Espera ${remaining}s para continuar`;
+    clearInterval(trainVideoTimer);
+    trainVideoTimer = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) {
+            clearInterval(trainVideoTimer);
+            $('trainvid-continue').disabled = false;
+            $('trainvid-continue').style.opacity = '1';
+            $('trainvid-timer').textContent = 'Ya puedes continuar al test';
+        } else {
+            $('trainvid-timer').textContent = `Espera ${remaining}s para continuar`;
+        }
+    }, 1000);
+    show('screen-training-video');
+}
+
+$('train-back').addEventListener('click', () => show('screen-home'));
+$('trainvid-back').addEventListener('click', () => {
+    clearInterval(trainVideoTimer);
+    $('trainvid-iframe').src = '';
+    show('screen-training-list');
+});
+
+$('trainvid-continue').addEventListener('click', async () => {
+    // Mark video as complete
+    const { ok, data } = await api(`/api/worker/training/${currentPillId}/video-complete`, 'POST', {
+        worker_id: parseInt(S.workerId),
+    });
+    if (!ok) {
+        if (data.wait) {
+            toast(`Espera ${data.wait}s más`);
+        } else {
+            toast(data.error || 'Error');
+        }
+        return;
+    }
+    $('trainvid-iframe').src = '';
+    // Load questions
+    const qRes = await api(`/api/worker/training/${currentPillId}/questions?worker_id=${S.workerId}`);
+    if (!qRes.ok) { toast(qRes.data.error || 'Error al cargar preguntas'); return; }
+    quizQuestions = qRes.data;
+    quizAnswers = {};
+    quizIndex = 0;
+    renderQuizQuestion();
+    show('screen-training-quiz');
+});
+
+function renderQuizQuestion() {
+    const q = quizQuestions[quizIndex];
+    $('quiz-progress').textContent = `Pregunta ${quizIndex + 1} de ${quizQuestions.length}`;
+    $('quiz-title').textContent = 'Test';
+    const container = $('quiz-container');
+    const current = quizAnswers[String(q.index)] || '';
+    container.innerHTML = `
+        <div class="quiz-q">${q.question}</div>
+        ${Object.entries(q.options).map(([key, text]) => `
+            <label class="quiz-opt ${current === key ? 'selected' : ''}">
+                <input type="radio" name="quiz-answer" value="${key}" ${current === key ? 'checked' : ''} style="display:none">
+                <strong>${key.toUpperCase()}.</strong> ${text}
+            </label>`).join('')}`;
+    container.querySelectorAll('.quiz-opt').forEach(opt => {
+        opt.addEventListener('click', () => {
+            container.querySelectorAll('.quiz-opt').forEach(o => o.classList.remove('selected'));
+            opt.classList.add('selected');
+            const val = opt.querySelector('input').value;
+            quizAnswers[String(q.index)] = val;
+        });
+    });
+    const isLast = quizIndex === quizQuestions.length - 1;
+    $('quiz-next').textContent = isLast ? 'Enviar respuestas' : 'Siguiente';
+}
+
+$('quiz-next').addEventListener('click', async () => {
+    const q = quizQuestions[quizIndex];
+    if (!quizAnswers[String(q.index)]) {
+        toast('Selecciona una respuesta');
+        return;
+    }
+    if (quizIndex < quizQuestions.length - 1) {
+        quizIndex++;
+        renderQuizQuestion();
+    } else {
+        // Submit
+        $('quiz-next').disabled = true;
+        $('quiz-next').textContent = 'Enviando…';
+        const { ok, data } = await api(`/api/worker/training/${currentPillId}/submit`, 'POST', {
+            worker_id: parseInt(S.workerId), answers: quizAnswers,
+        });
+        $('quiz-next').disabled = false;
+        $('quiz-next').textContent = 'Enviar respuestas';
+        if (!ok) { toast(data.error || 'Error'); return; }
+        // Show result
+        const icon = $('train-result-icon');
+        if (data.passed) {
+            icon.style.background = 'var(--green-lt)';
+            icon.textContent = '✓';
+            $('train-result-title').textContent = '¡Aprobado!';
+            $('train-result-title').style.color = 'var(--green)';
+        } else {
+            icon.style.background = '#fdecea';
+            icon.textContent = '✗';
+            $('train-result-title').textContent = 'No aprobado';
+            $('train-result-title').style.color = 'var(--danger)';
+        }
+        $('train-result-score').textContent = data.score + '%';
+        $('train-result-detail').textContent = `${data.correct} de ${data.total} correctas (mínimo ${data.threshold}%)`;
+        if (data.passed) {
+            pendingTrains = pendingTrains.filter(p => p.id !== currentPillId);
+            loadPendingItems();
+        }
+        show('screen-training-result');
+    }
+});
+
+$('quiz-back').addEventListener('click', () => {
+    if (quizIndex > 0) { quizIndex--; renderQuizQuestion(); }
+});
+
+$('train-result-back').addEventListener('click', () => show('screen-home'));
+
 // ── Boot ───────────────────────────────────────────────────────────────────
 (async function boot() {
     if (!S.token) { show('screen-login'); return; }
+    // Check identity
+    const idRes = await api(`/api/worker/identity-status?worker_id=${localStorage.getItem('wid')}`);
+    if (idRes.ok && !idRes.data.verified) {
+        S.token      = localStorage.getItem('wt');
+        S.workerId   = localStorage.getItem('wid');
+        S.workerName = localStorage.getItem('wname');
+        await showSelfieEnroll();
+        return;
+    }
     await initHome();
 })();
 </script>
