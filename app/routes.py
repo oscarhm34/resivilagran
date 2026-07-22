@@ -816,27 +816,16 @@ def api_rooms():
 def api_residents():
     worker_id = request.args.get('worker_id', type=int)
 
-    # Si hay worker_id, filtrar por los grupos asignados al trabajador
+    # Determinar grupos propios del worker
+    worker_group_ids: list[int] = []
     if worker_id:
         worker = db.session.get(Cleaner, worker_id)
         if worker and worker.groups:
             worker_group_ids = [g.id for g in worker.groups]
-            groups = ResidentGroup.query.filter(ResidentGroup.id.in_(worker_group_ids)).order_by(ResidentGroup.name).all()
-            result: list[dict] = []
-            for group in groups:
-                residents = Resident.query.filter_by(group_id=group.id, active=True).order_by(Resident.name).all()
-                if residents:
-                    result.append({
-                        'id': group.id,
-                        'name': group.name,
-                        'color': group.color,
-                        'residents': [{'id': r.id, 'name': r.name, 'nfc_code': r.nfc_code, 'room_number': r.room_number or ''} for r in residents],
-                    })
-            return jsonify({'groups': result, 'ungrouped': []}), 200
 
-    # Sin worker_id o sin grupos asignados: devolver todos
+    # Siempre devolver TODOS los grupos con todos los residentes activos
     groups = ResidentGroup.query.order_by(ResidentGroup.name).all()
-    result = []
+    result: list[dict] = []
     for group in groups:
         residents = Resident.query.filter_by(group_id=group.id, active=True).order_by(Resident.name).all()
         if residents:
@@ -844,12 +833,43 @@ def api_residents():
                 'id': group.id,
                 'name': group.name,
                 'color': group.color,
-                'residents': [{'id': r.id, 'name': r.name, 'nfc_code': r.nfc_code, 'room_number': r.room_number or ''} for r in residents],
+                'is_mine': group.id in worker_group_ids,
+                'residents': [{
+                    'id': r.id, 'name': r.name, 'nfc_code': r.nfc_code,
+                    'room_number': r.room_number or '',
+                    'has_photo': bool(r.photo_path),
+                    'has_info': bool(r.relevant_info),
+                } for r in residents],
             })
+    # Grupos propios primero
+    result.sort(key=lambda g: (not g['is_mine'], g['name']))
+
     ungrouped = Resident.query.filter_by(group_id=None, active=True).order_by(Resident.name).all()
     return jsonify({
         'groups': result,
-        'ungrouped': [{'id': r.id, 'name': r.name, 'nfc_code': r.nfc_code, 'room_number': r.room_number or ''} for r in ungrouped],
+        'ungrouped': [{
+            'id': r.id, 'name': r.name, 'nfc_code': r.nfc_code,
+            'room_number': r.room_number or '',
+            'has_photo': bool(r.photo_path),
+            'has_info': bool(r.relevant_info),
+        } for r in ungrouped],
+    }), 200
+
+
+@app.route('/api/resident/<int:resident_id>/info')
+@jwt_required()
+def api_resident_info(resident_id):
+    r = db.session.get(Resident, resident_id)
+    if not r:
+        return jsonify({'error': 'Residente no encontrado'}), 404
+    return jsonify({
+        'id': r.id,
+        'name': r.name,
+        'room_number': r.room_number or '',
+        'relevant_info': r.relevant_info or '',
+        'photo_url': f'/api/uploads/{r.photo_path}' if r.photo_path else None,
+        'group_name': r.group.name if r.group else None,
+        'group_color': r.group.color if r.group else None,
     }), 200
 
 
@@ -992,13 +1012,30 @@ def nfc_scan():
     data = request.json or {}
     nfc_code = str(data.get('nfc_code', '')).strip()
     worker_id = data.get('worker_id')
-    mode = data.get('mode')
+    mode = data.get('mode')  # opcional: auto-detección si no viene
     care_type_id = data.get('care_type_id')
 
-    if not nfc_code or not worker_id or not mode:
+    if not nfc_code or not worker_id:
         return jsonify({'error': 'Faltan campos requeridos'}), 400
 
     now = datetime.now()
+
+    # Auto-detección de modo si no viene explícito
+    if not mode:
+        room = Room.query.filter_by(number=nfc_code).first()
+        resident = Resident.query.filter_by(nfc_code=nfc_code, active=True).first()
+        if room and resident:
+            return jsonify({
+                'action': 'select_mode',
+                'room': {'number': room.number, 'description': room.description or ''},
+                'resident': {'id': resident.id, 'name': resident.name, 'room_number': resident.room_number or ''},
+            }), 200
+        if room:
+            mode = 'cleaning'
+        elif resident:
+            mode = 'care'
+        else:
+            return jsonify({'error': f'Código NFC "{nfc_code}" no reconocido', 'code': 'NFC_NOT_FOUND'}), 404
 
     if mode == 'cleaning':
         room = Room.query.filter_by(number=nfc_code).first()
@@ -1013,6 +1050,7 @@ def nfc_scan():
             db.session.commit()
             return jsonify({
                 'action': 'ended',
+                'type': 'cleaning',
                 'record_id': active_this.id,
                 'subject': f'Hab. {room.number}',
                 'subject_sub': room.description or '',
@@ -1025,6 +1063,7 @@ def nfc_scan():
         db.session.commit()
         return jsonify({
             'action': 'started',
+            'type': 'cleaning',
             'record_id': record.id,
             'subject': f'Hab. {room.number}',
             'subject_sub': room.description or '',
@@ -1044,6 +1083,7 @@ def nfc_scan():
             db.session.commit()
             return jsonify({
                 'action': 'ended',
+                'type': 'care',
                 'record_id': active_this.id,
                 'subject': resident.name,
                 'subject_sub': active_this.care_type.name if active_this.care_type else '',
@@ -1054,6 +1094,7 @@ def nfc_scan():
         if not care_type_id:
             return jsonify({
                 'action': 'select_care_type',
+                'type': 'care',
                 'resident_id': resident.id,
                 'resident_name': resident.name,
             }), 200
@@ -1068,6 +1109,7 @@ def nfc_scan():
         db.session.commit()
         return jsonify({
             'action': 'started',
+            'type': 'care',
             'record_id': record.id,
             'subject': resident.name,
             'subject_sub': '',
@@ -1168,6 +1210,19 @@ def manage_residents():
     return render_template('manage_residents.html', residents=residents, groups=groups, estado_filtro=estado)
 
 
+def _save_resident_photo(file_storage, resident_id: int) -> str:
+    from werkzeug.utils import secure_filename as _sec
+    ext = os.path.splitext(file_storage.filename)[1].lower() or '.jpg'
+    if ext not in ('.jpg', '.jpeg', '.png', '.webp'):
+        ext = '.jpg'
+    ts = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+    filename = f'res_{resident_id}_{ts}{ext}'
+    folder = os.path.join(app.config['UPLOAD_FOLDER'], 'residents')
+    os.makedirs(folder, exist_ok=True)
+    file_storage.save(os.path.join(folder, filename))
+    return f'residents/{filename}'
+
+
 @app.route('/residents/add_edit', methods=['POST'])
 @login_required
 def add_edit_resident():
@@ -1176,6 +1231,7 @@ def add_edit_resident():
     nfc_code = request.form.get('nfc_code', '').strip()
     room_number = request.form.get('room_number', '').strip()
     notes = request.form.get('notes', '').strip()
+    relevant_info = request.form.get('relevant_info', '').strip()
     active = bool(request.form.get('active'))
     group_id = request.form.get('group_id', '').strip()
     group_id = int(group_id) if group_id else None
@@ -1192,8 +1248,24 @@ def add_edit_resident():
                 r.nfc_code = nfc_code
                 r.room_number = room_number or None
                 r.notes = notes or None
+                r.relevant_info = relevant_info or None
                 r.active = active
                 r.group_id = group_id
+                # Foto
+                photo_file = request.files.get('photo')
+                if photo_file and photo_file.filename:
+                    # Borrar foto anterior si existe
+                    if r.photo_path:
+                        old_path = os.path.join(app.config['UPLOAD_FOLDER'], r.photo_path)
+                        if os.path.exists(old_path):
+                            os.remove(old_path)
+                    r.photo_path = _save_resident_photo(photo_file, r.id)
+                # Permitir quitar foto
+                if request.form.get('remove_photo') == '1' and r.photo_path:
+                    old_path = os.path.join(app.config['UPLOAD_FOLDER'], r.photo_path)
+                    if os.path.exists(old_path):
+                        os.remove(old_path)
+                    r.photo_path = None
                 db.session.commit()
                 flash('Residente actualizado correctamente.', 'success')
             else:
@@ -1204,10 +1276,15 @@ def add_edit_resident():
                 nfc_code=nfc_code,
                 room_number=room_number or None,
                 notes=notes or None,
+                relevant_info=relevant_info or None,
                 active=active,
                 group_id=group_id,
             )
             db.session.add(r)
+            db.session.flush()  # obtener r.id para el nombre del archivo
+            photo_file = request.files.get('photo')
+            if photo_file and photo_file.filename:
+                r.photo_path = _save_resident_photo(photo_file, r.id)
             db.session.commit()
             flash('Residente añadido correctamente.', 'success')
     except IntegrityError:

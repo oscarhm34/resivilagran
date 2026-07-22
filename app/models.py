@@ -103,6 +103,8 @@ class Resident(db.Model):
     notes = db.Column(db.Text, nullable=True)
     active = db.Column(db.Boolean, nullable=False, default=True)
     group_id = db.Column(db.Integer, db.ForeignKey('resident_group.id'), nullable=True)
+    photo_path = db.Column(db.String(255), nullable=True)
+    relevant_info = db.Column(db.Text, nullable=True)
 
     group = db.relationship('ResidentGroup', back_populates='residents')
     care_records = db.relationship('CareRecord', back_populates='resident', lazy=True)

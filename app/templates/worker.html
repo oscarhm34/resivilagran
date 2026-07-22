@@ -204,6 +204,10 @@
         .sel-sub { font-size:12px; color:var(--text-2); margin-top:1px; }
         .sel-empty { color:var(--text-2); font-size:13px; text-align:center; padding:30px 0; }
         .sel-nfc-bar { border-top:1px solid var(--border); padding-top:16px; margin-top:12px; text-align:center; flex-shrink:0; }
+        .sel-item-wrap { display:flex; align-items:center; gap:6px; margin-bottom:6px; }
+        .sel-item-wrap .sel-item { margin-bottom:0; flex:1; min-width:0; }
+        .ri-btn { width:36px; height:36px; border-radius:50%; border:1.5px solid var(--border); background:var(--surface); cursor:pointer; font-size:16px; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:background .15s; }
+        .ri-btn:hover { background:var(--blue-lt); }
 
         /* ── Selfie / Camera ── */
         #screen-selfie-enroll { align-items:center; justify-content:center; gap:18px; text-align:center; }
@@ -305,16 +309,22 @@
             </button>
         </div>
 
-        <!-- Selector de modo -->
-        <div class="section-label">¿Qué vas a hacer?</div>
+        <!-- Escaneo NFC unificado -->
+        <div class="section-label">Escanear o seleccionar</div>
         <div class="mode-cards">
+            <button class="mode-card" id="btn-scan-unified" style="grid-column:1/-1;background:linear-gradient(135deg,var(--blue),var(--blue-dk));color:#fff">
+                <div class="mode-icon">📡</div>
+                <div class="mode-label">Escanear NFC</div>
+            </button>
+        </div>
+        <div class="mode-cards" style="margin-top:8px">
             <button class="mode-card cleaning" id="btn-cleaning">
                 <div class="mode-icon">🧹</div>
-                <div class="mode-label">Limpieza</div>
+                <div class="mode-label">Habitaciones</div>
             </button>
             <button class="mode-card care" id="btn-care">
                 <div class="mode-icon">🤲</div>
-                <div class="mode-label">Atención</div>
+                <div class="mode-label">Residentes</div>
             </button>
         </div>
 
@@ -417,6 +427,45 @@
         <p class="result-hint" id="result-hint">Volviendo al inicio…</p>
         <button class="ct-cancel" id="result-back" style="margin-top:8px">← Volver ya</button>
     </div>
+
+    <!-- ══ RESIDENT INFO DIALOG ══ -->
+    <dialog id="resident-info-dialog" style="border:none;border-radius:20px;padding:0;max-width:360px;width:90vw;background:var(--surface);box-shadow:0 20px 60px rgba(0,0,0,.3)">
+        <div style="padding:24px;text-align:center">
+            <button id="ri-close" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-2)">&times;</button>
+            <div id="ri-photo-wrap" style="margin-bottom:12px">
+                <img id="ri-photo" src="" alt="" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid var(--border)">
+            </div>
+            <h3 id="ri-name" style="font-family:'Outfit',system-ui,sans-serif;font-weight:700;font-size:20px;margin:0 0 4px"></h3>
+            <div id="ri-room" style="color:var(--text-2);font-size:14px;margin-bottom:6px"></div>
+            <div id="ri-group" style="margin-bottom:14px;font-size:13px"></div>
+            <div id="ri-info" style="text-align:left;white-space:pre-wrap;font-size:14px;background:var(--bg);padding:14px;border-radius:12px;color:var(--text);min-height:40px"></div>
+        </div>
+    </dialog>
+
+    <!-- ══ SELECT MODE DIALOG ══ -->
+    <dialog id="select-mode-dialog" style="border:none;border-radius:20px;padding:0;max-width:340px;width:90vw;background:var(--surface);box-shadow:0 20px 60px rgba(0,0,0,.3)">
+        <div style="padding:24px;text-align:center">
+            <h3 style="font-family:'Outfit',system-ui,sans-serif;font-weight:700;font-size:18px;margin:0 0 6px">Código detectado</h3>
+            <p style="color:var(--text-2);font-size:13px;margin:0 0 18px">Este código corresponde a una habitación y un residente. ¿Qué quieres hacer?</p>
+            <div style="display:flex;flex-direction:column;gap:10px">
+                <button id="smd-cleaning" class="mode-card cleaning" style="width:100%;flex-direction:row;padding:14px 18px;border-radius:14px;gap:12px">
+                    <div class="mode-icon" style="font-size:22px">🧹</div>
+                    <div style="text-align:left;flex:1">
+                        <div class="mode-label" style="font-size:14px">Limpieza</div>
+                        <div id="smd-room-label" style="font-size:12px;color:var(--text-2);font-family:'Inter',system-ui,sans-serif;font-weight:400"></div>
+                    </div>
+                </button>
+                <button id="smd-care" class="mode-card care" style="width:100%;flex-direction:row;padding:14px 18px;border-radius:14px;gap:12px">
+                    <div class="mode-icon" style="font-size:22px">🤲</div>
+                    <div style="text-align:left;flex:1">
+                        <div class="mode-label" style="font-size:14px">Atención</div>
+                        <div id="smd-resident-label" style="font-size:12px;color:var(--text-2);font-family:'Inter',system-ui,sans-serif;font-weight:400"></div>
+                    </div>
+                </button>
+                <button id="smd-cancel" style="background:none;border:1.5px solid var(--border);border-radius:12px;padding:10px;font-size:14px;color:var(--text-2);cursor:pointer;font-family:inherit">Cancelar</button>
+            </div>
+        </div>
+    </dialog>
 
     <!-- ══ SELFIE ENROLLMENT ══ -->
     <div id="screen-selfie-enroll" class="screen">
@@ -904,50 +953,53 @@ async function loadResidentsList() {
         list.innerHTML = '<p class="sel-empty">No hay residentes disponibles</p>';
         return;
     }
-    let html = '';
-    for (const g of groups) {
-        html += `<div class="sel-group" data-group>
-            <div class="sel-group-header">
-                <span class="sel-group-dot" style="background:${g.color}"></span>
-                ${g.name}
-            </div>`;
-        for (const r of g.residents) {
-            html += `<button class="sel-item care" data-code="${r.nfc_code}" data-search="${r.name} ${r.room_number}">
+    function residentItem(r) {
+        const infoBtn = (r.has_photo || r.has_info)
+            ? `<button class="ri-btn" data-rid="${r.id}" title="Info">ℹ️</button>`
+            : '';
+        return `<div class="sel-item-wrap">
+            <button class="sel-item care" data-code="${r.nfc_code}" data-search="${r.name} ${r.room_number}">
                 <div class="sel-icon">🤲</div>
                 <div class="sel-info">
                     <div class="sel-name">${r.name}</div>
                     <div class="sel-sub">${r.room_number ? 'Hab. ' + r.room_number : ''}</div>
                 </div>
-            </button>`;
-        }
+            </button>${infoBtn}
+        </div>`;
+    }
+
+    let html = '';
+    for (const g of groups) {
+        const mineTag = g.is_mine ? ' <span style="font-size:10px;opacity:.6">★ mi grupo</span>' : '';
+        html += `<div class="sel-group" data-group>
+            <div class="sel-group-header">
+                <span class="sel-group-dot" style="background:${g.color}"></span>
+                ${g.name}${mineTag}
+            </div>`;
+        for (const r of g.residents) html += residentItem(r);
         html += '</div>';
     }
     if (ungrouped.length) {
         html += `<div class="sel-group" data-group>
             <div class="sel-group-header">Sin grupo</div>`;
-        for (const r of ungrouped) {
-            html += `<button class="sel-item care" data-code="${r.nfc_code}" data-search="${r.name} ${r.room_number}">
-                <div class="sel-icon">🤲</div>
-                <div class="sel-info">
-                    <div class="sel-name">${r.name}</div>
-                    <div class="sel-sub">${r.room_number ? 'Hab. ' + r.room_number : ''}</div>
-                </div>
-            </button>`;
-        }
+        for (const r of ungrouped) html += residentItem(r);
         html += '</div>';
     }
     list.innerHTML = html;
     list.querySelectorAll('.sel-item').forEach(btn =>
         btn.addEventListener('click', () => handleCode(btn.dataset.code)));
+    list.querySelectorAll('.ri-btn').forEach(btn =>
+        btn.addEventListener('click', e => { e.stopPropagation(); showResidentInfo(parseInt(btn.dataset.rid)); }));
 }
 
 // Search filter
 $('select-search').addEventListener('input', function () {
     const q = this.value.toLowerCase().trim();
-    const items = $('select-list').querySelectorAll('.sel-item');
-    items.forEach(item => {
+    // Handle both direct .sel-item and wrapped .sel-item-wrap > .sel-item
+    $('select-list').querySelectorAll('.sel-item').forEach(item => {
         const match = !q || (item.dataset.search || '').toLowerCase().includes(q);
-        item.style.display = match ? '' : 'none';
+        const target = item.closest('.sel-item-wrap') || item;
+        target.style.display = match ? '' : 'none';
     });
     // Hide empty groups
     $('select-list').querySelectorAll('[data-group]').forEach(g => {
@@ -978,9 +1030,31 @@ function enterScan(mode) {
     setTimeout(() => { if ($('scan-fallback')) $('scan-fallback').style.display = ''; }, 5000);
 }
 
+// ── Unified scan ──────────────────────────────────────────────────────────
+function enterUnifiedScan() {
+    S.mode = null;
+    const badge = $('scan-badge');
+    badge.className = 'mode-badge';
+    badge.style.background = 'var(--blue-lt)';
+    badge.style.color = 'var(--blue)';
+    badge.textContent = '📡 Escanear';
+    $('scan-instr').textContent  = 'Acerca el NFC a la pulsera o habitación';
+    $('manual-code').placeholder = 'Código NFC…';
+    $('manual-code').value       = '';
+    $('manual-code').inputMode   = 'text';
+    $('scan-sub').textContent    = 'Preparando lector NFC…';
+    $('nfc-inner').className     = 'nfc-inner';
+    $('btn-manual').className    = 'btn-ok';
+    $('nfc-unsupported').classList.remove('visible');
+    show('screen-scan');
+    startNfc();
+    setTimeout(() => { if ($('scan-fallback')) $('scan-fallback').style.display = ''; }, 5000);
+}
+
+$('btn-scan-unified').addEventListener('click', enterUnifiedScan);
 $('btn-cleaning').addEventListener('click', () => enterSelect('cleaning'));
 $('btn-care').addEventListener('click',     () => enterSelect('care'));
-$('scan-back').addEventListener('click',    () => { stopNfc(); show('screen-select'); });
+$('scan-back').addEventListener('click',    () => { stopNfc(); S.mode ? show('screen-select') : show('screen-home'); });
 $('btn-manual').addEventListener('click',   () => { const c = $('manual-code').value.trim(); if (c) handleCode(c); });
 $('manual-code').addEventListener('keydown', e => { if (e.key === 'Enter') { const c = $('manual-code').value.trim(); if (c) handleCode(c); } });
 
@@ -1025,9 +1099,9 @@ async function handleCode(code) {
     $('manual-code').disabled    = true;
     $('btn-manual').disabled     = true;
 
-    const { ok, data } = await api('/api/nfc/scan', 'POST', {
-        nfc_code: code, worker_id: parseInt(S.workerId), mode: S.mode,
-    });
+    const payload = { nfc_code: code, worker_id: parseInt(S.workerId) };
+    if (S.mode) payload.mode = S.mode;
+    const { ok, data } = await api('/api/nfc/scan', 'POST', payload);
 
     $('manual-code').disabled = false;
     $('btn-manual').disabled  = false;
@@ -1037,10 +1111,11 @@ async function handleCode(code) {
 
     stopNfc();
 
+    const detectedMode = data.type || S.mode;
+
     if (data.action === 'started') {
-        // Add to active sessions and go home
         S.sessions.push({
-            type:        S.mode,
+            type:        detectedMode,
             record_id:   data.record_id,
             start_time:  data.start_time,
             subject:     data.subject,
@@ -1049,21 +1124,44 @@ async function handleCode(code) {
         renderActiveSessions();
         startGlobalTimer();
         show('screen-home');
-        toast(`✓ ${S.mode === 'care' ? 'Atención' : 'Limpieza'} iniciada — ${data.subject}`);
+        toast(`✓ ${detectedMode === 'care' ? 'Atención' : 'Limpieza'} iniciada — ${data.subject}`);
 
     } else if (data.action === 'ended') {
         S.sessions = S.sessions.filter(s => s.record_id !== data.record_id);
         renderActiveSessions();
         if (!S.sessions.length) { clearInterval(S.timerInt); S.timerInt = null; }
-        stopNfc();
-        showResult(S.mode, data);
+        showResult(detectedMode, data);
 
     } else if (data.action === 'select_care_type') {
         S.pendingCode  = code;
         S.pendingRName = data.resident_name;
         showCareTypes(data.resident_name);
+
+    } else if (data.action === 'select_mode') {
+        // Both room and resident match — ask user to choose
+        S.pendingCode = code;
+        $('smd-room-label').textContent     = `Hab. ${data.room.number}${data.room.description ? ' — ' + data.room.description : ''}`;
+        $('smd-resident-label').textContent = data.resident.name;
+        S._smdResident = data.resident;
+        $('select-mode-dialog').showModal();
     }
 }
+
+// Select mode dialog handlers
+$('smd-cleaning').addEventListener('click', () => {
+    $('select-mode-dialog').close();
+    S.mode = 'cleaning';
+    handleCode(S.pendingCode);
+});
+$('smd-care').addEventListener('click', () => {
+    $('select-mode-dialog').close();
+    S.mode = 'care';
+    handleCode(S.pendingCode);
+});
+$('smd-cancel').addEventListener('click', () => {
+    $('select-mode-dialog').close();
+    show('screen-home');
+});
 
 // ── Care type screen ───────────────────────────────────────────────────────
 function showCareTypes(name) {
@@ -1105,8 +1203,30 @@ async function pickCareType(ctId, ctName) {
 
 $('ct-cancel').addEventListener('click', () => {
     S.pendingCode = S.pendingRName = null;
-    show('screen-scan');
+    show('screen-home');
 });
+
+// ── Resident info ─────────────────────────────────────────────────────────
+async function showResidentInfo(residentId) {
+    const { ok, data } = await api(`/api/resident/${residentId}/info`);
+    if (!ok) { toast('Error al cargar información'); return; }
+    $('ri-name').textContent = data.name;
+    $('ri-room').textContent = data.room_number ? 'Hab. ' + data.room_number : '';
+    if (data.photo_url) {
+        $('ri-photo').src = data.photo_url;
+        $('ri-photo-wrap').style.display = '';
+    } else {
+        $('ri-photo-wrap').style.display = 'none';
+    }
+    if (data.group_name) {
+        $('ri-group').innerHTML = `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${data.group_color};vertical-align:middle;margin-right:4px"></span>${data.group_name}`;
+    } else {
+        $('ri-group').textContent = '';
+    }
+    $('ri-info').textContent = data.relevant_info || 'Sin información adicional';
+    $('resident-info-dialog').showModal();
+}
+$('ri-close').addEventListener('click', () => $('resident-info-dialog').close());
 
 // ── Result screen ──────────────────────────────────────────────────────────
 function showResult(mode, data) {

@@ -24,7 +24,7 @@
             <span id="edit-badge" class="badge bg-warning text-dark d-none">Modo edición</span>
         </div>
         <div class="card-body">
-            <form id="resident-form" method="POST" action="{{ url_for('add_edit_resident') }}" novalidate>
+            <form id="resident-form" method="POST" action="{{ url_for('add_edit_resident') }}" enctype="multipart/form-data" novalidate>
                 <input type="hidden" name="resident_id" value="">
 
                 <div class="row g-3">
@@ -77,6 +77,23 @@
                     <textarea id="notes" name="notes" class="form-control" rows="2" placeholder="Observaciones, alergias, indicaciones especiales…" style="resize:vertical"></textarea>
                 </div>
 
+                <div class="row g-3 mt-1">
+                    <div class="col-md-4">
+                        <label for="photo" class="form-label">Foto del residente</label>
+                        <input type="file" id="photo" name="photo" class="form-control" accept="image/*">
+                        <input type="hidden" name="remove_photo" id="remove_photo" value="">
+                        <div id="photo-preview" class="mt-2" style="display:none">
+                            <img id="photo-img" src="" alt="Foto actual" style="max-width:100px;max-height:100px;border-radius:8px;object-fit:cover">
+                            <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="remove-photo-btn">Quitar foto</button>
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <label for="relevant_info" class="form-label">Información relevante <small class="text-body-secondary">(visible en webapp)</small></label>
+                        <textarea id="relevant_info" name="relevant_info" class="form-control" rows="3"
+                                  placeholder="Información importante para el personal de atención…" style="resize:vertical"></textarea>
+                    </div>
+                </div>
+
                 <div class="d-flex align-items-center gap-2 mt-3">
                     <button type="submit" class="btn btn-primary" id="submit-btn">Añadir residente</button>
                     <button type="button" class="btn btn-outline-secondary" id="cancel-btn" style="display:none">Cancelar</button>
@@ -104,7 +121,14 @@
                 <tbody>
                     {% for r in residents %}
                     <tr>
-                        <td><strong>{{ r.name }}</strong></td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                {% if r.photo_path %}
+                                <img src="{{ url_for('serve_upload', filename=r.photo_path) }}" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover">
+                                {% endif %}
+                                <strong>{{ r.name }}</strong>
+                            </div>
+                        </td>
                         <td>{{ r.room_number or '—' }}</td>
                         <td>
                             <code style="color:var(--color-primary);background:var(--color-primary-lt);padding:1px 7px;border-radius:4px;font-size:.82rem">
@@ -155,6 +179,8 @@
                                     data-active="{{ '1' if r.active else '' }}"
                                     data-group="{{ r.group_id or '' }}"
                                     data-notes="{{ r.notes or '' }}"
+                                    data-photo="{{ r.photo_path or '' }}"
+                                    data-info="{{ r.relevant_info or '' }}"
                                     aria-label="Editar a {{ r.name }}">Editar</button>
                             <button type="button"
                                     class="btn btn-sm btn-outline-danger delete-btn"
@@ -221,6 +247,30 @@
         });
     });
 
+    // Photo preview helpers
+    var photoPreview = document.getElementById('photo-preview');
+    var photoImg     = document.getElementById('photo-img');
+    var removePhotoInput = document.getElementById('remove_photo');
+
+    document.getElementById('remove-photo-btn').addEventListener('click', function () {
+        photoPreview.style.display = 'none';
+        photoImg.src = '';
+        removePhotoInput.value = '1';
+        document.getElementById('photo').value = '';
+    });
+
+    document.getElementById('photo').addEventListener('change', function () {
+        removePhotoInput.value = '';
+        if (this.files && this.files[0]) {
+            var reader = new FileReader();
+            reader.onload = function (e) {
+                photoImg.src = e.target.result;
+                photoPreview.style.display = 'block';
+            };
+            reader.readAsDataURL(this.files[0]);
+        }
+    });
+
     document.querySelectorAll('.edit-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
             var form = document.getElementById('resident-form');
@@ -231,6 +281,17 @@
             form.querySelector('[name="active"]').checked    = this.dataset.active === '1';
             setGroup(this.dataset.group);
             form.querySelector('[name="notes"]').value       = this.dataset.notes;
+            form.querySelector('[name="relevant_info"]').value = this.dataset.info;
+            // Foto
+            removePhotoInput.value = '';
+            document.getElementById('photo').value = '';
+            if (this.dataset.photo) {
+                photoImg.src = '/uploads/' + this.dataset.photo;
+                photoPreview.style.display = 'block';
+            } else {
+                photoPreview.style.display = 'none';
+                photoImg.src = '';
+            }
             document.getElementById('submit-btn').textContent   = 'Guardar cambios';
             document.getElementById('cancel-btn').style.display = 'inline-block';
             document.getElementById('form-title').textContent   = 'Editando residente';
@@ -245,6 +306,10 @@
         form.querySelector('[name="resident_id"]').value = '';
         form.querySelector('[name="active"]').checked    = true;
         setGroup('');
+        form.querySelector('[name="relevant_info"]').value = '';
+        photoPreview.style.display = 'none';
+        photoImg.src = '';
+        removePhotoInput.value = '';
         document.getElementById('submit-btn').textContent  = 'Añadir residente';
         document.getElementById('form-title').textContent  = 'Añadir residente';
         document.getElementById('edit-badge').classList.add('d-none');
