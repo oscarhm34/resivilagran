@@ -995,6 +995,7 @@ def worker_my_groups():
                 'id': r.id,
                 'name': r.name,
                 'room_number': r.room_number or '',
+                'photo_url': f'/api/uploads/{r.photo_path}' if r.photo_path else None,
                 'has_care_today': care_count > 0,
                 'care_count_today': care_count,
             })
