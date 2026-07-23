@@ -839,6 +839,7 @@ def api_residents():
                     'room_number': r.room_number or '',
                     'has_photo': bool(r.photo_path),
                     'has_info': bool(r.relevant_info),
+                    'photo_url': f'/api/uploads/{r.photo_path}' if r.photo_path else None,
                 } for r in residents],
             })
     # Grupos propios primero
@@ -852,6 +853,7 @@ def api_residents():
             'room_number': r.room_number or '',
             'has_photo': bool(r.photo_path),
             'has_info': bool(r.relevant_info),
+            'photo_url': f'/api/uploads/{r.photo_path}' if r.photo_path else None,
         } for r in ungrouped],
     }), 200
 

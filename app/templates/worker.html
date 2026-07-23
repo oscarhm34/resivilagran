@@ -635,6 +635,17 @@ function toast(msg, ms = 3500) {
     toastT = setTimeout(() => t.classList.remove('show'), ms);
 }
 
+// ── Auth image loader ─────────────────────────────────────────────────────
+async function loadAuthImg(imgEl, url) {
+    try {
+        const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + S.token } });
+        if (res.ok) {
+            const blob = await res.blob();
+            imgEl.src = URL.createObjectURL(blob);
+        }
+    } catch {}
+}
+
 // ── API ────────────────────────────────────────────────────────────────────
 async function api(path, method = 'GET', body = null) {
     const opts = { method, headers: { 'Content-Type': 'application/json' } };
@@ -957,9 +968,12 @@ async function loadResidentsList() {
         const infoBtn = (r.has_photo || r.has_info)
             ? `<button class="ri-btn" data-rid="${r.id}" title="Info">ℹ️</button>`
             : '';
+        const icon = r.photo_url
+            ? `<div class="sel-icon care" style="padding:0;overflow:hidden"><img data-auth-src="${r.photo_url}" style="width:100%;height:100%;border-radius:12px;object-fit:cover" alt=""></div>`
+            : `<div class="sel-icon">🤲</div>`;
         return `<div class="sel-item-wrap">
             <button class="sel-item care" data-code="${r.nfc_code}" data-search="${r.name} ${r.room_number}">
-                <div class="sel-icon">🤲</div>
+                ${icon}
                 <div class="sel-info">
                     <div class="sel-name">${r.name}</div>
                     <div class="sel-sub">${r.room_number ? 'Hab. ' + r.room_number : ''}</div>
@@ -990,6 +1004,8 @@ async function loadResidentsList() {
         btn.addEventListener('click', () => handleCode(btn.dataset.code)));
     list.querySelectorAll('.ri-btn').forEach(btn =>
         btn.addEventListener('click', e => { e.stopPropagation(); showResidentInfo(parseInt(btn.dataset.rid)); }));
+    // Cargar fotos con autenticación
+    list.querySelectorAll('img[data-auth-src]').forEach(img => loadAuthImg(img, img.dataset.authSrc));
 }
 
 // Search filter
@@ -1213,8 +1229,9 @@ async function showResidentInfo(residentId) {
     $('ri-name').textContent = data.name;
     $('ri-room').textContent = data.room_number ? 'Hab. ' + data.room_number : '';
     if (data.photo_url) {
-        $('ri-photo').src = data.photo_url;
+        $('ri-photo').src = '';
         $('ri-photo-wrap').style.display = '';
+        loadAuthImg($('ri-photo'), data.photo_url);
     } else {
         $('ri-photo-wrap').style.display = 'none';
     }
