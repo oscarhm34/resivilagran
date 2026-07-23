@@ -994,8 +994,11 @@ def worker_my_groups():
             residents_data.append({
                 'id': r.id,
                 'name': r.name,
+                'nfc_code': r.nfc_code,
                 'room_number': r.room_number or '',
                 'photo_url': f'/api/uploads/{r.photo_path}' if r.photo_path else None,
+                'has_photo': bool(r.photo_path),
+                'has_info': bool(r.relevant_info),
                 'has_care_today': care_count > 0,
                 'care_count_today': care_count,
             })

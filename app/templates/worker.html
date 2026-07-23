@@ -863,6 +863,28 @@ function showMyGroup() {
         show('screen-mygroup');
         return;
     }
+
+    function myGroupItem(r) {
+        const infoBtn = (r.has_photo || r.has_info)
+            ? `<button class="ri-btn" data-rid="${r.id}" title="Info">ℹ️</button>`
+            : '';
+        const icon = r.photo_url
+            ? `<div class="sel-icon care" style="padding:0;overflow:hidden"><img data-auth-src="${r.photo_url}" style="width:100%;height:100%;border-radius:12px;object-fit:cover" alt=""></div>`
+            : `<div class="sel-icon">🤲</div>`;
+        const careTag = r.has_care_today
+            ? `<span style="font-size:11px;color:var(--green);font-weight:600">✓ ${r.care_count_today}</span>`
+            : '';
+        return `<div class="sel-item-wrap" data-search="${r.name} ${r.room_number}">
+            <button class="sel-item care" data-code="${r.nfc_code}">
+                ${icon}
+                <div class="sel-info">
+                    <div class="sel-name">${r.name} ${careTag}</div>
+                    <div class="sel-sub">${r.room_number ? 'Hab. ' + r.room_number : ''}</div>
+                </div>
+            </button>${infoBtn}
+        </div>`;
+    }
+
     let html = '';
     for (const g of S.myGroupsData) {
         html += `<div class="sel-group" data-group>
@@ -871,27 +893,17 @@ function showMyGroup() {
                 ${g.name} — ${g.residents.length} residentes
             </div>`;
         if (g.residents.length) {
-            for (const r of g.residents) {
-                const photo = r.photo_url
-                    ? `<img data-auth-src="${r.photo_url}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;flex-shrink:0" alt="">`
-                    : `<div style="width:38px;height:38px;border-radius:50%;background:var(--green-lt);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🤲</div>`;
-                html += `<div class="grp-item" data-search="${r.name} ${r.room_number}" style="background:var(--bg);border-radius:12px;margin-bottom:4px;padding:12px 14px;display:flex;align-items:center;gap:12px">
-                    ${photo}
-                    <div class="grp-info" style="flex:1;min-width:0">
-                        <div class="grp-name">${r.name}</div>
-                        <div class="grp-room">${r.room_number ? '🏠 Hab. ' + r.room_number : 'Sin habitación'}</div>
-                    </div>
-                    <div class="grp-status ${r.has_care_today ? 'done' : 'pending'}">
-                        ${r.has_care_today ? '✓ ' + r.care_count_today + ' atención' + (r.care_count_today > 1 ? 'es' : '') : 'Pendiente'}
-                    </div>
-                </div>`;
-            }
+            for (const r of g.residents) html += myGroupItem(r);
         } else {
             html += '<div class="grp-empty">No hay residentes en este grupo</div>';
         }
         html += '</div>';
     }
     list.innerHTML = html;
+    list.querySelectorAll('.sel-item').forEach(btn =>
+        btn.addEventListener('click', () => { S.mode = 'care'; handleCode(btn.dataset.code); }));
+    list.querySelectorAll('.ri-btn').forEach(btn =>
+        btn.addEventListener('click', e => { e.stopPropagation(); showResidentInfo(parseInt(btn.dataset.rid)); }));
     list.querySelectorAll('img[data-auth-src]').forEach(img => loadAuthImg(img, img.dataset.authSrc));
     show('screen-mygroup');
 }
@@ -900,13 +912,13 @@ $('btn-my-group').addEventListener('click', showMyGroup);
 $('mygroup-back').addEventListener('click', () => show('screen-home'));
 $('mygroup-search').addEventListener('input', function () {
     const q = this.value.toLowerCase().trim();
-    const items = $('mygroup-list').querySelectorAll('.grp-item');
+    const items = $('mygroup-list').querySelectorAll('.sel-item-wrap');
     items.forEach(item => {
         const match = !q || (item.dataset.search || '').toLowerCase().includes(q);
         item.style.display = match ? '' : 'none';
     });
     $('mygroup-list').querySelectorAll('[data-group]').forEach(g => {
-        const visible = g.querySelectorAll('.grp-item:not([style*="display: none"])').length;
+        const visible = g.querySelectorAll('.sel-item-wrap:not([style*="display: none"])').length;
         g.style.display = visible ? '' : 'none';
     });
 });
