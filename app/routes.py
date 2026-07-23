@@ -1217,15 +1217,15 @@ def manage_residents():
 
 
 def _save_resident_photo(file_storage, resident_id: int) -> str:
-    from werkzeug.utils import secure_filename as _sec
-    ext = os.path.splitext(file_storage.filename)[1].lower() or '.jpg'
-    if ext not in ('.jpg', '.jpeg', '.png', '.webp'):
-        ext = '.jpg'
+    from PIL import Image
     ts = datetime.utcnow().strftime('%Y%m%d%H%M%S')
-    filename = f'res_{resident_id}_{ts}{ext}'
+    filename = f'res_{resident_id}_{ts}.jpg'
     folder = os.path.join(app.config['UPLOAD_FOLDER'], 'residents')
     os.makedirs(folder, exist_ok=True)
-    file_storage.save(os.path.join(folder, filename))
+    img = Image.open(file_storage)
+    img = img.convert('RGB')
+    img.thumbnail((800, 800), Image.LANCZOS)
+    img.save(os.path.join(folder, filename), 'JPEG', quality=85, optimize=True)
     return f'residents/{filename}'
 
 
