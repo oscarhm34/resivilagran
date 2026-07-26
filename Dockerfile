@@ -16,4 +16,4 @@ RUN mkdir -p instance uploads/residents uploads/selfies uploads/signing_selfies
 
 EXPOSE 5000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "run:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "2", "--timeout", "120", "run:app"]
