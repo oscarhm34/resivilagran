@@ -155,6 +155,29 @@
         .ct-label { font-size:13px; font-weight:600; text-align:center; line-height:1.3; color:var(--text); }
         .ct-cancel { align-self:center; background:none; border:1.5px solid var(--border); border-radius:20px; padding:8px 20px; font-size:13px; color:var(--text-2); cursor:pointer; font-family:inherit; margin-top:4px; }
 
+        /* ── Care type multi-select & subcategories ── */
+        .ct-category { margin-bottom:14px; }
+        .ct-category-header { display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--bg);border-radius:14px;cursor:pointer;transition:background .15s;margin-bottom:6px; }
+        .ct-category-header:active { background:var(--green-lt); }
+        .ct-category-icon { font-size:24px; }
+        .ct-category-name { font-weight:700;font-size:15px;flex:1; }
+        .ct-category-arrow { font-size:12px;color:var(--text-2);transition:transform .2s; }
+        .ct-category-arrow.open { transform:rotate(90deg); }
+        .ct-sub-grid { display:flex;flex-wrap:wrap;gap:8px;padding:4px 0 8px 44px; }
+        .ct-sub-btn { padding:10px 16px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;font-size:13px;font-weight:500;display:flex;align-items:center;gap:6px;transition:all .15s;font-family:inherit;position:relative; }
+        .ct-sub-btn:hover { border-color:var(--green); }
+        .ct-sub-btn.selected { border-color:var(--green);background:var(--green-lt);color:var(--green-dk); }
+        .ct-btn.selected { border-color:var(--green);background:var(--green-lt); }
+        .ct-selected-mark { display:none;font-size:12px; }
+        .selected .ct-selected-mark { display:inline; }
+
+        /* ── Checklist ── */
+        .chk-item { display:flex;align-items:center;gap:12px;padding:14px;background:var(--bg);border-radius:14px;margin-bottom:8px;cursor:pointer;border:2px solid transparent;transition:all .15s;-webkit-tap-highlight-color:transparent; }
+        .chk-item.checked { border-color:var(--green);background:var(--green-lt); }
+        .chk-check { width:28px;height:28px;border-radius:8px;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;transition:all .15s; }
+        .chk-item.checked .chk-check { background:var(--green);border-color:var(--green);color:#fff; }
+        .chk-text { font-size:15px;font-weight:500; }
+
         /* ── RESULT ── */
         #screen-result { align-items:center; justify-content:center; gap:18px; }
         .result-check { width:90px; height:90px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:46px; animation:pop .4s cubic-bezier(.34,1.56,.64,1); }
@@ -403,11 +426,36 @@
     <!-- ══ CARE TYPE ══ -->
     <div id="screen-care-type" class="screen">
         <div class="ct-header">
-            <div class="ct-resident" id="ct-resident-name">—</div>
-            <div class="ct-prompt">Selecciona el tipo de atención</div>
+            <div style="display:flex;align-items:center;gap:12px;justify-content:center;margin-bottom:8px">
+                <img id="ct-resident-photo" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid var(--border);display:none" alt="">
+                <div>
+                    <div class="ct-resident" id="ct-resident-name">—</div>
+                    <div class="ct-prompt" id="ct-prompt">¿Qué has realizado?</div>
+                </div>
+                <button class="ri-btn" id="ct-info-btn" style="display:none" title="Info">ℹ️</button>
+            </div>
         </div>
-        <div class="ct-grid" id="ct-grid"></div>
+        <div class="ct-grid" id="ct-grid" style="display:block"></div>
+        <div class="ct-footer" id="ct-footer" style="border-top:1px solid var(--border);padding-top:16px;margin-top:12px;text-align:center">
+            <button class="btn-cam primary" id="ct-confirm" style="width:100%;padding:14px;border-radius:14px;border:none;background:var(--green);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:'Outfit',system-ui,sans-serif">Confirmar y finalizar</button>
+        </div>
         <button class="ct-cancel" id="ct-cancel">← Cancelar</button>
+    </div>
+
+    <!-- ══ CHECKLIST ══ -->
+    <div id="screen-checklist" class="screen">
+        <div class="scan-header">
+            <button class="btn-back" id="checklist-back" aria-label="Volver">←</button>
+            <span class="mode-badge cleaning">✅ Checklist</span>
+        </div>
+        <div style="text-align:center;margin-bottom:16px">
+            <div class="ct-resident" id="checklist-room" style="color:var(--blue)">—</div>
+            <div class="ct-prompt">Verifica antes de finalizar</div>
+        </div>
+        <div id="checklist-items" style="flex:1;overflow-y:auto"></div>
+        <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:12px;text-align:center">
+            <button id="checklist-confirm" style="width:100%;padding:14px;border-radius:14px;border:none;background:var(--blue);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:'Outfit',system-ui,sans-serif">Confirmar y finalizar</button>
+        </div>
     </div>
 
     <!-- ══ RESULT ══ -->
@@ -608,12 +656,9 @@ const S = {
     pendingCancel: null,
     myGroupsData: [],
     resultTimeout: null,
-};
-
-const CARE_ICONS = {
-    'Aseo e higiene':'🛁','Medicación':'💊','Fisioterapia':'🏃',
-    'Comida':'🍽️','Compañía':'💬','Cambio de postura':'🔄',
-    'Cura / Heridas':'🩹','Otro':'📋',
+    pendingEndRecordId: null,
+    pendingResidentId: null,
+    pendingChecklistRecordId: null,
 };
 
 // ── DOM ────────────────────────────────────────────────────────────────────
@@ -623,6 +668,37 @@ function show(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     $(id).classList.add('active');
 }
+
+// Browser back button support
+const screenHistory = [];
+const _origShow = show;
+show = function(id) {
+    const current = document.querySelector('.screen.active');
+    if (current && current.id !== id) {
+        screenHistory.push(current.id);
+        history.pushState({ screen: id }, '', '');
+    }
+    _origShow(id);
+};
+
+window.addEventListener('popstate', (e) => {
+    const prev = screenHistory.pop();
+    if (prev) {
+        stopNfc();
+        _origShow(prev);
+    } else {
+        // We're at the root screen, push state to prevent exit
+        if (document.querySelector('.screen.active')?.id === 'screen-home') {
+            history.pushState({ screen: 'screen-home' }, '', '');
+        } else {
+            _origShow('screen-home');
+            history.pushState({ screen: 'screen-home' }, '', '');
+        }
+    }
+});
+
+// Initialize history state
+history.replaceState({ screen: 'screen-login' }, '', '');
 
 let toastT;
 function toast(msg, ms = 3500) {
@@ -793,13 +869,20 @@ async function endByCard(recordId, mode) {
     console.log('[endByCard] enviando →', JSON.stringify(payload));
     const { ok, data } = await api('/api/nfc/end-session', 'POST', payload);
     console.log('[endByCard] respuesta ←', ok, JSON.stringify(data));
-    if (ok) {
+    if (!ok) { toast(data.error || 'Error al finalizar'); return; }
+
+    if (data.action === 'select_care_type_end') {
+        S.pendingEndRecordId = recordId;
+        S.pendingResidentId = data.resident_id;
+        S.pendingRName = data.resident_name;
+        showCareTypesEnd(data);
+    } else if (data.action === 'select_checklist') {
+        showChecklist(data);
+    } else if (data.action === 'ended') {
         S.sessions = S.sessions.filter(s => s.record_id !== recordId);
         renderActiveSessions();
         if (!S.sessions.length) { clearInterval(S.timerInt); S.timerInt = null; }
         showResult(mode, data);
-    } else {
-        toast(data.error || 'Error al finalizar');
     }
 }
 
@@ -1163,10 +1246,11 @@ async function handleCode(code) {
         if (!S.sessions.length) { clearInterval(S.timerInt); S.timerInt = null; }
         showResult(detectedMode, data);
 
-    } else if (data.action === 'select_care_type') {
-        S.pendingCode  = code;
+    } else if (data.action === 'select_care_type_end') {
+        S.pendingEndRecordId = data.record_id;
+        S.pendingResidentId = data.resident_id;
         S.pendingRName = data.resident_name;
-        showCareTypes(data.resident_name);
+        showCareTypesEnd(data);
 
     } else if (data.action === 'select_mode') {
         // Both room and resident match — ask user to choose
@@ -1194,47 +1278,155 @@ $('smd-cancel').addEventListener('click', () => {
     show('screen-home');
 });
 
-// ── Care type screen ───────────────────────────────────────────────────────
-function showCareTypes(name) {
-    $('ct-resident-name').textContent = name;
+// ── Care type screen (end of session) ─────────────────────────────────────
+function showCareTypesEnd(data) {
+    $('ct-resident-name').textContent = data.resident_name || S.pendingRName || '—';
+
+    // Load resident photo
+    const photoEl = $('ct-resident-photo');
+    if (data.resident_id || S.pendingResidentId) {
+        const rid = data.resident_id || S.pendingResidentId;
+        photoEl.style.display = '';
+        photoEl.src = '';
+        loadAuthImg(photoEl, `/api/resident/${rid}/photo`);
+        $('ct-info-btn').style.display = '';
+        $('ct-info-btn').onclick = () => showResidentInfo(rid);
+    } else {
+        photoEl.style.display = 'none';
+        $('ct-info-btn').style.display = 'none';
+    }
+
     const grid = $('ct-grid');
     if (!S.careTypes.length) {
-        grid.innerHTML = '<p style="color:var(--text-2);font-size:14px;grid-column:1/-1;text-align:center;padding:20px 0">No hay tipos configurados.<br>Añádelos en el panel de administración.</p>';
+        grid.innerHTML = '<p style="color:var(--text-2);font-size:14px;text-align:center;padding:20px 0">No hay tipos configurados.<br>Añádelos en el panel de administración.</p>';
     } else {
-        grid.innerHTML = S.careTypes.map(ct => `
-            <button class="ct-btn" data-id="${ct.id}" data-name="${ct.name}">
-                <span class="ct-icon">${CARE_ICONS[ct.name] || '❤️'}</span>
-                <span class="ct-label">${ct.name}</span>
-            </button>`).join('');
-        grid.querySelectorAll('.ct-btn').forEach(btn =>
-            btn.addEventListener('click', () => pickCareType(parseInt(btn.dataset.id), btn.dataset.name)));
+        let html = '';
+        for (const ct of S.careTypes) {
+            if (ct.children && ct.children.length) {
+                // Category with sub-types
+                html += `<div class="ct-category" data-cat-id="${ct.id}">
+                    <div class="ct-category-header" data-toggle-cat="${ct.id}">
+                        <span class="ct-category-icon">${ct.icon || '❤️'}</span>
+                        <span class="ct-category-name">${ct.name}</span>
+                        <span class="ct-category-arrow" id="cat-arrow-${ct.id}">▶</span>
+                    </div>
+                    <div class="ct-sub-grid" id="cat-sub-${ct.id}" style="display:none">
+                        ${ct.children.map(sub => `
+                            <button class="ct-sub-btn" data-id="${sub.id}">
+                                <span>${sub.icon || ''}</span>
+                                <span>${sub.name}</span>
+                                <span class="ct-selected-mark">✓</span>
+                            </button>`).join('')}
+                    </div>
+                </div>`;
+            } else {
+                // Standalone type
+                html += `<button class="ct-btn" data-id="${ct.id}" style="display:flex;flex-direction:row;gap:10px;padding:12px 14px;border-radius:14px;margin-bottom:6px;width:100%">
+                    <span class="ct-icon">${ct.icon || '❤️'}</span>
+                    <span class="ct-label" style="text-align:left;flex:1">${ct.name}</span>
+                    <span class="ct-selected-mark">✓</span>
+                </button>`;
+            }
+        }
+        grid.innerHTML = html;
+
+        // Category toggle
+        grid.querySelectorAll('[data-toggle-cat]').forEach(header => {
+            header.addEventListener('click', () => {
+                const catId = header.dataset.toggleCat;
+                const subGrid = $('cat-sub-' + catId);
+                const arrow = $('cat-arrow-' + catId);
+                const isOpen = subGrid.style.display !== 'none';
+                subGrid.style.display = isOpen ? 'none' : 'flex';
+                arrow.classList.toggle('open', !isOpen);
+            });
+        });
+
+        // Multi-select toggle for sub-buttons
+        grid.querySelectorAll('.ct-sub-btn').forEach(btn => {
+            btn.addEventListener('click', () => btn.classList.toggle('selected'));
+        });
+
+        // Multi-select toggle for standalone buttons
+        grid.querySelectorAll('.ct-btn').forEach(btn => {
+            btn.addEventListener('click', () => btn.classList.toggle('selected'));
+        });
     }
     show('screen-care-type');
 }
 
-async function pickCareType(ctId, ctName) {
-    const { ok, data } = await api('/api/nfc/scan', 'POST', {
-        nfc_code: S.pendingCode, worker_id: parseInt(S.workerId), mode: 'care', care_type_id: ctId,
+async function finalizeCare() {
+    const selected = [];
+    $('ct-grid').querySelectorAll('.ct-sub-btn.selected, .ct-btn.selected').forEach(btn => {
+        selected.push(parseInt(btn.dataset.id));
     });
-    if (!ok) { toast(data.error || 'Error al iniciar la atención'); return; }
-    if (data.action === 'started') {
-        S.sessions.push({
-            type:        'care',
-            record_id:   data.record_id,
-            start_time:  data.start_time,
-            subject:     data.subject,
-            subject_sub: ctName,
-        });
-        renderActiveSessions();
-        startGlobalTimer();
-        show('screen-home');
-        toast(`✓ Atención iniciada — ${data.subject}`);
-    }
+    if (!selected.length) { toast('Selecciona al menos un tipo de atención'); return; }
+
+    const confirmBtn = $('ct-confirm');
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Finalizando…';
+
+    const { ok, data } = await api('/api/nfc/finalize-care', 'POST', {
+        record_id: S.pendingEndRecordId,
+        worker_id: parseInt(S.workerId),
+        care_type_ids: selected,
+    });
+
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = 'Confirmar y finalizar';
+
+    if (!ok) { toast(data.error || 'Error al finalizar'); return; }
+
+    S.sessions = S.sessions.filter(s => s.record_id !== S.pendingEndRecordId);
+    renderActiveSessions();
+    if (!S.sessions.length) { clearInterval(S.timerInt); S.timerInt = null; }
+    showResult('care', data);
 }
+
+$('ct-confirm').addEventListener('click', finalizeCare);
 
 $('ct-cancel').addEventListener('click', () => {
     S.pendingCode = S.pendingRName = null;
     show('screen-home');
+});
+
+// ── Checklist screen ──────────────────────────────────────────────────────
+function showChecklist(data) {
+    S.pendingChecklistRecordId = data.record_id;
+    $('checklist-room').textContent = data.subject;
+    const container = $('checklist-items');
+    container.innerHTML = data.items.map(item => `
+        <div class="chk-item" data-id="${item.id}" data-text="${item.text}">
+            <div class="chk-check"></div>
+            <div class="chk-text">${item.text}</div>
+        </div>
+    `).join('');
+    container.querySelectorAll('.chk-item').forEach(el => {
+        el.addEventListener('click', () => {
+            el.classList.toggle('checked');
+            el.querySelector('.chk-check').textContent = el.classList.contains('checked') ? '✓' : '';
+        });
+    });
+    show('screen-checklist');
+}
+
+$('checklist-back').addEventListener('click', () => show('screen-home'));
+$('checklist-confirm').addEventListener('click', async () => {
+    const items = Array.from($('checklist-items').querySelectorAll('.chk-item')).map(el => ({
+        id: parseInt(el.dataset.id),
+        text: el.dataset.text,
+        checked: el.classList.contains('checked'),
+    }));
+    const { ok, data } = await api('/api/nfc/finalize-cleaning', 'POST', {
+        record_id: S.pendingChecklistRecordId,
+        worker_id: parseInt(S.workerId),
+        checklist: items,
+    });
+    if (!ok) { toast(data.error || 'Error al finalizar'); return; }
+    S.sessions = S.sessions.filter(s => s.record_id !== S.pendingChecklistRecordId);
+    renderActiveSessions();
+    if (!S.sessions.length) { clearInterval(S.timerInt); S.timerInt = null; }
+    showResult('cleaning', data);
 });
 
 // ── Resident info ─────────────────────────────────────────────────────────

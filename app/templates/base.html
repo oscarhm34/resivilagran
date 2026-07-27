@@ -258,6 +258,10 @@
                         <a class="nav-link {% if request.endpoint == 'manage_cleaning_zones' %}active{% endif %}"
                            href="{{ url_for('manage_cleaning_zones') }}">Zonas</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'manage_checklist' %}active{% endif %}"
+                           href="{{ url_for('manage_checklist') }}">Checklist</a>
+                    </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {% if request.endpoint in ('registros_limpieza','registros_atencion','ultima_limpieza','fichajes_trabajador') %}active{% endif %}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Registros</a>

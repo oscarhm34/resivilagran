@@ -3,7 +3,8 @@ from . import app, db
 from .models import (Cleaner, Room, CleaningRecord, Floor, RoomType, Resident,
                       CareType, CareRecord, ResidentGroup, cleaner_groups,
                       WorkerSelfie, LegalDocument, DocumentSignature,
-                      TrainingPill, TrainingQuestion, TrainingCompletion)
+                      TrainingPill, TrainingQuestion, TrainingCompletion,
+                      ChecklistItem)
 from flask import request, jsonify, render_template, redirect, url_for, flash, send_file, send_from_directory, abort
 from flask_login import login_user, logout_user, login_required, current_user
 from flask_jwt_extended import create_access_token, jwt_required
@@ -735,8 +736,15 @@ def worker_manifest():
 @app.route('/api/care-types')
 @jwt_required()
 def api_care_types():
-    types = CareType.query.order_by(CareType.name).all()
-    return jsonify([{'id': t.id, 'name': t.name} for t in types])
+    types = CareType.query.filter_by(parent_id=None, active=True).order_by(CareType.sort_order, CareType.name).all()
+    return jsonify([{
+        'id': t.id,
+        'name': t.name,
+        'icon': t.icon or '',
+        'children': [{
+            'id': c.id, 'name': c.name, 'icon': c.icon or '',
+        } for c in sorted(t.children, key=lambda x: (x.sort_order, x.name)) if c.active],
+    } for t in types])
 
 
 @app.route('/api/debug/record')
@@ -784,12 +792,14 @@ def worker_active_sessions():
         })
 
     for c in CareRecord.query.filter_by(worker_id=worker_id, end_time=None).all():
+        # Use junction table types first, fall back to old care_type_id
+        sub = ', '.join(ct.name for ct in c.care_types) if c.care_types else (c.care_type.name if c.care_type else '')
         sessions.append({
             'type': 'care',
             'record_id': c.id,
             'start_time': c.start_time.isoformat(),
             'subject': c.resident.name if c.resident else 'Residente',
-            'subject_sub': c.care_type.name if c.care_type else '',
+            'subject_sub': sub,
         })
 
     return jsonify(sessions), 200
@@ -1085,30 +1095,20 @@ def nfc_scan():
             worker_id=worker_id, resident_id=resident.id, end_time=None
         ).first()
         if active_this:
-            active_this.end_time = now
-            db.session.commit()
+            # Don't end directly — ask for care types first
             return jsonify({
-                'action': 'ended',
+                'action': 'select_care_type_end',
                 'type': 'care',
                 'record_id': active_this.id,
-                'subject': resident.name,
-                'subject_sub': active_this.care_type.name if active_this.care_type else '',
-                'duration': active_this.calculate_duration(),
-                'duration_display': _format_duration(active_this.start_time, active_this.end_time),
-            }), 200
-
-        if not care_type_id:
-            return jsonify({
-                'action': 'select_care_type',
-                'type': 'care',
                 'resident_id': resident.id,
                 'resident_name': resident.name,
+                'start_time': active_this.start_time.isoformat(),
             }), 200
 
+        # Start session immediately without care type
         record = CareRecord(
             worker_id=worker_id,
             resident_id=resident.id,
-            care_type_id=int(care_type_id),
             start_time=now,
         )
         db.session.add(record)
@@ -1132,20 +1132,24 @@ def end_session():
     worker_id = data.get('worker_id')
     record_id = data.get('record_id')
     mode = data.get('mode')
-    now = datetime.now()
-    import sys
-    print(f'[end-session] worker_id={worker_id!r}({type(worker_id).__name__}) record_id={record_id!r}({type(record_id).__name__}) mode={mode!r}', flush=True, file=sys.stderr)
 
     if mode == 'cleaning':
         record = db.session.get(CleaningRecord, record_id)
-        print(f'[end-session] cleaning → record={record} cleaner_id={record.cleaner_id if record else None} end_time={record.end_time if record else None}', flush=True, file=sys.stderr)
-        if not record:
-            return jsonify({'error': f'Registro #{record_id} no encontrado en BD'}), 400
-        if record.cleaner_id != worker_id:
-            return jsonify({'error': f'ID no coincide: registro tiene cleaner_id={record.cleaner_id}, tú eres worker_id={worker_id}'}), 400
-        if record.end_time:
-            return jsonify({'error': f'Registro ya finalizado a las {record.end_time}'}), 400
-        record.end_time = now
+        if not record or record.cleaner_id != worker_id or record.end_time:
+            return jsonify({'error': 'Registro no válido'}), 400
+
+        # Check if checklist items exist
+        checklist_items = ChecklistItem.query.filter_by(active=True).order_by(ChecklistItem.sort_order).all()
+        if checklist_items and not data.get('skip_checklist'):
+            room = record.room
+            return jsonify({
+                'action': 'select_checklist',
+                'record_id': record.id,
+                'subject': f'Hab. {room.number}' if room else 'Habitación',
+                'items': [{'id': i.id, 'text': i.text} for i in checklist_items],
+            }), 200
+
+        record.end_time = datetime.now()
         db.session.commit()
         room = record.room
         return jsonify({
@@ -1160,17 +1164,72 @@ def end_session():
         record = db.session.get(CareRecord, record_id)
         if not record or record.worker_id != worker_id or record.end_time:
             return jsonify({'error': 'Registro no válido'}), 400
-        record.end_time = now
-        db.session.commit()
+        # Ask for care types before ending
         return jsonify({
-            'action': 'ended',
-            'subject': record.resident.name if record.resident else 'Residente',
-            'subject_sub': record.care_type.name if record.care_type else '',
-            'duration': record.calculate_duration(),
-            'duration_display': _format_duration(record.start_time, record.end_time),
+            'action': 'select_care_type_end',
+            'type': 'care',
+            'record_id': record.id,
+            'resident_id': record.resident_id,
+            'resident_name': record.resident.name if record.resident else 'Residente',
+            'start_time': record.start_time.isoformat(),
         }), 200
 
     return jsonify({'error': 'Modo no válido'}), 400
+
+
+@app.route('/api/nfc/finalize-care', methods=['POST'])
+@jwt_required()
+def finalize_care():
+    data = request.json or {}
+    record_id = data.get('record_id')
+    worker_id = data.get('worker_id')
+    care_type_ids = data.get('care_type_ids', [])
+
+    record = db.session.get(CareRecord, record_id)
+    if not record or record.worker_id != worker_id or record.end_time:
+        return jsonify({'error': 'Registro no válido'}), 400
+
+    record.end_time = datetime.now()
+    for ct_id in care_type_ids:
+        ct = db.session.get(CareType, ct_id)
+        if ct:
+            record.care_types.append(ct)
+    db.session.commit()
+
+    type_names = ', '.join(ct.name for ct in record.care_types)
+    return jsonify({
+        'action': 'ended',
+        'subject': record.resident.name if record.resident else 'Residente',
+        'subject_sub': type_names,
+        'duration': record.calculate_duration(),
+        'duration_display': _format_duration(record.start_time, record.end_time),
+    }), 200
+
+
+@app.route('/api/nfc/finalize-cleaning', methods=['POST'])
+@jwt_required()
+def finalize_cleaning():
+    import json as _json
+    data = request.json or {}
+    record_id = data.get('record_id')
+    worker_id = data.get('worker_id')
+    checklist = data.get('checklist', [])
+
+    record = db.session.get(CleaningRecord, record_id)
+    if not record or record.cleaner_id != worker_id or record.end_time:
+        return jsonify({'error': 'Registro no válido'}), 400
+
+    record.end_time = datetime.now()
+    record.checklist_json = _json.dumps(checklist, ensure_ascii=False)
+    db.session.commit()
+    room = record.room
+    return jsonify({
+        'action': 'ended',
+        'subject': f'Hab. {room.number}' if room else 'Habitación',
+        'subject_sub': room.description or '' if room else '',
+        'duration': record.calculate_duration(),
+        'duration_display': _format_duration(record.start_time, record.end_time),
+    }), 200
 
 
 @app.route('/api/nfc/cancel-session', methods=['POST'])
@@ -1372,8 +1431,10 @@ def assign_residents_to_group(id: int):
 @app.route('/manage-care-types')
 @login_required
 def manage_care_types():
-    care_types = CareType.query.order_by(CareType.name).all()
-    return render_template('manage_care_types.html', care_types=care_types)
+    # Show parent types first, then children indented
+    parents = CareType.query.filter_by(parent_id=None).order_by(CareType.sort_order, CareType.name).all()
+    all_parents = CareType.query.filter_by(parent_id=None).order_by(CareType.name).all()
+    return render_template('manage_care_types.html', parents=parents, all_parents=all_parents)
 
 
 @app.route('/care-types/add_edit', methods=['POST'])
@@ -1381,6 +1442,10 @@ def manage_care_types():
 def add_edit_care_type():
     care_type_id = request.form.get('care_type_id')
     name = request.form.get('name', '').strip()
+    icon = request.form.get('icon', '').strip()
+    parent_id = request.form.get('parent_id', '').strip()
+    sort_order = request.form.get('sort_order', '0').strip()
+
     if not name:
         flash('El nombre es obligatorio.', 'error')
         return redirect(url_for('manage_care_types'))
@@ -1389,17 +1454,26 @@ def add_edit_care_type():
             ct = db.session.get(CareType, int(care_type_id))
             if ct:
                 ct.name = name
+                ct.icon = icon or None
+                ct.parent_id = int(parent_id) if parent_id else None
+                ct.sort_order = int(sort_order) if sort_order else 0
                 db.session.commit()
                 flash('Tipo actualizado correctamente.', 'success')
             else:
                 flash('Tipo no encontrado.', 'error')
         else:
-            db.session.add(CareType(name=name))
+            ct = CareType(
+                name=name,
+                icon=icon or None,
+                parent_id=int(parent_id) if parent_id else None,
+                sort_order=int(sort_order) if sort_order else 0,
+            )
+            db.session.add(ct)
             db.session.commit()
             flash('Tipo añadido correctamente.', 'success')
     except IntegrityError:
         db.session.rollback()
-        flash('Ya existe un tipo con ese nombre.', 'error')
+        flash('Error al guardar el tipo.', 'error')
     return redirect(url_for('manage_care_types'))
 
 
@@ -1417,6 +1491,76 @@ def delete_care_type(id: int):
         db.session.rollback()
         flash('No se puede eliminar porque está en uso.', 'error')
     return redirect(url_for('manage_care_types'))
+
+
+@app.route('/care-types/toggle-active', methods=['POST'])
+@login_required
+def toggle_care_type_active():
+    data = request.json or {}
+    ct = db.session.get(CareType, int(data.get('id', 0)))
+    if not ct:
+        return jsonify({'error': 'No encontrado'}), 404
+    ct.active = data.get('active', True)
+    db.session.commit()
+    return jsonify({'ok': True}), 200
+
+
+# ── ADMIN – CHECKLIST DE LIMPIEZA ────────────────────────────────────────────
+
+@app.route('/manage-checklist')
+@login_required
+def manage_checklist():
+    items = ChecklistItem.query.order_by(ChecklistItem.sort_order, ChecklistItem.id).all()
+    return render_template('manage_checklist.html', items=items)
+
+
+@app.route('/checklist/add_edit', methods=['POST'])
+@login_required
+def add_edit_checklist_item():
+    item_id = request.form.get('item_id')
+    text = request.form.get('text', '').strip()
+    sort_order = request.form.get('sort_order', '0').strip()
+
+    if not text:
+        flash('El texto es obligatorio.', 'error')
+        return redirect(url_for('manage_checklist'))
+
+    if item_id:
+        item = db.session.get(ChecklistItem, int(item_id))
+        if item:
+            item.text = text
+            item.sort_order = int(sort_order) if sort_order else 0
+            db.session.commit()
+            flash('Item actualizado.', 'success')
+    else:
+        item = ChecklistItem(text=text, sort_order=int(sort_order) if sort_order else 0)
+        db.session.add(item)
+        db.session.commit()
+        flash('Item añadido.', 'success')
+    return redirect(url_for('manage_checklist'))
+
+
+@app.route('/checklist/delete/<int:id>', methods=['POST'])
+@login_required
+def delete_checklist_item(id: int):
+    item = db.session.get(ChecklistItem, id)
+    if item:
+        db.session.delete(item)
+        db.session.commit()
+        flash('Item eliminado.', 'success')
+    return redirect(url_for('manage_checklist'))
+
+
+@app.route('/checklist/toggle-active', methods=['POST'])
+@login_required
+def toggle_checklist_active():
+    data = request.json or {}
+    item = db.session.get(ChecklistItem, int(data.get('id', 0)))
+    if not item:
+        return jsonify({'error': 'No encontrado'}), 404
+    item.active = data.get('active', True)
+    db.session.commit()
+    return jsonify({'ok': True}), 200
 
 
 # ── ADMIN – GRUPOS DE RESIDENTES ─────────────────────────────────────────────

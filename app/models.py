@@ -13,6 +13,12 @@ cleaner_groups = db.Table(
     db.Column('group_id', db.Integer, db.ForeignKey('resident_group.id'), primary_key=True),
 )
 
+care_record_types = db.Table(
+    'care_record_types',
+    db.Column('care_record_id', db.Integer, db.ForeignKey('care_record.id'), primary_key=True),
+    db.Column('care_type_id', db.Integer, db.ForeignKey('care_type.id'), primary_key=True),
+)
+
 
 class Cleaner(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -38,6 +44,7 @@ class CleaningRecord(db.Model):
     room_id = db.Column(db.Integer, nullable=False)
     start_time = db.Column(db.DateTime, nullable=True)
     end_time = db.Column(db.DateTime, nullable=True)
+    checklist_json = db.Column(db.Text, nullable=True)
 
     room = db.relationship('Room', primaryjoin='CleaningRecord.room_id == foreign(Room.id)', uselist=False)
     cleaner = db.relationship('Cleaner', backref=db.backref('cleaning_records', lazy=True))
@@ -113,8 +120,13 @@ class Resident(db.Model):
 class CareType(db.Model):
     __tablename__ = 'care_type'
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), unique=True, nullable=False)
+    name = db.Column(db.String(50), nullable=False)
+    icon = db.Column(db.String(10), nullable=True)
+    parent_id = db.Column(db.Integer, db.ForeignKey('care_type.id'), nullable=True)
+    sort_order = db.Column(db.Integer, default=0)
+    active = db.Column(db.Boolean, default=True)
 
+    children = db.relationship('CareType', backref=db.backref('parent', remote_side='CareType.id'), lazy=True)
     care_records = db.relationship('CareRecord', back_populates='care_type', lazy=True)
 
 
@@ -131,11 +143,20 @@ class CareRecord(db.Model):
     worker = db.relationship('Cleaner', backref=db.backref('care_records', lazy=True))
     resident = db.relationship('Resident', back_populates='care_records')
     care_type = db.relationship('CareType', back_populates='care_records')
+    care_types = db.relationship('CareType', secondary=care_record_types, lazy=True)
 
     def calculate_duration(self) -> float | None:
         if self.start_time and self.end_time:
             return (self.end_time - self.start_time).total_seconds()
         return None
+
+
+class ChecklistItem(db.Model):
+    __tablename__ = 'checklist_item'
+    id = db.Column(db.Integer, primary_key=True)
+    text = db.Column(db.String(200), nullable=False)
+    sort_order = db.Column(db.Integer, default=0)
+    active = db.Column(db.Boolean, default=True)
 
 
 # ── IDENTITAT ─────────────────────────────────────────────────────────────────
