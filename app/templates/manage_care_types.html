@@ -28,9 +28,14 @@
                         <label for="name" class="form-label">Nombre <span class="text-danger">*</span></label>
                         <input type="text" id="name" name="name" class="form-control" required placeholder="ej. Aseo e higiene">
                     </div>
-                    <div class="col-sm-2">
-                        <label for="icon" class="form-label">Icono (emoji)</label>
-                        <input type="text" id="icon" name="icon" class="form-control" placeholder="🛁" maxlength="4" style="font-size:1.3rem;text-align:center">
+                    <div class="col-sm-4">
+                        <label class="form-label">Icono</label>
+                        <input type="hidden" id="icon" name="icon" value="">
+                        <div class="d-flex flex-wrap gap-1" id="icon-grid">
+                            {% for e in ['🛁','💊','🏃','🍽️','💬','🔄','🩹','📋','🚽','💉','🩺','🧴','👁️','🦷','💤','🧹','❤️','🩸','🌡️','⚕️','🧠','👐','🪥','🍎','💧','🧪','🦴','👃','👂','🫀'] %}
+                            <button type="button" class="btn btn-outline-secondary icon-pick p-1" data-emoji="{{ e }}" style="font-size:1.4rem;width:42px;height:42px;line-height:1">{{ e }}</button>
+                            {% endfor %}
+                        </div>
                     </div>
                     <div class="col-sm-3">
                         <label for="parent_id" class="form-label">Tipo padre</label>
@@ -141,12 +146,26 @@
 <script>
 (function () {
     'use strict';
+    var iconInput = document.getElementById('icon');
+
+    function selectIcon(emoji) {
+        iconInput.value = emoji;
+        document.querySelectorAll('.icon-pick').forEach(function (b) {
+            b.classList.toggle('btn-success', b.dataset.emoji === emoji);
+            b.classList.toggle('btn-outline-secondary', b.dataset.emoji !== emoji);
+        });
+    }
+
+    document.querySelectorAll('.icon-pick').forEach(function (b) {
+        b.addEventListener('click', function () { selectIcon(this.dataset.emoji); });
+    });
+
     document.querySelectorAll('.edit-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
             var form = document.getElementById('ct-form');
             form.querySelector('[name="care_type_id"]').value = this.dataset.id;
             form.querySelector('[name="name"]').value         = this.dataset.name;
-            form.querySelector('[name="icon"]').value         = this.dataset.icon;
+            selectIcon(this.dataset.icon || '');
             form.querySelector('[name="parent_id"]').value    = this.dataset.parent;
             form.querySelector('[name="sort_order"]').value   = this.dataset.sort;
             document.getElementById('submit-btn').textContent   = 'Guardar';
@@ -160,6 +179,7 @@
         var form = document.getElementById('ct-form');
         form.reset();
         form.querySelector('[name="care_type_id"]').value = '';
+        selectIcon('');
         document.getElementById('submit-btn').textContent  = 'Añadir';
         document.getElementById('form-title').textContent  = 'Añadir tipo de atención';
         document.getElementById('edit-badge').classList.add('d-none');
