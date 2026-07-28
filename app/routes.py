@@ -1040,6 +1040,12 @@ def nfc_scan():
     if not mode:
         room = Room.query.filter_by(number=nfc_code).first()
         resident = Resident.query.filter_by(nfc_code=nfc_code, active=True).first()
+        # Si no encuentra y el código es numérico, probar con ceros a la izquierda
+        if not room and not resident and nfc_code.isdigit():
+            padded4 = nfc_code.zfill(4)
+            padded5 = nfc_code.zfill(5)
+            room = Room.query.filter(Room.number.in_([padded4, padded5])).first()
+            resident = Resident.query.filter(Resident.nfc_code.in_([padded4, padded5]), Resident.active == True).first()
         if room and resident:
             return jsonify({
                 'action': 'select_mode',
@@ -1055,6 +1061,8 @@ def nfc_scan():
 
     if mode == 'cleaning':
         room = Room.query.filter_by(number=nfc_code).first()
+        if not room and nfc_code.isdigit():
+            room = Room.query.filter(Room.number.in_([nfc_code.zfill(4), nfc_code.zfill(5)])).first()
         if not room:
             return jsonify({'error': f'Habitación "{nfc_code}" no encontrada', 'code': 'ROOM_NOT_FOUND'}), 404
 
@@ -1088,6 +1096,8 @@ def nfc_scan():
 
     if mode == 'care':
         resident = Resident.query.filter_by(nfc_code=nfc_code, active=True).first()
+        if not resident and nfc_code.isdigit():
+            resident = Resident.query.filter(Resident.nfc_code.in_([nfc_code.zfill(4), nfc_code.zfill(5)]), Resident.active == True).first()
         if not resident:
             return jsonify({'error': f'Residente con código "{nfc_code}" no encontrado', 'code': 'RESIDENT_NOT_FOUND'}), 404
 
