@@ -733,6 +733,42 @@ def worker_manifest():
 
 # ── API – WORKER (JWT) ────────────────────────────────────────────────────────
 
+@app.route('/api/chat', methods=['POST'])
+@jwt_required()
+def api_chat():
+    from .chatbot import chat
+    api_key = app.config.get('ANTHROPIC_API_KEY')
+    if not api_key:
+        return jsonify({'error': 'Chatbot no configurado (falta ANTHROPIC_API_KEY)'}), 503
+    data = request.json or {}
+    message = data.get('message', '').strip()
+    if not message:
+        return jsonify({'error': 'Mensaje vacío'}), 400
+    try:
+        response = chat(message, api_key)
+        return jsonify({'response': response}), 200
+    except Exception as e:
+        return jsonify({'error': f'Error del chatbot: {str(e)}'}), 500
+
+
+@app.route('/admin/chat', methods=['POST'])
+@login_required
+def admin_chat():
+    from .chatbot import chat
+    api_key = app.config.get('ANTHROPIC_API_KEY')
+    if not api_key:
+        return jsonify({'error': 'Chatbot no configurado (falta ANTHROPIC_API_KEY)'}), 503
+    data = request.json or {}
+    message = data.get('message', '').strip()
+    if not message:
+        return jsonify({'error': 'Mensaje vacío'}), 400
+    try:
+        response = chat(message, api_key)
+        return jsonify({'response': response}), 200
+    except Exception as e:
+        return jsonify({'error': f'Error del chatbot: {str(e)}'}), 500
+
+
 @app.route('/api/care-types')
 @jwt_required()
 def api_care_types():

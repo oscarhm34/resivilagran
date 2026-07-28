@@ -337,5 +337,104 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Chat IA -->
+    <button id="chat-fab" title="Asistente IA" style="position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:50%;border:none;background:var(--color-primary,#0069d9);color:#fff;font-size:24px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);z-index:9999;transition:transform .15s" onclick="document.getElementById('chat-dialog').showModal()">💬</button>
+    <dialog id="chat-dialog" style="border:none;border-radius:16px;padding:0;max-width:420px;width:95vw;height:70vh;max-height:600px;background:#fff;box-shadow:0 20px 60px rgba(0,0,0,.3);display:flex;flex-direction:column;position:fixed;bottom:90px;right:24px;margin:0">
+        <div style="padding:14px 18px;border-bottom:1px solid #e0e0e0;display:flex;align-items:center;gap:10px;flex-shrink:0">
+            <span style="font-size:20px">🤖</span>
+            <strong style="flex:1;font-size:15px">Asistente La Vila Gran</strong>
+            <button onclick="document.getElementById('chat-dialog').close()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#666">&times;</button>
+        </div>
+        <div id="chat-messages" style="flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:10px">
+            <div class="chat-msg bot">Hola, soy el asistente de La Vila Gran. ¿En qué puedo ayudarte?</div>
+        </div>
+        <div style="padding:12px 18px;border-top:1px solid #e0e0e0;display:flex;gap:8px;flex-shrink:0">
+            <button id="chat-mic" title="Hablar" style="width:40px;height:40px;border-radius:50%;border:1.5px solid #d0d7de;background:none;font-size:18px;cursor:pointer;flex-shrink:0">🎤</button>
+            <input id="chat-input" type="text" placeholder="Escribe tu pregunta..." style="flex:1;padding:10px 14px;border:1.5px solid #d0d7de;border-radius:20px;font-size:14px;font-family:inherit;outline:none" autocomplete="off">
+            <button id="chat-send" style="width:40px;height:40px;border-radius:50%;border:none;background:var(--color-primary,#0069d9);color:#fff;font-size:16px;cursor:pointer;flex-shrink:0">➤</button>
+        </div>
+    </dialog>
+    <style>
+        .chat-msg{padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.5;max-width:85%;word-wrap:break-word;white-space:pre-wrap}
+        .chat-msg.user{background:#0069d9;color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+        .chat-msg.bot{background:#f0f2f5;color:#1f2328;align-self:flex-start;border-bottom-left-radius:4px}
+        .chat-msg.bot strong{font-weight:700}
+        .chat-typing{align-self:flex-start;padding:10px 14px;border-radius:14px;background:#f0f2f5;font-size:14px;color:#999}
+        #chat-mic.recording{background:#cf222e;color:#fff;border-color:#cf222e;animation:pulse-mic 1s infinite}
+        @keyframes pulse-mic{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+    </style>
+    <script>
+    (function(){
+        var msgs = document.getElementById('chat-messages');
+        var input = document.getElementById('chat-input');
+        var sendBtn = document.getElementById('chat-send');
+        var micBtn = document.getElementById('chat-mic');
+        var chatUrl = '{{ url_for("admin_chat") }}';
+
+        function addMsg(text, cls) {
+            var d = document.createElement('div');
+            d.className = 'chat-msg ' + cls;
+            d.textContent = text;
+            msgs.appendChild(d);
+            msgs.scrollTop = msgs.scrollHeight;
+            return d;
+        }
+
+        async function sendMessage() {
+            var text = input.value.trim();
+            if (!text) return;
+            input.value = '';
+            addMsg(text, 'user');
+            var typing = document.createElement('div');
+            typing.className = 'chat-typing';
+            typing.textContent = 'Pensando...';
+            msgs.appendChild(typing);
+            msgs.scrollTop = msgs.scrollHeight;
+            try {
+                var res = await fetch(chatUrl, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({message: text}),
+                });
+                var data = await res.json();
+                typing.remove();
+                addMsg(data.response || data.error || 'Error desconocido', 'bot');
+            } catch(e) {
+                typing.remove();
+                addMsg('Error de conexión', 'bot');
+            }
+        }
+
+        sendBtn.addEventListener('click', sendMessage);
+        input.addEventListener('keydown', function(e){ if(e.key==='Enter') sendMessage(); });
+
+        // Voice input
+        var recognition = null;
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRec();
+            recognition.lang = 'es-ES';
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.onresult = function(e) {
+                input.value = e.results[0][0].transcript;
+                micBtn.classList.remove('recording');
+                sendMessage();
+            };
+            recognition.onerror = function() { micBtn.classList.remove('recording'); };
+            recognition.onend = function() { micBtn.classList.remove('recording'); };
+        }
+        micBtn.addEventListener('click', function() {
+            if (!recognition) { alert('Tu navegador no soporta reconocimiento de voz'); return; }
+            if (micBtn.classList.contains('recording')) {
+                recognition.stop();
+            } else {
+                micBtn.classList.add('recording');
+                recognition.start();
+            }
+        });
+    })();
+    </script>
 </body>
 </html>

@@ -44,5 +44,6 @@ tzdata==2024.1
 urllib3==2.1.0
 Werkzeug==3.0.1
 XlsxWriter==3.1.9
+anthropic>=0.26.0
 zope.event==5.0
 zope.interface==6.1
