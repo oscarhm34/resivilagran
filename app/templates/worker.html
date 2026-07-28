@@ -640,8 +640,8 @@
 <div class="toast" id="toast" aria-live="assertive"></div>
 
 <!-- Chat IA flotante -->
-<button id="chat-fab" style="position:fixed;bottom:24px;right:24px;width:52px;height:52px;border-radius:50%;border:none;background:var(--blue);color:#fff;font-size:22px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);z-index:9999" onclick="$('chat-dialog').showModal()">💬</button>
-<dialog id="chat-dialog" style="border:none;border-radius:18px;padding:0;max-width:400px;width:92vw;height:65vh;max-height:550px;background:var(--surface);box-shadow:0 20px 60px rgba(0,0,0,.3);display:flex;flex-direction:column;position:fixed;bottom:86px;right:16px;margin:0">
+<button id="chat-fab" style="position:fixed;bottom:24px;right:24px;width:52px;height:52px;border-radius:50%;border:none;background:var(--blue);color:#fff;font-size:22px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);z-index:9999;display:none" onclick="$('chat-dialog').showModal()">💬</button>
+<dialog id="chat-dialog" style="border:none;border-radius:18px;padding:0;max-width:400px;width:92vw;height:65vh;max-height:550px;background:var(--surface);box-shadow:0 20px 60px rgba(0,0,0,.3);position:fixed;bottom:86px;right:16px;margin:0">
     <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0">
         <span style="font-size:18px">🤖</span>
         <strong style="flex:1;font-size:14px">Asistente</strong>
@@ -657,6 +657,8 @@
     </div>
 </dialog>
 <style>
+    #chat-dialog{display:none}
+    #chat-dialog[open]{display:flex;flex-direction:column}
     .chat-user,.chat-bot{padding:9px 13px;border-radius:14px;font-size:13px;line-height:1.5;max-width:85%;word-wrap:break-word;white-space:pre-wrap}
     .chat-user{background:var(--blue);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
     .chat-bot{background:var(--bg);color:var(--text);align-self:flex-start;border-bottom-left-radius:4px}
@@ -812,6 +814,8 @@ function doLogout() {
     S.token = S.workerId = S.workerName = null;
     S.sessions = [];
     ['wt','wid','wname'].forEach(k => localStorage.removeItem(k));
+    $('chat-fab').style.display = 'none';
+    $('chat-dialog').close();
     show('screen-login');
 }
 $('btn-logout').addEventListener('click', doLogout);
@@ -820,6 +824,7 @@ $('btn-logout').addEventListener('click', doLogout);
 async function initHome() {
     $('home-name').textContent = S.workerName || '—';
     show('screen-home');
+    $('chat-fab').style.display = '';
     await Promise.all([loadActiveSessions(), loadHistory(), loadCareTypes(), loadMyGroups(), loadPendingItems()]);
     startGlobalTimer();
 }

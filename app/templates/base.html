@@ -338,9 +338,10 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
+    {% if current_user.is_authenticated %}
     <!-- Chat IA -->
     <button id="chat-fab" title="Asistente IA" style="position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:50%;border:none;background:var(--color-primary,#0069d9);color:#fff;font-size:24px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);z-index:9999;transition:transform .15s" onclick="document.getElementById('chat-dialog').showModal()">💬</button>
-    <dialog id="chat-dialog" style="border:none;border-radius:16px;padding:0;max-width:420px;width:95vw;height:70vh;max-height:600px;background:#fff;box-shadow:0 20px 60px rgba(0,0,0,.3);display:flex;flex-direction:column;position:fixed;bottom:90px;right:24px;margin:0">
+    <dialog id="chat-dialog" style="border:none;border-radius:16px;padding:0;max-width:420px;width:95vw;height:70vh;max-height:600px;background:#fff;box-shadow:0 20px 60px rgba(0,0,0,.3);position:fixed;bottom:90px;right:24px;margin:0">
         <div style="padding:14px 18px;border-bottom:1px solid #e0e0e0;display:flex;align-items:center;gap:10px;flex-shrink:0">
             <span style="font-size:20px">🤖</span>
             <strong style="flex:1;font-size:15px">Asistente La Vila Gran</strong>
@@ -356,6 +357,8 @@
         </div>
     </dialog>
     <style>
+        #chat-dialog{display:none}
+        #chat-dialog[open]{display:flex;flex-direction:column}
         .chat-msg{padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.5;max-width:85%;word-wrap:break-word;white-space:pre-wrap}
         .chat-msg.user{background:#0069d9;color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
         .chat-msg.bot{background:#f0f2f5;color:#1f2328;align-self:flex-start;border-bottom-left-radius:4px}
@@ -436,5 +439,6 @@
         });
     })();
     </script>
+    {% endif %}
 </body>
 </html>
