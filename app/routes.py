@@ -1078,6 +1078,11 @@ def worker_today():
             'start_time': c.start_time.strftime('%H:%M'),
             'duration': _format_duration(c.start_time, c.end_time),
             'photo_url': f'/api/uploads/{r.photo_path}' if r and r.photo_path else None,
+            'care_today': [{
+                'time': c.start_time.strftime('%H:%M'),
+                'types': sub,
+                'duration': _format_duration(c.start_time, c.end_time),
+            }],
         })
 
     sessions.sort(key=lambda x: x['start_time'], reverse=True)
