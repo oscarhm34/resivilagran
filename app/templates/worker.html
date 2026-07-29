@@ -113,6 +113,48 @@
         .hist-dur  { font-family:'Outfit',monospace; font-size:13px; font-weight:600; color:var(--text-2); flex-shrink:0; }
         .hist-empty { color:var(--text-2); font-size:13px; text-align:center; padding:20px 0; }
 
+        /* ── Group care multi-select ── */
+        .btn-multi-toggle {
+            background:none; border:1.5px solid var(--border); border-radius:20px;
+            padding:6px 14px; font-size:12px; font-weight:600; cursor:pointer;
+            font-family:inherit; color:var(--text-2); transition:all .15s;
+        }
+        .btn-multi-toggle.active {
+            background:var(--green); color:#fff; border-color:var(--green);
+        }
+        .fab-group-start {
+            position:sticky; bottom:12px; left:0; right:0; width:100%;
+            background:var(--green); color:#fff; border:none; border-radius:16px;
+            padding:16px; font-size:15px; font-weight:700; cursor:pointer;
+            font-family:inherit; box-shadow:0 4px 16px rgba(26,127,55,.3);
+            transition:transform .15s, opacity .15s; margin-top:12px;
+        }
+        .fab-group-start:active { transform:scale(.96); opacity:.9; }
+        .sel-item-wrap.group-selected .sel-item {
+            border-color:var(--green) !important; background:rgba(26,127,55,.08) !important;
+        }
+        .sel-item-wrap.group-selected .sel-item::after {
+            content:'✓'; position:absolute; top:6px; right:8px;
+            background:var(--green); color:#fff; width:22px; height:22px;
+            border-radius:50%; display:flex; align-items:center; justify-content:center;
+            font-size:13px; font-weight:700;
+        }
+        .sel-item-wrap .sel-item { position:relative; }
+        .asc-photos {
+            display:flex; flex-shrink:0;
+        }
+        .asc-photos img {
+            width:36px; height:36px; border-radius:50%; object-fit:cover;
+            border:2px solid var(--bg); margin-left:-10px;
+        }
+        .asc-photos img:first-child { margin-left:0; }
+        .asc-photos .asc-more {
+            width:36px; height:36px; border-radius:50%; margin-left:-10px;
+            background:var(--green-lt); color:var(--green); font-size:11px;
+            font-weight:700; display:flex; align-items:center; justify-content:center;
+            border:2px solid var(--bg);
+        }
+
         /* ── SCAN ── */
         #screen-scan { align-items:center; justify-content:space-between; gap:16px; }
         .scan-header { width:100%; display:flex; align-items:center; gap:14px; }
@@ -373,12 +415,16 @@
         <div class="scan-header">
             <button class="btn-back" id="mygroup-back" aria-label="Volver">←</button>
             <span class="mode-badge care">👥 Mi grupo</span>
+            <button id="mygroup-multiselect-toggle" class="btn-multi-toggle" style="margin-left:auto">☑ Grupal</button>
         </div>
         <div style="margin:12px 0 8px">
             <input class="fallback-input" type="text" id="mygroup-search"
                    placeholder="Buscar residente..." autocomplete="off" style="width:100%">
         </div>
         <div id="mygroup-list" style="flex:1;overflow-y:auto"></div>
+        <button id="mygroup-start-group" class="fab-group-start" style="display:none">
+            Iniciar atención grupal (<span id="group-count">0</span>)
+        </button>
     </div>
 
     <!-- ══ SELECT ══ -->
@@ -687,6 +733,10 @@ const S = {
     pendingEndRecordId: null,
     pendingResidentId: null,
     pendingChecklistRecordId: null,
+    groupSelectMode: false,
+    groupSelected: [],
+    pendingGroupRecordIds: [],
+    pendingGroupNames: [],
 };
 
 // ── DOM ────────────────────────────────────────────────────────────────────
@@ -773,9 +823,18 @@ function elapsed(iso) { return (Date.now() - new Date(iso).getTime()) / 1000; }
 function startGlobalTimer() {
     clearInterval(S.timerInt);
     S.timerInt = setInterval(() => {
+        const seenGroups = new Set();
         S.sessions.forEach(sess => {
-            const el = $(`timer-${sess.record_id}`);
-            if (el) el.textContent = fmt(elapsed(sess.start_time));
+            if (sess.group_key) {
+                if (!seenGroups.has(sess.group_key)) {
+                    seenGroups.add(sess.group_key);
+                    const el = $(`timer-group-${sess.group_key}`);
+                    if (el) el.textContent = fmt(elapsed(sess.start_time));
+                }
+            } else {
+                const el = $(`timer-${sess.record_id}`);
+                if (el) el.textContent = fmt(elapsed(sess.start_time));
+            }
         });
     }, 1000);
 }
@@ -849,16 +908,80 @@ function renderActiveSessions() {
     }
 
     wrap.style.display = 'block';
-    label.textContent  = `${S.sessions.length} en curso ahora`;
 
-    list.innerHTML = S.sessions.map(sess => {
+    // Separate grouped and individual sessions
+    const groups = {};
+    const singles = [];
+    for (const sess of S.sessions) {
+        if (sess.group_key) {
+            if (!groups[sess.group_key]) groups[sess.group_key] = [];
+            groups[sess.group_key].push(sess);
+        } else {
+            singles.push(sess);
+        }
+    }
+
+    const groupKeys = Object.keys(groups);
+    const totalCards = singles.length + groupKeys.length;
+    label.textContent = `${totalCards} en curso ahora`;
+
+    let html = '';
+
+    // Render group cards
+    for (const gk of groupKeys) {
+        const members = groups[gk];
+        const timeStr = fmt(elapsed(members[0].start_time));
+        const names = members.map(m => m.subject);
+        const displayName = names.length > 3
+            ? names.slice(0, 3).join(', ') + ` (+${names.length - 3})`
+            : names.join(', ');
+        const recordIds = members.map(m => m.record_id).join(',');
+
+        // Photos
+        let photosHtml = '<div class="asc-photos">';
+        const showMax = 4;
+        for (let i = 0; i < Math.min(members.length, showMax); i++) {
+            if (members[i].photo_url) {
+                photosHtml += `<img data-auth-src="${members[i].photo_url}" alt="">`;
+            } else {
+                photosHtml += `<span class="asc-more">🤲</span>`;
+            }
+        }
+        if (members.length > showMax) {
+            photosHtml += `<span class="asc-more">+${members.length - showMax}</span>`;
+        }
+        photosHtml += '</div>';
+
+        html += `
+        <div class="asc care" id="asc-group-${gk}">
+            ${photosHtml}
+            <div class="asc-info">
+                <div class="asc-subject" style="white-space:normal;line-height:1.3">${displayName}</div>
+                <div class="asc-sub">Atención grupal · ${members.length} residentes</div>
+            </div>
+            <div class="asc-right">
+                <div class="asc-timer" id="timer-group-${gk}">${timeStr}</div>
+                <div class="asc-btns">
+                    <button class="btn-asc-end btn-group-end"
+                            data-group-key="${gk}"
+                            data-record-ids="${recordIds}">Finalizar</button>
+                    <button class="btn-asc-cancel btn-group-cancel"
+                            data-group-key="${gk}"
+                            data-record-ids="${recordIds}">✕</button>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    // Render individual cards
+    for (const sess of singles) {
         const isCare   = sess.type === 'care';
         const timeStr  = fmt(elapsed(sess.start_time));
         const subLabel = sess.subject_sub || (isCare ? 'Atención' : 'Limpieza');
         const iconHtml = (isCare && sess.photo_url)
             ? `<div class="asc-icon care" style="padding:0;overflow:hidden"><img data-auth-src="${sess.photo_url}" style="width:100%;height:100%;border-radius:12px;object-fit:cover" alt=""></div>`
             : `<div class="asc-icon">${isCare ? '🤲' : '🧹'}</div>`;
-        return `
+        html += `
         <div class="asc ${sess.type}" id="asc-${sess.record_id}">
             ${iconHtml}
             <div class="asc-info">
@@ -877,24 +1000,55 @@ function renderActiveSessions() {
                 </div>
             </div>
         </div>`;
-    }).join('');
+    }
 
-    // Listeners con data-* — sin onclick inline, sin problemas de escaping
-    list.querySelectorAll('.btn-asc-end').forEach(btn => {
+    list.innerHTML = html;
+
+    // Individual session listeners
+    list.querySelectorAll('.btn-asc-end:not(.btn-group-end)').forEach(btn => {
         btn.addEventListener('click', async () => {
             if (btn.disabled) return;
             btn.disabled    = true;
             btn.textContent = '…';
             await endByCard(parseInt(btn.dataset.id), btn.dataset.mode);
-            // Si falla, re-habilitar el botón
             btn.disabled    = false;
             btn.textContent = 'Finalizar';
         });
     });
-
-    list.querySelectorAll('.btn-asc-cancel').forEach(btn => {
+    list.querySelectorAll('.btn-asc-cancel:not(.btn-group-cancel)').forEach(btn => {
         btn.addEventListener('click', () =>
             cancelByCard(parseInt(btn.dataset.id), btn.dataset.mode));
+    });
+
+    // Group session listeners
+    list.querySelectorAll('.btn-group-end').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            if (btn.disabled) return;
+            btn.disabled    = true;
+            btn.textContent = '…';
+            const rids = btn.dataset.recordIds.split(',').map(Number);
+            const gk = btn.dataset.groupKey;
+            const members = groups[gk] || [];
+            S.pendingGroupRecordIds = rids;
+            S.pendingGroupNames = members.map(m => m.subject);
+            // Show care type selection for the group
+            showCareTypesEnd({
+                resident_name: members.map(m => m.subject).join(', '),
+                resident_id: null,
+                photo_url: null,
+                _isGroup: true,
+                _groupMembers: members,
+            });
+            btn.disabled    = false;
+            btn.textContent = 'Finalizar';
+        });
+    });
+    list.querySelectorAll('.btn-group-cancel').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const rids = btn.dataset.recordIds.split(',').map(Number);
+            S.pendingCancel = { recordIds: rids, mode: 'care', isGroup: true };
+            $('cancel-dialog').showModal();
+        });
     });
 
     list.querySelectorAll('img[data-auth-src]').forEach(img => loadAuthImg(img, img.dataset.authSrc));
@@ -999,7 +1153,7 @@ function showMyGroup() {
         const careTag = r.has_care_today
             ? `<span style="font-size:11px;color:var(--green);font-weight:600">✓ ${r.care_count_today}</span>`
             : '';
-        return `<div class="sel-item-wrap" data-search="${r.name} ${r.room_number}">
+        return `<div class="sel-item-wrap" data-search="${r.name} ${r.room_number}" data-rid="${r.id}" data-rname="${r.name}" data-rphoto="${r.photo_url || ''}">
             <button class="sel-item care" data-code="${r.nfc_code}">
                 ${icon}
                 <div class="sel-info">
@@ -1025,16 +1179,103 @@ function showMyGroup() {
         html += '</div>';
     }
     list.innerHTML = html;
-    list.querySelectorAll('.sel-item').forEach(btn =>
-        btn.addEventListener('click', () => { S.mode = 'care'; handleCode(btn.dataset.code); }));
-    list.querySelectorAll('.ri-btn').forEach(btn =>
-        btn.addEventListener('click', e => { e.stopPropagation(); showResidentInfo(parseInt(btn.dataset.rid)); }));
+    bindMyGroupListeners();
     list.querySelectorAll('img[data-auth-src]').forEach(img => loadAuthImg(img, img.dataset.authSrc));
     show('screen-mygroup');
 }
 
+function bindMyGroupListeners() {
+    const list = $('mygroup-list');
+    list.querySelectorAll('.sel-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (S.groupSelectMode) {
+                const wrap = btn.closest('.sel-item-wrap');
+                const rid = parseInt(wrap.dataset.rid);
+                const idx = S.groupSelected.findIndex(x => x.id === rid);
+                if (idx >= 0) {
+                    S.groupSelected.splice(idx, 1);
+                    wrap.classList.remove('group-selected');
+                } else {
+                    S.groupSelected.push({
+                        id: rid,
+                        name: wrap.dataset.rname,
+                        photo_url: wrap.dataset.rphoto || null,
+                    });
+                    wrap.classList.add('group-selected');
+                }
+                updateGroupFab();
+            } else {
+                S.mode = 'care';
+                handleCode(btn.dataset.code);
+            }
+        });
+    });
+    list.querySelectorAll('.ri-btn').forEach(btn =>
+        btn.addEventListener('click', e => { e.stopPropagation(); showResidentInfo(parseInt(btn.dataset.rid)); }));
+}
+
+function updateGroupFab() {
+    const fab = $('mygroup-start-group');
+    const n = S.groupSelected.length;
+    if (n >= 2) {
+        fab.style.display = '';
+        $('group-count').textContent = n;
+    } else {
+        fab.style.display = 'none';
+    }
+}
+
 $('btn-my-group').addEventListener('click', showMyGroup);
-$('mygroup-back').addEventListener('click', () => show('screen-home'));
+$('mygroup-back').addEventListener('click', () => {
+    S.groupSelectMode = false;
+    S.groupSelected = [];
+    $('mygroup-multiselect-toggle').classList.remove('active');
+    $('mygroup-start-group').style.display = 'none';
+    show('screen-home');
+});
+$('mygroup-multiselect-toggle').addEventListener('click', () => {
+    S.groupSelectMode = !S.groupSelectMode;
+    S.groupSelected = [];
+    $('mygroup-multiselect-toggle').classList.toggle('active', S.groupSelectMode);
+    $('mygroup-start-group').style.display = 'none';
+    // Clear selections visually
+    $('mygroup-list').querySelectorAll('.group-selected').forEach(el => el.classList.remove('group-selected'));
+});
+$('mygroup-start-group').addEventListener('click', async () => {
+    if (S.groupSelected.length < 2) return;
+    const fab = $('mygroup-start-group');
+    fab.disabled = true;
+    fab.textContent = 'Iniciando…';
+    const ids = S.groupSelected.map(x => x.id);
+    const { ok, data } = await api('/api/nfc/start-group-care', 'POST', {
+        worker_id: parseInt(S.workerId),
+        resident_ids: ids,
+    });
+    fab.disabled = false;
+    fab.innerHTML = 'Iniciar atención grupal (<span id="group-count">0</span>)';
+    if (!ok) { toast(data.error || 'Error al iniciar'); return; }
+    // Add group sessions to S.sessions
+    for (const rec of data.records) {
+        S.sessions.push({
+            type: 'care',
+            record_id: rec.record_id,
+            start_time: rec.start_time,
+            subject: rec.resident_name,
+            subject_sub: '',
+            photo_url: rec.photo_url,
+            group_key: data.group_key,
+            resident_id: rec.resident_id,
+        });
+    }
+    renderActiveSessions();
+    startGlobalTimer();
+    S.groupSelectMode = false;
+    S.groupSelected = [];
+    $('mygroup-multiselect-toggle').classList.remove('active');
+    $('mygroup-start-group').style.display = 'none';
+    toast(`Atención grupal iniciada · ${data.records.length} residentes`);
+    show('screen-home');
+});
 $('mygroup-search').addEventListener('input', function () {
     const q = this.value.toLowerCase().trim();
     const items = $('mygroup-list').querySelectorAll('.sel-item-wrap');
@@ -1324,24 +1565,37 @@ $('smd-cancel').addEventListener('click', () => {
 
 // ── Care type screen (end of session) ─────────────────────────────────────
 function showCareTypesEnd(data) {
-    $('ct-resident-name').textContent = data.resident_name || S.pendingRName || '—';
-
-    // Load resident photo
     const photoEl = $('ct-resident-photo');
-    const rid = data.resident_id || S.pendingResidentId;
-    if (rid && data.photo_url) {
-        photoEl.style.display = '';
-        photoEl.src = '';
-        loadAuthImg(photoEl, data.photo_url);
-        $('ct-info-btn').style.display = '';
-        $('ct-info-btn').onclick = () => showResidentInfo(rid);
-    } else if (rid) {
-        photoEl.style.display = 'none';
-        $('ct-info-btn').style.display = '';
-        $('ct-info-btn').onclick = () => showResidentInfo(rid);
-    } else {
+
+    if (data._isGroup) {
+        // Group care: show names and photos
+        const members = data._groupMembers || [];
+        const names = members.map(m => m.subject);
+        const displayName = names.length > 3
+            ? names.slice(0, 3).join(', ') + ` (+${names.length - 3})`
+            : names.join(', ');
+        $('ct-resident-name').textContent = displayName;
         photoEl.style.display = 'none';
         $('ct-info-btn').style.display = 'none';
+    } else {
+        $('ct-resident-name').textContent = data.resident_name || S.pendingRName || '—';
+
+        // Load resident photo
+        const rid = data.resident_id || S.pendingResidentId;
+        if (rid && data.photo_url) {
+            photoEl.style.display = '';
+            photoEl.src = '';
+            loadAuthImg(photoEl, data.photo_url);
+            $('ct-info-btn').style.display = '';
+            $('ct-info-btn').onclick = () => showResidentInfo(rid);
+        } else if (rid) {
+            photoEl.style.display = 'none';
+            $('ct-info-btn').style.display = '';
+            $('ct-info-btn').onclick = () => showResidentInfo(rid);
+        } else {
+            photoEl.style.display = 'none';
+            $('ct-info-btn').style.display = 'none';
+        }
     }
 
     const grid = $('ct-grid');
@@ -1414,18 +1668,37 @@ async function finalizeCare() {
     confirmBtn.disabled = true;
     confirmBtn.textContent = 'Finalizando…';
 
-    const { ok, data } = await api('/api/nfc/finalize-care', 'POST', {
-        record_id: S.pendingEndRecordId,
-        worker_id: parseInt(S.workerId),
-        care_type_ids: selected,
-    });
+    let ok, data;
+    if (S.pendingGroupRecordIds.length > 0) {
+        // Group finalization
+        ({ ok, data } = await api('/api/nfc/finalize-group-care', 'POST', {
+            worker_id: parseInt(S.workerId),
+            record_ids: S.pendingGroupRecordIds,
+            care_type_ids: selected,
+        }));
+        if (ok) {
+            const idSet = new Set(S.pendingGroupRecordIds);
+            S.sessions = S.sessions.filter(s => !idSet.has(s.record_id));
+            S.pendingGroupRecordIds = [];
+            S.pendingGroupNames = [];
+        }
+    } else {
+        // Single finalization
+        ({ ok, data } = await api('/api/nfc/finalize-care', 'POST', {
+            record_id: S.pendingEndRecordId,
+            worker_id: parseInt(S.workerId),
+            care_type_ids: selected,
+        }));
+        if (ok) {
+            S.sessions = S.sessions.filter(s => s.record_id !== S.pendingEndRecordId);
+        }
+    }
 
     confirmBtn.disabled = false;
     confirmBtn.textContent = 'Confirmar y finalizar';
 
     if (!ok) { toast(data.error || 'Error al finalizar'); return; }
 
-    S.sessions = S.sessions.filter(s => s.record_id !== S.pendingEndRecordId);
     renderActiveSessions();
     if (!S.sessions.length) { clearInterval(S.timerInt); S.timerInt = null; }
     showResult('care', data);
@@ -1526,12 +1799,24 @@ function showResult(mode, data) {
 $('cancel-dialog-no').addEventListener('click', () => $('cancel-dialog').close());
 $('cancel-dialog-yes').addEventListener('click', async () => {
     $('cancel-dialog').close();
-    const { recordId, mode } = S.pendingCancel;
-    const { ok, data } = await api('/api/nfc/cancel-session', 'POST', {
-        worker_id: parseInt(S.workerId), record_id: recordId, mode,
-    });
-    if (!ok) { toast(data.error || 'Error al cancelar'); return; }
-    S.sessions = S.sessions.filter(s => s.record_id !== recordId);
+    if (S.pendingCancel.isGroup) {
+        // Group cancel
+        const { recordIds, mode } = S.pendingCancel;
+        const { ok, data } = await api('/api/nfc/cancel-session', 'POST', {
+            worker_id: parseInt(S.workerId), record_ids: recordIds, mode,
+        });
+        if (!ok) { toast(data.error || 'Error al cancelar'); return; }
+        const idSet = new Set(recordIds);
+        S.sessions = S.sessions.filter(s => !idSet.has(s.record_id));
+    } else {
+        // Single cancel
+        const { recordId, mode } = S.pendingCancel;
+        const { ok, data } = await api('/api/nfc/cancel-session', 'POST', {
+            worker_id: parseInt(S.workerId), record_id: recordId, mode,
+        });
+        if (!ok) { toast(data.error || 'Error al cancelar'); return; }
+        S.sessions = S.sessions.filter(s => s.record_id !== recordId);
+    }
     renderActiveSessions();
     if (!S.sessions.length) { clearInterval(S.timerInt); S.timerInt = null; }
 });

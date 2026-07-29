@@ -839,18 +839,30 @@ def worker_active_sessions():
             'subject_sub': room.description or '' if room else '',
         })
 
-    for c in CareRecord.query.filter_by(worker_id=worker_id, end_time=None).all():
-        # Use junction table types first, fall back to old care_type_id
-        sub = ', '.join(ct.name for ct in c.care_types) if c.care_types else (c.care_type.name if c.care_type else '')
-        r = c.resident
-        sessions.append({
-            'type': 'care',
-            'record_id': c.id,
-            'start_time': c.start_time.isoformat(),
-            'subject': r.name if r else 'Residente',
-            'subject_sub': sub,
-            'photo_url': f'/api/uploads/{r.photo_path}' if r and r.photo_path else None,
-        })
+    care_records = CareRecord.query.filter_by(worker_id=worker_id, end_time=None).all()
+
+    # Group by start_time (truncated to second) to detect group care sessions
+    from collections import defaultdict
+    by_start = defaultdict(list)
+    for c in care_records:
+        key = c.start_time.replace(microsecond=0).isoformat() if c.start_time else None
+        by_start[key].append(c)
+
+    for key, records in by_start.items():
+        group_key = key if len(records) > 1 else None
+        for c in records:
+            sub = ', '.join(ct.name for ct in c.care_types) if c.care_types else (c.care_type.name if c.care_type else '')
+            r = c.resident
+            sessions.append({
+                'type': 'care',
+                'record_id': c.id,
+                'start_time': c.start_time.isoformat(),
+                'subject': r.name if r else 'Residente',
+                'subject_sub': sub,
+                'photo_url': f'/api/uploads/{r.photo_path}' if r and r.photo_path else None,
+                'group_key': group_key,
+                'resident_id': r.id if r else None,
+            })
 
     return jsonify(sessions), 200
 
@@ -1243,6 +1255,105 @@ def end_session():
     return jsonify({'error': 'Modo no válido'}), 400
 
 
+@app.route('/api/nfc/start-group-care', methods=['POST'])
+@jwt_required()
+def start_group_care():
+    data = request.json or {}
+    worker_id = data.get('worker_id')
+    resident_ids = data.get('resident_ids', [])
+
+    if not worker_id or not resident_ids or len(resident_ids) < 2:
+        return jsonify({'error': 'Se necesitan al menos 2 residentes'}), 400
+
+    if len(resident_ids) > 15:
+        return jsonify({'error': 'Máximo 15 residentes por grupo'}), 400
+
+    # Check no active care session exists for any of these residents with this worker
+    active = CareRecord.query.filter(
+        CareRecord.worker_id == worker_id,
+        CareRecord.resident_id.in_(resident_ids),
+        CareRecord.end_time.is_(None),
+    ).first()
+    if active:
+        r = active.resident
+        return jsonify({'error': f'{r.name if r else "Residente"} ya tiene una sesión activa'}), 400
+
+    now = datetime.now()
+    records_out = []
+    for rid in resident_ids:
+        resident = db.session.get(Resident, rid)
+        if not resident:
+            continue
+        rec = CareRecord(worker_id=worker_id, resident_id=rid, start_time=now)
+        db.session.add(rec)
+        db.session.flush()
+        records_out.append({
+            'record_id': rec.id,
+            'resident_id': rid,
+            'resident_name': resident.name,
+            'photo_url': f'/api/uploads/{resident.photo_path}' if resident.photo_path else None,
+            'start_time': now.isoformat(),
+        })
+
+    db.session.commit()
+    return jsonify({
+        'action': 'group_started',
+        'group_key': now.replace(microsecond=0).isoformat(),
+        'records': records_out,
+    }), 200
+
+
+@app.route('/api/nfc/finalize-group-care', methods=['POST'])
+@jwt_required()
+def finalize_group_care():
+    data = request.json or {}
+    worker_id = data.get('worker_id')
+    record_ids = data.get('record_ids', [])
+    care_type_ids = data.get('care_type_ids', [])
+
+    if not worker_id or not record_ids:
+        return jsonify({'error': 'Datos incompletos'}), 400
+
+    records = CareRecord.query.filter(
+        CareRecord.id.in_(record_ids),
+        CareRecord.worker_id == worker_id,
+        CareRecord.end_time.is_(None),
+    ).all()
+
+    if not records:
+        return jsonify({'error': 'Registros no válidos'}), 400
+
+    now = datetime.now()
+    care_types = [db.session.get(CareType, ct_id) for ct_id in care_type_ids]
+    care_types = [ct for ct in care_types if ct]
+
+    names = []
+    for rec in records:
+        rec.end_time = now
+        for ct in care_types:
+            rec.care_types.append(ct)
+        if rec.resident:
+            names.append(rec.resident.name)
+
+    db.session.commit()
+
+    type_names = ', '.join(ct.name for ct in care_types)
+    first = records[0]
+    if len(names) > 3:
+        subject = ', '.join(names[:3]) + f' (+{len(names) - 3})'
+    else:
+        subject = ', '.join(names)
+
+    return jsonify({
+        'action': 'group_ended',
+        'subject': subject,
+        'subject_sub': type_names,
+        'duration': first.calculate_duration(),
+        'duration_display': _format_duration(first.start_time, first.end_time),
+        'count': len(records),
+    }), 200
+
+
 @app.route('/api/nfc/finalize-care', methods=['POST'])
 @jwt_required()
 def finalize_care():
@@ -1304,9 +1415,16 @@ def cancel_session():
     data = request.json or {}
     worker_id = data.get('worker_id')
     record_id = data.get('record_id')
+    record_ids = data.get('record_ids')
     mode = data.get('mode')
 
-    if record_id and mode:
+    if record_ids and mode == 'care':
+        # Group cancel
+        for rid in record_ids:
+            rec = db.session.get(CareRecord, rid)
+            if rec and rec.worker_id == worker_id and not rec.end_time:
+                db.session.delete(rec)
+    elif record_id and mode:
         if mode == 'cleaning':
             rec = db.session.get(CleaningRecord, record_id)
             if rec and rec.cleaner_id == worker_id and not rec.end_time:
