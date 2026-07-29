@@ -113,6 +113,36 @@
         .hist-dur  { font-family:'Outfit',monospace; font-size:13px; font-weight:600; color:var(--text-2); flex-shrink:0; }
         .hist-empty { color:var(--text-2); font-size:13px; text-align:center; padding:20px 0; }
 
+        /* ── Care details per resident ── */
+        .care-tag-btn {
+            font-size:11px; color:var(--green); font-weight:600;
+            background:var(--green-lt); border:1px solid rgba(26,127,55,.2);
+            border-radius:10px; padding:2px 7px; cursor:pointer;
+            font-family:inherit; transition:background .15s;
+        }
+        .care-tag-btn:active { background:rgba(26,127,55,.2); }
+        .care-details {
+            padding:6px 12px 8px 52px; /* align with sel-info */
+        }
+        .care-detail-item {
+            display:flex; align-items:center; gap:8px;
+            padding:4px 0; font-size:12px;
+            border-bottom:1px solid var(--border);
+        }
+        .care-detail-item:last-child { border-bottom:none; }
+        .care-detail-time {
+            color:var(--text-2); font-weight:600; min-width:38px;
+            font-family:'Outfit',monospace;
+        }
+        .care-detail-types {
+            flex:1; color:var(--text); font-weight:500;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+        }
+        .care-detail-dur {
+            color:var(--text-2); font-size:11px;
+            font-family:'Outfit',monospace; flex-shrink:0;
+        }
+
         /* ── Group care multi-select ── */
         .btn-multi-toggle {
             background:none; border:1.5px solid var(--border); border-radius:20px;
@@ -1167,8 +1197,18 @@ function showMyGroup() {
             ? `<div class="sel-icon care" style="padding:0;overflow:hidden"><img data-auth-src="${r.photo_url}" style="width:100%;height:100%;border-radius:12px;object-fit:cover" alt=""></div>`
             : `<div class="sel-icon">🤲</div>`;
         const careTag = r.has_care_today
-            ? `<span style="font-size:11px;color:var(--green);font-weight:600">✓ ${r.care_count_today}</span>`
+            ? `<button class="care-tag-btn" data-toggle-care="${r.id}" title="Ver atenciones">✓ ${r.care_count_today} ▾</button>`
             : '';
+        let careDetails = '';
+        if (r.care_today && r.care_today.length) {
+            careDetails = `<div class="care-details" id="care-details-${r.id}" style="display:none">
+                ${r.care_today.map(c => `<div class="care-detail-item">
+                    <span class="care-detail-time">${c.time}</span>
+                    <span class="care-detail-types">${c.types || 'Sin tipo'}</span>
+                    <span class="care-detail-dur">${c.duration}</span>
+                </div>`).join('')}
+            </div>`;
+        }
         return `<div class="sel-item-wrap" data-search="${r.name} ${r.room_number}" data-rid="${r.id}" data-rname="${r.name}" data-rphoto="${r.photo_url || ''}">
             <button class="sel-item care" data-code="${r.nfc_code}">
                 ${icon}
@@ -1177,6 +1217,7 @@ function showMyGroup() {
                     <div class="sel-sub">${r.room_number ? 'Hab. ' + r.room_number : ''}</div>
                 </div>
             </button>${infoBtn}
+            ${careDetails}
         </div>`;
     }
 
@@ -1228,6 +1269,18 @@ function bindMyGroupListeners() {
     });
     list.querySelectorAll('.ri-btn').forEach(btn =>
         btn.addEventListener('click', e => { e.stopPropagation(); showResidentInfo(parseInt(btn.dataset.rid)); }));
+    list.querySelectorAll('.care-tag-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            e.preventDefault();
+            const rid = btn.dataset.toggleCare;
+            const details = $('care-details-' + rid);
+            if (details) {
+                const visible = details.style.display !== 'none';
+                details.style.display = visible ? 'none' : '';
+            }
+        });
+    });
 }
 
 function updateGroupFab() {

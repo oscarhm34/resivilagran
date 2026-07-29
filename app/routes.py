@@ -1060,12 +1060,20 @@ def worker_my_groups():
     for group in worker.groups:
         residents_data: list[dict] = []
         for r in Resident.query.filter_by(group_id=group.id, active=True).order_by(Resident.name).all():
-            care_count = CareRecord.query.filter(
+            care_records = CareRecord.query.filter(
                 CareRecord.resident_id == r.id,
                 CareRecord.start_time >= hoy_inicio,
                 CareRecord.start_time < hoy_fin,
                 CareRecord.end_time.isnot(None),
-            ).count()
+            ).order_by(CareRecord.start_time.desc()).all()
+            care_today = []
+            for c in care_records:
+                types = ', '.join(ct.name for ct in c.care_types) if c.care_types else (c.care_type.name if c.care_type else '')
+                care_today.append({
+                    'time': c.start_time.strftime('%H:%M'),
+                    'types': types,
+                    'duration': _format_duration(c.start_time, c.end_time),
+                })
             residents_data.append({
                 'id': r.id,
                 'name': r.name,
@@ -1074,8 +1082,9 @@ def worker_my_groups():
                 'photo_url': f'/api/uploads/{r.photo_path}' if r.photo_path else None,
                 'has_photo': bool(r.photo_path),
                 'has_info': bool(r.relevant_info),
-                'has_care_today': care_count > 0,
-                'care_count_today': care_count,
+                'has_care_today': len(care_records) > 0,
+                'care_count_today': len(care_records),
+                'care_today': care_today,
             })
         result.append({
             'id': group.id,
