@@ -305,13 +305,15 @@
         .sel-item.cleaning .sel-icon { background:var(--blue-lt); }
         .sel-item.care .sel-icon { background:var(--green-lt); }
         .sel-info { flex:1; min-width:0; }
+        .sel-name-row { display:flex; align-items:center; gap:6px; }
+        .sel-name-text { font-weight:600; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
         .sel-name { font-weight:600; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .sel-sub { font-size:12px; color:var(--text-2); margin-top:1px; }
         .sel-empty { color:var(--text-2); font-size:13px; text-align:center; padding:30px 0; }
         .sel-nfc-bar { border-top:1px solid var(--border); padding-top:16px; margin-top:12px; text-align:center; flex-shrink:0; }
         .sel-item-wrap { display:flex; flex-direction:column; margin-bottom:6px; }
         .sel-item-wrap .sel-item { margin-bottom:0; flex:1; min-width:0; }
-        .ri-btn { width:22px; height:22px; border-radius:50%; border:1px solid var(--border); background:var(--surface); cursor:pointer; font-size:12px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; transition:background .15s; vertical-align:middle; margin-left:4px; }
+        .ri-btn { width:24px; height:24px; border-radius:50%; border:1px solid var(--border); background:var(--surface); cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:background .15s; }
         .ri-btn:hover { background:var(--blue-lt); }
 
         /* ── Selfie / Camera ── */
@@ -1247,7 +1249,11 @@ function showMyGroup() {
             <button class="sel-item care" data-code="${r.nfc_code}">
                 ${icon}
                 <div class="sel-info">
-                    <div class="sel-name">${r.name} ${careTag} ${infoBtn}</div>
+                    <div class="sel-name-row">
+                        <span class="sel-name-text">${r.name}</span>
+                        ${careTag}
+                        ${infoBtn}
+                    </div>
                     <div class="sel-sub">${r.room_number ? 'Hab. ' + r.room_number : ''}</div>
                 </div>
             </button>
@@ -1533,7 +1539,11 @@ async function loadResidentsList() {
             <button class="sel-item care" data-code="${r.nfc_code}">
                 ${icon}
                 <div class="sel-info">
-                    <div class="sel-name">${r.name} ${careTag} ${infoBtn}</div>
+                    <div class="sel-name-row">
+                        <span class="sel-name-text">${r.name}</span>
+                        ${careTag}
+                        ${infoBtn}
+                    </div>
                     <div class="sel-sub">${r.room_number ? 'Hab. ' + r.room_number : ''}</div>
                 </div>
             </button>
