@@ -855,9 +855,12 @@ function renderActiveSessions() {
         const isCare   = sess.type === 'care';
         const timeStr  = fmt(elapsed(sess.start_time));
         const subLabel = sess.subject_sub || (isCare ? 'Atención' : 'Limpieza');
+        const iconHtml = (isCare && sess.photo_url)
+            ? `<div class="asc-icon care" style="padding:0;overflow:hidden"><img data-auth-src="${sess.photo_url}" style="width:100%;height:100%;border-radius:12px;object-fit:cover" alt=""></div>`
+            : `<div class="asc-icon">${isCare ? '🤲' : '🧹'}</div>`;
         return `
         <div class="asc ${sess.type}" id="asc-${sess.record_id}">
-            <div class="asc-icon">${isCare ? '🤲' : '🧹'}</div>
+            ${iconHtml}
             <div class="asc-info">
                 <div class="asc-subject">${sess.subject}</div>
                 <div class="asc-sub">${subLabel}</div>
@@ -893,6 +896,8 @@ function renderActiveSessions() {
         btn.addEventListener('click', () =>
             cancelByCard(parseInt(btn.dataset.id), btn.dataset.mode));
     });
+
+    list.querySelectorAll('img[data-auth-src]').forEach(img => loadAuthImg(img, img.dataset.authSrc));
 }
 
 async function endByCard(recordId, mode) {
@@ -935,15 +940,23 @@ async function loadHistory() {
         return;
     }
     label.textContent = `Completado hoy — ${sessions.length}`;
-    list.innerHTML = sessions.map(s => `
+    list.innerHTML = sessions.map(s => {
+        const isCare = s.type === 'care';
+        const iconHtml = (isCare && s.photo_url)
+            ? `<div class="hist-icon care" style="padding:0;overflow:hidden"><img data-auth-src="${s.photo_url}" style="width:100%;height:100%;border-radius:10px;object-fit:cover" alt=""></div>`
+            : `<div class="hist-icon ${s.type}">${isCare ? '🤲' : '🧹'}</div>`;
+        return `
         <div class="hist-item">
-            <div class="hist-icon ${s.type}">${s.type === 'care' ? '🤲' : '🧹'}</div>
+            ${iconHtml}
             <div class="hist-info">
                 <div class="hist-name">${s.subject}</div>
                 <div class="hist-sub">${s.subject_sub ? s.subject_sub + ' · ' : ''}${s.start_time}</div>
             </div>
             <div class="hist-dur">${s.duration}</div>
-        </div>`).join('');
+        </div>`;
+    }).join('');
+
+    list.querySelectorAll('img[data-auth-src]').forEach(img => loadAuthImg(img, img.dataset.authSrc));
 }
 
 async function loadCareTypes() {
@@ -1315,11 +1328,15 @@ function showCareTypesEnd(data) {
 
     // Load resident photo
     const photoEl = $('ct-resident-photo');
-    if (data.resident_id || S.pendingResidentId) {
-        const rid = data.resident_id || S.pendingResidentId;
+    const rid = data.resident_id || S.pendingResidentId;
+    if (rid && data.photo_url) {
         photoEl.style.display = '';
         photoEl.src = '';
-        loadAuthImg(photoEl, `/api/resident/${rid}/photo`);
+        loadAuthImg(photoEl, data.photo_url);
+        $('ct-info-btn').style.display = '';
+        $('ct-info-btn').onclick = () => showResidentInfo(rid);
+    } else if (rid) {
+        photoEl.style.display = 'none';
         $('ct-info-btn').style.display = '';
         $('ct-info-btn').onclick = () => showResidentInfo(rid);
     } else {

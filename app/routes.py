@@ -556,6 +556,18 @@ def registros_limpieza():
 
     for record in pagination.items:
         record.duration = _format_duration(record.start_time, record.end_time)
+        if record.checklist_json:
+            try:
+                items = json.loads(record.checklist_json)
+                record.checklist_items = items
+                record.checklist_checked = sum(1 for i in items if i.get('checked'))
+                record.checklist_total = len(items)
+            except (json.JSONDecodeError, TypeError):
+                record.checklist_items = None
+                record.checklist_checked = 0
+                record.checklist_total = 0
+        else:
+            record.checklist_items = None
 
     filters = {
         'room_id': room_id,
@@ -830,12 +842,14 @@ def worker_active_sessions():
     for c in CareRecord.query.filter_by(worker_id=worker_id, end_time=None).all():
         # Use junction table types first, fall back to old care_type_id
         sub = ', '.join(ct.name for ct in c.care_types) if c.care_types else (c.care_type.name if c.care_type else '')
+        r = c.resident
         sessions.append({
             'type': 'care',
             'record_id': c.id,
             'start_time': c.start_time.isoformat(),
-            'subject': c.resident.name if c.resident else 'Residente',
+            'subject': r.name if r else 'Residente',
             'subject_sub': sub,
+            'photo_url': f'/api/uploads/{r.photo_path}' if r and r.photo_path else None,
         })
 
     return jsonify(sessions), 200
@@ -1000,12 +1014,15 @@ def worker_today():
         .all()
     )
     for c in cares:
+        r = c.resident
+        sub = ', '.join(ct.name for ct in c.care_types) if c.care_types else (c.care_type.name if c.care_type else '')
         sessions.append({
             'type': 'care',
-            'subject': c.resident.name if c.resident else 'Residente',
-            'subject_sub': c.care_type.name if c.care_type else '',
+            'subject': r.name if r else 'Residente',
+            'subject_sub': sub,
             'start_time': c.start_time.strftime('%H:%M'),
             'duration': _format_duration(c.start_time, c.end_time),
+            'photo_url': f'/api/uploads/{r.photo_path}' if r and r.photo_path else None,
         })
 
     sessions.sort(key=lambda x: x['start_time'], reverse=True)
@@ -1149,6 +1166,7 @@ def nfc_scan():
                 'resident_id': resident.id,
                 'resident_name': resident.name,
                 'start_time': active_this.start_time.isoformat(),
+                'photo_url': f'/api/uploads/{resident.photo_path}' if resident.photo_path else None,
             }), 200
 
         # Start session immediately without care type
@@ -1211,13 +1229,15 @@ def end_session():
         if not record or record.worker_id != worker_id or record.end_time:
             return jsonify({'error': 'Registro no válido'}), 400
         # Ask for care types before ending
+        r = record.resident
         return jsonify({
             'action': 'select_care_type_end',
             'type': 'care',
             'record_id': record.id,
             'resident_id': record.resident_id,
-            'resident_name': record.resident.name if record.resident else 'Residente',
+            'resident_name': r.name if r else 'Residente',
             'start_time': record.start_time.isoformat(),
+            'photo_url': f'/api/uploads/{r.photo_path}' if r and r.photo_path else None,
         }), 200
 
     return jsonify({'error': 'Modo no válido'}), 400
