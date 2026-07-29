@@ -196,7 +196,7 @@
 </div>
 
 <script>
-(function () {
+document.addEventListener('DOMContentLoaded', function () {
     'use strict';
     var startInput = document.getElementById('start_date');
     var endInput   = document.getElementById('end_date');
@@ -211,55 +211,47 @@
 
     // Checklist modal
     var modalEl = document.getElementById('checklistModal');
-    if (!modalEl) { console.error('checklistModal not found'); return; }
+    if (!modalEl) return;
     var modal = new bootstrap.Modal(modalEl);
-    var btns = document.querySelectorAll('.checklist-btn');
-    console.log('Checklist buttons found:', btns.length);
 
-    btns.forEach(function (btn) {
+    document.querySelectorAll('.checklist-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
-            try {
-                var raw = this.getAttribute('data-checklist');
-                console.log('Checklist raw data:', raw);
-                var items = JSON.parse(raw);
+            var items = JSON.parse(this.getAttribute('data-checklist'));
 
-                document.getElementById('checklist-room').textContent = 'Hab. ' + this.getAttribute('data-room');
-                document.getElementById('checklist-date').textContent = this.getAttribute('data-date');
+            document.getElementById('checklist-room').textContent = 'Hab. ' + this.getAttribute('data-room');
+            document.getElementById('checklist-date').textContent = this.getAttribute('data-date');
 
-                var list = document.getElementById('checklist-list');
-                list.innerHTML = '';
-                items.forEach(function (item) {
-                    var li = document.createElement('li');
-                    li.className = 'list-group-item d-flex align-items-center gap-2';
-                    li.style.fontSize = '.9rem';
+            var list = document.getElementById('checklist-list');
+            list.innerHTML = '';
+            items.forEach(function (item) {
+                var li = document.createElement('li');
+                li.className = 'list-group-item d-flex align-items-center gap-2';
+                li.style.fontSize = '.9rem';
 
-                    var icon = document.createElement('span');
-                    if (item.checked) {
-                        icon.textContent = '\u2705';
-                        li.style.color = 'var(--color-text)';
-                    } else {
-                        icon.textContent = '\u2B1C';
-                        li.style.color = 'var(--color-text-secondary)';
-                    }
+                var icon = document.createElement('span');
+                if (item.checked) {
+                    icon.textContent = '\u2705';
+                    li.style.color = 'var(--color-text)';
+                } else {
+                    icon.textContent = '\u2B1C';
+                    li.style.color = 'var(--color-text-secondary)';
+                }
 
-                    var text = document.createElement('span');
-                    text.textContent = item.text;
-                    if (!item.checked) {
-                        text.style.textDecoration = 'line-through';
-                        text.style.opacity = '0.6';
-                    }
+                var text = document.createElement('span');
+                text.textContent = item.text;
+                if (!item.checked) {
+                    text.style.textDecoration = 'line-through';
+                    text.style.opacity = '0.6';
+                }
 
-                    li.appendChild(icon);
-                    li.appendChild(text);
-                    list.appendChild(li);
-                });
+                li.appendChild(icon);
+                li.appendChild(text);
+                list.appendChild(li);
+            });
 
-                modal.show();
-            } catch (err) {
-                console.error('Checklist modal error:', err);
-            }
+            modal.show();
         });
     });
-})();
+});
 </script>
 {% endblock %}
