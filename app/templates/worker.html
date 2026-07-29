@@ -173,12 +173,13 @@
         .sel-item-wrap.group-selected .sel-item {
             border-color:var(--green) !important; background:rgba(26,127,55,.08) !important;
         }
-        .sel-item-wrap.group-selected .sel-item::after {
+        .sel-item-wrap.group-selected .sel-item-row::after {
             content:'✓'; position:absolute; top:6px; right:8px;
             background:var(--green); color:#fff; width:22px; height:22px;
             border-radius:50%; display:flex; align-items:center; justify-content:center;
             font-size:13px; font-weight:700;
         }
+        .sel-item-row { position:relative; }
         .sel-item-wrap .sel-item { position:relative; }
         .asc-photos {
             display:flex; flex-shrink:0;
@@ -311,10 +312,11 @@
         .sel-sub { font-size:12px; color:var(--text-2); margin-top:1px; }
         .sel-empty { color:var(--text-2); font-size:13px; text-align:center; padding:30px 0; }
         .sel-nfc-bar { border-top:1px solid var(--border); padding-top:16px; margin-top:12px; text-align:center; flex-shrink:0; }
-        .sel-item-wrap { display:flex; flex-direction:column; margin-bottom:6px; }
-        .sel-item-wrap .sel-item { margin-bottom:0; flex:1; min-width:0; }
-        .ri-btn { width:32px; height:32px; border-radius:50%; border:1.5px solid var(--border); background:var(--surface); cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:background .15s; }
-        .ri-btn:hover { background:var(--blue-lt); }
+        .sel-item-wrap { margin-bottom:6px; }
+        .sel-item-row { display:flex; align-items:center; gap:8px; }
+        .sel-item-row .sel-item { margin-bottom:0; flex:1; min-width:0; }
+        .ri-btn { width:34px; height:34px; border-radius:50%; border:1.5px solid var(--border); background:var(--surface); cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:background .15s, border-color .15s; }
+        .ri-btn:hover { background:var(--blue-lt); border-color:var(--blue); }
 
         /* ── Selfie / Camera ── */
         #screen-selfie-enroll { align-items:center; justify-content:center; gap:18px; text-align:center; }
@@ -1246,17 +1248,19 @@ function showMyGroup() {
             </div>`;
         }
         return `<div class="sel-item-wrap" data-search="${r.name} ${r.room_number}" data-rid="${r.id}" data-rname="${r.name}" data-rphoto="${r.photo_url || ''}">
-            <button class="sel-item care" data-code="${r.nfc_code}">
-                ${icon}
-                <div class="sel-info">
-                    <div class="sel-name-row">
-                        <span class="sel-name-text">${r.name}</span>
-                        ${careTag}
+            <div class="sel-item-row">
+                <button class="sel-item care" data-code="${r.nfc_code}">
+                    ${icon}
+                    <div class="sel-info">
+                        <div class="sel-name-row">
+                            <span class="sel-name-text">${r.name}</span>
+                            ${careTag}
+                        </div>
+                        <div class="sel-sub">${r.room_number ? 'Hab. ' + r.room_number : ''}</div>
                     </div>
-                    <div class="sel-sub">${r.room_number ? 'Hab. ' + r.room_number : ''}</div>
-                </div>
+                </button>
                 ${infoBtn}
-            </button>
+            </div>
             ${careDetails}
         </div>`;
     }
@@ -1536,17 +1540,19 @@ async function loadResidentsList() {
             </div>`;
         }
         return `<div class="sel-item-wrap" data-search="${r.name} ${r.room_number}" data-rid="${r.id}" data-rname="${r.name}" data-rphoto="${r.photo_url || ''}">
-            <button class="sel-item care" data-code="${r.nfc_code}">
-                ${icon}
-                <div class="sel-info">
-                    <div class="sel-name-row">
-                        <span class="sel-name-text">${r.name}</span>
-                        ${careTag}
+            <div class="sel-item-row">
+                <button class="sel-item care" data-code="${r.nfc_code}">
+                    ${icon}
+                    <div class="sel-info">
+                        <div class="sel-name-row">
+                            <span class="sel-name-text">${r.name}</span>
+                            ${careTag}
+                        </div>
+                        <div class="sel-sub">${r.room_number ? 'Hab. ' + r.room_number : ''}</div>
                     </div>
-                    <div class="sel-sub">${r.room_number ? 'Hab. ' + r.room_number : ''}</div>
-                </div>
+                </button>
                 ${infoBtn}
-            </button>
+            </div>
             ${careDetails}
         </div>`;
     }
