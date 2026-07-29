@@ -121,6 +121,13 @@
             font-family:inherit; transition:background .15s;
         }
         .care-tag-btn:active { background:rgba(26,127,55,.2); }
+        .clean-tag-btn {
+            font-size:11px; color:var(--blue); font-weight:600;
+            background:var(--blue-lt); border:1px solid rgba(0,105,217,.2);
+            border-radius:10px; padding:2px 7px; cursor:pointer;
+            font-family:inherit; transition:background .15s;
+        }
+        .clean-tag-btn:active { background:rgba(0,105,217,.2); }
         .care-details {
             padding:6px 12px 8px 52px; /* align with sel-info */
         }
@@ -1423,19 +1430,43 @@ async function loadRoomsList() {
         html += `<div class="sel-group" data-group>
             <div class="sel-group-header">${floor.name}</div>`;
         for (const room of floor.rooms) {
-            html += `<button class="sel-item cleaning" data-code="${room.number}" data-search="${room.number} ${room.description}">
-                <div class="sel-icon">🏠</div>
-                <div class="sel-info">
-                    <div class="sel-name">Hab. ${room.number}</div>
-                    <div class="sel-sub">${room.description}</div>
-                </div>
-            </button>`;
+            const cleanTag = room.cleaned_today
+                ? `<button class="clean-tag-btn" data-toggle-clean="${room.id}" title="Ver limpiezas">✓ ${room.cleaning_count_today} ▾</button>`
+                : '';
+            let cleanDetails = '';
+            if (room.cleaning_today && room.cleaning_today.length) {
+                cleanDetails = `<div class="care-details" id="clean-details-${room.id}" style="display:none">
+                    ${room.cleaning_today.map(c => `<div class="care-detail-item">
+                        <span class="care-detail-time">${c.time}</span>
+                        <span class="care-detail-types">${c.cleaner || 'Sin asignar'}</span>
+                        <span class="care-detail-dur">${c.duration}</span>
+                    </div>`).join('')}
+                </div>`;
+            }
+            html += `<div class="sel-item-wrap" data-search="${room.number} ${room.description}">
+                <button class="sel-item cleaning" data-code="${room.number}">
+                    <div class="sel-icon">${room.cleaned_today ? '✅' : '🏠'}</div>
+                    <div class="sel-info">
+                        <div class="sel-name">Hab. ${room.number} ${cleanTag}</div>
+                        <div class="sel-sub">${room.description}</div>
+                    </div>
+                </button>
+                ${cleanDetails}
+            </div>`;
         }
         html += '</div>';
     }
     list.innerHTML = html;
     list.querySelectorAll('.sel-item').forEach(btn =>
         btn.addEventListener('click', () => handleCode(btn.dataset.code)));
+    list.querySelectorAll('.clean-tag-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            e.preventDefault();
+            const details = $('clean-details-' + btn.dataset.toggleClean);
+            if (details) details.style.display = details.style.display !== 'none' ? 'none' : '';
+        });
+    });
 }
 
 async function loadResidentsList() {

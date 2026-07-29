@@ -870,15 +870,42 @@ def worker_active_sessions():
 @app.route('/api/rooms')
 @jwt_required()
 def api_rooms():
+    today = datetime.now().date()
+    hoy_inicio = datetime.combine(today, datetime.min.time())
+    hoy_fin = datetime.combine(today + timedelta(days=1), datetime.min.time())
+
     floors = Floor.query.order_by(Floor.name).all()
     result: list[dict] = []
     for floor in floors:
         rooms = Room.query.filter_by(floor_id=floor.id).order_by(Room.number).all()
         if rooms:
+            rooms_data = []
+            for r in rooms:
+                cleanings = CleaningRecord.query.filter(
+                    CleaningRecord.room_id == r.id,
+                    CleaningRecord.start_time >= hoy_inicio,
+                    CleaningRecord.start_time < hoy_fin,
+                    CleaningRecord.end_time.isnot(None),
+                ).order_by(CleaningRecord.start_time.desc()).all()
+                cleaning_today = []
+                for c in cleanings:
+                    cleaning_today.append({
+                        'time': c.start_time.strftime('%H:%M'),
+                        'cleaner': c.cleaner.name if c.cleaner else '',
+                        'duration': _format_duration(c.start_time, c.end_time),
+                    })
+                rooms_data.append({
+                    'id': r.id,
+                    'number': r.number,
+                    'description': r.description or '',
+                    'cleaned_today': len(cleanings) > 0,
+                    'cleaning_count_today': len(cleanings),
+                    'cleaning_today': cleaning_today,
+                })
             result.append({
                 'id': floor.id,
                 'name': floor.name,
-                'rooms': [{'id': r.id, 'number': r.number, 'description': r.description or ''} for r in rooms],
+                'rooms': rooms_data,
             })
     return jsonify({'floors': result}), 200
 
