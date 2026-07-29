@@ -119,7 +119,7 @@
                             {% if record.checklist_items is not none %}
                             <button type="button"
                                     class="btn btn-sm btn-outline-secondary checklist-btn"
-                                    data-checklist="{{ record.checklist_items | tojson }}"
+                                    data-record-id="{{ record.id }}"
                                     data-room="{{ record.room.number if record.room else '—' }}"
                                     data-date="{{ record.start_time.strftime('%d/%m/%Y %H:%M') if record.start_time else '—' }}"
                                     title="Ver checklist">
@@ -196,6 +196,12 @@
 </div>
 
 <script>
+var _chkData = {
+    {% for record in records %}{% if record.checklist_items is not none %}{{ record.id }}: {{ record.checklist_items | tojson }},{% endif %}
+    {% endfor %}
+};
+</script>
+<script>
 document.addEventListener('DOMContentLoaded', function () {
     'use strict';
     var startInput = document.getElementById('start_date');
@@ -216,7 +222,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     document.querySelectorAll('.checklist-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
-            var items = JSON.parse(this.getAttribute('data-checklist'));
+            var items = _chkData[this.getAttribute('data-record-id')];
+            if (!items) return;
 
             document.getElementById('checklist-room').textContent = 'Hab. ' + this.getAttribute('data-room');
             document.getElementById('checklist-date').textContent = this.getAttribute('data-date');
