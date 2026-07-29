@@ -313,7 +313,7 @@
         .sel-nfc-bar { border-top:1px solid var(--border); padding-top:16px; margin-top:12px; text-align:center; flex-shrink:0; }
         .sel-item-wrap { display:flex; flex-direction:column; margin-bottom:6px; }
         .sel-item-wrap .sel-item { margin-bottom:0; flex:1; min-width:0; }
-        .ri-btn { width:24px; height:24px; border-radius:50%; border:1px solid var(--border); background:var(--surface); cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:background .15s; }
+        .ri-btn { width:32px; height:32px; border-radius:50%; border:1.5px solid var(--border); background:var(--surface); cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:background .15s; }
         .ri-btn:hover { background:var(--blue-lt); }
 
         /* ── Selfie / Camera ── */
@@ -1252,10 +1252,10 @@ function showMyGroup() {
                     <div class="sel-name-row">
                         <span class="sel-name-text">${r.name}</span>
                         ${careTag}
-                        ${infoBtn}
                     </div>
                     <div class="sel-sub">${r.room_number ? 'Hab. ' + r.room_number : ''}</div>
                 </div>
+                ${infoBtn}
             </button>
             ${careDetails}
         </div>`;
@@ -1542,10 +1542,10 @@ async function loadResidentsList() {
                     <div class="sel-name-row">
                         <span class="sel-name-text">${r.name}</span>
                         ${careTag}
-                        ${infoBtn}
                     </div>
                     <div class="sel-sub">${r.room_number ? 'Hab. ' + r.room_number : ''}</div>
                 </div>
+                ${infoBtn}
             </button>
             ${careDetails}
         </div>`;
