@@ -1591,6 +1591,14 @@ function enterUnifiedScan() {
     $('nfc-inner').className     = 'nfc-inner';
     $('btn-manual').className    = 'btn-ok';
     $('nfc-unsupported').classList.remove('visible');
+    // Show group toggle also in unified scan
+    S.nfcGroupMode = false;
+    S.nfcGroupScanned = [];
+    $('scan-group-toggle').style.display = '';
+    $('scan-group-toggle').classList.remove('active');
+    $('scan-group-list').style.display = 'none';
+    $('scan-group-items').innerHTML = '';
+    $('scan-start-group').style.display = 'none';
     show('screen-scan');
     startNfc();
     setTimeout(() => { if ($('scan-fallback')) $('scan-fallback').style.display = ''; }, 5000);
@@ -1694,7 +1702,7 @@ function stopNfc() { if (nfcAbort) { nfcAbort.abort(); nfcAbort = null; } }
 // ── NFC handler ────────────────────────────────────────────────────────────
 async function handleCode(code) {
     // NFC group scan mode: look up resident and add to list instead of starting session
-    if (S.nfcGroupMode && S.mode === 'care') {
+    if (S.nfcGroupMode) {
         $('scan-sub').textContent = 'Buscando residente…';
         const { ok, data } = await api('/api/nfc/scan', 'POST', {
             nfc_code: code, worker_id: parseInt(S.workerId), mode: 'care', dry_run: true,
