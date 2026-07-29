@@ -915,6 +915,36 @@ def api_rooms():
 def api_residents():
     worker_id = request.args.get('worker_id', type=int)
 
+    today = datetime.now().date()
+    hoy_inicio = datetime.combine(today, datetime.min.time())
+    hoy_fin = datetime.combine(today + timedelta(days=1), datetime.min.time())
+
+    def _resident_data(r):
+        care_records = CareRecord.query.filter(
+            CareRecord.resident_id == r.id,
+            CareRecord.start_time >= hoy_inicio,
+            CareRecord.start_time < hoy_fin,
+            CareRecord.end_time.isnot(None),
+        ).order_by(CareRecord.start_time.desc()).all()
+        care_today = []
+        for c in care_records:
+            types = ', '.join(ct.name for ct in c.care_types) if c.care_types else (c.care_type.name if c.care_type else '')
+            care_today.append({
+                'time': c.start_time.strftime('%H:%M'),
+                'types': types,
+                'duration': _format_duration(c.start_time, c.end_time),
+            })
+        return {
+            'id': r.id, 'name': r.name, 'nfc_code': r.nfc_code,
+            'room_number': r.room_number or '',
+            'has_photo': bool(r.photo_path),
+            'has_info': bool(r.relevant_info),
+            'photo_url': f'/api/uploads/{r.photo_path}' if r.photo_path else None,
+            'has_care_today': len(care_records) > 0,
+            'care_count_today': len(care_records),
+            'care_today': care_today,
+        }
+
     # Determinar grupos propios del worker
     worker_group_ids: list[int] = []
     if worker_id:
@@ -922,7 +952,6 @@ def api_residents():
         if worker and worker.groups:
             worker_group_ids = [g.id for g in worker.groups]
 
-    # Siempre devolver TODOS los grupos con todos los residentes activos
     groups = ResidentGroup.query.order_by(ResidentGroup.name).all()
     result: list[dict] = []
     for group in groups:
@@ -933,27 +962,14 @@ def api_residents():
                 'name': group.name,
                 'color': group.color,
                 'is_mine': group.id in worker_group_ids,
-                'residents': [{
-                    'id': r.id, 'name': r.name, 'nfc_code': r.nfc_code,
-                    'room_number': r.room_number or '',
-                    'has_photo': bool(r.photo_path),
-                    'has_info': bool(r.relevant_info),
-                    'photo_url': f'/api/uploads/{r.photo_path}' if r.photo_path else None,
-                } for r in residents],
+                'residents': [_resident_data(r) for r in residents],
             })
-    # Grupos propios primero
     result.sort(key=lambda g: (not g['is_mine'], g['name']))
 
     ungrouped = Resident.query.filter_by(group_id=None, active=True).order_by(Resident.name).all()
     return jsonify({
         'groups': result,
-        'ungrouped': [{
-            'id': r.id, 'name': r.name, 'nfc_code': r.nfc_code,
-            'room_number': r.room_number or '',
-            'has_photo': bool(r.photo_path),
-            'has_info': bool(r.relevant_info),
-            'photo_url': f'/api/uploads/{r.photo_path}' if r.photo_path else None,
-        } for r in ungrouped],
+        'ungrouped': [_resident_data(r) for r in ungrouped],
     }), 200
 
 
