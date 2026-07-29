@@ -432,6 +432,7 @@
         <div class="scan-header">
             <button class="btn-back" id="select-back" aria-label="Volver">←</button>
             <span class="mode-badge cleaning" id="select-badge">🧹 Limpieza</span>
+            <button id="select-multiselect-toggle" class="btn-multi-toggle" style="display:none">☑ Grupal</button>
             <button id="select-nfc-btn" style="margin-left:auto;background:var(--blue);color:#fff;border:none;border-radius:20px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px">📡 NFC</button>
         </div>
         <div style="margin:12px 0 8px">
@@ -439,6 +440,9 @@
                    placeholder="Buscar..." autocomplete="off" style="width:100%">
         </div>
         <div id="select-list" style="flex:1;overflow-y:auto"></div>
+        <button id="select-start-group" class="fab-group-start" style="display:none">
+            Iniciar atención grupal (<span id="select-group-count">0</span>)
+        </button>
     </div>
 
     <!-- ══ SCAN ══ -->
@@ -446,6 +450,7 @@
         <div class="scan-header">
             <button class="btn-back" id="scan-back" aria-label="Volver">←</button>
             <span class="mode-badge cleaning" id="scan-badge">🧹 Limpieza</span>
+            <button id="scan-group-toggle" class="btn-multi-toggle" style="display:none;margin-left:auto">☑ Grupal</button>
         </div>
         <div class="scan-center">
             <div class="nfc-ring">
@@ -457,6 +462,11 @@
             <p class="scan-instruction" id="scan-instr">Acerca el NFC a la habitación</p>
             <p class="scan-sub" id="scan-sub">Preparando lector NFC…</p>
         </div>
+        <!-- Group scan: scanned residents list -->
+        <div id="scan-group-list" style="display:none;padding:0 16px">
+            <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:6px">Residentes escaneados:</div>
+            <div id="scan-group-items" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        </div>
         <div class="nfc-unsupported" id="nfc-unsupported">
             Tu navegador no soporta Web NFC. Usa Chrome en Android o introduce el código manualmente.
         </div>
@@ -467,6 +477,9 @@
                 <button class="btn-ok" id="btn-manual">OK</button>
             </div>
         </div>
+        <button id="scan-start-group" class="fab-group-start" style="display:none;margin:12px 16px">
+            Iniciar atención grupal (<span id="scan-group-count">0</span>)
+        </button>
     </div>
 
     <!-- ══ CARE TYPE ══ -->
@@ -480,6 +493,7 @@
                 </div>
                 <button class="ri-btn" id="ct-info-btn" style="display:none" title="Info">ℹ️</button>
             </div>
+            <div id="ct-group-members" style="display:none;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:8px"></div>
         </div>
         <div class="ct-grid" id="ct-grid" style="display:block"></div>
         <div class="ct-footer" id="ct-footer" style="border-top:1px solid var(--border);padding-top:16px;margin-top:12px;text-align:center">
@@ -737,6 +751,8 @@ const S = {
     groupSelected: [],
     pendingGroupRecordIds: [],
     pendingGroupNames: [],
+    nfcGroupMode: false,
+    nfcGroupScanned: [],
 };
 
 // ── DOM ────────────────────────────────────────────────────────────────────
@@ -1225,6 +1241,35 @@ function updateGroupFab() {
     }
 }
 
+function renderNfcGroupList() {
+    const items = $('scan-group-items');
+    items.innerHTML = S.nfcGroupScanned.map(r => {
+        const photoHtml = r.photo_url
+            ? `<img data-auth-src="${r.photo_url}" style="width:28px;height:28px;border-radius:50%;object-fit:cover" alt="">`
+            : `<span style="font-size:14px">🤲</span>`;
+        return `<div style="display:flex;align-items:center;gap:6px;background:var(--green-lt);border:1.5px solid rgba(26,127,55,.3);border-radius:20px;padding:4px 10px 4px 4px;font-size:13px;font-weight:500">
+            ${photoHtml}
+            <span>${r.name}</span>
+            <button class="nfc-group-remove" data-rid="${r.id}" style="background:none;border:none;color:var(--text-2);cursor:pointer;padding:0 2px;font-size:16px;line-height:1">×</button>
+        </div>`;
+    }).join('');
+    items.querySelectorAll('img[data-auth-src]').forEach(img => loadAuthImg(img, img.dataset.authSrc));
+    items.querySelectorAll('.nfc-group-remove').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const rid = parseInt(btn.dataset.rid);
+            S.nfcGroupScanned = S.nfcGroupScanned.filter(x => x.id !== rid);
+            renderNfcGroupList();
+        });
+    });
+    const fab = $('scan-start-group');
+    if (S.nfcGroupScanned.length >= 2) {
+        fab.style.display = '';
+        $('scan-group-count').textContent = S.nfcGroupScanned.length;
+    } else {
+        fab.style.display = 'none';
+    }
+}
+
 $('btn-my-group').addEventListener('click', showMyGroup);
 $('mygroup-back').addEventListener('click', () => {
     S.groupSelectMode = false;
@@ -1299,6 +1344,12 @@ function enterSelect(mode) {
     badge.textContent = isCare ? '🤲 Atención' : '🧹 Limpieza';
     $('select-search').value = '';
     $('select-list').innerHTML = '<p class="sel-empty"><span class="spinner"></span></p>';
+    // Multi-select toggle only for care mode
+    S.groupSelectMode = false;
+    S.groupSelected = [];
+    $('select-multiselect-toggle').style.display = isCare ? '' : 'none';
+    $('select-multiselect-toggle').classList.remove('active');
+    $('select-start-group').style.display = 'none';
     show('screen-select');
     if (isCare) {
         loadResidentsList();
@@ -1354,8 +1405,8 @@ async function loadResidentsList() {
         const icon = r.photo_url
             ? `<div class="sel-icon care" style="padding:0;overflow:hidden"><img data-auth-src="${r.photo_url}" style="width:100%;height:100%;border-radius:12px;object-fit:cover" alt=""></div>`
             : `<div class="sel-icon">🤲</div>`;
-        return `<div class="sel-item-wrap">
-            <button class="sel-item care" data-code="${r.nfc_code}" data-search="${r.name} ${r.room_number}">
+        return `<div class="sel-item-wrap" data-search="${r.name} ${r.room_number}" data-rid="${r.id}" data-rname="${r.name}" data-rphoto="${r.photo_url || ''}">
+            <button class="sel-item care" data-code="${r.nfc_code}">
                 ${icon}
                 <div class="sel-info">
                     <div class="sel-name">${r.name}</div>
@@ -1383,32 +1434,119 @@ async function loadResidentsList() {
         html += '</div>';
     }
     list.innerHTML = html;
-    list.querySelectorAll('.sel-item').forEach(btn =>
-        btn.addEventListener('click', () => handleCode(btn.dataset.code)));
+    bindSelectListeners();
+    list.querySelectorAll('img[data-auth-src]').forEach(img => loadAuthImg(img, img.dataset.authSrc));
+}
+
+function bindSelectListeners() {
+    const list = $('select-list');
+    list.querySelectorAll('.sel-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (S.groupSelectMode && S.mode === 'care') {
+                const wrap = btn.closest('.sel-item-wrap');
+                if (!wrap || !wrap.dataset.rid) return;
+                const rid = parseInt(wrap.dataset.rid);
+                const idx = S.groupSelected.findIndex(x => x.id === rid);
+                if (idx >= 0) {
+                    S.groupSelected.splice(idx, 1);
+                    wrap.classList.remove('group-selected');
+                } else {
+                    S.groupSelected.push({
+                        id: rid,
+                        name: wrap.dataset.rname,
+                        photo_url: wrap.dataset.rphoto || null,
+                    });
+                    wrap.classList.add('group-selected');
+                }
+                updateSelectGroupFab();
+            } else {
+                handleCode(btn.dataset.code);
+            }
+        });
+    });
     list.querySelectorAll('.ri-btn').forEach(btn =>
         btn.addEventListener('click', e => { e.stopPropagation(); showResidentInfo(parseInt(btn.dataset.rid)); }));
-    // Cargar fotos con autenticación
-    list.querySelectorAll('img[data-auth-src]').forEach(img => loadAuthImg(img, img.dataset.authSrc));
+}
+
+function updateSelectGroupFab() {
+    const fab = $('select-start-group');
+    const n = S.groupSelected.length;
+    if (n >= 2) {
+        fab.style.display = '';
+        $('select-group-count').textContent = n;
+    } else {
+        fab.style.display = 'none';
+    }
 }
 
 // Search filter
 $('select-search').addEventListener('input', function () {
     const q = this.value.toLowerCase().trim();
-    // Handle both direct .sel-item and wrapped .sel-item-wrap > .sel-item
-    $('select-list').querySelectorAll('.sel-item').forEach(item => {
-        const match = !q || (item.dataset.search || '').toLowerCase().includes(q);
-        const target = item.closest('.sel-item-wrap') || item;
-        target.style.display = match ? '' : 'none';
+    $('select-list').querySelectorAll('.sel-item-wrap, .sel-item:not(.sel-item-wrap .sel-item)').forEach(item => {
+        const wrap = item.closest('.sel-item-wrap') || item;
+        const searchText = (wrap.dataset.search || item.dataset.search || '').toLowerCase();
+        const match = !q || searchText.includes(q);
+        wrap.style.display = match ? '' : 'none';
     });
-    // Hide empty groups
     $('select-list').querySelectorAll('[data-group]').forEach(g => {
-        const visible = g.querySelectorAll('.sel-item:not([style*="display: none"])').length;
+        const visible = g.querySelectorAll('.sel-item-wrap:not([style*="display: none"]), .sel-item:not(.sel-item-wrap .sel-item):not([style*="display: none"])').length;
         g.style.display = visible ? '' : 'none';
     });
 });
 
-$('select-back').addEventListener('click', () => show('screen-home'));
+$('select-back').addEventListener('click', () => {
+    S.groupSelectMode = false;
+    S.groupSelected = [];
+    $('select-multiselect-toggle').classList.remove('active');
+    $('select-start-group').style.display = 'none';
+    show('screen-home');
+});
 $('select-nfc-btn').addEventListener('click', () => enterScan(S.mode));
+
+// Select screen multi-select toggle
+$('select-multiselect-toggle').addEventListener('click', () => {
+    S.groupSelectMode = !S.groupSelectMode;
+    S.groupSelected = [];
+    $('select-multiselect-toggle').classList.toggle('active', S.groupSelectMode);
+    $('select-start-group').style.display = 'none';
+    $('select-list').querySelectorAll('.group-selected').forEach(el => el.classList.remove('group-selected'));
+});
+
+// Select screen start group care
+$('select-start-group').addEventListener('click', async () => {
+    if (S.groupSelected.length < 2) return;
+    const fab = $('select-start-group');
+    fab.disabled = true;
+    fab.textContent = 'Iniciando…';
+    const ids = S.groupSelected.map(x => x.id);
+    const { ok, data } = await api('/api/nfc/start-group-care', 'POST', {
+        worker_id: parseInt(S.workerId),
+        resident_ids: ids,
+    });
+    fab.disabled = false;
+    fab.innerHTML = 'Iniciar atención grupal (<span id="select-group-count">0</span>)';
+    if (!ok) { toast(data.error || 'Error al iniciar'); return; }
+    for (const rec of data.records) {
+        S.sessions.push({
+            type: 'care',
+            record_id: rec.record_id,
+            start_time: rec.start_time,
+            subject: rec.resident_name,
+            subject_sub: '',
+            photo_url: rec.photo_url,
+            group_key: data.group_key,
+            resident_id: rec.resident_id,
+        });
+    }
+    renderActiveSessions();
+    startGlobalTimer();
+    S.groupSelectMode = false;
+    S.groupSelected = [];
+    $('select-multiselect-toggle').classList.remove('active');
+    $('select-start-group').style.display = 'none';
+    toast(`Atención grupal iniciada · ${data.records.length} residentes`);
+    show('screen-home');
+});
 
 // ── Mode / Scan ───────────────────────────────────────────────────────────
 function enterScan(mode) {
@@ -1424,6 +1562,14 @@ function enterScan(mode) {
     $('nfc-inner').className     = `nfc-inner ${mode}`;
     $('btn-manual').className    = `btn-ok ${isCare ? 'care' : ''}`;
     $('nfc-unsupported').classList.remove('visible');
+    // NFC group scan
+    S.nfcGroupMode = false;
+    S.nfcGroupScanned = [];
+    $('scan-group-toggle').style.display = isCare ? '' : 'none';
+    $('scan-group-toggle').classList.remove('active');
+    $('scan-group-list').style.display = 'none';
+    $('scan-group-items').innerHTML = '';
+    $('scan-start-group').style.display = 'none';
     show('screen-scan');
     startNfc();
     setTimeout(() => { if ($('scan-fallback')) $('scan-fallback').style.display = ''; }, 5000);
@@ -1453,9 +1599,62 @@ function enterUnifiedScan() {
 $('btn-scan-unified').addEventListener('click', enterUnifiedScan);
 $('btn-cleaning').addEventListener('click', () => enterSelect('cleaning'));
 $('btn-care').addEventListener('click',     () => enterSelect('care'));
-$('scan-back').addEventListener('click',    () => { stopNfc(); S.mode ? show('screen-select') : show('screen-home'); });
+$('scan-back').addEventListener('click', () => {
+    stopNfc();
+    S.nfcGroupMode = false;
+    S.nfcGroupScanned = [];
+    S.mode ? show('screen-select') : show('screen-home');
+});
 $('btn-manual').addEventListener('click',   () => { const c = $('manual-code').value.trim(); if (c) handleCode(c); });
 $('manual-code').addEventListener('keydown', e => { if (e.key === 'Enter') { const c = $('manual-code').value.trim(); if (c) handleCode(c); } });
+
+// NFC group scan toggle
+$('scan-group-toggle').addEventListener('click', () => {
+    S.nfcGroupMode = !S.nfcGroupMode;
+    S.nfcGroupScanned = [];
+    $('scan-group-toggle').classList.toggle('active', S.nfcGroupMode);
+    $('scan-group-list').style.display = S.nfcGroupMode ? '' : 'none';
+    $('scan-group-items').innerHTML = '';
+    $('scan-start-group').style.display = 'none';
+    $('scan-instr').textContent = S.nfcGroupMode
+        ? 'Escanea las pulseras una a una'
+        : 'Acerca la pulsera NFC del residente';
+});
+
+// NFC group start button
+$('scan-start-group').addEventListener('click', async () => {
+    if (S.nfcGroupScanned.length < 2) return;
+    const fab = $('scan-start-group');
+    fab.disabled = true;
+    fab.textContent = 'Iniciando…';
+    const ids = S.nfcGroupScanned.map(x => x.id);
+    const { ok, data } = await api('/api/nfc/start-group-care', 'POST', {
+        worker_id: parseInt(S.workerId),
+        resident_ids: ids,
+    });
+    fab.disabled = false;
+    fab.innerHTML = 'Iniciar atención grupal (<span id="scan-group-count">0</span>)';
+    if (!ok) { toast(data.error || 'Error al iniciar'); return; }
+    for (const rec of data.records) {
+        S.sessions.push({
+            type: 'care',
+            record_id: rec.record_id,
+            start_time: rec.start_time,
+            subject: rec.resident_name,
+            subject_sub: '',
+            photo_url: rec.photo_url,
+            group_key: data.group_key,
+            resident_id: rec.resident_id,
+        });
+    }
+    renderActiveSessions();
+    startGlobalTimer();
+    stopNfc();
+    S.nfcGroupMode = false;
+    S.nfcGroupScanned = [];
+    toast(`Atención grupal iniciada · ${data.records.length} residentes`);
+    show('screen-home');
+});
 
 // ── Web NFC ────────────────────────────────────────────────────────────────
 let nfcAbort = null;
@@ -1494,6 +1693,28 @@ function stopNfc() { if (nfcAbort) { nfcAbort.abort(); nfcAbort = null; } }
 
 // ── NFC handler ────────────────────────────────────────────────────────────
 async function handleCode(code) {
+    // NFC group scan mode: look up resident and add to list instead of starting session
+    if (S.nfcGroupMode && S.mode === 'care') {
+        $('scan-sub').textContent = 'Buscando residente…';
+        const { ok, data } = await api('/api/nfc/scan', 'POST', {
+            nfc_code: code, worker_id: parseInt(S.workerId), mode: 'care', dry_run: true,
+        });
+        if (!ok) { toast(data.error || 'Residente no encontrado'); $('scan-sub').textContent = 'Lector NFC activo ✓'; return; }
+        if (data.resident_id && !S.nfcGroupScanned.find(x => x.id === data.resident_id)) {
+            S.nfcGroupScanned.push({
+                id: data.resident_id,
+                name: data.resident_name || data.subject,
+                photo_url: data.photo_url || null,
+            });
+            renderNfcGroupList();
+        } else if (S.nfcGroupScanned.find(x => x.id === data.resident_id)) {
+            toast('Este residente ya está en la lista');
+        }
+        $('scan-sub').textContent = 'Lector NFC activo ✓ · Escanea el siguiente';
+        $('manual-code').value = '';
+        return;
+    }
+
     $('scan-sub').textContent    = 'Procesando…';
     $('manual-code').disabled    = true;
     $('btn-manual').disabled     = true;
@@ -1567,17 +1788,27 @@ $('smd-cancel').addEventListener('click', () => {
 function showCareTypesEnd(data) {
     const photoEl = $('ct-resident-photo');
 
+    const groupMembersEl = $('ct-group-members');
     if (data._isGroup) {
-        // Group care: show names and photos
+        // Group care: show photo cards for each resident
         const members = data._groupMembers || [];
-        const names = members.map(m => m.subject);
-        const displayName = names.length > 3
-            ? names.slice(0, 3).join(', ') + ` (+${names.length - 3})`
-            : names.join(', ');
-        $('ct-resident-name').textContent = displayName;
+        $('ct-resident-name').textContent = `Atención grupal · ${members.length} residentes`;
         photoEl.style.display = 'none';
         $('ct-info-btn').style.display = 'none';
+        groupMembersEl.style.display = 'flex';
+        groupMembersEl.innerHTML = members.map(m => {
+            const photo = m.photo_url
+                ? `<img data-auth-src="${m.photo_url}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid var(--border)" alt="">`
+                : `<div style="width:40px;height:40px;border-radius:50%;background:var(--green-lt);display:flex;align-items:center;justify-content:center;font-size:18px;border:2px solid var(--border)">🤲</div>`;
+            return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;min-width:60px">
+                ${photo}
+                <span style="font-size:11px;font-weight:500;color:var(--text-2);max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center">${m.subject}</span>
+            </div>`;
+        }).join('');
+        groupMembersEl.querySelectorAll('img[data-auth-src]').forEach(img => loadAuthImg(img, img.dataset.authSrc));
     } else {
+        groupMembersEl.style.display = 'none';
+        groupMembersEl.innerHTML = '';
         $('ct-resident-name').textContent = data.resident_name || S.pendingRName || '—';
 
         // Load resident photo

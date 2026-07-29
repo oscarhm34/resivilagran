@@ -1095,9 +1095,27 @@ def nfc_scan():
     worker_id = data.get('worker_id')
     mode = data.get('mode')  # opcional: auto-detección si no viene
     care_type_id = data.get('care_type_id')
+    dry_run = data.get('dry_run', False)
 
     if not nfc_code or not worker_id:
         return jsonify({'error': 'Faltan campos requeridos'}), 400
+
+    # Dry run: just look up the resident and return info (for group scan)
+    if dry_run and mode == 'care':
+        resident = Resident.query.filter_by(nfc_code=nfc_code, active=True).first()
+        if not resident and nfc_code.isdigit():
+            resident = Resident.query.filter(
+                Resident.nfc_code.in_([nfc_code.zfill(4), nfc_code.zfill(5)]),
+                Resident.active == True,
+            ).first()
+        if not resident:
+            return jsonify({'error': f'Residente con código "{nfc_code}" no encontrado'}), 404
+        return jsonify({
+            'action': 'lookup',
+            'resident_id': resident.id,
+            'resident_name': resident.name,
+            'photo_url': f'/api/uploads/{resident.photo_path}' if resident.photo_path else None,
+        }), 200
 
     now = datetime.now()
 
