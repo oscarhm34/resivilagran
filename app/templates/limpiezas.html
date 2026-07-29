@@ -224,7 +224,7 @@ var CHECKLIST_DATA = {
         var modal = new bootstrap.Modal(modalEl);
         document.querySelectorAll('.checklist-btn').forEach(function (btn) {
             btn.addEventListener('click', function () {
-                var items = CHECKLIST_DATA[this.dataset.recordId];
+                var items = CHECKLIST_DATA[parseInt(this.dataset.recordId)];
                 if (!items) return;
                 document.getElementById('checklist-room').textContent = 'Hab. ' + this.dataset.room;
                 document.getElementById('checklist-date').textContent = this.dataset.date;
