@@ -179,7 +179,6 @@
             border-radius:50%; display:flex; align-items:center; justify-content:center;
             font-size:13px; font-weight:700;
         }
-        .sel-item-row { position:relative; }
         .sel-item-wrap .sel-item { position:relative; }
         .asc-photos {
             display:flex; flex-shrink:0;
@@ -313,8 +312,9 @@
         .sel-empty { color:var(--text-2); font-size:13px; text-align:center; padding:30px 0; }
         .sel-nfc-bar { border-top:1px solid var(--border); padding-top:16px; margin-top:12px; text-align:center; flex-shrink:0; }
         .sel-item-wrap { margin-bottom:6px; }
-        .sel-item-row { display:flex; align-items:center; gap:8px; }
-        .sel-item-row .sel-item { margin-bottom:0; flex:1; min-width:0; }
+        .sel-item-row { display:flex !important; flex-direction:row !important; align-items:center !important; gap:8px; position:relative; }
+        .sel-item-row > .sel-item { margin-bottom:0; flex:1; min-width:0; width:auto; }
+        .sel-item-row > .ri-btn { width:34px; height:34px; border-radius:50%; border:1.5px solid var(--border); background:var(--surface); cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:background .15s, border-color .15s; }
         .ri-btn { width:34px; height:34px; border-radius:50%; border:1.5px solid var(--border); background:var(--surface); cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:background .15s, border-color .15s; }
         .ri-btn:hover { background:var(--blue-lt); border-color:var(--blue); }
 
