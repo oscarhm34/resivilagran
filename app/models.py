@@ -122,6 +122,7 @@ class CareType(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False)
     icon = db.Column(db.String(10), nullable=True)
+    icon_path = db.Column(db.String(255), nullable=True)
     parent_id = db.Column(db.Integer, db.ForeignKey('care_type.id'), nullable=True)
     sort_order = db.Column(db.Integer, default=0)
     active = db.Column(db.Boolean, default=True)

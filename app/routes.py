@@ -785,13 +785,18 @@ def admin_chat():
 @jwt_required()
 def api_care_types():
     types = CareType.query.filter_by(parent_id=None, active=True).order_by(CareType.sort_order, CareType.name).all()
+
+    def _ct_dict(ct):
+        return {
+            'id': ct.id,
+            'name': ct.name,
+            'icon': ct.icon or '',
+            'icon_url': f'/api/uploads/{ct.icon_path}' if ct.icon_path else None,
+        }
+
     return jsonify([{
-        'id': t.id,
-        'name': t.name,
-        'icon': t.icon or '',
-        'children': [{
-            'id': c.id, 'name': c.name, 'icon': c.icon or '',
-        } for c in sorted(t.children, key=lambda x: (x.sort_order, x.name)) if c.active],
+        **_ct_dict(t),
+        'children': [_ct_dict(c) for c in sorted(t.children, key=lambda x: (x.sort_order, x.name)) if c.active],
     } for t in types])
 
 
@@ -1383,12 +1388,12 @@ def start_group_care():
 def finalize_group_care():
     data = request.json or {}
     worker_id = data.get('worker_id')
-    record_ids = data.get('record_ids', [])
-    care_type_ids = data.get('care_type_ids', [])
+    record_mapping = data.get('record_mapping', [])
 
-    if not worker_id or not record_ids:
+    if not worker_id or not record_mapping:
         return jsonify({'error': 'Datos incompletos'}), 400
 
+    record_ids = [m['record_id'] for m in record_mapping]
     records = CareRecord.query.filter(
         CareRecord.id.in_(record_ids),
         CareRecord.worker_id == worker_id,
@@ -1398,21 +1403,26 @@ def finalize_group_care():
     if not records:
         return jsonify({'error': 'Registros no válidos'}), 400
 
+    records_by_id = {r.id: r for r in records}
     now = datetime.now()
-    care_types = [db.session.get(CareType, ct_id) for ct_id in care_type_ids]
-    care_types = [ct for ct in care_types if ct]
-
     names = []
-    for rec in records:
+    all_type_names = set()
+
+    for mapping in record_mapping:
+        rec = records_by_id.get(mapping['record_id'])
+        if not rec:
+            continue
         rec.end_time = now
-        for ct in care_types:
-            rec.care_types.append(ct)
+        for ct_id in mapping.get('care_type_ids', []):
+            ct = db.session.get(CareType, ct_id)
+            if ct:
+                rec.care_types.append(ct)
+                all_type_names.add(ct.name)
         if rec.resident:
             names.append(rec.resident.name)
 
     db.session.commit()
 
-    type_names = ', '.join(ct.name for ct in care_types)
     first = records[0]
     if len(names) > 3:
         subject = ', '.join(names[:3]) + f' (+{len(names) - 3})'
@@ -1422,7 +1432,7 @@ def finalize_group_care():
     return jsonify({
         'action': 'group_ended',
         'subject': subject,
-        'subject_sub': type_names,
+        'subject_sub': ', '.join(sorted(all_type_names)),
         'duration': first.calculate_duration(),
         'duration_display': _format_duration(first.start_time, first.end_time),
         'count': len(records),
@@ -1696,6 +1706,20 @@ def manage_care_types():
     return render_template('manage_care_types.html', parents=parents, all_parents=all_parents)
 
 
+def _save_care_type_icon(file_storage, care_type_id: int) -> str:
+    from PIL import Image
+    ts = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+    filename = f'ct_{care_type_id}_{ts}.png'
+    folder = os.path.join(app.config['UPLOAD_FOLDER'], 'care_icons')
+    os.makedirs(folder, exist_ok=True)
+    file_storage.seek(0)
+    img = Image.open(file_storage)
+    img = img.convert('RGBA')
+    img.thumbnail((128, 128))
+    img.save(os.path.join(folder, filename), 'PNG', optimize=True)
+    return f'care_icons/{filename}'
+
+
 @app.route('/care-types/add_edit', methods=['POST'])
 @login_required
 def add_edit_care_type():
@@ -1716,6 +1740,19 @@ def add_edit_care_type():
                 ct.icon = icon or None
                 ct.parent_id = int(parent_id) if parent_id else None
                 ct.sort_order = int(sort_order) if sort_order else 0
+                # Handle icon file upload
+                icon_file = request.files.get('icon_file')
+                if icon_file and icon_file.filename:
+                    if ct.icon_path:
+                        old = os.path.join(app.config['UPLOAD_FOLDER'], ct.icon_path)
+                        if os.path.exists(old):
+                            os.remove(old)
+                    ct.icon_path = _save_care_type_icon(icon_file, ct.id)
+                if request.form.get('remove_icon') == '1' and ct.icon_path:
+                    old = os.path.join(app.config['UPLOAD_FOLDER'], ct.icon_path)
+                    if os.path.exists(old):
+                        os.remove(old)
+                    ct.icon_path = None
                 db.session.commit()
                 flash('Tipo actualizado correctamente.', 'success')
             else:
@@ -1728,6 +1765,10 @@ def add_edit_care_type():
                 sort_order=int(sort_order) if sort_order else 0,
             )
             db.session.add(ct)
+            db.session.flush()
+            icon_file = request.files.get('icon_file')
+            if icon_file and icon_file.filename:
+                ct.icon_path = _save_care_type_icon(icon_file, ct.id)
             db.session.commit()
             flash('Tipo añadido correctamente.', 'success')
     except IntegrityError:

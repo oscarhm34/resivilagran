@@ -540,7 +540,16 @@
             <div id="ct-group-members" style="display:none;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:8px"></div>
         </div>
         <div class="ct-grid" id="ct-grid" style="display:block"></div>
-        <div class="ct-footer" id="ct-footer" style="border-top:1px solid var(--border);padding-top:16px;margin-top:12px;text-align:center">
+        <div class="ct-footer" id="ct-footer" style="border-top:1px solid var(--border);padding-top:16px;margin-top:12px">
+            <div id="ct-group-nav" style="display:none;margin-bottom:10px">
+                <div style="display:flex;justify-content:center;align-items:center;gap:8px;margin-bottom:10px">
+                    <span id="ct-step-indicator" style="font-size:13px;font-weight:600;color:var(--text-2)"></span>
+                </div>
+                <div style="display:flex;gap:8px">
+                    <button id="ct-prev" style="flex:1;padding:12px;border-radius:14px;border:1.5px solid var(--border);background:none;font-size:14px;font-weight:600;cursor:pointer;font-family:'Outfit',system-ui,sans-serif;color:var(--text)">← Anterior</button>
+                    <button id="ct-next" style="flex:1;padding:12px;border-radius:14px;border:none;background:var(--green);color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:'Outfit',system-ui,sans-serif">Siguiente →</button>
+                </div>
+            </div>
             <button class="btn-cam primary" id="ct-confirm" style="width:100%;padding:14px;border-radius:14px;border:none;background:var(--green);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:'Outfit',system-ui,sans-serif">Confirmar y finalizar</button>
         </div>
         <button class="ct-cancel" id="ct-cancel">← Cancelar</button>
@@ -795,6 +804,8 @@ const S = {
     groupSelected: [],
     pendingGroupRecordIds: [],
     pendingGroupNames: [],
+    groupStepIndex: 0,
+    groupStepData: [],
     nfcGroupMode: false,
     nfcGroupScanned: [],
 };
@@ -1084,23 +1095,10 @@ function renderActiveSessions() {
     list.querySelectorAll('.btn-group-end').forEach(btn => {
         btn.addEventListener('click', async () => {
             if (btn.disabled) return;
-            btn.disabled    = true;
-            btn.textContent = '…';
             const rids = btn.dataset.recordIds.split(',').map(Number);
             const gk = btn.dataset.groupKey;
             const members = groups[gk] || [];
-            S.pendingGroupRecordIds = rids;
-            S.pendingGroupNames = members.map(m => m.subject);
-            // Show care type selection for the group
-            showCareTypesEnd({
-                resident_name: members.map(m => m.subject).join(', '),
-                resident_id: null,
-                photo_url: null,
-                _isGroup: true,
-                _groupMembers: members,
-            });
-            btn.disabled    = false;
-            btn.textContent = 'Finalizar';
+            startGroupFinalization(members, rids);
         });
     });
     list.querySelectorAll('.btn-group-cancel').forEach(btn => {
@@ -1943,6 +1941,10 @@ $('smd-cancel').addEventListener('click', () => {
 
 // ── Care type screen (end of session) ─────────────────────────────────────
 function showCareTypesEnd(data) {
+    // Reset group nav (will be shown by renderGroupStep if needed)
+    $('ct-group-nav').style.display = 'none';
+    $('ct-confirm').style.display = '';
+
     const photoEl = $('ct-resident-photo');
 
     const groupMembersEl = $('ct-group-members');
@@ -1996,7 +1998,7 @@ function showCareTypesEnd(data) {
                 // Category with sub-types
                 html += `<div class="ct-category" data-cat-id="${ct.id}">
                     <div class="ct-category-header" data-toggle-cat="${ct.id}">
-                        <span class="ct-category-icon">${ct.icon || '❤️'}</span>
+                        <span class="ct-category-icon">${ct.icon_url ? `<img src="${ct.icon_url}" style="width:20px;height:20px;object-fit:contain">` : (ct.icon || '❤️')}</span>
                         <span class="ct-category-name">${ct.name}</span>
                         <span class="ct-category-arrow" id="cat-arrow-${ct.id}">▶</span>
                     </div>
@@ -2012,7 +2014,7 @@ function showCareTypesEnd(data) {
             } else {
                 // Standalone type
                 html += `<button class="ct-btn" data-id="${ct.id}" style="display:flex;flex-direction:row;gap:10px;padding:12px 14px;border-radius:14px;margin-bottom:6px;width:100%">
-                    <span class="ct-icon">${ct.icon || '❤️'}</span>
+                    <span class="ct-icon">${ct.icon_url ? `<img src="${ct.icon_url}" style="width:28px;height:28px;object-fit:contain">` : (ct.icon || '❤️')}</span>
                     <span class="ct-label" style="text-align:left;flex:1">${ct.name}</span>
                     <span class="ct-selected-mark">✓</span>
                 </button>`;
@@ -2045,11 +2047,70 @@ function showCareTypesEnd(data) {
     show('screen-care-type');
 }
 
-async function finalizeCare() {
+// ── Group finalization: step-by-step per resident ─────────────────────────
+function startGroupFinalization(members, recordIds) {
+    S.groupStepData = members.map((m, i) => ({
+        record_id: recordIds[i],
+        resident_name: m.subject,
+        photo_url: m.photo_url || null,
+        care_type_ids: [],
+    }));
+    S.groupStepIndex = 0;
+    S.pendingGroupRecordIds = recordIds;
+    renderGroupStep();
+}
+
+function renderGroupStep() {
+    const step = S.groupStepData[S.groupStepIndex];
+    const total = S.groupStepData.length;
+    const isLast = S.groupStepIndex === total - 1;
+    const isFirst = S.groupStepIndex === 0;
+
+    // Show the care type screen for this resident
+    showCareTypesEnd({
+        resident_name: step.resident_name,
+        resident_id: null,
+        photo_url: step.photo_url,
+        _isGroup: false, // render as individual (photo + name)
+    });
+
+    // Show step navigation
+    $('ct-group-nav').style.display = '';
+    $('ct-step-indicator').textContent = `Residente ${S.groupStepIndex + 1} de ${total}`;
+    $('ct-prev').style.display = isFirst ? 'none' : '';
+    $('ct-next').style.display = isLast ? 'none' : '';
+    $('ct-confirm').style.display = isLast ? '' : 'none';
+
+    // Restore previous selections for this step
+    $('ct-grid').querySelectorAll('.ct-sub-btn, .ct-btn').forEach(btn => {
+        btn.classList.toggle('selected', step.care_type_ids.includes(parseInt(btn.dataset.id)));
+    });
+}
+
+function collectCurrentStepSelections() {
     const selected = [];
     $('ct-grid').querySelectorAll('.ct-sub-btn.selected, .ct-btn.selected').forEach(btn => {
         selected.push(parseInt(btn.dataset.id));
     });
+    return selected;
+}
+
+$('ct-next').addEventListener('click', () => {
+    const selected = collectCurrentStepSelections();
+    if (!selected.length) { toast('Selecciona al menos un tipo de atención'); return; }
+    S.groupStepData[S.groupStepIndex].care_type_ids = selected;
+    S.groupStepIndex++;
+    renderGroupStep();
+});
+
+$('ct-prev').addEventListener('click', () => {
+    S.groupStepData[S.groupStepIndex].care_type_ids = collectCurrentStepSelections();
+    S.groupStepIndex--;
+    renderGroupStep();
+});
+
+async function finalizeCare() {
+    const selected = collectCurrentStepSelections();
     if (!selected.length) { toast('Selecciona al menos un tipo de atención'); return; }
 
     const confirmBtn = $('ct-confirm');
@@ -2057,18 +2118,24 @@ async function finalizeCare() {
     confirmBtn.textContent = 'Finalizando…';
 
     let ok, data;
-    if (S.pendingGroupRecordIds.length > 0) {
-        // Group finalization
+    if (S.groupStepData.length > 0) {
+        // Group finalization: save last step's selections
+        S.groupStepData[S.groupStepIndex].care_type_ids = selected;
+        const record_mapping = S.groupStepData.map(s => ({
+            record_id: s.record_id,
+            care_type_ids: s.care_type_ids,
+        }));
         ({ ok, data } = await api('/api/nfc/finalize-group-care', 'POST', {
             worker_id: parseInt(S.workerId),
-            record_ids: S.pendingGroupRecordIds,
-            care_type_ids: selected,
+            record_mapping,
         }));
         if (ok) {
             const idSet = new Set(S.pendingGroupRecordIds);
             S.sessions = S.sessions.filter(s => !idSet.has(s.record_id));
             S.pendingGroupRecordIds = [];
             S.pendingGroupNames = [];
+            S.groupStepData = [];
+            S.groupStepIndex = 0;
         }
     } else {
         // Single finalization
@@ -2084,6 +2151,8 @@ async function finalizeCare() {
 
     confirmBtn.disabled = false;
     confirmBtn.textContent = 'Confirmar y finalizar';
+    $('ct-group-nav').style.display = 'none';
+    $('ct-confirm').style.display = '';
 
     if (!ok) { toast(data.error || 'Error al finalizar'); return; }
 
@@ -2096,6 +2165,11 @@ $('ct-confirm').addEventListener('click', finalizeCare);
 
 $('ct-cancel').addEventListener('click', () => {
     S.pendingCode = S.pendingRName = null;
+    S.groupStepData = [];
+    S.groupStepIndex = 0;
+    S.pendingGroupRecordIds = [];
+    $('ct-group-nav').style.display = 'none';
+    $('ct-confirm').style.display = '';
     show('screen-home');
 });
 

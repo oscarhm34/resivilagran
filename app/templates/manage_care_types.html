@@ -21,7 +21,7 @@
             <span id="edit-badge" class="badge bg-warning text-dark d-none">Modo edición</span>
         </div>
         <div class="card-body">
-            <form id="ct-form" method="POST" action="{{ url_for('add_edit_care_type') }}" novalidate>
+            <form id="ct-form" method="POST" action="{{ url_for('add_edit_care_type') }}" enctype="multipart/form-data" novalidate>
                 <input type="hidden" name="care_type_id" value="">
                 <div class="row g-3 align-items-end">
                     <div class="col-sm-4">
@@ -36,6 +36,18 @@
                             <button type="button" class="btn btn-outline-secondary icon-pick p-1" data-emoji="{{ e }}" style="font-size:1.4rem;width:42px;height:42px;line-height:1">{{ e }}</button>
                             {% endfor %}
                         </div>
+                    </div>
+                    <div class="col-sm-12">
+                        <label class="form-label">Icono personalizado (opcional)</label>
+                        <div class="d-flex align-items-center gap-3">
+                            <input type="file" name="icon_file" id="icon_file" accept="image/*" class="form-control form-control-sm" style="max-width:250px">
+                            <div id="icon-preview" style="display:none">
+                                <img id="icon-preview-img" src="" alt="Preview" style="width:40px;height:40px;object-fit:contain;border-radius:8px;border:1px solid var(--bs-border-color)">
+                                <button type="button" class="btn btn-sm btn-outline-danger ms-1" id="remove-icon-btn">✕</button>
+                            </div>
+                            <input type="hidden" name="remove_icon" id="remove_icon" value="">
+                        </div>
+                        <div class="form-text">Sube PNG o JPG (128×128px). Si subes icono, tiene prioridad sobre el emoji.</div>
                     </div>
                     <div class="col-sm-3">
                         <label for="parent_id" class="form-label">Tipo padre</label>
@@ -76,7 +88,11 @@
                 <tbody>
                     {% for ct in parents %}
                     <tr>
-                        <td style="font-size:1.4rem">{{ ct.icon or '❤️' }}</td>
+                        <td style="font-size:1.4rem">
+                            {% if ct.icon_path %}
+                            <img src="{{ url_for('serve_upload', filename=ct.icon_path) }}" style="width:32px;height:32px;object-fit:contain">
+                            {% else %}{{ ct.icon or '❤️' }}{% endif %}
+                        </td>
                         <td><strong>{{ ct.name }}</strong></td>
                         <td>{{ ct.sort_order }}</td>
                         <td>
@@ -90,7 +106,8 @@
                             <button type="button" class="btn btn-sm btn-outline-secondary edit-btn me-1"
                                     data-id="{{ ct.id }}" data-name="{{ ct.name }}"
                                     data-icon="{{ ct.icon or '' }}" data-parent="{{ ct.parent_id or '' }}"
-                                    data-sort="{{ ct.sort_order }}">Editar</button>
+                                    data-sort="{{ ct.sort_order }}"
+                                    data-icon-path="{{ ct.icon_path or '' }}">Editar</button>
                             <button type="button" class="btn btn-sm btn-outline-danger delete-btn"
                                     data-name="{{ ct.name }}"
                                     data-action="{{ url_for('delete_care_type', id=ct.id) }}">Eliminar</button>
@@ -98,7 +115,11 @@
                     </tr>
                     {% for child in ct.children|sort(attribute='sort_order') %}
                     <tr style="background:var(--bs-tertiary-bg, #f8f9fa)">
-                        <td style="font-size:1.2rem;padding-left:2.5rem">{{ child.icon or '·' }}</td>
+                        <td style="font-size:1.2rem;padding-left:2.5rem">
+                            {% if child.icon_path %}
+                            <img src="{{ url_for('serve_upload', filename=child.icon_path) }}" style="width:24px;height:24px;object-fit:contain">
+                            {% else %}{{ child.icon or '·' }}{% endif %}
+                        </td>
                         <td style="padding-left:2.5rem">↳ {{ child.name }}</td>
                         <td>{{ child.sort_order }}</td>
                         <td>
@@ -112,7 +133,8 @@
                             <button type="button" class="btn btn-sm btn-outline-secondary edit-btn me-1"
                                     data-id="{{ child.id }}" data-name="{{ child.name }}"
                                     data-icon="{{ child.icon or '' }}" data-parent="{{ child.parent_id or '' }}"
-                                    data-sort="{{ child.sort_order }}">Editar</button>
+                                    data-sort="{{ child.sort_order }}"
+                                    data-icon-path="{{ child.icon_path or '' }}">Editar</button>
                             <button type="button" class="btn btn-sm btn-outline-danger delete-btn"
                                     data-name="{{ child.name }}"
                                     data-action="{{ url_for('delete_care_type', id=child.id) }}">Eliminar</button>
@@ -160,6 +182,30 @@
         b.addEventListener('click', function () { selectIcon(this.dataset.emoji); });
     });
 
+    // Icon file preview
+    var iconFileInput = document.getElementById('icon_file');
+    var iconPreview = document.getElementById('icon-preview');
+    var iconPreviewImg = document.getElementById('icon-preview-img');
+    var removeIconInput = document.getElementById('remove_icon');
+
+    iconFileInput.addEventListener('change', function () {
+        if (this.files && this.files[0]) {
+            var reader = new FileReader();
+            reader.onload = function (e) {
+                iconPreviewImg.src = e.target.result;
+                iconPreview.style.display = 'flex';
+            };
+            reader.readAsDataURL(this.files[0]);
+            removeIconInput.value = '';
+        }
+    });
+    document.getElementById('remove-icon-btn').addEventListener('click', function () {
+        iconFileInput.value = '';
+        iconPreview.style.display = 'none';
+        iconPreviewImg.src = '';
+        removeIconInput.value = '1';
+    });
+
     document.querySelectorAll('.edit-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
             var form = document.getElementById('ct-form');
@@ -168,6 +214,15 @@
             selectIcon(this.dataset.icon || '');
             form.querySelector('[name="parent_id"]').value    = this.dataset.parent;
             form.querySelector('[name="sort_order"]').value   = this.dataset.sort;
+            // Icon preview
+            iconFileInput.value = '';
+            removeIconInput.value = '';
+            if (this.dataset.iconPath) {
+                iconPreviewImg.src = '/uploads/' + this.dataset.iconPath;
+                iconPreview.style.display = 'flex';
+            } else {
+                iconPreview.style.display = 'none';
+            }
             document.getElementById('submit-btn').textContent   = 'Guardar';
             document.getElementById('cancel-btn').style.display = 'inline-block';
             document.getElementById('form-title').textContent   = 'Editando tipo';
@@ -180,6 +235,9 @@
         form.reset();
         form.querySelector('[name="care_type_id"]').value = '';
         selectIcon('');
+        iconFileInput.value = '';
+        iconPreview.style.display = 'none';
+        removeIconInput.value = '';
         document.getElementById('submit-btn').textContent  = 'Añadir';
         document.getElementById('form-title').textContent  = 'Añadir tipo de atención';
         document.getElementById('edit-badge').classList.add('d-none');
