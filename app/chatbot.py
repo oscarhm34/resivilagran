@@ -377,7 +377,7 @@ def chat(message: str, api_key: str) -> str:
 
     # Primera llamada — Claude puede pedir tools
     response = client.messages.create(
-        model="claude-sonnet-4-5-20250514",
+        model="claude-haiku-4-5-20251001",
         max_tokens=1024,
         system=SYSTEM_PROMPT,
         tools=TOOLS,
@@ -401,7 +401,7 @@ def chat(message: str, api_key: str) -> str:
         messages.append({"role": "user", "content": tool_results})
 
         response = client.messages.create(
-            model="claude-sonnet-4-5-20250514",
+            model="claude-haiku-4-5-20251001",
             max_tokens=1024,
             system=SYSTEM_PROMPT,
             tools=TOOLS,
