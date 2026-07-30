@@ -7,7 +7,7 @@ from .models import (Cleaner, Room, CleaningRecord, Floor, RoomType, Resident,
                       ChecklistItem, ResidentDocument)
 from flask import request, jsonify, render_template, redirect, url_for, flash, send_file, send_from_directory, abort
 from flask_login import login_user, logout_user, login_required, current_user
-from flask_jwt_extended import create_access_token, jwt_required
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import IntegrityError
@@ -20,6 +20,15 @@ import os
 import hashlib
 import json
 import random
+
+
+def _verify_worker_id(worker_id):
+    """Verify that the supplied worker_id matches the JWT identity. Returns the worker_id if valid."""
+    identity = get_jwt_identity()
+    worker = Cleaner.query.filter_by(username=identity).first()
+    if not worker or worker.id != worker_id:
+        return None
+    return worker_id
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
@@ -88,8 +97,10 @@ def admin_login():
 
         if user and user.check_password(password) and user.is_admin:
             login_user(user)
-            next_page = request.args.get('next')
-            return redirect(next_page or url_for('index'))
+            next_page = request.args.get('next', '')
+            if not next_page or not next_page.startswith('/') or next_page.startswith('//'):
+                next_page = url_for('index')
+            return redirect(next_page)
 
         flash('Credenciales incorrectas o sin permisos de administrador.', 'danger')
 
@@ -250,6 +261,7 @@ def cleaning_summary(cleaner_id: int):
 
 
 @app.route('/api/registros-limpieza', methods=['GET'])
+@login_required
 def api_registros_limpieza():
     records = CleaningRecord.current_year_records().all()
     data = [{
@@ -760,7 +772,8 @@ def api_chat():
         response = chat(message, api_key)
         return jsonify({'response': response}), 200
     except Exception as e:
-        return jsonify({'error': f'Error del chatbot: {str(e)}'}), 500
+        app.logger.error(f'Chatbot error: {e}')
+        return jsonify({'error': 'Error del chatbot: no se pudo procesar la consulta'}), 500
 
 
 @app.route('/admin/chat', methods=['POST'])
@@ -778,7 +791,8 @@ def admin_chat():
         response = chat(message, api_key)
         return jsonify({'response': response}), 200
     except Exception as e:
-        return jsonify({'error': f'Error del chatbot: {str(e)}'}), 500
+        app.logger.error(f'Chatbot error: {e}')
+        return jsonify({'error': 'Error del chatbot: no se pudo procesar la consulta'}), 500
 
 
 @app.route('/api/care-types')
@@ -1155,6 +1169,8 @@ def nfc_scan():
     data = request.json or {}
     nfc_code = str(data.get('nfc_code', '')).strip()
     worker_id = data.get('worker_id')
+    if worker_id and not _verify_worker_id(worker_id):
+        return jsonify({'error': 'No autorizado'}), 403
     mode = data.get('mode')  # opcional: auto-detección si no viene
     care_type_id = data.get('care_type_id')
     dry_run = data.get('dry_run', False)
@@ -1287,6 +1303,8 @@ def nfc_scan():
 def end_session():
     data = request.json or {}
     worker_id = data.get('worker_id')
+    if worker_id and not _verify_worker_id(worker_id):
+        return jsonify({'error': 'No autorizado'}), 403
     record_id = data.get('record_id')
     mode = data.get('mode')
 
@@ -1341,6 +1359,8 @@ def end_session():
 def start_group_care():
     data = request.json or {}
     worker_id = data.get('worker_id')
+    if worker_id and not _verify_worker_id(worker_id):
+        return jsonify({'error': 'No autorizado'}), 403
     resident_ids = data.get('resident_ids', [])
 
     if not worker_id or not resident_ids or len(resident_ids) < 2:
@@ -1389,6 +1409,8 @@ def start_group_care():
 def finalize_group_care():
     data = request.json or {}
     worker_id = data.get('worker_id')
+    if worker_id and not _verify_worker_id(worker_id):
+        return jsonify({'error': 'No autorizado'}), 403
     record_mapping = data.get('record_mapping', [])
 
     if not worker_id or not record_mapping:
@@ -1446,6 +1468,8 @@ def finalize_care():
     data = request.json or {}
     record_id = data.get('record_id')
     worker_id = data.get('worker_id')
+    if worker_id and not _verify_worker_id(worker_id):
+        return jsonify({'error': 'No autorizado'}), 403
     care_type_ids = data.get('care_type_ids', [])
 
     record = db.session.get(CareRecord, record_id)
@@ -1500,6 +1524,8 @@ def finalize_cleaning():
 def cancel_session():
     data = request.json or {}
     worker_id = data.get('worker_id')
+    if worker_id and not _verify_worker_id(worker_id):
+        return jsonify({'error': 'No autorizado'}), 403
     record_id = data.get('record_id')
     record_ids = data.get('record_ids')
     mode = data.get('mode')
@@ -2234,12 +2260,16 @@ def _save_base64_photo(b64_data: str, subfolder: str, cleaner_id: int) -> str:
 @app.route('/uploads/<path:filename>')
 @login_required
 def serve_upload(filename: str):
+    if '..' in filename:
+        abort(400)
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 
 @app.route('/api/uploads/<path:filename>')
 @jwt_required()
 def api_serve_upload(filename: str):
+    if '..' in filename:
+        abort(400)
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 

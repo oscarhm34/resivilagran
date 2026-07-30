@@ -808,6 +808,7 @@ const S = {
 
 // ── DOM ────────────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
+function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
 
 function show(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -2250,7 +2251,7 @@ async function showResidentInfo(residentId) {
         $('ri-photo-wrap').style.display = 'none';
     }
     if (data.group_name) {
-        $('ri-group').innerHTML = `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${data.group_color};vertical-align:middle;margin-right:4px"></span>${data.group_name}`;
+        $('ri-group').innerHTML = `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${esc(data.group_color)};vertical-align:middle;margin-right:4px"></span>${esc(data.group_name)}`;
     } else {
         $('ri-group').textContent = '';
     }
@@ -2464,7 +2465,19 @@ async function showDocument(docId) {
     const { ok, data } = await api(`/api/worker/document/${docId}`);
     if (!ok) { toast('Error al cargar el documento'); return; }
     $('docview-title').textContent = data.title;
-    $('docview-content').innerHTML = data.content;
+    // Sanitize HTML to prevent XSS — allow only safe tags
+    var temp = document.createElement('div');
+    temp.innerHTML = data.content;
+    temp.querySelectorAll('script,iframe,object,embed,form,input,button,textarea,select,style,link,meta').forEach(function(el) { el.remove(); });
+    temp.querySelectorAll('*').forEach(function(el) {
+        for (var i = el.attributes.length - 1; i >= 0; i--) {
+            var attr = el.attributes[i].name.toLowerCase();
+            if (attr.startsWith('on') || attr === 'href' && el.getAttribute('href').trim().toLowerCase().startsWith('javascript:')) {
+                el.removeAttribute(el.attributes[i].name);
+            }
+        }
+    });
+    $('docview-content').innerHTML = temp.innerHTML;
 }
 
 $('docs-back').addEventListener('click', () => show('screen-home'));
