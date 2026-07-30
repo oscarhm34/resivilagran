@@ -1763,7 +1763,10 @@ def manage_care_types():
     # Show parent types first, then children indented
     parents = CareType.query.filter_by(parent_id=None).order_by(CareType.sort_order, CareType.name).all()
     all_parents = CareType.query.filter_by(parent_id=None).order_by(CareType.name).all()
-    return render_template('manage_care_types.html', parents=parents, all_parents=all_parents)
+    # Collect all unique uploaded icons for the icon library
+    uploaded_icons = CareType.query.filter(CareType.icon_path.isnot(None)).with_entities(CareType.icon_path).distinct().all()
+    uploaded_icons = [row[0] for row in uploaded_icons]
+    return render_template('manage_care_types.html', parents=parents, all_parents=all_parents, uploaded_icons=uploaded_icons)
 
 
 def _save_care_type_icon(file_storage, care_type_id: int) -> str:
@@ -1788,6 +1791,7 @@ def add_edit_care_type():
     icon = request.form.get('icon', '').strip()
     parent_id = request.form.get('parent_id', '').strip()
     sort_order = request.form.get('sort_order', '0').strip()
+    selected_icon_path = request.form.get('selected_icon_path', '').strip()
 
     if not name:
         flash('El nombre es obligatorio.', 'error')
@@ -1800,7 +1804,7 @@ def add_edit_care_type():
                 ct.icon = icon or None
                 ct.parent_id = int(parent_id) if parent_id else None
                 ct.sort_order = int(sort_order) if sort_order else 0
-                # Handle icon file upload
+                # Handle icon: file upload > selected from library > keep existing
                 icon_file = request.files.get('icon_file')
                 if icon_file and icon_file.filename:
                     if ct.icon_path:
@@ -1808,6 +1812,8 @@ def add_edit_care_type():
                         if os.path.exists(old):
                             os.remove(old)
                     ct.icon_path = _save_care_type_icon(icon_file, ct.id)
+                elif selected_icon_path:
+                    ct.icon_path = selected_icon_path
                 if request.form.get('remove_icon') == '1' and ct.icon_path:
                     old = os.path.join(app.config['UPLOAD_FOLDER'], ct.icon_path)
                     if os.path.exists(old):
@@ -1829,6 +1835,8 @@ def add_edit_care_type():
             icon_file = request.files.get('icon_file')
             if icon_file and icon_file.filename:
                 ct.icon_path = _save_care_type_icon(icon_file, ct.id)
+            elif selected_icon_path:
+                ct.icon_path = selected_icon_path
             db.session.commit()
             flash('Tipo añadido correctamente.', 'success')
     except IntegrityError:

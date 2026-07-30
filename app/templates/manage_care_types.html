@@ -36,6 +36,20 @@
                             <button type="button" class="btn btn-outline-secondary icon-pick p-1" data-emoji="{{ e }}" style="font-size:1.4rem;width:42px;height:42px;line-height:1">{{ e }}</button>
                             {% endfor %}
                         </div>
+                        {% if uploaded_icons %}
+                        <div class="mt-2">
+                            <small class="text-body-secondary">Iconos personalizados:</small>
+                            <div class="d-flex flex-wrap gap-1 mt-1" id="custom-icon-grid">
+                                {% for icon_path in uploaded_icons %}
+                                <button type="button" class="btn btn-outline-secondary icon-pick-custom p-1"
+                                        data-icon-path="{{ icon_path }}"
+                                        style="width:42px;height:42px;display:flex;align-items:center;justify-content:center">
+                                    <img src="{{ url_for('serve_upload', filename=icon_path) }}" style="width:28px;height:28px;object-fit:contain">
+                                </button>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
                     </div>
                     <div class="col-sm-12">
                         <label class="form-label">Icono personalizado (opcional)</label>
@@ -46,8 +60,9 @@
                                 <button type="button" class="btn btn-sm btn-outline-danger ms-1" id="remove-icon-btn">✕</button>
                             </div>
                             <input type="hidden" name="remove_icon" id="remove_icon" value="">
+                            <input type="hidden" name="selected_icon_path" id="selected_icon_path" value="">
                         </div>
-                        <div class="form-text">Sube PNG o JPG (128×128px). Si subes icono, tiene prioridad sobre el emoji.</div>
+                        <div class="form-text">Sube PNG o JPG (128×128px), o selecciona un icono personalizado existente.</div>
                     </div>
                     <div class="col-sm-3">
                         <label for="parent_id" class="form-label">Tipo padre</label>
@@ -250,6 +265,42 @@
             new bootstrap.Modal(document.getElementById('deleteModal')).show();
         });
     });
+    // Custom icon selection from library
+    var selectedIconPathInput = document.getElementById('selected_icon_path');
+    function clearCustomIconSelection() {
+        document.querySelectorAll('.icon-pick-custom').forEach(function (b) {
+            b.classList.remove('btn-success');
+            b.classList.add('btn-outline-secondary');
+        });
+        selectedIconPathInput.value = '';
+    }
+    document.querySelectorAll('.icon-pick-custom').forEach(function (b) {
+        b.addEventListener('click', function () {
+            // Deselect emojis
+            selectIcon('');
+            // Toggle this custom icon
+            var isSelected = this.classList.contains('btn-success');
+            clearCustomIconSelection();
+            if (!isSelected) {
+                this.classList.remove('btn-outline-secondary');
+                this.classList.add('btn-success');
+                selectedIconPathInput.value = this.dataset.iconPath;
+                // Clear file input since we're using existing icon
+                iconFileInput.value = '';
+                removeIconInput.value = '';
+                // Show preview
+                iconPreviewImg.src = this.querySelector('img').src;
+                iconPreview.style.display = 'flex';
+            }
+        });
+    });
+    // When selecting an emoji, clear custom icon selection
+    var origSelectIcon = selectIcon;
+    selectIcon = function(emoji) {
+        origSelectIcon(emoji);
+        if (emoji) clearCustomIconSelection();
+    };
+
     document.querySelectorAll('.toggle-active').forEach(function (cb) {
         cb.addEventListener('change', async function () {
             await fetch('/care-types/toggle-active', {
