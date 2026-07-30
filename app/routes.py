@@ -4,7 +4,7 @@ from .models import (Cleaner, Room, CleaningRecord, Floor, RoomType, Resident,
                       CareType, CareRecord, ResidentGroup, cleaner_groups,
                       WorkerSelfie, LegalDocument, DocumentSignature,
                       TrainingPill, TrainingQuestion, TrainingCompletion,
-                      ChecklistItem)
+                      ChecklistItem, ResidentDocument)
 from flask import request, jsonify, render_template, redirect, url_for, flash, send_file, send_from_directory, abort
 from flask_login import login_user, logout_user, login_required, current_user
 from flask_jwt_extended import create_access_token, jwt_required
@@ -1675,6 +1675,65 @@ def update_resident_active():
     r.active = bool(active)
     db.session.commit()
     return jsonify({'ok': True}), 200
+
+
+# ── RESIDENT DOCUMENTS ────────────────────────────────────────────────────────
+
+@app.route('/residents/<int:resident_id>/documents', methods=['POST'])
+@login_required
+def upload_resident_document(resident_id: int):
+    r = db.session.get(Resident, resident_id)
+    if not r:
+        flash('Residente no encontrado.', 'error')
+        return redirect(url_for('manage_residents'))
+
+    doc_file = request.files.get('doc_file')
+    if not doc_file or not doc_file.filename:
+        flash('Selecciona un archivo.', 'error')
+        return redirect(url_for('manage_residents'))
+
+    doc_type = request.form.get('doc_type', '').strip() or 'Otros'
+    description = request.form.get('doc_description', '').strip()
+
+    # Save file
+    from werkzeug.utils import secure_filename
+    original = doc_file.filename
+    safe_name = secure_filename(original)
+    ts = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+    filename = f'{ts}_{safe_name}'
+    folder = os.path.join(app.config['UPLOAD_FOLDER'], 'resident_docs', f'res_{resident_id}')
+    os.makedirs(folder, exist_ok=True)
+    doc_file.save(os.path.join(folder, filename))
+    rel_path = f'resident_docs/res_{resident_id}/{filename}'
+
+    doc = ResidentDocument(
+        resident_id=resident_id,
+        file_path=rel_path,
+        original_filename=original,
+        doc_type=doc_type,
+        description=description,
+    )
+    db.session.add(doc)
+    db.session.commit()
+    flash(f'Documento "{original}" subido correctamente.', 'success')
+    return redirect(url_for('manage_residents'))
+
+
+@app.route('/residents/documents/<int:doc_id>/delete', methods=['POST'])
+@login_required
+def delete_resident_document(doc_id: int):
+    doc = db.session.get(ResidentDocument, doc_id)
+    if not doc:
+        flash('Documento no encontrado.', 'error')
+        return redirect(url_for('manage_residents'))
+    # Delete file
+    full_path = os.path.join(app.config['UPLOAD_FOLDER'], doc.file_path)
+    if os.path.exists(full_path):
+        os.remove(full_path)
+    db.session.delete(doc)
+    db.session.commit()
+    flash('Documento eliminado.', 'success')
+    return redirect(url_for('manage_residents'))
 
 
 @app.route('/groups/<int:id>/assign-residents', methods=['POST'])

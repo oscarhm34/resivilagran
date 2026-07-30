@@ -117,6 +117,19 @@ class Resident(db.Model):
     care_records = db.relationship('CareRecord', back_populates='resident', lazy=True)
 
 
+class ResidentDocument(db.Model):
+    __tablename__ = 'resident_document'
+    id = db.Column(db.Integer, primary_key=True)
+    resident_id = db.Column(db.Integer, db.ForeignKey('resident.id'), nullable=False)
+    file_path = db.Column(db.String(255), nullable=False)
+    original_filename = db.Column(db.String(255), nullable=False)
+    doc_type = db.Column(db.String(50), nullable=True)
+    description = db.Column(db.Text, nullable=True)
+    uploaded_at = db.Column(db.DateTime, default=datetime.now)
+
+    resident = db.relationship('Resident', backref=db.backref('documents', lazy=True, cascade='all, delete-orphan'))
+
+
 class CareType(db.Model):
     __tablename__ = 'care_type'
     id = db.Column(db.Integer, primary_key=True)

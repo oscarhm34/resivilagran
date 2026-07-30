@@ -102,6 +102,44 @@
         </div>
     </div>
 
+    <!-- Documentos del residente (visible al editar) -->
+    <div class="card mb-4 d-none" id="docs-section">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <span>📄 Documentos del residente: <strong id="docs-resident-name"></strong></span>
+        </div>
+        <div class="card-body">
+            <!-- Upload form -->
+            <form id="doc-upload-form" method="POST" enctype="multipart/form-data" class="mb-3">
+                <div class="row g-2 align-items-end">
+                    <div class="col-sm-4">
+                        <label class="form-label">Archivo</label>
+                        <input type="file" name="doc_file" class="form-control form-control-sm" required>
+                    </div>
+                    <div class="col-sm-3">
+                        <label class="form-label">Tipo</label>
+                        <select name="doc_type" class="form-select form-select-sm">
+                            <option value="PIA">PIA</option>
+                            <option value="Informe médico">Informe médico</option>
+                            <option value="Pauta farmacológica">Pauta farmacológica</option>
+                            <option value="Consentimiento">Consentimiento</option>
+                            <option value="Otros">Otros</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-3">
+                        <label class="form-label">Descripción <small class="text-body-secondary">(opcional)</small></label>
+                        <input type="text" name="doc_description" class="form-control form-control-sm" placeholder="ej. PIA 2026">
+                    </div>
+                    <div class="col-sm-2">
+                        <button type="submit" class="btn btn-sm btn-primary w-100">Subir</button>
+                    </div>
+                </div>
+            </form>
+            <!-- Documents list -->
+            <div id="docs-list"></div>
+            <p id="docs-empty" class="text-body-secondary small d-none">Este residente no tiene documentos.</p>
+        </div>
+    </div>
+
     <!-- Tabla de residentes -->
     {% if residents %}
     <div class="card">
@@ -181,6 +219,7 @@
                                     data-notes="{{ r.notes or '' }}"
                                     data-photo="{{ r.photo_path or '' }}"
                                     data-info="{{ r.relevant_info or '' }}"
+                                    data-docs='{{ r.documents | map(attribute="id") | list | tojson }}'
                                     aria-label="Editar a {{ r.name }}">Editar</button>
                             <button type="button"
                                     class="btn btn-sm btn-outline-danger delete-btn"
@@ -221,6 +260,13 @@
     </div>
 </div>
 
+<script>
+var RESIDENT_DOCS = {
+{% for r in residents %}
+{{ r.id }}: [{% for d in r.documents %}{ id: {{ d.id }}, name: "{{ d.original_filename | e }}", type: "{{ d.doc_type or 'Otros' }}", desc: "{{ d.description or '' | e }}", date: "{{ d.uploaded_at.strftime('%d/%m/%Y') if d.uploaded_at else '' }}", url: "{{ url_for('serve_upload', filename=d.file_path) }}", deleteUrl: "{{ url_for('delete_resident_document', doc_id=d.id) }}" },{% endfor %}],
+{% endfor %}
+};
+</script>
 <script>
 (function () {
     'use strict';
@@ -296,6 +342,9 @@
             document.getElementById('cancel-btn').style.display = 'inline-block';
             document.getElementById('form-title').textContent   = 'Editando residente';
             document.getElementById('edit-badge').classList.remove('d-none');
+            // Show documents section
+            var rid = parseInt(this.dataset.id);
+            showResidentDocs(rid, this.dataset.name);
             form.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
     });
@@ -313,6 +362,7 @@
         document.getElementById('submit-btn').textContent  = 'Añadir residente';
         document.getElementById('form-title').textContent  = 'Añadir residente';
         document.getElementById('edit-badge').classList.add('d-none');
+        document.getElementById('docs-section').classList.add('d-none');
         this.style.display = 'none';
     });
 
@@ -399,6 +449,35 @@
             }
         });
     });
+    function showResidentDocs(rid, rname) {
+        var section = document.getElementById('docs-section');
+        var list = document.getElementById('docs-list');
+        var empty = document.getElementById('docs-empty');
+        var uploadForm = document.getElementById('doc-upload-form');
+
+        section.classList.remove('d-none');
+        document.getElementById('docs-resident-name').textContent = rname;
+        uploadForm.action = '/residents/' + rid + '/documents';
+
+        var docs = RESIDENT_DOCS[rid] || [];
+        if (!docs.length) {
+            list.innerHTML = '';
+            empty.classList.remove('d-none');
+        } else {
+            empty.classList.add('d-none');
+            list.innerHTML = '<table class="table table-sm mb-0"><thead><tr><th>Archivo</th><th>Tipo</th><th>Descripción</th><th>Fecha</th><th class="text-end">Acciones</th></tr></thead><tbody>' +
+                docs.map(function (d) {
+                    return '<tr>' +
+                        '<td><a href="' + d.url + '" target="_blank">' + d.name + '</a></td>' +
+                        '<td><span class="badge bg-secondary">' + d.type + '</span></td>' +
+                        '<td class="text-body-secondary small">' + d.desc + '</td>' +
+                        '<td class="text-body-secondary small">' + d.date + '</td>' +
+                        '<td class="text-end"><form method="post" action="' + d.deleteUrl + '" style="display:inline" onsubmit="return confirm(\'¿Eliminar este documento?\')"><button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button></form></td>' +
+                        '</tr>';
+                }).join('') +
+                '</tbody></table>';
+        }
+    }
 })();
 </script>
 {% endblock %}

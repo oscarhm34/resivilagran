@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from anthropic import Anthropic
 from . import db
 from .models import (Resident, CareRecord, CareType, CleaningRecord, Room, Floor,
-                     Cleaner, ResidentGroup, ChecklistItem)
+                     Cleaner, ResidentGroup, ChecklistItem, ResidentDocument)
 
 SYSTEM_PROMPT = """Eres un asistente de la residencia de mayores "La Vila Gran".
 Ayudas al personal a consultar información sobre residentes, limpiezas y atenciones.
@@ -108,6 +108,17 @@ TOOLS = [
             "required": ["nombre"]
         }
     },
+    {
+        "name": "leer_documento_residente",
+        "description": "Lee el contenido de un documento de un residente (PIA, informe médico, etc). Usa primero info_residente para ver los documentos disponibles.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "documento_id": {"type": "integer", "description": "ID del documento a leer"}
+            },
+            "required": ["documento_id"]
+        }
+    },
 ]
 
 
@@ -142,12 +153,17 @@ def _info_residente(residente_id: int) -> str:
             "trabajador": c.worker.name if c.worker else '?',
             "duracion_min": round(c.calculate_duration() / 60, 1) if c.calculate_duration() else None,
         })
+    docs = [{
+        "id": d.id, "nombre": d.original_filename, "tipo": d.doc_type or 'Otros',
+        "descripcion": d.description or '', "fecha": d.uploaded_at.strftime('%d/%m/%Y') if d.uploaded_at else '',
+    } for d in (r.documents or [])]
     return json.dumps({
         "id": r.id, "nombre": r.name, "habitacion": r.room_number or "Sin asignar",
         "grupo": r.group.name if r.group else "Sin grupo",
         "notas": r.notes or "", "info_relevante": r.relevant_info or "",
         "activo": r.active, "tiene_foto": bool(r.photo_path),
         "ultimas_atenciones": atenciones,
+        "documentos": docs,
     }, ensure_ascii=False)
 
 
@@ -311,6 +327,35 @@ def _buscar_trabajador(nombre: str) -> str:
     } for c in results]}, ensure_ascii=False)
 
 
+def _leer_documento_residente(documento_id: int) -> str:
+    import os
+    from flask import current_app
+    doc = db.session.get(ResidentDocument, documento_id)
+    if not doc:
+        return json.dumps({"error": "Documento no encontrado"})
+    full_path = os.path.join(current_app.config['UPLOAD_FOLDER'], doc.file_path)
+    if not os.path.exists(full_path):
+        return json.dumps({"error": "Archivo no encontrado en disco"})
+    ext = doc.original_filename.rsplit('.', 1)[-1].lower() if '.' in doc.original_filename else ''
+    if ext == 'pdf':
+        try:
+            import PyPDF2
+            with open(full_path, 'rb') as f:
+                reader = PyPDF2.PdfReader(f)
+                text = '\n'.join(page.extract_text() or '' for page in reader.pages)
+            if not text.strip():
+                return json.dumps({"residente": doc.resident.name, "documento": doc.original_filename, "contenido": "(PDF sin texto extraíble — puede ser un escaneo/imagen)"}, ensure_ascii=False)
+            return json.dumps({"residente": doc.resident.name, "documento": doc.original_filename, "tipo": doc.doc_type, "contenido": text[:8000]}, ensure_ascii=False)
+        except ImportError:
+            return json.dumps({"error": "PyPDF2 no está instalado para leer PDFs"})
+    elif ext in ('txt', 'csv', 'md'):
+        with open(full_path, 'r', encoding='utf-8', errors='replace') as f:
+            text = f.read(8000)
+        return json.dumps({"residente": doc.resident.name, "documento": doc.original_filename, "tipo": doc.doc_type, "contenido": text}, ensure_ascii=False)
+    else:
+        return json.dumps({"residente": doc.resident.name, "documento": doc.original_filename, "tipo": doc.doc_type, "nota": f"Archivo de tipo .{ext} — no se puede leer el contenido textual"}, ensure_ascii=False)
+
+
 TOOL_HANDLERS = {
     "buscar_residente": lambda args: _buscar_residente(args["nombre"]),
     "info_residente": lambda args: _info_residente(args["residente_id"]),
@@ -321,6 +366,7 @@ TOOL_HANDLERS = {
     "trabajadores_activos": lambda args: _trabajadores_activos(),
     "resumen_dia": lambda args: _resumen_dia(args.get("fecha")),
     "buscar_trabajador": lambda args: _buscar_trabajador(args["nombre"]),
+    "leer_documento_residente": lambda args: _leer_documento_residente(args["documento_id"]),
 }
 
 
