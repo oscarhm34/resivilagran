@@ -1891,6 +1891,7 @@ async function handleCode(code) {
             start_time:  data.start_time,
             subject:     data.subject,
             subject_sub: data.subject_sub || '',
+            photo_url:   data.photo_url || null,
         });
         renderActiveSessions();
         startGlobalTimer();

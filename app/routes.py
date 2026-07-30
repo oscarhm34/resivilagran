@@ -1276,6 +1276,7 @@ def nfc_scan():
             'subject': resident.name,
             'subject_sub': '',
             'start_time': now.isoformat(),
+            'photo_url': f'/api/uploads/{resident.photo_path}' if resident.photo_path else None,
         }), 200
 
     return jsonify({'error': 'Modo no válido. Use "cleaning" o "care"'}), 400
