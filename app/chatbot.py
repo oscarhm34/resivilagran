@@ -15,7 +15,13 @@ Responde siempre en español, de forma breve y clara.
 Usa las herramientas disponibles para buscar datos antes de responder.
 Si no encuentras datos, dilo honestamente.
 Formatea listas con viñetas y destaca nombres en negrita cuando sea útil.
-No inventes datos — solo responde con lo que devuelven las herramientas."""
+No inventes datos — solo responde con lo que devuelven las herramientas.
+
+Capacidades importantes:
+- Puedes buscar qué residentes tienen documentos adjuntos (PIAs, informes médicos, etc.) con residentes_con_documentos.
+- Cuando pides info de un residente con info_residente, ya incluye el CONTENIDO de sus documentos (PIAs, informes). No necesitas llamar a leer_documento_residente por separado.
+- Puedes responder preguntas sobre el contenido de los documentos (medicación, dietas, objetivos, etc.) directamente con la info que devuelve info_residente.
+- Si el usuario pregunta "quién tiene PIA" o "qué residentes tienen informes", usa residentes_con_documentos."""
 
 TOOLS = [
     {
@@ -110,13 +116,23 @@ TOOLS = [
     },
     {
         "name": "leer_documento_residente",
-        "description": "Lee el contenido de un documento de un residente (PIA, informe médico, etc). Usa primero info_residente para ver los documentos disponibles.",
+        "description": "Lee el contenido de un documento de un residente (PIA, informe médico, etc). Normalmente no necesitas usar esto porque info_residente ya incluye el contenido.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "documento_id": {"type": "integer", "description": "ID del documento a leer"}
             },
             "required": ["documento_id"]
+        }
+    },
+    {
+        "name": "residentes_con_documentos",
+        "description": "Lista los residentes que tienen documentos adjuntos (PIAs, informes médicos, etc). Puede filtrar por tipo de documento.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "tipo": {"type": "string", "description": "Filtrar por tipo: PIA, Informe médico, Pauta farmacológica, Consentimiento, Otros. Dejar vacío para todos."}
+            },
         }
     },
 ]
@@ -136,6 +152,29 @@ def _buscar_residente(nombre: str) -> str:
     } for r in results]}, ensure_ascii=False)
 
 
+def _extract_doc_text(doc) -> str:
+    """Extract text content from a document file."""
+    import os
+    from flask import current_app
+    full_path = os.path.join(current_app.config['UPLOAD_FOLDER'], doc.file_path)
+    if not os.path.exists(full_path):
+        return "(archivo no encontrado)"
+    ext = doc.original_filename.rsplit('.', 1)[-1].lower() if '.' in doc.original_filename else ''
+    if ext == 'pdf':
+        try:
+            import PyPDF2
+            with open(full_path, 'rb') as f:
+                reader = PyPDF2.PdfReader(f)
+                text = '\n'.join(page.extract_text() or '' for page in reader.pages)
+            return text.strip()[:4000] if text.strip() else "(PDF escaneado sin texto extraíble)"
+        except Exception:
+            return "(error al leer PDF)"
+    elif ext in ('txt', 'csv', 'md'):
+        with open(full_path, 'r', encoding='utf-8', errors='replace') as f:
+            return f.read(4000)
+    return f"(archivo .{ext} — no se puede leer texto)"
+
+
 def _info_residente(residente_id: int) -> str:
     r = db.session.get(Resident, residente_id)
     if not r:
@@ -153,10 +192,16 @@ def _info_residente(residente_id: int) -> str:
             "trabajador": c.worker.name if c.worker else '?',
             "duracion_min": round(c.calculate_duration() / 60, 1) if c.calculate_duration() else None,
         })
-    docs = [{
-        "id": d.id, "nombre": d.original_filename, "tipo": d.doc_type or 'Otros',
-        "descripcion": d.description or '', "fecha": d.uploaded_at.strftime('%d/%m/%Y') if d.uploaded_at else '',
-    } for d in (r.documents or [])]
+    # Documents with content extracted
+    docs = []
+    for d in (r.documents or [])[:3]:
+        content = _extract_doc_text(d)
+        docs.append({
+            "id": d.id, "nombre": d.original_filename, "tipo": d.doc_type or 'Otros',
+            "descripcion": d.description or '',
+            "fecha": d.uploaded_at.strftime('%d/%m/%Y') if d.uploaded_at else '',
+            "contenido": content,
+        })
     return json.dumps({
         "id": r.id, "nombre": r.name, "habitacion": r.room_number or "Sin asignar",
         "grupo": r.group.name if r.group else "Sin grupo",
@@ -327,6 +372,34 @@ def _buscar_trabajador(nombre: str) -> str:
     } for c in results]}, ensure_ascii=False)
 
 
+def _residentes_con_documentos(tipo: str | None = None) -> str:
+    query = ResidentDocument.query
+    if tipo:
+        query = query.filter(ResidentDocument.doc_type.ilike(f'%{tipo}%'))
+    docs = query.order_by(ResidentDocument.uploaded_at.desc()).all()
+    if not docs:
+        return json.dumps({"resultado": f"No se encontraron residentes con documentos{' de tipo ' + tipo if tipo else ''}"}, ensure_ascii=False)
+    # Group by resident
+    by_resident: dict[int, dict] = {}
+    for d in docs:
+        r = d.resident
+        if not r:
+            continue
+        if r.id not in by_resident:
+            by_resident[r.id] = {
+                "id": r.id, "nombre": r.name,
+                "habitacion": r.room_number or "Sin asignar",
+                "documentos": [],
+            }
+        by_resident[r.id]["documentos"].append({
+            "id": d.id, "nombre": d.original_filename,
+            "tipo": d.doc_type or 'Otros',
+            "descripcion": d.description or '',
+            "fecha": d.uploaded_at.strftime('%d/%m/%Y') if d.uploaded_at else '',
+        })
+    return json.dumps({"residentes": list(by_resident.values())}, ensure_ascii=False)
+
+
 def _leer_documento_residente(documento_id: int) -> str:
     import os
     from flask import current_app
@@ -367,6 +440,7 @@ TOOL_HANDLERS = {
     "resumen_dia": lambda args: _resumen_dia(args.get("fecha")),
     "buscar_trabajador": lambda args: _buscar_trabajador(args["nombre"]),
     "leer_documento_residente": lambda args: _leer_documento_residente(args["documento_id"]),
+    "residentes_con_documentos": lambda args: _residentes_con_documentos(args.get("tipo")),
 }
 
 
