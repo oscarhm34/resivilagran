@@ -1510,6 +1510,8 @@ def finalize_cleaning():
     data = request.json or {}
     record_id = data.get('record_id')
     worker_id = data.get('worker_id')
+    if worker_id and not _verify_worker_id(worker_id):
+        return jsonify({'error': 'No autorizado'}), 403
     checklist = data.get('checklist', [])
 
     record = db.session.get(CleaningRecord, record_id)
@@ -2308,6 +2310,8 @@ def worker_identity_status():
 def enroll_selfie():
     data = request.json or {}
     worker_id = data.get('worker_id')
+    if worker_id and not _verify_worker_id(worker_id):
+        return jsonify({'error': 'No autorizado'}), 403
     photo = data.get('photo')
     if not worker_id or not photo:
         return jsonify({'error': 'worker_id y photo requeridos'}), 400
@@ -2334,6 +2338,8 @@ def verify_selfie():
     """Guarda una selfie de verificació (per signatura o formació)."""
     data = request.json or {}
     worker_id = data.get('worker_id')
+    if worker_id and not _verify_worker_id(worker_id):
+        return jsonify({'error': 'No autorizado'}), 403
     photo = data.get('photo')
     purpose = data.get('purpose', 'verification')
     if not worker_id or not photo:
@@ -2483,6 +2489,8 @@ def get_document(doc_id: int):
 def sign_document(doc_id: int):
     data = request.json or {}
     worker_id = data.get('worker_id')
+    if worker_id and not _verify_worker_id(worker_id):
+        return jsonify({'error': 'No autorizado'}), 403
     photo = data.get('photo')
     if not worker_id:
         return jsonify({'error': 'worker_id requerido'}), 400
@@ -2691,6 +2699,8 @@ def get_training(pill_id: int):
 def start_training(pill_id: int):
     data = request.json or {}
     worker_id = data.get('worker_id')
+    if worker_id and not _verify_worker_id(worker_id):
+        return jsonify({'error': 'No autorizado'}), 403
     photo = data.get('photo')
     if not worker_id:
         return jsonify({'error': 'worker_id requerido'}), 400
@@ -2788,6 +2798,8 @@ def training_questions(pill_id: int):
 def submit_training(pill_id: int):
     data = request.json or {}
     worker_id = data.get('worker_id')
+    if worker_id and not _verify_worker_id(worker_id):
+        return jsonify({'error': 'No autorizado'}), 403
     answers = data.get('answers', {})  # {"0": "a", "1": "c", ...}
     if not worker_id:
         return jsonify({'error': 'worker_id requerido'}), 400
