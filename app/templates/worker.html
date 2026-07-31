@@ -512,14 +512,9 @@
             <div id="scan-group-items" style="display:flex;flex-wrap:wrap;gap:6px"></div>
         </div>
         <div class="nfc-unsupported" id="nfc-unsupported">
-            Tu navegador no soporta Web NFC. Usa Chrome en Android o introduce el código manualmente.
+            Tu navegador no soporta Web NFC. Usa Chrome en Android.
         </div>
         <div class="scan-fallback" id="scan-fallback" style="display:none">
-            <div class="fallback-label">O introduce el código manualmente</div>
-            <div class="fallback-row">
-                <input class="fallback-input" type="text" id="manual-code" placeholder="Número habitación…" autocomplete="off" inputmode="numeric">
-                <button class="btn-ok" id="btn-manual">OK</button>
-            </div>
         </div>
         <button id="scan-start-group" class="fab-group-start" style="display:none;margin:12px 16px">
             Iniciar atención grupal (<span id="scan-group-count">0</span>)
@@ -1302,8 +1297,9 @@ function bindMyGroupListeners() {
                 }
                 updateGroupFab();
             } else {
-                S.mode = 'care';
-                handleCode(btn.dataset.code);
+                // View-only: show resident info instead of starting session
+                const wrap = btn.closest('.sel-item-wrap');
+                if (wrap && wrap.dataset.rid) showResidentInfo(parseInt(wrap.dataset.rid));
             }
         });
     });
@@ -1490,8 +1486,7 @@ async function loadRoomsList() {
         html += '</div>';
     }
     list.innerHTML = html;
-    list.querySelectorAll('.sel-item').forEach(btn =>
-        btn.addEventListener('click', () => handleCode(btn.dataset.code)));
+    // Rooms are view-only — sessions must be started/ended via NFC scan
     list.querySelectorAll('.clean-tag-btn').forEach(btn => {
         btn.addEventListener('click', e => {
             e.stopPropagation();
@@ -1596,8 +1591,10 @@ function bindSelectListeners() {
                     wrap.classList.add('group-selected');
                 }
                 updateSelectGroupFab();
-            } else {
-                handleCode(btn.dataset.code);
+            } else if (S.mode === 'care') {
+                // View-only: show resident info instead of starting session
+                const wrap = btn.closest('.sel-item-wrap');
+                if (wrap && wrap.dataset.rid) showResidentInfo(parseInt(wrap.dataset.rid));
             }
         });
     });

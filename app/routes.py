@@ -548,6 +548,27 @@ def delete_floor(id: int):
 
 # ── WEB ADMIN – REGISTROS DE LIMPIEZA ────────────────────────────────────────
 
+@app.route('/admin/close-session/<mode>/<int:record_id>', methods=['POST'])
+@login_required
+def admin_close_session(mode: str, record_id: int):
+    now = datetime.now()
+    if mode == 'cleaning':
+        rec = db.session.get(CleaningRecord, record_id)
+        if rec and not rec.end_time:
+            rec.end_time = now
+            db.session.commit()
+            flash(f'Sesión de limpieza cerrada (Hab. {rec.room.number if rec.room else record_id}).', 'success')
+        return redirect(request.referrer or url_for('registros_limpieza'))
+    elif mode == 'care':
+        rec = db.session.get(CareRecord, record_id)
+        if rec and not rec.end_time:
+            rec.end_time = now
+            db.session.commit()
+            flash(f'Sesión de atención cerrada ({rec.resident.name if rec.resident else record_id}).', 'success')
+        return redirect(request.referrer or url_for('registros_atencion'))
+    abort(400)
+
+
 @app.route('/registros-limpieza')
 @login_required
 def registros_limpieza():

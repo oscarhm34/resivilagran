@@ -113,6 +113,9 @@
                                 <span class="status-badge status-muted">{{ record.duration }}</span>
                             {% else %}
                                 <span class="status-badge status-info">En curso</span>
+                                <form method="post" action="{{ url_for('admin_close_session', mode='cleaning', record_id=record.id) }}" style="display:inline" onsubmit="return confirm('¿Cerrar esta sesión de limpieza?')">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger ms-1">Cerrar</button>
+                                </form>
                             {% endif %}
                         </td>
                         <td class="text-center">
