@@ -2523,6 +2523,12 @@ def sign_document(doc_id: int):
 #  PÍNDOLES FORMATIVES — Admin
 # ══════════════════════════════════════════════════════════════════════════════
 
+@app.route('/admin/help')
+@login_required
+def admin_help():
+    return render_template('admin_help.html')
+
+
 @app.route('/admin/training')
 @login_required
 def admin_training():

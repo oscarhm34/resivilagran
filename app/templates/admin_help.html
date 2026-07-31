@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+{% block title %}Ayuda{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+        <h1 class="h3 mb-0">Ayuda y documentacion</h1>
+        <span class="badge bg-secondary">La Vila Gran</span>
+    </div>
+
+    <!-- Indice -->
+    <div class="card mb-4">
+        <div class="card-header">Indice</div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <ul class="list-unstyled mb-0">
+                        <li><a href="#webapp">1. Webapp del trabajador</a></li>
+                        <li><a href="#residentes">2. Gestion de residentes</a></li>
+                        <li><a href="#atenciones">3. Atenciones y tipos</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-4">
+                    <ul class="list-unstyled mb-0">
+                        <li><a href="#limpieza">4. Limpieza y zonas</a></li>
+                        <li><a href="#formacion">5. Formacion y documentos</a></li>
+                        <li><a href="#chatbot">6. Chatbot IA</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-4">
+                    <ul class="list-unstyled mb-0">
+                        <li><a href="#empleados">7. Empleados y grupos</a></li>
+                        <li><a href="#registros">8. Registros y exportacion</a></li>
+                        <li><a href="#changelog">9. Registro de cambios</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 1. Webapp del trabajador -->
+    <div class="card mb-4" id="webapp">
+        <div class="card-header">1. Webapp del trabajador</div>
+        <div class="card-body">
+            <p>La webapp (<code>/worker</code>) es la interfaz movil que usan los trabajadores para registrar atenciones y limpiezas.</p>
+
+            <h6 class="mt-3">Acceso</h6>
+            <ul>
+                <li>Los trabajadores acceden desde el navegador del movil.</li>
+                <li>Se autentican con su usuario y contrasena (mismas credenciales que el panel admin si son admin).</li>
+            </ul>
+
+            <h6 class="mt-3">Funciones principales</h6>
+            <ul>
+                <li><strong>Escanear NFC:</strong> El trabajador acerca el movil a la pulsera NFC del residente o a la etiqueta de una habitacion. El sistema detecta automaticamente si es una atencion o una limpieza.</li>
+                <li><strong>Seleccion manual:</strong> Si no hay NFC, el trabajador puede seleccionar el residente o habitacion desde una lista con fotos y busqueda.</li>
+                <li><strong>Mi grupo:</strong> Acceso rapido a los residentes asignados al grupo del trabajador, con indicador de atenciones realizadas hoy.</li>
+                <li><strong>En curso ahora:</strong> Muestra las sesiones activas con temporizador en tiempo real.</li>
+                <li><strong>Completado hoy:</strong> Historial de sesiones finalizadas hoy, con detalle de tipos de atencion expandible.</li>
+            </ul>
+
+            <h6 class="mt-3">Atencion grupal</h6>
+            <ul>
+                <li>Permite atender a varios residentes a la vez (ej: deposiciones en grupo).</li>
+                <li>Se activa con el boton <strong>"Grupal"</strong> desde Mi grupo, Residentes o Escanear NFC.</li>
+                <li>El trabajador selecciona multiples residentes, inicia la atencion grupal, y al finalizar selecciona el tipo de atencion <strong>individualmente para cada residente</strong>.</li>
+                <li>En la pantalla de finalizacion, se muestran todos los residentes del grupo con foto. El trabajador elige a quien finalizar primero.</li>
+            </ul>
+
+            <h6 class="mt-3">Finalizacion de sesiones</h6>
+            <ul>
+                <li><strong>Atencion:</strong> Al finalizar, el trabajador selecciona los tipos de atencion realizados (multi-seleccion). Los tipos pueden tener iconos personalizados.</li>
+                <li><strong>Limpieza:</strong> Al finalizar, el trabajador completa un checklist de tareas realizadas.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 2. Gestion de residentes -->
+    <div class="card mb-4" id="residentes">
+        <div class="card-header">2. Gestion de residentes</div>
+        <div class="card-body">
+            <p>Desde <strong>Residentes</strong> se gestionan todos los residentes de la residencia.</p>
+            <ul>
+                <li><strong>Datos basicos:</strong> Nombre, codigo NFC (pulsera), habitacion, grupo, estado activo/baja.</li>
+                <li><strong>Foto:</strong> Se puede subir una foto del residente que se mostrara en la webapp.</li>
+                <li><strong>Informacion relevante:</strong> Texto libre visible para el personal en la webapp (alergias, indicaciones especiales).</li>
+                <li><strong>Notas:</strong> Observaciones internas.</li>
+            </ul>
+
+            <h6 class="mt-3">Documentos del residente</h6>
+            <ul>
+                <li>Al editar un residente, aparece la seccion <strong>"Documentos"</strong> donde se pueden subir archivos (PIAs, informes medicos, pautas farmacologicas, etc.).</li>
+                <li>Cada documento tiene: archivo, tipo (PIA, Informe medico, Pauta farmacologica, Consentimiento, Otros) y descripcion opcional.</li>
+                <li>Los documentos se pueden descargar y eliminar desde la misma seccion.</li>
+                <li>El chatbot IA puede leer el contenido de los documentos PDF para responder preguntas sobre el residente.</li>
+            </ul>
+
+            <h6 class="mt-3">Filtros</h6>
+            <ul>
+                <li>Se pueden filtrar residentes por estado: <strong>Altas</strong> (activos), <strong>Bajas</strong> (inactivos) o <strong>Todos</strong>.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 3. Atenciones y tipos -->
+    <div class="card mb-4" id="atenciones">
+        <div class="card-header">3. Atenciones y tipos de atencion</div>
+        <div class="card-body">
+            <p>Los <strong>Tipos de atencion</strong> definen las actividades que se pueden registrar al atender a un residente.</p>
+            <ul>
+                <li>Se accede desde <strong>Residentes &rarr; Tipos de atencion</strong>.</li>
+                <li>Cada tipo tiene: nombre, icono (emoji o imagen personalizada), orden de aparicion y estado activo/inactivo.</li>
+                <li><strong>Subcategorias:</strong> Un tipo puede tener un "tipo padre", creando una jerarquia (ej: "Higiene" con subtipos "Ducha", "Bano", "Cambio de panal").</li>
+            </ul>
+
+            <h6 class="mt-3">Iconos personalizados</h6>
+            <ul>
+                <li>Ademas de los emojis predefinidos, se pueden <strong>subir imagenes PNG/JPG</strong> como iconos.</li>
+                <li>Las imagenes subidas quedan disponibles en una <strong>biblioteca de iconos personalizados</strong> para reutilizarlas en otros tipos.</li>
+                <li>Los iconos personalizados se muestran tanto en el panel admin como en la webapp del trabajador.</li>
+            </ul>
+
+            <h6 class="mt-3">Registro de atenciones</h6>
+            <ul>
+                <li>En <strong>Registros &rarr; Atenciones</strong> se pueden consultar todas las atenciones con filtros por fecha, trabajador, residente y tipo.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 4. Limpieza y zonas -->
+    <div class="card mb-4" id="limpieza">
+        <div class="card-header">4. Limpieza y zonas</div>
+        <div class="card-body">
+            <p>La gestion de limpiezas se organiza por <strong>zonas</strong> (habitaciones y espacios comunes).</p>
+            <ul>
+                <li><strong>Zonas de limpieza:</strong> Desde el menu principal, se gestionan las habitaciones con su numero, descripcion, tipo y planta.</li>
+                <li><strong>Tipos de espacio:</strong> Habitacion individual, doble, bano comun, etc.</li>
+                <li><strong>Plantas:</strong> Organizacion por pisos del edificio.</li>
+            </ul>
+
+            <h6 class="mt-3">Checklist de limpieza</h6>
+            <ul>
+                <li>Desde <strong>Checklist</strong> se definen las tareas que el trabajador debe confirmar al finalizar una limpieza.</li>
+                <li>Al finalizar una limpieza en la webapp, el trabajador marca que tareas ha completado.</li>
+                <li>El resultado del checklist se puede consultar en <strong>Registros &rarr; Limpiezas</strong> clicando el boton del checklist en cada registro.</li>
+            </ul>
+
+            <h6 class="mt-3">En la webapp</h6>
+            <ul>
+                <li>Las habitaciones ya limpiadas hoy se muestran con un icono verde y un indicador clicable con los detalles (quien limpio, a que hora, duracion).</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 5. Formacion y documentos -->
+    <div class="card mb-4" id="formacion">
+        <div class="card-header">5. Formacion y documentos legales</div>
+        <div class="card-body">
+            <h6>Documentos legales</h6>
+            <ul>
+                <li>Desde <strong>Formacion &rarr; Documentos legales</strong> se crean documentos que los trabajadores deben leer y firmar.</li>
+                <li>Los trabajadores los ven en la webapp y deben firmar con una selfie como evidencia.</li>
+                <li>Se puede consultar quien ha firmado y quien tiene pendiente desde el panel admin.</li>
+            </ul>
+
+            <h6 class="mt-3">Pildoras formativas</h6>
+            <ul>
+                <li>Desde <strong>Formacion &rarr; Pildoras formativas</strong> se crean modulos de formacion con video y preguntas tipo test.</li>
+                <li>Los trabajadores ven el video y responden las preguntas desde la webapp.</li>
+                <li>Se registra la puntuacion y el estado de completado.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 6. Chatbot IA -->
+    <div class="card mb-4" id="chatbot">
+        <div class="card-header">6. Chatbot IA</div>
+        <div class="card-body">
+            <p>El chatbot esta disponible tanto en el <strong>panel admin</strong> (esquina inferior derecha) como en la <strong>webapp del trabajador</strong>.</p>
+            <ul>
+                <li>Puede responder preguntas sobre residentes, atenciones, limpiezas y trabajadores.</li>
+                <li>Tiene acceso a la base de datos para buscar informacion en tiempo real.</li>
+            </ul>
+
+            <h6 class="mt-3">Ejemplos de preguntas</h6>
+            <ul>
+                <li>"Que atenciones se han hecho hoy?"</li>
+                <li>"Informacion del residente Maria Garcia"</li>
+                <li>"Que habitaciones estan pendientes de limpiar?"</li>
+                <li>"Que residentes tienen un PIA?"</li>
+                <li>"Que dice el PIA de Joan sobre la medicacion?"</li>
+                <li>"Quien esta trabajando ahora?"</li>
+                <li>"Resumen del dia"</li>
+            </ul>
+
+            <h6 class="mt-3">Documentos del residente</h6>
+            <ul>
+                <li>Desde el <strong>panel admin</strong>, el chatbot puede leer el contenido de los documentos (PIAs, informes) y responder preguntas sobre ellos.</li>
+                <li>Desde la <strong>webapp del trabajador</strong>, el chatbot muestra que documentos tiene el residente pero no su contenido (por privacidad).</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 7. Empleados y grupos -->
+    <div class="card mb-4" id="empleados">
+        <div class="card-header">7. Empleados y grupos</div>
+        <div class="card-body">
+            <ul>
+                <li><strong>Empleados:</strong> Desde el menu se gestionan los trabajadores con usuario, contrasena, nombre y permisos de admin.</li>
+                <li><strong>Grupos de residentes:</strong> Se pueden crear grupos (ej: "Planta Baja", "Ala Norte") y asignar residentes y trabajadores. Los trabajadores ven "Mi grupo" en la webapp para acceso rapido.</li>
+                <li>Cada grupo tiene un color para identificarlo visualmente.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 8. Registros y exportacion -->
+    <div class="card mb-4" id="registros">
+        <div class="card-header">8. Registros y exportacion</div>
+        <div class="card-body">
+            <ul>
+                <li><strong>Registros de limpieza:</strong> Consulta con filtros por fecha, trabajador y habitacion. Exportacion a Excel. Checklist visible en cada registro.</li>
+                <li><strong>Registros de atencion:</strong> Consulta con filtros por fecha, trabajador, residente y tipo de atencion.</li>
+                <li><strong>Fichajes por trabajador:</strong> Historial de inicio/fin de sesiones por trabajador y fecha.</li>
+                <li><strong>Ultima limpieza:</strong> Vista rapida de cuando se limpio por ultima vez cada zona.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 9. Registro de cambios -->
+    <div class="card mb-4" id="changelog">
+        <div class="card-header">9. Registro de cambios recientes</div>
+        <div class="card-body">
+
+            <h6>Julio 2026</h6>
+            <table class="table table-sm">
+                <thead>
+                    <tr><th>Fecha</th><th>Cambio</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>31/07</td><td>Pagina de ayuda y documentacion en el panel admin.</td></tr>
+                    <tr><td>31/07</td><td>Correcciones de seguridad: validacion de identidad en todos los endpoints, proteccion contra XSS, rate limiting en login, validacion de archivos subidos.</td></tr>
+                    <tr><td>30/07</td><td>Documentos por residente (PIAs, informes medicos) con integracion al chatbot IA.</td></tr>
+                    <tr><td>30/07</td><td>Iconos personalizados para tipos de atencion (subida de imagenes + biblioteca reutilizable).</td></tr>
+                    <tr><td>30/07</td><td>Finalizacion grupal individualizada: el trabajador elige que residente finalizar primero y selecciona atenciones por separado.</td></tr>
+                    <tr><td>29/07</td><td>Detalle de atenciones expandible en Mi grupo, Residentes y Completado hoy.</td></tr>
+                    <tr><td>29/07</td><td>Indicador de habitaciones ya limpiadas con detalle expandible.</td></tr>
+                    <tr><td>29/07</td><td>Atencion grupal: seleccion multiple de residentes desde Mi grupo, Residentes o NFC.</td></tr>
+                    <tr><td>29/07</td><td>Fotos de residentes visibles en sesiones activas, historial y seleccion de atencion.</td></tr>
+                    <tr><td>29/07</td><td>Visualizacion del checklist completado en Registros de limpieza (modal con detalle).</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
