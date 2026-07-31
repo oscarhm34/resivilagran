@@ -369,6 +369,7 @@
         .chat-msg.bot strong{font-weight:700}
         .chat-typing{align-self:flex-start;padding:10px 14px;border-radius:14px;background:#f0f2f5;font-size:14px;color:#999}
         #chat-mic.recording{background:#cf222e;color:#fff;border-color:#cf222e;animation:pulse-mic 1s infinite}
+        #chat-mic.transcribing{background:#bf8700;color:#fff;border-color:#bf8700;pointer-events:none;opacity:.7}
         @keyframes pulse-mic{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
     </style>
     <script>
@@ -416,8 +417,13 @@
         sendBtn.addEventListener('click', sendMessage);
         input.addEventListener('keydown', function(e){ if(e.key==='Enter') sendMessage(); });
 
-        // Voice input
+        // Voice input — Whisper API via MediaRecorder (fallback: Web Speech API)
+        var mediaRecorder = null;
+        var audioChunks = [];
         var recognition = null;
+        var useWhisper = true;
+
+        // Check Web Speech API as fallback
         if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
             var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
             recognition = new SpeechRec();
@@ -432,13 +438,60 @@
             recognition.onerror = function() { micBtn.classList.remove('recording'); };
             recognition.onend = function() { micBtn.classList.remove('recording'); };
         }
+
+        async function startWhisperRecording() {
+            try {
+                var stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioChunks = [];
+                mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4' });
+                mediaRecorder.ondataavailable = function(e) { if (e.data.size > 0) audioChunks.push(e.data); };
+                mediaRecorder.onstop = async function() {
+                    stream.getTracks().forEach(function(t) { t.stop(); });
+                    var blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+                    micBtn.classList.remove('recording');
+                    micBtn.classList.add('transcribing');
+                    var formData = new FormData();
+                    formData.append('audio', blob, 'audio.webm');
+                    try {
+                        var resp = await fetch('/admin/transcribe', { method: 'POST', body: formData });
+                        var data = await resp.json();
+                        if (data.text) {
+                            input.value = data.text;
+                            sendMessage();
+                        } else if (data.error && data.error.includes('OPENAI_API_KEY')) {
+                            useWhisper = false;
+                            if (recognition) { micBtn.classList.remove('transcribing'); recognition.start(); micBtn.classList.add('recording'); }
+                            else alert('Transcripcion de voz no disponible');
+                        } else {
+                            alert(data.error || 'Error en la transcripcion');
+                        }
+                    } catch(err) { alert('Error al enviar audio'); }
+                    micBtn.classList.remove('transcribing');
+                };
+                mediaRecorder.start();
+                micBtn.classList.add('recording');
+            } catch(err) {
+                useWhisper = false;
+                if (recognition) { recognition.start(); micBtn.classList.add('recording'); }
+                else alert('No se pudo acceder al microfono');
+            }
+        }
+
         micBtn.addEventListener('click', function() {
-            if (!recognition) { alert('Tu navegador no soporta reconocimiento de voz'); return; }
+            if (micBtn.classList.contains('transcribing')) return;
             if (micBtn.classList.contains('recording')) {
-                recognition.stop();
-            } else {
+                if (mediaRecorder && mediaRecorder.state === 'recording') { mediaRecorder.stop(); }
+                else if (recognition) { recognition.stop(); }
+                micBtn.classList.remove('recording');
+                return;
+            }
+            if (useWhisper && navigator.mediaDevices) {
+                startWhisperRecording();
+            } else if (recognition) {
                 micBtn.classList.add('recording');
                 recognition.start();
+            } else {
+                alert('Tu navegador no soporta reconocimiento de voz');
             }
         });
     })();
