@@ -1,5 +1,5 @@
 from __future__ import annotations
-from . import app, db
+from . import app, db, limiter
 from .models import (Cleaner, Room, CleaningRecord, Floor, RoomType, Resident,
                       CareType, CareRecord, ResidentGroup, cleaner_groups,
                       WorkerSelfie, LegalDocument, DocumentSignature,
@@ -8,6 +8,14 @@ from .models import (Cleaner, Room, CleaningRecord, Floor, RoomType, Resident,
 from flask import request, jsonify, render_template, redirect, url_for, flash, send_file, send_from_directory, abort
 from flask_login import login_user, logout_user, login_required, current_user
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from werkzeug.utils import secure_filename as _secure_filename
+
+ALLOWED_DOC_EXTENSIONS = {'pdf', 'txt', 'csv', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'webp'}
+ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'webp', 'gif'}
+
+
+def _allowed_file(filename: str, allowed: set) -> bool:
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed
 from datetime import datetime, timedelta
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import IntegrityError
@@ -86,6 +94,7 @@ def _format_duration(start_time: datetime | None, end_time: datetime | None) -> 
 # ── WEB AUTH ─────────────────────────────────────────────────────────────────
 
 @app.route('/admin/login', methods=['GET', 'POST'])
+@limiter.limit("10/minute", methods=["POST"])
 def admin_login():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
@@ -163,6 +172,7 @@ def index():
 # ── API – APP MÓVIL (sin autenticación web, usan JWT) ────────────────────────
 
 @app.route('/login', methods=['GET', 'POST'])
+@limiter.limit("10/minute", methods=["POST"])
 def login():
     """Endpoint de autenticación para la app Android – devuelve JWT."""
     if request.method == 'GET':
@@ -788,7 +798,7 @@ def admin_chat():
     if not message:
         return jsonify({'error': 'Mensaje vacío'}), 400
     try:
-        response = chat(message, api_key)
+        response = chat(message, api_key, is_admin=True)
         return jsonify({'response': response}), 200
     except Exception as e:
         app.logger.error(f'Chatbot error: {e}')
@@ -1615,7 +1625,7 @@ def add_edit_resident():
                 r.group_id = group_id
                 # Foto
                 photo_file = request.files.get('photo')
-                if photo_file and photo_file.filename:
+                if photo_file and photo_file.filename and _allowed_file(photo_file.filename, ALLOWED_IMAGE_EXTENSIONS):
                     # Borrar foto anterior si existe
                     if r.photo_path:
                         old_path = os.path.join(app.config['UPLOAD_FOLDER'], r.photo_path)
@@ -1719,13 +1729,16 @@ def upload_resident_document(resident_id: int):
         flash('Selecciona un archivo.', 'error')
         return redirect(url_for('manage_residents'))
 
+    if not _allowed_file(doc_file.filename, ALLOWED_DOC_EXTENSIONS):
+        flash('Tipo de archivo no permitido. Usa PDF, TXT, DOC, DOCX o imágenes.', 'error')
+        return redirect(url_for('manage_residents'))
+
     doc_type = request.form.get('doc_type', '').strip() or 'Otros'
     description = request.form.get('doc_description', '').strip()
 
     # Save file
-    from werkzeug.utils import secure_filename
     original = doc_file.filename
-    safe_name = secure_filename(original)
+    safe_name = _secure_filename(original)
     ts = datetime.utcnow().strftime('%Y%m%d%H%M%S')
     filename = f'{ts}_{safe_name}'
     folder = os.path.join(app.config['UPLOAD_FOLDER'], 'resident_docs', f'res_{resident_id}')
@@ -1832,7 +1845,7 @@ def add_edit_care_type():
                 ct.sort_order = int(sort_order) if sort_order else 0
                 # Handle icon: file upload > selected from library > keep existing
                 icon_file = request.files.get('icon_file')
-                if icon_file and icon_file.filename:
+                if icon_file and icon_file.filename and _allowed_file(icon_file.filename, ALLOWED_IMAGE_EXTENSIONS):
                     if ct.icon_path:
                         old = os.path.join(app.config['UPLOAD_FOLDER'], ct.icon_path)
                         if os.path.exists(old):
@@ -2240,20 +2253,21 @@ def registros_atencion():
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _save_base64_photo(b64_data: str, subfolder: str, cleaner_id: int) -> str:
-    """Decodifica base64 (data URI o raw), guarda com a JPEG i retorna el path relatiu."""
+    """Decodifica base64 (data URI o raw), re-processa com a JPEG via Pillow i retorna el path relatiu."""
+    from PIL import Image
+    from io import BytesIO
     if ',' in b64_data:
         b64_data = b64_data.split(',', 1)[1]
     img_bytes = base64.b64decode(b64_data)
-    # Validar magic bytes JPEG/PNG
-    if img_bytes[:2] not in (b'\xff\xd8', b'\x89P'):
-        raise ValueError('Format d\'imatge no vàlid')
+    img = Image.open(BytesIO(img_bytes))
+    img = img.convert('RGB')
+    img.thumbnail((800, 800))
     ts = datetime.utcnow().strftime('%Y%m%d%H%M%S')
     filename = f'{cleaner_id}_{ts}.jpg'
     folder = os.path.join(app.config['UPLOAD_FOLDER'], subfolder)
     os.makedirs(folder, exist_ok=True)
     filepath = os.path.join(folder, filename)
-    with open(filepath, 'wb') as f:
-        f.write(img_bytes)
+    img.save(filepath, 'JPEG', quality=85, optimize=True)
     return f'{subfolder}/{filename}'
 
 

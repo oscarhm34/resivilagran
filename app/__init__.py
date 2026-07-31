@@ -4,6 +4,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_jwt_extended import JWTManager
 from flask_login import LoginManager
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from .config import Config
 
 app = Flask(__name__)
@@ -13,6 +15,7 @@ app.config['JWT_SECRET_KEY'] = Config.JWT_SECRET_KEY
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 jwt = JWTManager(app)
+limiter = Limiter(get_remote_address, app=app, default_limits=[], storage_uri="memory://")
 
 login_manager = LoginManager(app)
 login_manager.login_view = 'admin_login'

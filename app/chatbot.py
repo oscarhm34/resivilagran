@@ -175,7 +175,7 @@ def _extract_doc_text(doc) -> str:
     return f"(archivo .{ext} — no se puede leer texto)"
 
 
-def _info_residente(residente_id: int) -> str:
+def _info_residente(residente_id: int, include_content: bool = False) -> str:
     r = db.session.get(Resident, residente_id)
     if not r:
         return json.dumps({"error": "Residente no encontrado"})
@@ -192,16 +192,17 @@ def _info_residente(residente_id: int) -> str:
             "trabajador": c.worker.name if c.worker else '?',
             "duracion_min": round(c.calculate_duration() / 60, 1) if c.calculate_duration() else None,
         })
-    # Documents with content extracted
+    # Documents — include content only for admins
     docs = []
     for d in (r.documents or [])[:3]:
-        content = _extract_doc_text(d)
-        docs.append({
+        doc_data = {
             "id": d.id, "nombre": d.original_filename, "tipo": d.doc_type or 'Otros',
             "descripcion": d.description or '',
             "fecha": d.uploaded_at.strftime('%d/%m/%Y') if d.uploaded_at else '',
-            "contenido": content,
-        })
+        }
+        if include_content:
+            doc_data["contenido"] = _extract_doc_text(d)
+        docs.append(doc_data)
     return json.dumps({
         "id": r.id, "nombre": r.name, "habitacion": r.room_number or "Sin asignar",
         "grupo": r.group.name if r.group else "Sin grupo",
@@ -429,32 +430,38 @@ def _leer_documento_residente(documento_id: int) -> str:
         return json.dumps({"residente": doc.resident.name, "documento": doc.original_filename, "tipo": doc.doc_type, "nota": f"Archivo de tipo .{ext} — no se puede leer el contenido textual"}, ensure_ascii=False)
 
 
-TOOL_HANDLERS = {
-    "buscar_residente": lambda args: _buscar_residente(args["nombre"]),
-    "info_residente": lambda args: _info_residente(args["residente_id"]),
-    "atenciones_residente": lambda args: _atenciones_residente(args["residente_id"], args.get("fecha")),
-    "atenciones_hoy": lambda args: _atenciones_hoy(),
-    "limpiezas_hoy": lambda args: _limpiezas_hoy(),
-    "ultima_limpieza_zona": lambda args: _ultima_limpieza_zona(args["numero_zona"]),
-    "trabajadores_activos": lambda args: _trabajadores_activos(),
-    "resumen_dia": lambda args: _resumen_dia(args.get("fecha")),
-    "buscar_trabajador": lambda args: _buscar_trabajador(args["nombre"]),
-    "leer_documento_residente": lambda args: _leer_documento_residente(args["documento_id"]),
-    "residentes_con_documentos": lambda args: _residentes_con_documentos(args.get("tipo")),
-}
+def _get_tool_handlers(is_admin: bool = False):
+    handlers = {
+        "buscar_residente": lambda args: _buscar_residente(args["nombre"]),
+        "info_residente": lambda args: _info_residente(args["residente_id"], include_content=is_admin),
+        "atenciones_residente": lambda args: _atenciones_residente(args["residente_id"], args.get("fecha")),
+        "atenciones_hoy": lambda args: _atenciones_hoy(),
+        "limpiezas_hoy": lambda args: _limpiezas_hoy(),
+        "ultima_limpieza_zona": lambda args: _ultima_limpieza_zona(args["numero_zona"]),
+        "trabajadores_activos": lambda args: _trabajadores_activos(),
+        "resumen_dia": lambda args: _resumen_dia(args.get("fecha")),
+        "buscar_trabajador": lambda args: _buscar_trabajador(args["nombre"]),
+        "residentes_con_documentos": lambda args: _residentes_con_documentos(args.get("tipo")),
+    }
+    if is_admin:
+        handlers["leer_documento_residente"] = lambda args: _leer_documento_residente(args["documento_id"])
+    return handlers
 
 
-def chat(message: str, api_key: str) -> str:
+def chat(message: str, api_key: str, is_admin: bool = False) -> str:
     """Procesa un mensaje del usuario y devuelve la respuesta del chatbot."""
     client = Anthropic(api_key=api_key)
     messages = [{"role": "user", "content": message}]
+    handlers = _get_tool_handlers(is_admin)
+    # Filter tools to only those available for this role
+    available_tools = [t for t in TOOLS if t['name'] in handlers]
 
     # Primera llamada — Claude puede pedir tools
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=1024,
         system=SYSTEM_PROMPT,
-        tools=TOOLS,
+        tools=available_tools,
         messages=messages,
     )
 
@@ -463,8 +470,8 @@ def chat(message: str, api_key: str) -> str:
         tool_results = []
         for block in response.content:
             if block.type == "tool_use":
-                handler = TOOL_HANDLERS.get(block.name)
-                result = handler(block.input) if handler else json.dumps({"error": "Herramienta no encontrada"})
+                handler = handlers.get(block.name)
+                result = handler(block.input) if handler else json.dumps({"error": "Herramienta no disponible"})
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
@@ -478,7 +485,7 @@ def chat(message: str, api_key: str) -> str:
             model="claude-haiku-4-5-20251001",
             max_tokens=1024,
             system=SYSTEM_PROMPT,
-            tools=TOOLS,
+            tools=available_tools,
             messages=messages,
         )
 
