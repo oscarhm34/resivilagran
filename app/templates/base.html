@@ -356,6 +356,7 @@
         </div>
         <div style="padding:12px 18px;border-top:1px solid #e0e0e0;display:flex;gap:8px;flex-shrink:0">
             <button id="chat-mic" title="Hablar" style="width:40px;height:40px;border-radius:50%;border:1.5px solid #d0d7de;background:none;font-size:18px;cursor:pointer;flex-shrink:0">🎤</button>
+            <input id="chat-audio-file" type="file" accept="audio/*" capture="microphone" style="display:none">
             <input id="chat-input" type="text" placeholder="Escribe tu pregunta..." style="flex:1;padding:10px 14px;border:1.5px solid #d0d7de;border-radius:20px;font-size:14px;font-family:inherit;outline:none" autocomplete="off">
             <button id="chat-send" style="width:40px;height:40px;border-radius:50%;border:none;background:var(--color-primary,#0069d9);color:#fff;font-size:16px;cursor:pointer;flex-shrink:0">➤</button>
         </div>
@@ -477,6 +478,24 @@
             }
         }
 
+        // File input fallback for HTTP (no mediaDevices)
+        var audioFileInput = document.getElementById('chat-audio-file');
+        audioFileInput.addEventListener('change', async function() {
+            if (!this.files.length) return;
+            var file = this.files[0];
+            this.value = '';
+            micBtn.classList.add('transcribing');
+            var formData = new FormData();
+            formData.append('audio', file, file.name || 'audio.webm');
+            try {
+                var resp = await fetch('/admin/transcribe', { method: 'POST', body: formData });
+                var data = await resp.json();
+                if (data.text) { input.value = data.text; sendMessage(); }
+                else alert(data.error || 'Error en la transcripcion');
+            } catch(err) { alert('Error al enviar audio'); }
+            micBtn.classList.remove('transcribing');
+        });
+
         micBtn.addEventListener('click', function() {
             if (micBtn.classList.contains('transcribing')) return;
             if (micBtn.classList.contains('recording')) {
@@ -491,7 +510,7 @@
                 micBtn.classList.add('recording');
                 recognition.start();
             } else {
-                alert('Tu navegador no soporta reconocimiento de voz');
+                audioFileInput.click(); // fallback: open native recorder
             }
         });
     })();
