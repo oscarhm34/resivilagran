@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% block title %}Analiticas{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+        <h1 class="h3 mb-0">Analiticas</h1>
+        <div class="btn-group btn-group-sm">
+            <a href="?days=7" class="btn {% if days == 7 %}btn-primary{% else %}btn-outline-secondary{% endif %}">7 dias</a>
+            <a href="?days=14" class="btn {% if days == 14 %}btn-primary{% else %}btn-outline-secondary{% endif %}">14 dias</a>
+            <a href="?days=30" class="btn {% if days == 30 %}btn-primary{% else %}btn-outline-secondary{% endif %}">30 dias</a>
+            <a href="?days=90" class="btn {% if days == 90 %}btn-primary{% else %}btn-outline-secondary{% endif %}">90 dias</a>
+        </div>
+    </div>
+
+    <!-- Resumen general -->
+    <div class="row g-3 mb-4">
+        <div class="col-4">
+            <div class="card text-center p-3">
+                <div style="font-family:'Outfit';font-size:2rem;font-weight:700;color:var(--color-success)">{{ total_care }}</div>
+                <div class="small text-body-secondary">Atenciones</div>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="card text-center p-3">
+                <div style="font-family:'Outfit';font-size:2rem;font-weight:700;color:var(--color-primary)">{{ total_cleaning }}</div>
+                <div class="small text-body-secondary">Limpiezas</div>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="card text-center p-3">
+                <div style="font-family:'Outfit';font-size:2rem;font-weight:700;color:#bf8700">{{ total_vitals }}</div>
+                <div class="small text-body-secondary">Constantes</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grafico actividad diaria -->
+    <div class="card mb-4">
+        <div class="card-header">Actividad diaria</div>
+        <div class="card-body">
+            <canvas id="chart-daily" height="200"></canvas>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Tipos de atencion mas frecuentes -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">Tipos de atencion mas frecuentes</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead><tr><th>Tipo</th><th class="text-end">Cantidad</th></tr></thead>
+                        <tbody>
+                            {% for name, count in top_care_types %}
+                            <tr>
+                                <td>{{ name }}</td>
+                                <td class="text-end"><strong>{{ count }}</strong></td>
+                            </tr>
+                            {% endfor %}
+                            {% if not top_care_types %}
+                            <tr><td colspan="2" class="text-center text-body-secondary py-3">Sin datos</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Duracion media por tipo -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">Duracion media por tipo de atencion</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead><tr><th>Tipo</th><th class="text-end">Media</th><th class="text-end">Sesiones</th></tr></thead>
+                        <tbody>
+                            {% for d in avg_duration %}
+                            <tr>
+                                <td>{{ d.type }}</td>
+                                <td class="text-end"><strong>{{ d.avg_min }}</strong> min</td>
+                                <td class="text-end text-body-secondary">{{ d.count }}</td>
+                            </tr>
+                            {% endfor %}
+                            {% if not avg_duration %}
+                            <tr><td colspan="3" class="text-center text-body-secondary py-3">Sin datos</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mt-0">
+        <!-- Productividad por trabajador -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">Productividad por trabajador</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead><tr><th>Trabajador</th><th class="text-end">Atenciones</th><th class="text-end">Limpiezas</th><th class="text-end">Total</th></tr></thead>
+                        <tbody>
+                            {% for w in worker_stats %}
+                            <tr>
+                                <td>{{ w.name }}</td>
+                                <td class="text-end">{{ w.care }}</td>
+                                <td class="text-end">{{ w.cleaning }}</td>
+                                <td class="text-end"><strong>{{ w.total }}</strong></td>
+                            </tr>
+                            {% endfor %}
+                            {% if not worker_stats %}
+                            <tr><td colspan="4" class="text-center text-body-secondary py-3">Sin datos</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Residentes con mas atenciones -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">Residentes con mas atenciones</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead><tr><th>Residente</th><th class="text-end">Atenciones</th></tr></thead>
+                        <tbody>
+                            {% for name, count in top_residents %}
+                            <tr>
+                                <td>{{ name }}</td>
+                                <td class="text-end"><strong>{{ count }}</strong></td>
+                            </tr>
+                            {% endfor %}
+                            {% if not top_residents %}
+                            <tr><td colspan="2" class="text-center text-body-secondary py-3">Sin datos</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alertas de constantes vitales -->
+    {% if abnormal_vitals %}
+    <div class="card mt-4">
+        <div class="card-header" style="background:#fff3cd;border-color:#ffc107">
+            <span style="color:#856404">&#9888; Constantes vitales fuera de rango ({{ abnormal_vitals|length }})</span>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+                <thead><tr><th>Residente</th><th>Constante</th><th>Valor</th><th>Rango</th><th>Fecha</th></tr></thead>
+                <tbody>
+                    {% for v in abnormal_vitals %}
+                    <tr style="{% if v.alert == 'alta' %}background:#fff5f5{% else %}background:#f0f8ff{% endif %}">
+                        <td><strong>{{ v.resident }}</strong></td>
+                        <td>{{ v.type }}</td>
+                        <td><strong style="color:{% if v.alert == 'alta' %}var(--color-danger){% else %}var(--color-primary){% endif %}">{{ v.value }} {{ v.unit }}</strong></td>
+                        <td class="text-body-secondary small">{{ v.min or '—' }} - {{ v.max or '—' }} {{ v.unit }}</td>
+                        <td class="text-body-secondary small">{{ v.date }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var careData = {{ care_per_day | safe }};
+    var cleanData = {{ clean_per_day | safe }};
+
+    // Build sorted date labels
+    var allDates = new Set([...Object.keys(careData), ...Object.keys(cleanData)]);
+    var labels = Array.from(allDates).sort();
+    if (!labels.length) return;
+
+    // Format labels as DD/MM
+    var displayLabels = labels.map(function(d) { var p = d.split('-'); return p[2] + '/' + p[1]; });
+
+    new Chart(document.getElementById('chart-daily'), {
+        type: 'bar',
+        data: {
+            labels: displayLabels,
+            datasets: [
+                {
+                    label: 'Atenciones',
+                    data: labels.map(function(d) { return careData[d] || 0; }),
+                    backgroundColor: 'rgba(26,127,55,.6)',
+                    borderRadius: 4,
+                },
+                {
+                    label: 'Limpiezas',
+                    data: labels.map(function(d) { return cleanData[d] || 0; }),
+                    backgroundColor: 'rgba(0,105,217,.6)',
+                    borderRadius: 4,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { position: 'bottom' } },
+            scales: {
+                y: { beginAtZero: true, ticks: { stepSize: 1 } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

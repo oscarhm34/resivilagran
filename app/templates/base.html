@@ -282,6 +282,10 @@
                         </ul>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_analytics' %}active{% endif %}"
+                           href="{{ url_for('admin_analytics') }}"><span aria-hidden="true">📊</span> Analiticas</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'admin_help' %}active{% endif %}"
                            href="{{ url_for('admin_help') }}"><span aria-hidden="true">❓</span> Ayuda</a>
                     </li>

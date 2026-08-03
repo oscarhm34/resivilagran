@@ -2706,6 +2706,132 @@ def admin_help():
     return render_template('admin_help.html')
 
 
+@app.route('/admin/analytics')
+@login_required
+def admin_analytics():
+    days = request.args.get('days', 7, type=int)
+    if days not in (7, 14, 30, 90):
+        days = 7
+    desde = datetime.now() - timedelta(days=days)
+
+    # 1. Care records in period (completed only)
+    care_records = CareRecord.query.options(
+        joinedload(CareRecord.care_types),
+        joinedload(CareRecord.care_type),
+        joinedload(CareRecord.resident),
+        joinedload(CareRecord.worker),
+    ).filter(
+        CareRecord.start_time >= desde,
+        CareRecord.end_time.isnot(None),
+    ).all()
+
+    # 2. Cleaning records in period
+    cleaning_records = CleaningRecord.query.options(
+        joinedload(CleaningRecord.cleaner),
+        joinedload(CleaningRecord.room),
+    ).filter(
+        CleaningRecord.start_time >= desde,
+        CleaningRecord.end_time.isnot(None),
+    ).all()
+
+    # 3. Vital sign readings in period
+    vital_readings = VitalSignReading.query.options(
+        joinedload(VitalSignReading.vital_sign_type),
+        joinedload(VitalSignReading.care_record).joinedload(CareRecord.resident),
+    ).filter(
+        VitalSignReading.recorded_at >= desde,
+    ).order_by(VitalSignReading.recorded_at.desc()).all()
+
+    # === Compute analytics ===
+    from collections import defaultdict, Counter
+
+    # Care type frequency
+    care_type_counter = Counter()
+    for c in care_records:
+        for ct in c.care_types:
+            care_type_counter[ct.name] += 1
+        if not c.care_types and c.care_type:
+            care_type_counter[c.care_type.name] += 1
+    top_care_types = care_type_counter.most_common(10)
+
+    # Worker productivity (care sessions)
+    worker_care_count = Counter()
+    worker_clean_count = Counter()
+    for c in care_records:
+        if c.worker:
+            worker_care_count[c.worker.name] += 1
+    for c in cleaning_records:
+        if c.cleaner:
+            worker_clean_count[c.cleaner.name] += 1
+    all_workers = set(list(worker_care_count.keys()) + list(worker_clean_count.keys()))
+    worker_stats = sorted([{
+        'name': w,
+        'care': worker_care_count.get(w, 0),
+        'cleaning': worker_clean_count.get(w, 0),
+        'total': worker_care_count.get(w, 0) + worker_clean_count.get(w, 0),
+    } for w in all_workers], key=lambda x: -x['total'])
+
+    # Average care duration by type
+    duration_by_type = defaultdict(list)
+    for c in care_records:
+        dur = c.calculate_duration()
+        if dur:
+            for ct in c.care_types:
+                duration_by_type[ct.name].append(dur)
+    avg_duration = sorted([{
+        'type': name,
+        'avg_min': round(sum(durs) / len(durs) / 60, 1),
+        'count': len(durs),
+    } for name, durs in duration_by_type.items()], key=lambda x: -x['count'])
+
+    # Residents with most care sessions
+    resident_care = Counter()
+    for c in care_records:
+        if c.resident:
+            resident_care[c.resident.name] += 1
+    top_residents = resident_care.most_common(10)
+
+    # Care per day (for chart)
+    care_per_day = Counter()
+    clean_per_day = Counter()
+    for c in care_records:
+        care_per_day[c.start_time.strftime('%Y-%m-%d')] += 1
+    for c in cleaning_records:
+        clean_per_day[c.start_time.strftime('%Y-%m-%d')] += 1
+
+    # Abnormal vital signs
+    abnormal_vitals = []
+    for r in vital_readings[:100]:
+        vst = r.vital_sign_type
+        is_low = vst.min_value is not None and r.value < vst.min_value
+        is_high = vst.max_value is not None and r.value > vst.max_value
+        if is_low or is_high:
+            abnormal_vitals.append({
+                'resident': r.care_record.resident.name if r.care_record.resident else '?',
+                'type': vst.name,
+                'value': r.value,
+                'unit': vst.unit,
+                'min': vst.min_value,
+                'max': vst.max_value,
+                'date': r.recorded_at.strftime('%d/%m/%Y %H:%M'),
+                'alert': 'alta' if is_high else 'baja',
+            })
+
+    return render_template('admin_analytics.html',
+        days=days,
+        total_care=len(care_records),
+        total_cleaning=len(cleaning_records),
+        total_vitals=len(vital_readings),
+        top_care_types=top_care_types,
+        worker_stats=worker_stats,
+        avg_duration=avg_duration,
+        top_residents=top_residents,
+        abnormal_vitals=abnormal_vitals[:20],
+        care_per_day=json.dumps(dict(care_per_day)),
+        clean_per_day=json.dumps(dict(clean_per_day)),
+    )
+
+
 @app.route('/admin/settings', methods=['GET', 'POST'])
 @login_required
 def admin_settings():
