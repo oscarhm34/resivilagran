@@ -388,7 +388,7 @@
                 <div class="home-greeting">Bienvenido</div>
                 <div class="home-name" id="home-name">—</div>
             </div>
-            <button class="btn-logout" id="btn-logout">Cerrar sesión</button>
+            <button class="btn-logout" id="btn-logout" onclick="doLogout()">Cerrar sesión</button>
         </div>
 
         <!-- Sesiones activas -->
@@ -515,6 +515,10 @@
             Tu navegador no soporta Web NFC. Usa Chrome en Android.
         </div>
         <div class="scan-fallback" id="scan-fallback" style="display:none">
+            <div class="fallback-row" style="display:none">
+                <input class="fallback-input" type="text" id="manual-code" autocomplete="off">
+                <button class="btn-ok" id="btn-manual">OK</button>
+            </div>
         </div>
         <button id="scan-start-group" class="fab-group-start" style="display:none;margin:12px 16px">
             Iniciar atención grupal (<span id="scan-group-count">0</span>)
