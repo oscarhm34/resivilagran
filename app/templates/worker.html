@@ -947,10 +947,18 @@ function doLogout() {
     S.sessions = [];
     ['wt','wid','wname'].forEach(k => localStorage.removeItem(k));
     $('chat-fab').style.display = 'none';
-    $('chat-dialog').close();
+    try { $('chat-dialog').close(); } catch(e) {}
+    try { $('chat-dialog').style.display = 'none'; } catch(e) {}
     show('screen-login');
 }
 $('btn-logout').addEventListener('click', doLogout);
+
+// Auto-logout when page is hidden or closed (shared device support)
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && S.token) {
+        doLogout();
+    }
+});
 
 // ── Home ───────────────────────────────────────────────────────────────────
 async function initHome() {
