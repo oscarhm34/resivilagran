@@ -85,6 +85,9 @@
                             {% if record.care_type %}
                             <span class="status-badge status-info">{{ record.care_type.name }}</span>
                             {% else %}—{% endif %}
+                            {% for reading in record.vital_sign_readings %}
+                            <br><small style="color:var(--color-text-secondary)">{{ reading.vital_sign_type.name }}: <strong>{{ reading.value|round(1) }}</strong> {{ reading.vital_sign_type.unit }}</small>
+                            {% endfor %}
                         </td>
                         <td>{{ record.worker.name if record.worker else '—' }}</td>
                         <td>{{ record.start_time.strftime('%d/%m/%Y') if record.start_time else '—' }}</td>

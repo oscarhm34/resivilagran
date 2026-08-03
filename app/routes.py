@@ -4,7 +4,8 @@ from .models import (Cleaner, Room, CleaningRecord, Floor, RoomType, Resident,
                       CareType, CareRecord, ResidentGroup, cleaner_groups,
                       WorkerSelfie, LegalDocument, DocumentSignature,
                       TrainingPill, TrainingQuestion, TrainingCompletion,
-                      ChecklistItem, ResidentDocument)
+                      ChecklistItem, ResidentDocument,
+                      VitalSignType, VitalSignReading)
 from flask import request, jsonify, render_template, redirect, url_for, flash, send_file, send_from_directory, abort
 from flask_login import login_user, logout_user, login_required, current_user
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
@@ -870,12 +871,19 @@ def api_care_types():
     types = CareType.query.filter_by(parent_id=None, active=True).order_by(CareType.sort_order, CareType.name).all()
 
     def _ct_dict(ct):
-        return {
+        d = {
             'id': ct.id,
             'name': ct.name,
             'icon': ct.icon or '',
             'icon_url': f'/api/uploads/{ct.icon_path}' if ct.icon_path else None,
         }
+        vital_fields = [{'id': vs.id, 'name': vs.name, 'unit': vs.unit,
+                         'min_value': vs.min_value, 'max_value': vs.max_value,
+                         'input_type': vs.input_type or 'number',
+                         } for vs in (ct.vital_sign_types or []) if vs.active]
+        if vital_fields:
+            d['vital_fields'] = vital_fields
+        return d
 
     return jsonify([{
         **_ct_dict(t),
@@ -1540,6 +1548,7 @@ def finalize_care():
     if worker_id and not _verify_worker_id(worker_id):
         return jsonify({'error': 'No autorizado'}), 403
     care_type_ids = data.get('care_type_ids', [])
+    vital_signs = data.get('vital_signs', [])
 
     record = db.session.get(CareRecord, record_id)
     if not record or record.worker_id != worker_id or record.end_time:
@@ -1550,6 +1559,26 @@ def finalize_care():
         ct = db.session.get(CareType, ct_id)
         if ct:
             record.care_types.append(ct)
+
+    # Save vital sign readings
+    for vs_data in vital_signs:
+        vst_id = vs_data.get('vital_sign_type_id')
+        val = vs_data.get('value')
+        if vst_id is None or val is None or val == '':
+            continue
+        vst = db.session.get(VitalSignType, vst_id)
+        if not vst or not vst.active:
+            continue
+        try:
+            val = float(val)
+        except (ValueError, TypeError):
+            continue
+        if vst.min_value is not None and val < vst.min_value:
+            continue
+        if vst.max_value is not None and val > vst.max_value:
+            continue
+        db.session.add(VitalSignReading(care_record_id=record.id, vital_sign_type_id=vst_id, value=val))
+
     db.session.commit()
 
     type_names = ', '.join(ct.name for ct in record.care_types)
@@ -1973,6 +2002,65 @@ def toggle_care_type_active():
     return jsonify({'ok': True}), 200
 
 
+# ── ADMIN – VITAL SIGN TYPES ────────────────────────────────────────────────
+
+@app.route('/care-types/<int:care_type_id>/vital-fields/add_edit', methods=['POST'])
+@login_required
+def add_edit_vital_field(care_type_id: int):
+    ct = db.session.get(CareType, care_type_id)
+    if not ct:
+        flash('Tipo de atención no encontrado.', 'error')
+        return redirect(url_for('manage_care_types'))
+    vf_id = request.form.get('vf_id')
+    name = request.form.get('vf_name', '').strip()
+    unit = request.form.get('vf_unit', '').strip()
+    min_val = request.form.get('vf_min', '').strip()
+    max_val = request.form.get('vf_max', '').strip()
+    input_type = request.form.get('vf_input_type', 'number').strip()
+    sort_order = request.form.get('vf_sort_order', '0').strip()
+    if not name or not unit:
+        flash('Nombre y unidad son obligatorios.', 'error')
+        return redirect(url_for('manage_care_types'))
+    if vf_id:
+        vf = db.session.get(VitalSignType, int(vf_id))
+        if vf:
+            vf.name = name
+            vf.unit = unit
+            vf.min_value = float(min_val) if min_val else None
+            vf.max_value = float(max_val) if max_val else None
+            vf.input_type = input_type
+            vf.sort_order = int(sort_order) if sort_order else 0
+    else:
+        vf = VitalSignType(
+            care_type_id=care_type_id, name=name, unit=unit,
+            min_value=float(min_val) if min_val else None,
+            max_value=float(max_val) if max_val else None,
+            input_type=input_type,
+            sort_order=int(sort_order) if sort_order else 0,
+        )
+        db.session.add(vf)
+    db.session.commit()
+    flash(f'Campo vital "{name}" guardado.', 'success')
+    return redirect(url_for('manage_care_types'))
+
+
+@app.route('/care-types/vital-fields/delete/<int:vf_id>', methods=['POST'])
+@login_required
+def delete_vital_field(vf_id: int):
+    vf = db.session.get(VitalSignType, vf_id)
+    if not vf:
+        flash('Campo no encontrado.', 'error')
+        return redirect(url_for('manage_care_types'))
+    if vf.readings:
+        vf.active = False
+        flash(f'Campo "{vf.name}" desactivado (tiene lecturas asociadas).', 'warning')
+    else:
+        db.session.delete(vf)
+        flash(f'Campo "{vf.name}" eliminado.', 'success')
+    db.session.commit()
+    return redirect(url_for('manage_care_types'))
+
+
 # ── ADMIN – CHECKLIST DE LIMPIEZA ────────────────────────────────────────────
 
 @app.route('/manage-checklist')
@@ -2269,6 +2357,7 @@ def registros_atencion():
         joinedload(CareRecord.resident),
         joinedload(CareRecord.worker),
         joinedload(CareRecord.care_type),
+        joinedload(CareRecord.vital_sign_readings).joinedload(VitalSignReading.vital_sign_type),
     )
 
     if worker_id:

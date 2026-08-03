@@ -540,6 +540,11 @@
             <div id="ct-group-picker-list" style="display:flex;flex-direction:column;gap:8px"></div>
         </div>
         <div class="ct-grid" id="ct-grid" style="display:block"></div>
+        <!-- Vital signs input (shown dynamically when care types with vital fields are selected) -->
+        <div id="ct-vital-signs" style="display:none;padding:12px 0">
+            <div style="font-size:13px;font-weight:600;color:var(--text-2);text-align:center;margin-bottom:10px">Introduce las constantes vitales (opcional):</div>
+            <div id="ct-vital-fields" style="display:flex;flex-direction:column;gap:10px"></div>
+        </div>
         <div class="ct-footer" id="ct-footer" style="border-top:1px solid var(--border);padding-top:16px;margin-top:12px">
             <button class="btn-cam primary" id="ct-confirm" style="width:100%;padding:14px;border-radius:14px;border:none;background:var(--green);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:'Outfit',system-ui,sans-serif">Confirmar y finalizar</button>
         </div>
@@ -1942,6 +1947,8 @@ function showCareTypesEnd(data) {
     $('ct-grid').style.display = 'block';
     $('ct-footer').style.display = '';
     $('ct-confirm').style.display = '';
+    $('ct-vital-signs').style.display = 'none';
+    $('ct-vital-fields').innerHTML = '';
 
     const photoEl = $('ct-resident-photo');
 
@@ -2142,6 +2149,55 @@ function renderGroupPicker() {
     show('screen-care-type');
 }
 
+function findVitalFieldsForSelected(selectedIds) {
+    const fields = [];
+    for (const ctId of selectedIds) {
+        for (const ct of S.careTypes) {
+            if (ct.id === ctId && ct.vital_fields) {
+                fields.push(...ct.vital_fields);
+            }
+            if (ct.children) {
+                for (const child of ct.children) {
+                    if (child.id === ctId && child.vital_fields) {
+                        fields.push(...child.vital_fields);
+                    }
+                }
+            }
+        }
+    }
+    return fields;
+}
+
+function showVitalSignsInputs(fields) {
+    const container = $('ct-vital-fields');
+    container.innerHTML = fields.map(f => {
+        const step = f.input_type === 'decimal' ? '0.1' : '1';
+        const minAttr = f.min_value != null ? `min="${f.min_value}"` : '';
+        const maxAttr = f.max_value != null ? `max="${f.max_value}"` : '';
+        const placeholder = (f.min_value != null && f.max_value != null) ? `${f.min_value} - ${f.max_value}` : '';
+        return `<div style="display:flex;align-items:center;gap:10px;background:var(--bg);padding:10px 14px;border-radius:12px">
+            <label style="font-size:13px;font-weight:600;min-width:80px">${esc(f.name)}</label>
+            <input type="number" class="vital-input" data-vst-id="${f.id}" step="${step}" ${minAttr} ${maxAttr}
+                   placeholder="${placeholder}"
+                   style="flex:1;padding:10px;border:1.5px solid var(--border);border-radius:10px;font-size:16px;font-family:inherit;background:var(--surface);text-align:center"
+                   inputmode="decimal">
+            <span style="font-size:12px;color:var(--text-2);min-width:40px">${esc(f.unit)}</span>
+        </div>`;
+    }).join('');
+    $('ct-vital-signs').style.display = '';
+}
+
+function collectVitalSigns() {
+    const readings = [];
+    $('ct-vital-fields').querySelectorAll('.vital-input').forEach(input => {
+        const val = input.value.trim();
+        if (val !== '') {
+            readings.push({ vital_sign_type_id: parseInt(input.dataset.vstId), value: parseFloat(val) });
+        }
+    });
+    return readings;
+}
+
 async function finalizeCare() {
     const selected = [];
     $('ct-grid').querySelectorAll('.ct-sub-btn.selected, .ct-btn.selected').forEach(btn => {
@@ -2149,6 +2205,16 @@ async function finalizeCare() {
     });
     if (!selected.length) { toast('Selecciona al menos un tipo de atención'); return; }
 
+    // Check for vital fields and show inputs if not already shown
+    const vitalFields = findVitalFieldsForSelected(selected);
+    if (vitalFields.length && $('ct-vital-signs').style.display === 'none') {
+        showVitalSignsInputs(vitalFields);
+        $('ct-grid').style.display = 'none';
+        $('ct-confirm').textContent = 'Confirmar y finalizar';
+        return;
+    }
+
+    const vitalSigns = collectVitalSigns();
     const confirmBtn = $('ct-confirm');
     confirmBtn.disabled = true;
     confirmBtn.textContent = 'Finalizando…';
@@ -2157,6 +2223,7 @@ async function finalizeCare() {
         record_id: S.pendingEndRecordId,
         worker_id: parseInt(S.workerId),
         care_type_ids: selected,
+        vital_signs: vitalSigns,
     });
 
     confirmBtn.disabled = false;

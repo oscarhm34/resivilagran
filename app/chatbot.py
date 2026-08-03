@@ -7,7 +7,8 @@ from datetime import datetime, timedelta
 from anthropic import Anthropic
 from . import db
 from .models import (Resident, CareRecord, CareType, CleaningRecord, Room, Floor,
-                     Cleaner, ResidentGroup, ChecklistItem, ResidentDocument)
+                     Cleaner, ResidentGroup, ChecklistItem, ResidentDocument,
+                     VitalSignType, VitalSignReading)
 
 SYSTEM_PROMPT = """Eres un asistente de la residencia de mayores "La Vila Gran".
 Ayudas al personal a consultar información sobre residentes, limpiezas y atenciones.
@@ -21,7 +22,9 @@ Capacidades importantes:
 - Puedes buscar qué residentes tienen documentos adjuntos (PIAs, informes médicos, etc.) con residentes_con_documentos.
 - Cuando pides info de un residente con info_residente, ya incluye el CONTENIDO de sus documentos (PIAs, informes). No necesitas llamar a leer_documento_residente por separado.
 - Puedes responder preguntas sobre el contenido de los documentos (medicación, dietas, objetivos, etc.) directamente con la info que devuelve info_residente.
-- Si el usuario pregunta "quién tiene PIA" o "qué residentes tienen informes", usa residentes_con_documentos."""
+- Si el usuario pregunta "quién tiene PIA" o "qué residentes tienen informes", usa residentes_con_documentos.
+- Puedes consultar constantes vitales (tensión arterial, glucemia, temperatura, etc.) de un residente con constantes_vitales_residente.
+- Para preguntas como "cuál es la tensión de María" o "glucemia de Juan", usa constantes_vitales_residente."""
 
 TOOLS = [
     {
@@ -133,6 +136,19 @@ TOOLS = [
             "properties": {
                 "tipo": {"type": "string", "description": "Filtrar por tipo: PIA, Informe médico, Pauta farmacológica, Consentimiento, Otros. Dejar vacío para todos."}
             },
+        }
+    },
+    {
+        "name": "constantes_vitales_residente",
+        "description": "Consulta las constantes vitales registradas para un residente (tensión arterial, glucemia, temperatura, etc). Puede filtrar por tipo y número de días.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "residente_id": {"type": "integer", "description": "ID del residente"},
+                "dias": {"type": "integer", "description": "Últimos N días (por defecto 7)"},
+                "tipo": {"type": "string", "description": "Filtrar por nombre del campo vital (ej: Sistólica, Glucosa). Vacío para todos."}
+            },
+            "required": ["residente_id"]
         }
     },
 ]
@@ -430,6 +446,34 @@ def _leer_documento_residente(documento_id: int) -> str:
         return json.dumps({"residente": doc.resident.name, "documento": doc.original_filename, "tipo": doc.doc_type, "nota": f"Archivo de tipo .{ext} — no se puede leer el contenido textual"}, ensure_ascii=False)
 
 
+def _constantes_vitales_residente(residente_id: int, dias: int = 7, tipo: str = '') -> str:
+    r = db.session.get(Resident, residente_id)
+    if not r:
+        return json.dumps({"error": "Residente no encontrado"})
+    desde = datetime.now() - timedelta(days=dias)
+    query = VitalSignReading.query.join(CareRecord).filter(
+        CareRecord.resident_id == residente_id,
+        VitalSignReading.recorded_at >= desde,
+    ).join(VitalSignType)
+    if tipo:
+        query = query.filter(VitalSignType.name.ilike(f'%{tipo}%'))
+    readings = query.order_by(VitalSignReading.recorded_at.desc()).limit(50).all()
+    if not readings:
+        return json.dumps({"residente": r.name, "resultado": f"No hay constantes vitales registradas en los últimos {dias} días"}, ensure_ascii=False)
+    return json.dumps({
+        "residente": r.name,
+        "periodo": f"Últimos {dias} días",
+        "total": len(readings),
+        "lecturas": [{
+            "tipo": rd.vital_sign_type.name,
+            "valor": rd.value,
+            "unidad": rd.vital_sign_type.unit,
+            "fecha": rd.recorded_at.strftime('%d/%m/%Y %H:%M'),
+            "trabajador": rd.care_record.worker.name if rd.care_record.worker else '?',
+        } for rd in readings],
+    }, ensure_ascii=False)
+
+
 def _get_tool_handlers(is_admin: bool = False):
     handlers = {
         "buscar_residente": lambda args: _buscar_residente(args["nombre"]),
@@ -442,6 +486,7 @@ def _get_tool_handlers(is_admin: bool = False):
         "resumen_dia": lambda args: _resumen_dia(args.get("fecha")),
         "buscar_trabajador": lambda args: _buscar_trabajador(args["nombre"]),
         "residentes_con_documentos": lambda args: _residentes_con_documentos(args.get("tipo")),
+        "constantes_vitales_residente": lambda args: _constantes_vitales_residente(args["residente_id"], args.get("dias", 7), args.get("tipo", '')),
     }
     if is_admin:
         handlers["leer_documento_residente"] = lambda args: _leer_documento_residente(args["documento_id"])

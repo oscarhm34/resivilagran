@@ -142,6 +142,32 @@ class CareType(db.Model):
 
     children = db.relationship('CareType', backref=db.backref('parent', remote_side='CareType.id'), lazy=True)
     care_records = db.relationship('CareRecord', back_populates='care_type', lazy=True)
+    vital_sign_types = db.relationship('VitalSignType', backref='care_type', lazy=True, order_by='VitalSignType.sort_order')
+
+
+class VitalSignType(db.Model):
+    __tablename__ = 'vital_sign_type'
+    id = db.Column(db.Integer, primary_key=True)
+    care_type_id = db.Column(db.Integer, db.ForeignKey('care_type.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    unit = db.Column(db.String(30), nullable=False)
+    min_value = db.Column(db.Float, nullable=True)
+    max_value = db.Column(db.Float, nullable=True)
+    input_type = db.Column(db.String(20), default='number')
+    sort_order = db.Column(db.Integer, default=0)
+    active = db.Column(db.Boolean, default=True)
+
+
+class VitalSignReading(db.Model):
+    __tablename__ = 'vital_sign_reading'
+    id = db.Column(db.Integer, primary_key=True)
+    care_record_id = db.Column(db.Integer, db.ForeignKey('care_record.id'), nullable=False)
+    vital_sign_type_id = db.Column(db.Integer, db.ForeignKey('vital_sign_type.id'), nullable=False)
+    value = db.Column(db.Float, nullable=False)
+    recorded_at = db.Column(db.DateTime, default=datetime.now)
+
+    care_record = db.relationship('CareRecord', backref=db.backref('vital_sign_readings', lazy=True))
+    vital_sign_type = db.relationship('VitalSignType', backref=db.backref('readings', lazy=True))
 
 
 class CareRecord(db.Model):
