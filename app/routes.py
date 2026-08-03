@@ -970,6 +970,26 @@ def api_rooms():
     hoy_inicio = datetime.combine(today, datetime.min.time())
     hoy_fin = datetime.combine(today + timedelta(days=1), datetime.min.time())
 
+    # Single query: all completed cleanings today with cleaner eager-loaded
+    all_cleanings = CleaningRecord.query.options(
+        joinedload(CleaningRecord.cleaner),
+    ).filter(
+        CleaningRecord.start_time >= hoy_inicio,
+        CleaningRecord.start_time < hoy_fin,
+        CleaningRecord.end_time.isnot(None),
+    ).order_by(CleaningRecord.start_time.desc()).all()
+
+    # Group by room_id
+    from collections import defaultdict
+    cleanings_by_room: dict[int, list] = defaultdict(list)
+    for c in all_cleanings:
+        cleanings_by_room[c.room_id].append({
+            'time': c.start_time.strftime('%H:%M'),
+            'cleaner': c.cleaner.name if c.cleaner else '',
+            'duration': _format_duration(c.start_time, c.end_time),
+        })
+
+    # Single query: all floors with rooms eager-loaded
     floors = Floor.query.order_by(Floor.name).all()
     result: list[dict] = []
     for floor in floors:
@@ -977,26 +997,14 @@ def api_rooms():
         if rooms:
             rooms_data = []
             for r in rooms:
-                cleanings = CleaningRecord.query.filter(
-                    CleaningRecord.room_id == r.id,
-                    CleaningRecord.start_time >= hoy_inicio,
-                    CleaningRecord.start_time < hoy_fin,
-                    CleaningRecord.end_time.isnot(None),
-                ).order_by(CleaningRecord.start_time.desc()).all()
-                cleaning_today = []
-                for c in cleanings:
-                    cleaning_today.append({
-                        'time': c.start_time.strftime('%H:%M'),
-                        'cleaner': c.cleaner.name if c.cleaner else '',
-                        'duration': _format_duration(c.start_time, c.end_time),
-                    })
+                ct = cleanings_by_room.get(r.id, [])
                 rooms_data.append({
                     'id': r.id,
                     'number': r.number,
                     'description': r.description or '',
-                    'cleaned_today': len(cleanings) > 0,
-                    'cleaning_count_today': len(cleanings),
-                    'cleaning_today': cleaning_today,
+                    'cleaned_today': len(ct) > 0,
+                    'cleaning_count_today': len(ct),
+                    'cleaning_today': ct,
                 })
             result.append({
                 'id': floor.id,
@@ -1015,30 +1023,38 @@ def api_residents():
     hoy_inicio = datetime.combine(today, datetime.min.time())
     hoy_fin = datetime.combine(today + timedelta(days=1), datetime.min.time())
 
+    # Single query: all completed care records today with care_types eager-loaded
+    all_care = CareRecord.query.options(
+        db.joinedload(CareRecord.care_types),
+        db.joinedload(CareRecord.care_type),
+    ).filter(
+        CareRecord.start_time >= hoy_inicio,
+        CareRecord.start_time < hoy_fin,
+        CareRecord.end_time.isnot(None),
+    ).order_by(CareRecord.start_time.desc()).all()
+
+    # Group by resident_id
+    from collections import defaultdict
+    care_by_resident: dict[int, list] = defaultdict(list)
+    for c in all_care:
+        types = ', '.join(ct.name for ct in c.care_types) if c.care_types else (c.care_type.name if c.care_type else '')
+        care_by_resident[c.resident_id].append({
+            'time': c.start_time.strftime('%H:%M'),
+            'types': types,
+            'duration': _format_duration(c.start_time, c.end_time),
+        })
+
     def _resident_data(r):
-        care_records = CareRecord.query.filter(
-            CareRecord.resident_id == r.id,
-            CareRecord.start_time >= hoy_inicio,
-            CareRecord.start_time < hoy_fin,
-            CareRecord.end_time.isnot(None),
-        ).order_by(CareRecord.start_time.desc()).all()
-        care_today = []
-        for c in care_records:
-            types = ', '.join(ct.name for ct in c.care_types) if c.care_types else (c.care_type.name if c.care_type else '')
-            care_today.append({
-                'time': c.start_time.strftime('%H:%M'),
-                'types': types,
-                'duration': _format_duration(c.start_time, c.end_time),
-            })
+        ct = care_by_resident.get(r.id, [])
         return {
             'id': r.id, 'name': r.name, 'nfc_code': r.nfc_code,
             'room_number': r.room_number or '',
             'has_photo': bool(r.photo_path),
             'has_info': bool(r.relevant_info),
             'photo_url': f'/api/uploads/{r.photo_path}' if r.photo_path else None,
-            'has_care_today': len(care_records) > 0,
-            'care_count_today': len(care_records),
-            'care_today': care_today,
+            'has_care_today': len(ct) > 0,
+            'care_count_today': len(ct),
+            'care_today': ct,
         }
 
     # Determinar grupos propios del worker
@@ -1200,24 +1216,37 @@ def worker_my_groups():
     hoy_inicio = datetime.combine(today, datetime.min.time())
     hoy_fin = datetime.combine(today + timedelta(days=1), datetime.min.time())
 
+    # Single query: all completed care records today for residents in worker's groups
+    group_ids = [g.id for g in worker.groups]
+    resident_ids_in_groups = [r.id for r in Resident.query.filter(
+        Resident.group_id.in_(group_ids), Resident.active == True
+    ).all()] if group_ids else []
+
+    from collections import defaultdict
+    care_by_resident: dict[int, list] = defaultdict(list)
+    if resident_ids_in_groups:
+        all_care = CareRecord.query.options(
+            db.joinedload(CareRecord.care_types),
+            db.joinedload(CareRecord.care_type),
+        ).filter(
+            CareRecord.resident_id.in_(resident_ids_in_groups),
+            CareRecord.start_time >= hoy_inicio,
+            CareRecord.start_time < hoy_fin,
+            CareRecord.end_time.isnot(None),
+        ).order_by(CareRecord.start_time.desc()).all()
+        for c in all_care:
+            types = ', '.join(ct.name for ct in c.care_types) if c.care_types else (c.care_type.name if c.care_type else '')
+            care_by_resident[c.resident_id].append({
+                'time': c.start_time.strftime('%H:%M'),
+                'types': types,
+                'duration': _format_duration(c.start_time, c.end_time),
+            })
+
     result: list[dict] = []
     for group in worker.groups:
         residents_data: list[dict] = []
         for r in Resident.query.filter_by(group_id=group.id, active=True).order_by(Resident.name).all():
-            care_records = CareRecord.query.filter(
-                CareRecord.resident_id == r.id,
-                CareRecord.start_time >= hoy_inicio,
-                CareRecord.start_time < hoy_fin,
-                CareRecord.end_time.isnot(None),
-            ).order_by(CareRecord.start_time.desc()).all()
-            care_today = []
-            for c in care_records:
-                types = ', '.join(ct.name for ct in c.care_types) if c.care_types else (c.care_type.name if c.care_type else '')
-                care_today.append({
-                    'time': c.start_time.strftime('%H:%M'),
-                    'types': types,
-                    'duration': _format_duration(c.start_time, c.end_time),
-                })
+            ct = care_by_resident.get(r.id, [])
             residents_data.append({
                 'id': r.id,
                 'name': r.name,
@@ -1226,9 +1255,9 @@ def worker_my_groups():
                 'photo_url': f'/api/uploads/{r.photo_path}' if r.photo_path else None,
                 'has_photo': bool(r.photo_path),
                 'has_info': bool(r.relevant_info),
-                'has_care_today': len(care_records) > 0,
-                'care_count_today': len(care_records),
-                'care_today': care_today,
+                'has_care_today': len(ct) > 0,
+                'care_count_today': len(ct),
+                'care_today': ct,
             })
         result.append({
             'id': group.id,
