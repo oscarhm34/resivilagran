@@ -229,7 +229,7 @@ class WorkerSelfie(db.Model):
     cleaner_id = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=False)
     photo_path = db.Column(db.String(255), nullable=False)
     is_reference = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
     purpose = db.Column(db.String(50), nullable=True)
 
     cleaner = db.relationship('Cleaner', backref=db.backref('selfies', lazy=True))
@@ -244,7 +244,7 @@ class LegalDocument(db.Model):
     content = db.Column(db.Text, nullable=False)
     doc_type = db.Column(db.String(50), nullable=True)
     active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
     created_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
 
     signatures = db.relationship('DocumentSignature', back_populates='document', lazy=True)
@@ -256,7 +256,7 @@ class DocumentSignature(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     document_id = db.Column(db.Integer, db.ForeignKey('legal_document.id'), nullable=False)
     cleaner_id = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=False)
-    signed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    signed_at = db.Column(db.DateTime, default=datetime.now)
     ip_address = db.Column(db.String(45), nullable=True)
     user_agent = db.Column(db.String(500), nullable=True)
     selfie_path = db.Column(db.String(255), nullable=True)
@@ -277,7 +277,7 @@ class TrainingPill(db.Model):
     video_duration_seconds = db.Column(db.Integer, nullable=True)
     pass_threshold = db.Column(db.Integer, default=80)
     active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
     created_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
 
     questions = db.relationship('TrainingQuestion', back_populates='pill', lazy=True,
@@ -306,7 +306,7 @@ class TrainingCompletion(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     pill_id = db.Column(db.Integer, db.ForeignKey('training_pill.id'), nullable=False)
     cleaner_id = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=False)
-    started_at = db.Column(db.DateTime, default=datetime.utcnow)
+    started_at = db.Column(db.DateTime, default=datetime.now)
     completed_at = db.Column(db.DateTime, nullable=True)
     score = db.Column(db.Integer, nullable=True)
     passed = db.Column(db.Boolean, nullable=True)

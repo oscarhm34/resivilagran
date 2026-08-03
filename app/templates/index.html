@@ -6,6 +6,12 @@
     <h1 class="h3 mb-1">Bienvenido, {{ current_user.name }}</h1>
     <p class="mb-4" style="color:var(--color-text-secondary)">Panel de gestión del Servicio de Limpieza &mdash; La Vila Gran</p>
 
+    {% if stale_closed %}
+    <div class="alert alert-warning mb-3" style="font-size:.9rem">
+        <strong>&#9888;</strong> Se han cerrado automaticamente <strong>{{ stale_closed }}</strong> sesion{{ 'es' if stale_closed != 1 }} que llevaban mas de 24 horas abiertas.
+    </div>
+    {% endif %}
+
     <!-- Estadísticas rápidas — Limpiezas -->
     <p class="mb-2" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--color-text-secondary)">🧹 Limpiezas</p>
     <div class="row g-3 mb-4">

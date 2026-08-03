@@ -130,6 +130,24 @@ def admin_logout():
 @app.route('/')
 @login_required
 def index():
+    # Auto-close stale sessions older than 24 hours
+    stale_cutoff = datetime.now() - timedelta(hours=24)
+    stale_cleanings = CleaningRecord.query.filter(
+        CleaningRecord.end_time.is_(None),
+        CleaningRecord.start_time < stale_cutoff,
+    ).all()
+    stale_cares = CareRecord.query.filter(
+        CareRecord.end_time.is_(None),
+        CareRecord.start_time < stale_cutoff,
+    ).all()
+    stale_count = len(stale_cleanings) + len(stale_cares)
+    for s in stale_cleanings:
+        s.end_time = s.start_time + timedelta(hours=1)  # Mark as 1h duration
+    for s in stale_cares:
+        s.end_time = s.start_time + timedelta(hours=1)
+    if stale_count:
+        db.session.commit()
+
     today = datetime.now().date()
     tomorrow = today + timedelta(days=1)
     hoy_inicio = datetime.combine(today, datetime.min.time())
@@ -187,6 +205,7 @@ def index():
         habitaciones_sin_limpiar=habitaciones_sin_limpiar,
         atenciones_hoy=atenciones_hoy,
         atenciones_en_curso=atenciones_en_curso,
+        stale_closed=stale_count,
         alertas_vitales=alertas_vitales,
     )
 
@@ -3149,7 +3168,7 @@ def start_training(pill_id: int):
         )
         db.session.add(completion)
     else:
-        completion.started_at = datetime.utcnow()
+        completion.started_at = datetime.now()
         completion.video_watched = False
         completion.completed_at = None
         completion.score = None
@@ -3173,7 +3192,7 @@ def training_video_complete(pill_id: int):
     # Anti-trampa: mínim 50% de la durada del vídeo
     pill = db.session.get(TrainingPill, pill_id)
     min_secs = (pill.video_duration_seconds or 60) * 0.5
-    elapsed = (datetime.utcnow() - completion.started_at).total_seconds()
+    elapsed = (datetime.now() - completion.started_at).total_seconds()
     if elapsed < min_secs:
         return jsonify({'error': 'Debes ver el vídeo completo', 'wait': int(min_secs - elapsed)}), 400
     completion.video_watched = True
@@ -3248,7 +3267,7 @@ def submit_training(pill_id: int):
     pill = db.session.get(TrainingPill, pill_id)
     completion.score = score
     completion.passed = score >= pill.pass_threshold
-    completion.completed_at = datetime.utcnow()
+    completion.completed_at = datetime.now()
     completion.answers_json = json.dumps(answers)
     completion.time_spent_seconds = int(
         (completion.completed_at - completion.started_at).total_seconds())

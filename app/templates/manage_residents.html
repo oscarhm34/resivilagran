@@ -140,6 +140,23 @@
         </div>
     </div>
 
+    <!-- Acciones en bloque -->
+    <div class="card mb-3 d-none" id="bulk-actions">
+        <div class="card-body d-flex align-items-center gap-3 py-2">
+            <span class="small fw-bold" id="bulk-count">0 seleccionados</span>
+            <select id="bulk-group-select" class="form-select form-select-sm" style="width:auto">
+                <option value="">Asignar grupo...</option>
+                {% for g in groups %}
+                <option value="{{ g.id }}">{{ g.name }}</option>
+                {% endfor %}
+                <option value="none">Sin grupo</option>
+            </select>
+            <button type="button" class="btn btn-sm btn-primary" id="bulk-assign-group">Aplicar</button>
+            <button type="button" class="btn btn-sm btn-outline-warning" id="bulk-deactivate">Dar de baja</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="bulk-clear">Cancelar</button>
+        </div>
+    </div>
+
     <!-- Tabla de residentes -->
     {% if residents %}
     <div class="card">
@@ -147,6 +164,7 @@
             <table class="table table-hover mb-0">
                 <thead>
                     <tr>
+                        <th scope="col" style="width:30px"><input type="checkbox" id="select-all" class="form-check-input"></th>
                         <th scope="col">Nombre</th>
                         <th scope="col">Habitación</th>
                         <th scope="col">Código NFC</th>
@@ -158,7 +176,8 @@
                 </thead>
                 <tbody>
                     {% for r in residents %}
-                    <tr>
+                    <tr data-resident-id="{{ r.id }}">
+                        <td><input type="checkbox" class="form-check-input bulk-check" value="{{ r.id }}"></td>
                         <td>
                             <div class="d-flex align-items-center gap-2">
                                 {% if r.photo_path %}
@@ -478,6 +497,63 @@ var RESIDENT_DOCS = {
                 '</tbody></table>';
         }
     }
+    // Bulk operations
+    var bulkBar = document.getElementById('bulk-actions');
+    var selectAll = document.getElementById('select-all');
+    var bulkChecks = document.querySelectorAll('.bulk-check');
+
+    function updateBulkBar() {
+        var checked = document.querySelectorAll('.bulk-check:checked');
+        if (checked.length > 0) {
+            bulkBar.classList.remove('d-none');
+            document.getElementById('bulk-count').textContent = checked.length + ' seleccionado' + (checked.length > 1 ? 's' : '');
+        } else {
+            bulkBar.classList.add('d-none');
+        }
+    }
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function () {
+            bulkChecks.forEach(function (cb) { cb.checked = selectAll.checked; });
+            updateBulkBar();
+        });
+    }
+    bulkChecks.forEach(function (cb) { cb.addEventListener('change', updateBulkBar); });
+
+    document.getElementById('bulk-clear').addEventListener('click', function () {
+        bulkChecks.forEach(function (cb) { cb.checked = false; });
+        if (selectAll) selectAll.checked = false;
+        updateBulkBar();
+    });
+
+    document.getElementById('bulk-assign-group').addEventListener('click', async function () {
+        var groupId = document.getElementById('bulk-group-select').value;
+        if (!groupId) { alert('Selecciona un grupo'); return; }
+        var ids = Array.from(document.querySelectorAll('.bulk-check:checked')).map(function (cb) { return parseInt(cb.value); });
+        if (!ids.length) return;
+        for (var i = 0; i < ids.length; i++) {
+            await fetch('/residents/update-group', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ resident_id: ids[i], group_id: groupId === 'none' ? null : parseInt(groupId) }),
+            });
+        }
+        location.reload();
+    });
+
+    document.getElementById('bulk-deactivate').addEventListener('click', async function () {
+        var ids = Array.from(document.querySelectorAll('.bulk-check:checked')).map(function (cb) { return parseInt(cb.value); });
+        if (!ids.length) return;
+        if (!confirm('¿Dar de baja a ' + ids.length + ' residente(s)?')) return;
+        for (var i = 0; i < ids.length; i++) {
+            await fetch('/residents/update-active', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ resident_id: ids[i], active: false }),
+            });
+        }
+        location.reload();
+    });
 })();
 </script>
 {% endblock %}
