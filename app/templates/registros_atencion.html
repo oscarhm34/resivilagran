@@ -58,6 +58,15 @@
                 <div class="d-flex flex-wrap gap-2 mt-3">
                     <button type="submit" class="btn btn-primary">Aplicar filtros</button>
                     <a href="{{ url_for('registros_atencion') }}" class="btn btn-outline-secondary">Limpiar</a>
+                    <a href="{{ url_for('exportar_atenciones_excel',
+                                       worker_id=filters.worker_id,
+                                       resident_id=filters.resident_id,
+                                       care_type_id=filters.care_type_id,
+                                       start_date=filters.start_date,
+                                       end_date=filters.end_date) }}"
+                       class="btn btn-outline-success ms-auto">
+                        ↓ Exportar Excel
+                    </a>
                 </div>
             </form>
         </div>

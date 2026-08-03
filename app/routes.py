@@ -694,6 +694,63 @@ def exportar_excel():
     )
 
 
+@app.route('/exportar_atenciones_excel')
+@login_required
+def exportar_atenciones_excel():
+    worker_id = request.args.get('worker_id', '')
+    resident_id = request.args.get('resident_id', '')
+    care_type_id = request.args.get('care_type_id', '')
+    start_date = request.args.get('start_date', '')
+    end_date = request.args.get('end_date', '')
+
+    query = CareRecord.query.options(
+        joinedload(CareRecord.resident),
+        joinedload(CareRecord.worker),
+        joinedload(CareRecord.care_types),
+        joinedload(CareRecord.care_type),
+        joinedload(CareRecord.vital_sign_readings).joinedload(VitalSignReading.vital_sign_type),
+    )
+    if worker_id:
+        query = query.filter(CareRecord.worker_id == worker_id)
+    if resident_id:
+        query = query.filter(CareRecord.resident_id == resident_id)
+    if care_type_id:
+        query = query.filter(CareRecord.care_type_id == care_type_id)
+    if start_date:
+        query = query.filter(CareRecord.start_time >= datetime.strptime(start_date, '%Y-%m-%d'))
+    if end_date:
+        end_dt = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)
+        query = query.filter(CareRecord.start_time < end_dt)
+
+    records = query.order_by(CareRecord.start_time.desc()).all()
+
+    data = []
+    for r in records:
+        types = ', '.join(ct.name for ct in r.care_types) if r.care_types else (r.care_type.name if r.care_type else '')
+        vitals = '; '.join(f'{v.vital_sign_type.name}: {v.value} {v.vital_sign_type.unit}' for v in r.vital_sign_readings) if r.vital_sign_readings else ''
+        data.append({
+            'Residente': r.resident.name if r.resident else 'Sin asignar',
+            'Tipo de atención': types,
+            'Trabajador': r.worker.name if r.worker else 'Sin asignar',
+            'Fecha': r.start_time.strftime('%d/%m/%Y') if r.start_time else 'N/A',
+            'Hora': r.start_time.strftime('%H:%M') if r.start_time else 'N/A',
+            'Duración': _format_duration(r.start_time, r.end_time),
+            'Constantes vitales': vitals,
+        })
+
+    df = pd.DataFrame(data)
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, sheet_name='Registros de Atención', index=False)
+    output.seek(0)
+
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        download_name='registros_atencion.xlsx',
+    )
+
+
 @app.route('/ultima-limpieza')
 @login_required
 def ultima_limpieza():
