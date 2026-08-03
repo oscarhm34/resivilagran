@@ -199,6 +199,28 @@ class ChecklistItem(db.Model):
     active = db.Column(db.Boolean, default=True)
 
 
+class AppSetting(db.Model):
+    __tablename__ = 'app_setting'
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(100), unique=True, nullable=False)
+    value = db.Column(db.String(500), nullable=False, default='')
+
+    @staticmethod
+    def get(key: str, default: str = '') -> str:
+        s = AppSetting.query.filter_by(key=key).first()
+        return s.value if s else default
+
+    @staticmethod
+    def set(key: str, value: str):
+        from . import db as _db
+        s = AppSetting.query.filter_by(key=key).first()
+        if s:
+            s.value = value
+        else:
+            _db.session.add(AppSetting(key=key, value=value))
+        _db.session.commit()
+
+
 # ── IDENTITAT ─────────────────────────────────────────────────────────────────
 
 class WorkerSelfie(db.Model):

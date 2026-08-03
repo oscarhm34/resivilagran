@@ -5,7 +5,7 @@ from .models import (Cleaner, Room, CleaningRecord, Floor, RoomType, Resident,
                       WorkerSelfie, LegalDocument, DocumentSignature,
                       TrainingPill, TrainingQuestion, TrainingCompletion,
                       ChecklistItem, ResidentDocument,
-                      VitalSignType, VitalSignReading)
+                      VitalSignType, VitalSignReading, AppSetting)
 from flask import request, jsonify, render_template, redirect, url_for, flash, send_file, send_from_directory, abort
 from flask_login import login_user, logout_user, login_required, current_user
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
@@ -2675,6 +2675,29 @@ def sign_document(doc_id: int):
 @login_required
 def admin_help():
     return render_template('admin_help.html')
+
+
+@app.route('/admin/settings', methods=['GET', 'POST'])
+@login_required
+def admin_settings():
+    if request.method == 'POST':
+        AppSetting.set('allow_group_care', 'true' if request.form.get('allow_group_care') else 'false')
+        AppSetting.set('nfc_only', 'true' if request.form.get('nfc_only') else 'false')
+        flash('Configuración guardada.', 'success')
+        return redirect(url_for('admin_settings'))
+    return render_template('admin_settings.html',
+        allow_group_care=AppSetting.get('allow_group_care', 'true') == 'true',
+        nfc_only=AppSetting.get('nfc_only', 'true') == 'true',
+    )
+
+
+@app.route('/api/config')
+@jwt_required()
+def api_config():
+    return jsonify({
+        'allow_group_care': AppSetting.get('allow_group_care', 'true') == 'true',
+        'nfc_only': AppSetting.get('nfc_only', 'true') == 'true',
+    }), 200
 
 
 @app.route('/admin/training')

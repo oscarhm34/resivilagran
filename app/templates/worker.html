@@ -813,6 +813,7 @@ const S = {
     groupStepData: [],
     nfcGroupMode: false,
     nfcGroupScanned: [],
+    config: { allow_group_care: true, nfc_only: true },
 };
 
 // ── DOM ────────────────────────────────────────────────────────────────────
@@ -965,11 +966,20 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ── Home ───────────────────────────────────────────────────────────────────
+async function loadConfig() {
+    const { ok, data } = await api('/api/config');
+    if (ok && data) S.config = data;
+    // Apply config: group care toggles
+    const groupDisplay = S.config.allow_group_care ? '' : 'none';
+    $('mygroup-multiselect-toggle').style.display = groupDisplay;
+    $('scan-group-toggle').style.display = S.config.allow_group_care ? '' : 'none';
+}
+
 async function initHome() {
     $('home-name').textContent = S.workerName || '—';
     show('screen-home');
     $('chat-fab').style.display = '';
-    await Promise.all([loadActiveSessions(), loadHistory(), loadCareTypes(), loadMyGroups(), loadPendingItems()]);
+    await Promise.all([loadConfig(), loadActiveSessions(), loadHistory(), loadCareTypes(), loadMyGroups(), loadPendingItems()]);
     startGlobalTimer();
 }
 
@@ -1317,10 +1327,14 @@ function bindMyGroupListeners() {
                     wrap.classList.add('group-selected');
                 }
                 updateGroupFab();
-            } else {
-                // View-only: show resident info instead of starting session
+            } else if (S.config.nfc_only) {
+                // NFC-only mode: show resident info
                 const wrap = btn.closest('.sel-item-wrap');
                 if (wrap && wrap.dataset.rid) showResidentInfo(parseInt(wrap.dataset.rid));
+            } else {
+                // Manual mode: start care session
+                S.mode = 'care';
+                handleCode(btn.dataset.code);
             }
         });
     });
@@ -1457,7 +1471,7 @@ function enterSelect(mode) {
     // Multi-select toggle only for care mode
     S.groupSelectMode = false;
     S.groupSelected = [];
-    $('select-multiselect-toggle').style.display = isCare ? '' : 'none';
+    $('select-multiselect-toggle').style.display = (isCare && S.config.allow_group_care) ? '' : 'none';
     $('select-multiselect-toggle').classList.remove('active');
     $('select-start-group').style.display = 'none';
     show('screen-select');
@@ -1507,7 +1521,11 @@ async function loadRoomsList() {
         html += '</div>';
     }
     list.innerHTML = html;
-    // Rooms are view-only — sessions must be started/ended via NFC scan
+    // If not NFC-only, allow clicking rooms to start sessions
+    if (!S.config.nfc_only) {
+        list.querySelectorAll('.sel-item').forEach(btn =>
+            btn.addEventListener('click', () => handleCode(btn.dataset.code)));
+    }
     list.querySelectorAll('.clean-tag-btn').forEach(btn => {
         btn.addEventListener('click', e => {
             e.stopPropagation();
@@ -1612,10 +1630,13 @@ function bindSelectListeners() {
                     wrap.classList.add('group-selected');
                 }
                 updateSelectGroupFab();
-            } else if (S.mode === 'care') {
-                // View-only: show resident info instead of starting session
+            } else if (S.config.nfc_only) {
+                // NFC-only mode: show resident info instead of starting session
                 const wrap = btn.closest('.sel-item-wrap');
                 if (wrap && wrap.dataset.rid) showResidentInfo(parseInt(wrap.dataset.rid));
+            } else {
+                // Manual mode: start session by clicking
+                handleCode(btn.dataset.code);
             }
         });
     });
@@ -1728,7 +1749,7 @@ function enterScan(mode) {
     // NFC group scan
     S.nfcGroupMode = false;
     S.nfcGroupScanned = [];
-    $('scan-group-toggle').style.display = isCare ? '' : 'none';
+    $('scan-group-toggle').style.display = (isCare && S.config.allow_group_care) ? '' : 'none';
     $('scan-group-toggle').classList.remove('active');
     $('scan-group-list').style.display = 'none';
     $('scan-group-items').innerHTML = '';
@@ -1757,7 +1778,7 @@ function enterUnifiedScan() {
     // Show group toggle also in unified scan
     S.nfcGroupMode = false;
     S.nfcGroupScanned = [];
-    $('scan-group-toggle').style.display = '';
+    $('scan-group-toggle').style.display = S.config.allow_group_care ? '' : 'none';
     $('scan-group-toggle').classList.remove('active');
     $('scan-group-list').style.display = 'none';
     $('scan-group-items').innerHTML = '';
