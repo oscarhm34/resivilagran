@@ -2323,7 +2323,9 @@ async function showResidentInfo(residentId) {
     $('ri-info').textContent = data.relevant_info || 'Sin información adicional';
     $('resident-info-dialog').showModal();
 }
-$('ri-close').addEventListener('click', () => $('resident-info-dialog').close());
+$('ri-close').addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); $('resident-info-dialog').close(); });
+// Also close on backdrop click
+$('resident-info-dialog').addEventListener('click', (e) => { if (e.target === $('resident-info-dialog')) $('resident-info-dialog').close(); });
 
 // ── Result screen ──────────────────────────────────────────────────────────
 function showResult(mode, data) {
