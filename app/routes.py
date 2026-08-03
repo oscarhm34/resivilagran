@@ -160,6 +160,26 @@ def index():
 
     atenciones_en_curso = CareRecord.query.filter(CareRecord.end_time.is_(None)).count()
 
+    # Vital signs alerts today
+    alertas_vitales = []
+    vitals_hoy = VitalSignReading.query.options(
+        joinedload(VitalSignReading.vital_sign_type),
+        joinedload(VitalSignReading.care_record).joinedload(CareRecord.resident),
+    ).filter(VitalSignReading.recorded_at >= hoy_inicio).all()
+    for r in vitals_hoy:
+        vst = r.vital_sign_type
+        is_low = vst.min_value is not None and r.value < vst.min_value
+        is_high = vst.max_value is not None and r.value > vst.max_value
+        if is_low or is_high:
+            alertas_vitales.append({
+                'resident': r.care_record.resident.name if r.care_record.resident else '?',
+                'type': vst.name,
+                'value': r.value,
+                'unit': vst.unit,
+                'alert': 'alta' if is_high else 'baja',
+                'time': r.recorded_at.strftime('%H:%M'),
+            })
+
     return render_template(
         'index.html',
         limpiezas_hoy=limpiezas_hoy,
@@ -167,6 +187,7 @@ def index():
         habitaciones_sin_limpiar=habitaciones_sin_limpiar,
         atenciones_hoy=atenciones_hoy,
         atenciones_en_curso=atenciones_en_curso,
+        alertas_vitales=alertas_vitales,
     )
 
 
@@ -1610,14 +1631,30 @@ def finalize_care():
 
     db.session.commit()
 
+    # Check for vital sign alerts
+    vital_alerts = []
+    for reading in record.vital_sign_readings:
+        vst = reading.vital_sign_type
+        if (vst.min_value is not None and reading.value < vst.min_value) or \
+           (vst.max_value is not None and reading.value > vst.max_value):
+            vital_alerts.append({
+                'type': vst.name,
+                'value': reading.value,
+                'unit': vst.unit,
+                'alert': 'alta' if (vst.max_value is not None and reading.value > vst.max_value) else 'baja',
+            })
+
     type_names = ', '.join(ct.name for ct in record.care_types)
-    return jsonify({
+    resp = {
         'action': 'ended',
         'subject': record.resident.name if record.resident else 'Residente',
         'subject_sub': type_names,
         'duration': record.calculate_duration(),
         'duration_display': _format_duration(record.start_time, record.end_time),
-    }), 200
+    }
+    if vital_alerts:
+        resp['vital_alerts'] = vital_alerts
+    return jsonify(resp), 200
 
 
 @app.route('/api/nfc/finalize-cleaning', methods=['POST'])

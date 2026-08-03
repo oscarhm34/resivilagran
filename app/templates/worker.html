@@ -581,6 +581,7 @@
             <div class="result-card-label">Tiempo empleado</div>
             <div class="result-time" id="result-time">00:00:00</div>
         </div>
+        <div id="result-vital-alerts" style="display:none;width:100%;max-width:340px"></div>
         <div class="spacer"></div>
         <div class="result-bar-wrap"><div class="result-bar cleaning" id="result-bar"></div></div>
         <p class="result-hint" id="result-hint">Volviendo al inicio…</p>
@@ -2372,16 +2373,45 @@ function showResult(mode, data) {
     $('result-title').textContent = isCare ? '¡Atención completada!' : '¡Limpieza completada!';
     $('result-who').textContent   = data.subject || '';
     $('result-time').textContent  = data.duration_display || fmt(data.duration || 0);
+
+    // Vital sign alerts
+    const alertsEl = $('result-vital-alerts');
+    const hasAlerts = data.vital_alerts && data.vital_alerts.length > 0;
+    if (hasAlerts) {
+        alertsEl.style.display = '';
+        alertsEl.innerHTML = `
+            <div style="background:#dc3545;color:#fff;border-radius:14px;padding:14px;margin-top:4px;text-align:left">
+                <div style="font-weight:700;font-size:15px;margin-bottom:8px">⚠ ¡Atención! Valores fuera de rango:</div>
+                ${data.vital_alerts.map(a => `
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-top:1px solid rgba(255,255,255,.2)">
+                        <span>${esc(a.type)}</span>
+                        <span style="font-weight:700;font-size:16px">${a.value} ${esc(a.unit)} <small>(${a.alert})</small></span>
+                    </div>
+                `).join('')}
+                <div style="font-size:12px;margin-top:8px;opacity:.8">Informa al responsable de enfermería</div>
+            </div>`;
+        $('result-hint').textContent = 'Pulsa "Volver" para continuar';
+        check.textContent = '⚠';
+        check.style.background = '#dc3545';
+    } else {
+        alertsEl.style.display = 'none';
+        alertsEl.innerHTML = '';
+        $('result-hint').textContent = 'Volviendo al inicio…';
+        check.style.background = '';
+    }
+
     show('screen-result');
     requestAnimationFrame(() => { bar.style.width = '100%'; });
     if (S.resultTimeout) clearTimeout(S.resultTimeout);
-    S.resultTimeout = setTimeout(async () => {
-        // Las sesiones ya están actualizadas en S.sessions y el DOM.
-        // Solo recargamos el historial y volvemos al home.
-        await loadHistory();
-        show('screen-home');
-        if (S.sessions.length) startGlobalTimer();
-    }, 3300);
+
+    // If there are vital alerts, don't auto-dismiss — worker needs to read them
+    if (!hasAlerts) {
+        S.resultTimeout = setTimeout(async () => {
+            await loadHistory();
+            show('screen-home');
+            if (S.sessions.length) startGlobalTimer();
+        }, 3300);
+    }
 }
 
 $('cancel-dialog-no').addEventListener('click', () => $('cancel-dialog').close());

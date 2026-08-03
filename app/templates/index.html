@@ -61,6 +61,31 @@
         </div>
     </div>
 
+    <!-- Alertas de constantes vitales -->
+    {% if alertas_vitales %}
+    <div class="alert mb-4 p-0" style="border:2px solid #dc3545;border-radius:var(--radius-lg);overflow:hidden">
+        <div style="background:#dc3545;color:#fff;padding:10px 16px;font-weight:700;font-size:.85rem">
+            &#9888; {{ alertas_vitales|length }} alerta{{ 's' if alertas_vitales|length != 1 }} de constantes vitales hoy
+        </div>
+        <div style="padding:0">
+            <table class="table table-sm mb-0">
+                <tbody>
+                    {% for v in alertas_vitales %}
+                    <tr style="background:{% if v.alert == 'alta' %}#fff5f5{% else %}#f0f8ff{% endif %}">
+                        <td style="padding:8px 12px"><strong>{{ v.resident }}</strong></td>
+                        <td>{{ v.type }}</td>
+                        <td><strong style="color:{% if v.alert == 'alta' %}#dc3545{% else %}#0069d9{% endif %}">{{ v.value }} {{ v.unit }}</strong>
+                            <small class="text-body-secondary">({{ v.alert }})</small>
+                        </td>
+                        <td class="text-body-secondary small">{{ v.time }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Accesos rápidos -->
     <div class="row g-3">
         <div class="col-6 col-lg-3">
