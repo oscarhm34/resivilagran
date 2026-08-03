@@ -584,16 +584,20 @@
     </div>
 
     <!-- ══ RESIDENT INFO DIALOG ══ -->
-    <div id="resident-info-dialog" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,.5);align-items:center;justify-content:center">
-        <div style="background:var(--surface);border-radius:20px;padding:24px;max-width:360px;width:90vw;text-align:center;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.3)">
-            <button id="ri-close" type="button" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-2);padding:8px;line-height:1">&times;</button>
-            <div id="ri-photo-wrap" style="margin-bottom:12px">
-                <img id="ri-photo" src="" alt="" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid var(--border)">
+    <div id="resident-info-dialog" onclick="if(event.target===this)this.style.display='none'" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,.5);align-items:center;justify-content:center">
+        <div style="background:var(--surface);border-radius:20px;max-width:360px;width:90vw;text-align:center;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden">
+            <div style="display:flex;justify-content:flex-end;padding:8px 12px 0">
+                <button type="button" onclick="document.getElementById('resident-info-dialog').style.display='none'" style="background:none;border:1.5px solid var(--border);border-radius:50%;width:32px;height:32px;font-size:18px;cursor:pointer;color:var(--text-2);display:flex;align-items:center;justify-content:center">✕</button>
             </div>
-            <h3 id="ri-name" style="font-family:'Outfit',system-ui,sans-serif;font-weight:700;font-size:20px;margin:0 0 4px"></h3>
-            <div id="ri-room" style="color:var(--text-2);font-size:14px;margin-bottom:6px"></div>
-            <div id="ri-group" style="margin-bottom:14px;font-size:13px"></div>
-            <div id="ri-info" style="text-align:left;white-space:pre-wrap;font-size:14px;background:var(--bg);padding:14px;border-radius:12px;color:var(--text);min-height:40px"></div>
+            <div style="padding:0 24px 24px">
+                <div id="ri-photo-wrap" style="margin-bottom:12px">
+                    <img id="ri-photo" src="" alt="" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid var(--border)">
+                </div>
+                <h3 id="ri-name" style="font-family:'Outfit',system-ui,sans-serif;font-weight:700;font-size:20px;margin:0 0 4px"></h3>
+                <div id="ri-room" style="color:var(--text-2);font-size:14px;margin-bottom:6px"></div>
+                <div id="ri-group" style="margin-bottom:14px;font-size:13px"></div>
+                <div id="ri-info" style="text-align:left;white-space:pre-wrap;font-size:14px;background:var(--bg);padding:14px;border-radius:12px;color:var(--text);min-height:40px"></div>
+            </div>
         </div>
     </div>
 
@@ -2323,8 +2327,6 @@ async function showResidentInfo(residentId) {
     $('ri-info').textContent = data.relevant_info || 'Sin información adicional';
     $('resident-info-dialog').style.display = 'flex';
 }
-$('ri-close').addEventListener('click', () => { $('resident-info-dialog').style.display = 'none'; });
-$('resident-info-dialog').addEventListener('click', (e) => { if (e.target === $('resident-info-dialog')) $('resident-info-dialog').style.display = 'none'; });
 
 // ── Result screen ──────────────────────────────────────────────────────────
 function showResult(mode, data) {
