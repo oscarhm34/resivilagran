@@ -19,20 +19,22 @@
                         <li><a href="#webapp">1. Webapp del trabajador</a></li>
                         <li><a href="#residentes">2. Gestion de residentes</a></li>
                         <li><a href="#atenciones">3. Atenciones y tipos</a></li>
+                        <li><a href="#vitales">4. Constantes vitales</a></li>
                     </ul>
                 </div>
                 <div class="col-md-4">
                     <ul class="list-unstyled mb-0">
-                        <li><a href="#limpieza">4. Limpieza y zonas</a></li>
-                        <li><a href="#formacion">5. Formacion y documentos</a></li>
-                        <li><a href="#chatbot">6. Chatbot IA</a></li>
+                        <li><a href="#limpieza">5. Limpieza y zonas</a></li>
+                        <li><a href="#formacion">6. Formacion y documentos</a></li>
+                        <li><a href="#chatbot">7. Chatbot IA</a></li>
                     </ul>
                 </div>
                 <div class="col-md-4">
                     <ul class="list-unstyled mb-0">
-                        <li><a href="#empleados">7. Empleados y grupos</a></li>
-                        <li><a href="#registros">8. Registros y exportacion</a></li>
-                        <li><a href="#changelog">9. Registro de cambios</a></li>
+                        <li><a href="#empleados">8. Empleados y grupos</a></li>
+                        <li><a href="#registros">9. Registros y exportacion</a></li>
+                        <li><a href="#config">10. Configuracion</a></li>
+                        <li><a href="#changelog">11. Registro de cambios</a></li>
                     </ul>
                 </div>
             </div>
@@ -45,33 +47,47 @@
         <div class="card-body">
             <p>La webapp (<code>/worker</code>) es la interfaz movil que usan los trabajadores para registrar atenciones y limpiezas.</p>
 
-            <h6 class="mt-3">Acceso</h6>
+            <h6 class="mt-3">Acceso y sesion</h6>
             <ul>
-                <li>Los trabajadores acceden desde el navegador del movil.</li>
-                <li>Se autentican con su usuario y contrasena (mismas credenciales que el panel admin si son admin).</li>
+                <li>Los trabajadores acceden desde el navegador del movil y se autentican con usuario y contrasena.</li>
+                <li>La sesion se cierra automaticamente al salir de la pagina o cambiar de pestana (para dispositivos compartidos).</li>
+                <li>Boton <strong>"Cerrar sesion"</strong> para desconectar manualmente.</li>
             </ul>
 
             <h6 class="mt-3">Funciones principales</h6>
             <ul>
                 <li><strong>Escanear NFC:</strong> El trabajador acerca el movil a la pulsera NFC del residente o a la etiqueta de una habitacion. El sistema detecta automaticamente si es una atencion o una limpieza.</li>
-                <li><strong>Seleccion manual:</strong> Si no hay NFC, el trabajador puede seleccionar el residente o habitacion desde una lista con fotos y busqueda.</li>
-                <li><strong>Mi grupo:</strong> Acceso rapido a los residentes asignados al grupo del trabajador, con indicador de atenciones realizadas hoy.</li>
-                <li><strong>En curso ahora:</strong> Muestra las sesiones activas con temporizador en tiempo real.</li>
+                <li><strong>Mi grupo:</strong> Acceso rapido a los residentes asignados al grupo del trabajador, con indicador de atenciones realizadas hoy (expandible con detalle).</li>
+                <li><strong>Habitaciones:</strong> Lista de zonas con indicador de si ya se han limpiado hoy (expandible con detalle: quien, a que hora, duracion).</li>
+                <li><strong>Residentes:</strong> Lista completa de residentes con foto, atenciones de hoy y boton de informacion.</li>
+                <li><strong>En curso ahora:</strong> Muestra las sesiones activas con temporizador en tiempo real y foto del residente.</li>
                 <li><strong>Completado hoy:</strong> Historial de sesiones finalizadas hoy, con detalle de tipos de atencion expandible.</li>
+            </ul>
+
+            <h6 class="mt-3">Modo NFC obligatorio</h6>
+            <ul>
+                <li>Si esta activado en <strong>Configuracion</strong>, las sesiones solo se pueden iniciar y cerrar escaneando el tag NFC (para asegurar presencia fisica).</li>
+                <li>Si esta desactivado, tambien se puede iniciar sesiones desde las listas de habitaciones y residentes.</li>
             </ul>
 
             <h6 class="mt-3">Atencion grupal</h6>
             <ul>
                 <li>Permite atender a varios residentes a la vez (ej: deposiciones en grupo).</li>
-                <li>Se activa con el boton <strong>"Grupal"</strong> desde Mi grupo, Residentes o Escanear NFC.</li>
-                <li>El trabajador selecciona multiples residentes, inicia la atencion grupal, y al finalizar selecciona el tipo de atencion <strong>individualmente para cada residente</strong>.</li>
-                <li>En la pantalla de finalizacion, se muestran todos los residentes del grupo con foto. El trabajador elige a quien finalizar primero.</li>
+                <li>Se activa con el boton <strong>"Grupal"</strong> desde Mi grupo, Residentes o Escanear NFC (si esta habilitado en Configuracion).</li>
+                <li>El trabajador selecciona multiples residentes, inicia la atencion grupal, y al finalizar selecciona el tipo de atencion <strong>individualmente para cada residente</strong>, eligiendo a quien finalizar primero.</li>
             </ul>
 
             <h6 class="mt-3">Finalizacion de sesiones</h6>
             <ul>
-                <li><strong>Atencion:</strong> Al finalizar, el trabajador selecciona los tipos de atencion realizados (multi-seleccion). Los tipos pueden tener iconos personalizados.</li>
+                <li><strong>Atencion:</strong> Al finalizar, el trabajador selecciona los tipos de atencion realizados (multi-seleccion). Si algun tipo tiene campos de constantes vitales, aparecen los campos para introducir los valores.</li>
                 <li><strong>Limpieza:</strong> Al finalizar, el trabajador completa un checklist de tareas realizadas.</li>
+                <li><strong>Alertas:</strong> Si se introducen constantes vitales fuera del rango normal, aparece un aviso rojo inmediato en la pantalla del trabajador.</li>
+            </ul>
+
+            <h6 class="mt-3">Voz</h6>
+            <ul>
+                <li>El chatbot integrado soporta entrada por voz: pulsar el icono del microfono para dictar preguntas.</li>
+                <li>Funciona con Whisper (OpenAI) en cualquier navegador, o con Web Speech API como fallback en HTTPS.</li>
             </ul>
         </div>
     </div>
@@ -96,6 +112,13 @@
                 <li>El chatbot IA puede leer el contenido de los documentos PDF para responder preguntas sobre el residente.</li>
             </ul>
 
+            <h6 class="mt-3">Operaciones en bloque</h6>
+            <ul>
+                <li>Se pueden seleccionar varios residentes con los checkboxes de la tabla.</li>
+                <li>Acciones disponibles: <strong>asignar grupo</strong> a todos los seleccionados, <strong>dar de baja</strong> en bloque.</li>
+                <li>Boton "Seleccionar todos" en la cabecera de la tabla.</li>
+            </ul>
+
             <h6 class="mt-3">Filtros</h6>
             <ul>
                 <li>Se pueden filtrar residentes por estado: <strong>Altas</strong> (activos), <strong>Bajas</strong> (inactivos) o <strong>Todos</strong>.</li>
@@ -118,19 +141,49 @@
             <ul>
                 <li>Ademas de los emojis predefinidos, se pueden <strong>subir imagenes PNG/JPG</strong> como iconos.</li>
                 <li>Las imagenes subidas quedan disponibles en una <strong>biblioteca de iconos personalizados</strong> para reutilizarlas en otros tipos.</li>
-                <li>Los iconos personalizados se muestran tanto en el panel admin como en la webapp del trabajador.</li>
-            </ul>
-
-            <h6 class="mt-3">Registro de atenciones</h6>
-            <ul>
-                <li>En <strong>Registros &rarr; Atenciones</strong> se pueden consultar todas las atenciones con filtros por fecha, trabajador, residente y tipo.</li>
             </ul>
         </div>
     </div>
 
-    <!-- 4. Limpieza y zonas -->
+    <!-- 4. Constantes vitales -->
+    <div class="card mb-4" id="vitales">
+        <div class="card-header">4. Constantes vitales</div>
+        <div class="card-body">
+            <p>El sistema permite registrar constantes vitales durante las atenciones, con campos configurables desde el panel admin.</p>
+
+            <h6 class="mt-3">Configurar campos vitales</h6>
+            <ul>
+                <li>En <strong>Tipos de atencion</strong>, cada tipo puede tener <strong>campos de constantes vitales</strong> asociados.</li>
+                <li>Boton <strong>"🩺"</strong> al lado de cada tipo para anadir campos (nombre, unidad, minimo, maximo, tipo de entrada).</li>
+                <li>Ejemplo: el tipo "Tension arterial" puede tener dos campos: "Sistolica" (mmHg, 60-300) y "Diastolica" (mmHg, 30-200).</li>
+            </ul>
+
+            <h6 class="mt-3">Registro en la webapp</h6>
+            <ul>
+                <li>Al finalizar una atencion y seleccionar un tipo con campos vitales, aparecen los campos automaticamente.</li>
+                <li>Los campos son <strong>opcionales</strong> — el trabajador puede dejarlos vacios si no ha medido.</li>
+                <li>Validacion automatica de rangos (minimo/maximo).</li>
+            </ul>
+
+            <h6 class="mt-3">Alertas</h6>
+            <ul>
+                <li>Si un valor esta fuera del rango definido, el trabajador ve un <strong>aviso rojo inmediato</strong> con el mensaje "Informa al responsable de enfermeria".</li>
+                <li>En el <strong>panel admin</strong> (pagina principal), aparece un banner rojo con todas las alertas de constantes vitales del dia.</li>
+                <li>En <strong>Analiticas</strong>, seccion de alertas con historico completo.</li>
+            </ul>
+
+            <h6 class="mt-3">Consulta</h6>
+            <ul>
+                <li>Los valores se muestran en <strong>Registros &rarr; Atenciones</strong> debajo del tipo de atencion.</li>
+                <li>Se exportan a Excel junto con el resto del registro.</li>
+                <li>El chatbot puede consultar historico: "Cual es la tension de Maria?" o "Constantes vitales de Joan de los ultimos 7 dias".</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 5. Limpieza y zonas -->
     <div class="card mb-4" id="limpieza">
-        <div class="card-header">4. Limpieza y zonas</div>
+        <div class="card-header">5. Limpieza y zonas</div>
         <div class="card-body">
             <p>La gestion de limpiezas se organiza por <strong>zonas</strong> (habitaciones y espacios comunes).</p>
             <ul>
@@ -145,17 +198,12 @@
                 <li>Al finalizar una limpieza en la webapp, el trabajador marca que tareas ha completado.</li>
                 <li>El resultado del checklist se puede consultar en <strong>Registros &rarr; Limpiezas</strong> clicando el boton del checklist en cada registro.</li>
             </ul>
-
-            <h6 class="mt-3">En la webapp</h6>
-            <ul>
-                <li>Las habitaciones ya limpiadas hoy se muestran con un icono verde y un indicador clicable con los detalles (quien limpio, a que hora, duracion).</li>
-            </ul>
         </div>
     </div>
 
-    <!-- 5. Formacion y documentos -->
+    <!-- 6. Formacion y documentos -->
     <div class="card mb-4" id="formacion">
-        <div class="card-header">5. Formacion y documentos legales</div>
+        <div class="card-header">6. Formacion y documentos legales</div>
         <div class="card-body">
             <h6>Documentos legales</h6>
             <ul>
@@ -173,14 +221,15 @@
         </div>
     </div>
 
-    <!-- 6. Chatbot IA -->
+    <!-- 7. Chatbot IA -->
     <div class="card mb-4" id="chatbot">
-        <div class="card-header">6. Chatbot IA</div>
+        <div class="card-header">7. Chatbot IA</div>
         <div class="card-body">
             <p>El chatbot esta disponible tanto en el <strong>panel admin</strong> (esquina inferior derecha) como en la <strong>webapp del trabajador</strong>.</p>
             <ul>
-                <li>Puede responder preguntas sobre residentes, atenciones, limpiezas y trabajadores.</li>
+                <li>Puede responder preguntas sobre residentes, atenciones, limpiezas, trabajadores y constantes vitales.</li>
                 <li>Tiene acceso a la base de datos para buscar informacion en tiempo real.</li>
+                <li>Soporta <strong>entrada por voz</strong> (icono del microfono).</li>
             </ul>
 
             <h6 class="mt-3">Ejemplos de preguntas</h6>
@@ -190,6 +239,8 @@
                 <li>"Que habitaciones estan pendientes de limpiar?"</li>
                 <li>"Que residentes tienen un PIA?"</li>
                 <li>"Que dice el PIA de Joan sobre la medicacion?"</li>
+                <li>"Cual es la tension de Maria?"</li>
+                <li>"Constantes vitales de Joan de los ultimos 7 dias"</li>
                 <li>"Quien esta trabajando ahora?"</li>
                 <li>"Resumen del dia"</li>
             </ul>
@@ -202,9 +253,9 @@
         </div>
     </div>
 
-    <!-- 7. Empleados y grupos -->
+    <!-- 8. Empleados y grupos -->
     <div class="card mb-4" id="empleados">
-        <div class="card-header">7. Empleados y grupos</div>
+        <div class="card-header">8. Empleados y grupos</div>
         <div class="card-body">
             <ul>
                 <li><strong>Empleados:</strong> Desde el menu se gestionan los trabajadores con usuario, contrasena, nombre y permisos de admin.</li>
@@ -214,23 +265,78 @@
         </div>
     </div>
 
-    <!-- 8. Registros y exportacion -->
+    <!-- 9. Registros y exportacion -->
     <div class="card mb-4" id="registros">
-        <div class="card-header">8. Registros y exportacion</div>
+        <div class="card-header">9. Registros, analiticas y exportacion</div>
         <div class="card-body">
+            <h6>Registros</h6>
             <ul>
-                <li><strong>Registros de limpieza:</strong> Consulta con filtros por fecha, trabajador y habitacion. Exportacion a Excel. Checklist visible en cada registro.</li>
-                <li><strong>Registros de atencion:</strong> Consulta con filtros por fecha, trabajador, residente y tipo de atencion.</li>
+                <li><strong>Registros de limpieza:</strong> Consulta con filtros por fecha, trabajador y habitacion. Checklist visible en cada registro. El admin puede <strong>cerrar sesiones abiertas</strong> manualmente.</li>
+                <li><strong>Registros de atencion:</strong> Consulta con filtros por fecha, trabajador, residente y tipo de atencion. Constantes vitales visibles en cada registro. El admin puede <strong>cerrar sesiones abiertas</strong>.</li>
                 <li><strong>Fichajes por trabajador:</strong> Historial de inicio/fin de sesiones por trabajador y fecha.</li>
                 <li><strong>Ultima limpieza:</strong> Vista rapida de cuando se limpio por ultima vez cada zona.</li>
+            </ul>
+
+            <h6 class="mt-3">Exportacion a Excel</h6>
+            <ul>
+                <li>Tanto limpiezas como atenciones se pueden <strong>exportar a Excel</strong> con los filtros aplicados.</li>
+                <li>El Excel de atenciones incluye constantes vitales en una columna separada.</li>
+            </ul>
+
+            <h6 class="mt-3">Analiticas (📊)</h6>
+            <ul>
+                <li>Pagina dedicada con graficos y metricas del periodo seleccionado (7, 14, 30 o 90 dias).</li>
+                <li><strong>Grafico de actividad diaria:</strong> Barras de atenciones y limpiezas por dia.</li>
+                <li><strong>Tipos de atencion mas frecuentes:</strong> Top 10 con contador.</li>
+                <li><strong>Duracion media por tipo:</strong> Minutos promedio por tipo de atencion.</li>
+                <li><strong>Productividad por trabajador:</strong> Atenciones + limpiezas por trabajador.</li>
+                <li><strong>Residentes con mas atenciones:</strong> Top 10.</li>
+                <li><strong>Alertas de constantes vitales:</strong> Lecturas fuera de rango con detalle.</li>
+            </ul>
+
+            <h6 class="mt-3">Sesiones automaticas</h6>
+            <ul>
+                <li>Las sesiones que llevan mas de <strong>24 horas abiertas</strong> se cierran automaticamente al entrar en el panel admin.</li>
+                <li>Se muestra un aviso indicando cuantas sesiones se han cerrado.</li>
             </ul>
         </div>
     </div>
 
-    <!-- 9. Registro de cambios -->
-    <div class="card mb-4" id="changelog">
-        <div class="card-header">9. Registro de cambios recientes</div>
+    <!-- 10. Configuracion -->
+    <div class="card mb-4" id="config">
+        <div class="card-header">10. Configuracion</div>
         <div class="card-body">
+            <p>Desde <strong>⚙️ Config</strong> en el menu, el administrador puede activar o desactivar opciones:</p>
+            <ul>
+                <li><strong>Solo NFC para iniciar/cerrar sesiones:</strong> Si esta activado, los trabajadores solo pueden iniciar y cerrar sesiones escaneando el tag NFC. Si esta desactivado, tambien pueden seleccionar desde las listas.</li>
+                <li><strong>Permitir atenciones grupales:</strong> Si esta activado, los trabajadores pueden seleccionar varios residentes a la vez. Si esta desactivado, solo atencion individual.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 11. Registro de cambios -->
+    <div class="card mb-4" id="changelog">
+        <div class="card-header">11. Registro de cambios recientes</div>
+        <div class="card-body">
+
+            <h6>Agosto 2026</h6>
+            <table class="table table-sm">
+                <thead>
+                    <tr><th>Fecha</th><th>Cambio</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>03/08</td><td>Constantes vitales: sistema extensible per registrar tension arterial, glucemia, temperatura, saturacion O2, frecuencia cardiaca durant les atencions.</td></tr>
+                    <tr><td>03/08</td><td>Alertas de constantes vitales: aviso rojo inmediato al trabajador y banner al dashboard admin cuando un valor esta fuera de rango.</td></tr>
+                    <tr><td>03/08</td><td>Pagina de analiticas (📊) con graficos de actividad, productividad, duracion media y alertas vitales.</td></tr>
+                    <tr><td>03/08</td><td>Exportacion a Excel de los registros de atencion (con constantes vitales).</td></tr>
+                    <tr><td>03/08</td><td>Configuracion admin: activar/desactivar atenciones grupales y modo solo NFC.</td></tr>
+                    <tr><td>03/08</td><td>Solo NFC: las sesiones solo se pueden iniciar/cerrar con NFC (configurable). Listas de habitaciones y residentes son de consulta.</td></tr>
+                    <tr><td>03/08</td><td>Admin puede cerrar sesiones abiertas desde Registros de limpieza y atenciones.</td></tr>
+                    <tr><td>03/08</td><td>Auto-cierre de sesiones estancadas (>24h abiertas) al entrar al panel admin.</td></tr>
+                    <tr><td>03/08</td><td>Operaciones en bloque para residentes: seleccion multiple, asignar grupo y dar de baja en masa.</td></tr>
+                    <tr><td>03/08</td><td>Optimizacion de rendimiento: queries batch en lugar de N+1 per habitaciones, residentes y grups.</td></tr>
+                </tbody>
+            </table>
 
             <h6>Julio 2026</h6>
             <table class="table table-sm">
@@ -240,6 +346,7 @@
                 <tbody>
                     <tr><td>31/07</td><td>Pagina de ayuda y documentacion en el panel admin.</td></tr>
                     <tr><td>31/07</td><td>Correcciones de seguridad: validacion de identidad en todos los endpoints, proteccion contra XSS, rate limiting en login, validacion de archivos subidos.</td></tr>
+                    <tr><td>31/07</td><td>Transcripcion de voz con Whisper (OpenAI) para el chatbot, con fallback a Web Speech API.</td></tr>
                     <tr><td>30/07</td><td>Documentos por residente (PIAs, informes medicos) con integracion al chatbot IA.</td></tr>
                     <tr><td>30/07</td><td>Iconos personalizados para tipos de atencion (subida de imagenes + biblioteca reutilizable).</td></tr>
                     <tr><td>30/07</td><td>Finalizacion grupal individualizada: el trabajador elige que residente finalizar primero y selecciona atenciones por separado.</td></tr>
