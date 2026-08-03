@@ -584,9 +584,9 @@
     </div>
 
     <!-- ══ RESIDENT INFO DIALOG ══ -->
-    <dialog id="resident-info-dialog" style="border:none;border-radius:20px;padding:0;max-width:360px;width:90vw;background:var(--surface);box-shadow:0 20px 60px rgba(0,0,0,.3)">
-        <div style="padding:24px;text-align:center">
-            <button id="ri-close" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-2)">&times;</button>
+    <div id="resident-info-dialog" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,.5);align-items:center;justify-content:center">
+        <div style="background:var(--surface);border-radius:20px;padding:24px;max-width:360px;width:90vw;text-align:center;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+            <button id="ri-close" type="button" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-2);padding:8px;line-height:1">&times;</button>
             <div id="ri-photo-wrap" style="margin-bottom:12px">
                 <img id="ri-photo" src="" alt="" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid var(--border)">
             </div>
@@ -595,7 +595,7 @@
             <div id="ri-group" style="margin-bottom:14px;font-size:13px"></div>
             <div id="ri-info" style="text-align:left;white-space:pre-wrap;font-size:14px;background:var(--bg);padding:14px;border-radius:12px;color:var(--text);min-height:40px"></div>
         </div>
-    </dialog>
+    </div>
 
     <!-- ══ SELECT MODE DIALOG ══ -->
     <dialog id="select-mode-dialog" style="border:none;border-radius:20px;padding:0;max-width:340px;width:90vw;background:var(--surface);box-shadow:0 20px 60px rgba(0,0,0,.3)">
@@ -2321,11 +2321,10 @@ async function showResidentInfo(residentId) {
         $('ri-group').textContent = '';
     }
     $('ri-info').textContent = data.relevant_info || 'Sin información adicional';
-    $('resident-info-dialog').showModal();
+    $('resident-info-dialog').style.display = 'flex';
 }
-$('ri-close').addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); $('resident-info-dialog').close(); });
-// Also close on backdrop click
-$('resident-info-dialog').addEventListener('click', (e) => { if (e.target === $('resident-info-dialog')) $('resident-info-dialog').close(); });
+$('ri-close').addEventListener('click', () => { $('resident-info-dialog').style.display = 'none'; });
+$('resident-info-dialog').addEventListener('click', (e) => { if (e.target === $('resident-info-dialog')) $('resident-info-dialog').style.display = 'none'; });
 
 // ── Result screen ──────────────────────────────────────────────────────────
 function showResult(mode, data) {
