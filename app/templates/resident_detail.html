@@ -2,50 +2,116 @@
 {% block title %}Ficha de {{ resident.name }}{% endblock %}
 
 {% block content %}
+<style>
+@media print {
+    .no-print { display: none !important; }
+    .card { border: 1px solid #ddd !important; break-inside: avoid; }
+    table { font-size: 12px; }
+}
+</style>
 <div class="py-4">
 
-    <div class="mb-3">
+    <div class="mb-3 d-flex align-items-center justify-content-between no-print">
         <a href="{{ url_for('manage_residents') }}" class="btn btn-sm btn-outline-secondary">&larr; Volver a residentes</a>
-    </div>
-
-    <!-- Cabecera del residente -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <div class="d-flex align-items-start gap-3 flex-wrap">
-                {% if resident.photo_path %}
-                <img src="{{ url_for('serve_upload', filename=resident.photo_path) }}" alt=""
-                     style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:2px solid var(--color-border)">
-                {% else %}
-                <div style="width:80px;height:80px;border-radius:50%;background:var(--color-primary-lt);display:flex;align-items:center;justify-content:center;font-size:2rem;border:2px solid var(--color-border)">👤</div>
-                {% endif %}
-                <div style="flex:1;min-width:200px">
-                    <h2 class="h4 mb-1">{{ resident.name }}</h2>
-                    <div class="d-flex flex-wrap gap-3" style="font-size:.9rem;color:var(--color-text-secondary)">
-                        {% if resident.room_number %}
-                        <span>🏠 Hab. {{ resident.room_number }}</span>
-                        {% endif %}
-                        {% if resident.group %}
-                        <span>
-                            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{{ resident.group.color }};vertical-align:middle"></span>
-                            {{ resident.group.name }}
-                        </span>
-                        {% endif %}
-                        <span>{{ '🟢 Activo' if resident.active else '🔴 Inactivo' }}</span>
-                    </div>
-                    {% if resident.relevant_info %}
-                    <div class="mt-2 p-2" style="background:var(--color-warning-lt, #fff3cd);border-radius:8px;font-size:.85rem">
-                        <strong>Info relevante:</strong> {{ resident.relevant_info }}
-                    </div>
-                    {% endif %}
-                    {% if resident.notes %}
-                    <div class="mt-2" style="font-size:.85rem;color:var(--color-text-secondary)">
-                        <strong>Notas:</strong> {{ resident.notes }}
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('export_resident_care_excel', resident_id=resident.id) }}" class="btn btn-sm btn-outline-success">↓ Exportar Excel</a>
+            <button onclick="window.print()" class="btn btn-sm btn-outline-secondary">🖨 Imprimir</button>
         </div>
     </div>
+
+    <!-- Ficha del residente -->
+    <div class="card mb-4">
+        <div class="card-header"><strong>Ficha del residente</strong></div>
+        <div class="card-body">
+            <div class="d-flex align-items-start gap-4 flex-wrap">
+                {% if resident.photo_path %}
+                <img src="{{ url_for('serve_upload', filename=resident.photo_path) }}" alt=""
+                     style="width:100px;height:100px;border-radius:50%;object-fit:cover;border:2px solid var(--color-border)">
+                {% else %}
+                <div style="width:100px;height:100px;border-radius:50%;background:var(--color-primary-lt);display:flex;align-items:center;justify-content:center;font-size:2.5rem;border:2px solid var(--color-border)">👤</div>
+                {% endif %}
+                <div style="flex:1;min-width:250px">
+                    <h2 class="h4 mb-2">{{ resident.name }}</h2>
+                    <table class="table table-sm table-borderless mb-0" style="max-width:500px">
+                        <tbody>
+                            <tr>
+                                <td style="width:140px;color:var(--color-text-secondary);font-weight:600">Habitación</td>
+                                <td>{{ resident.room_number or '—' }}</td>
+                            </tr>
+                            <tr>
+                                <td style="color:var(--color-text-secondary);font-weight:600">Código NFC</td>
+                                <td>
+                                    <code style="color:var(--color-primary);background:var(--color-primary-lt);padding:1px 7px;border-radius:4px;font-size:.85rem">
+                                        {{ resident.nfc_code }}
+                                    </code>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="color:var(--color-text-secondary);font-weight:600">Grupo</td>
+                                <td>
+                                    {% if resident.group %}
+                                    <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{{ resident.group.color }};vertical-align:middle"></span>
+                                    {{ resident.group.name }}
+                                    {% else %}Sin grupo{% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="color:var(--color-text-secondary);font-weight:600">Estado</td>
+                                <td>
+                                    <span class="badge {{ 'bg-success' if resident.active else 'bg-secondary' }}">{{ 'Activo' if resident.active else 'Inactivo' }}</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {% if resident.relevant_info %}
+            <div class="mt-3 p-3" style="background:var(--color-warning-lt, #fff3cd);border-radius:8px;font-size:.9rem">
+                <strong>Info relevante:</strong> {{ resident.relevant_info }}
+            </div>
+            {% endif %}
+
+            {% if resident.notes %}
+            <div class="mt-3 p-3" style="background:var(--bs-tertiary-bg, #f8f9fa);border-radius:8px;font-size:.9rem">
+                <strong>Notas:</strong> {{ resident.notes }}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Documentos -->
+    {% if resident.documents %}
+    <div class="card mb-4">
+        <div class="card-header"><strong>Documentos</strong></div>
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col">Archivo</th>
+                        <th scope="col">Tipo</th>
+                        <th scope="col" class="hide-mobile">Descripción</th>
+                        <th scope="col">Fecha</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for doc in resident.documents %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('serve_upload', filename=doc.file_path) }}" target="_blank">
+                                {{ doc.original_filename }}
+                            </a>
+                        </td>
+                        <td><span class="status-badge status-muted">{{ doc.doc_type or '—' }}</span></td>
+                        <td class="hide-mobile" style="color:var(--color-text-secondary);font-size:.85rem">{{ doc.description or '—' }}</td>
+                        <td style="font-size:.85rem">{{ doc.uploaded_at.strftime('%d/%m/%Y') if doc.uploaded_at else '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Historial de atenciones -->
     <div class="d-flex align-items-center justify-content-between mb-3">
@@ -115,7 +181,7 @@
 
     <!-- Paginación -->
     {% if pagination and pagination.pages > 1 %}
-    <div class="d-flex align-items-center justify-content-between flex-wrap mt-3">
+    <div class="d-flex align-items-center justify-content-between flex-wrap mt-3 no-print">
         <p class="small mb-2" style="color:var(--color-text-secondary)">
             Página <strong>{{ pagination.page }}</strong> de <strong>{{ pagination.pages }}</strong>
         </p>

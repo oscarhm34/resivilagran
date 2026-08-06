@@ -2569,6 +2569,46 @@ def resident_detail(resident_id: int):
     )
 
 
+@app.route('/admin/resident/<int:resident_id>/export-excel')
+@login_required
+def export_resident_care_excel(resident_id: int):
+    resident = db.session.get(Resident, resident_id)
+    if not resident:
+        abort(404)
+    records = CareRecord.query.options(
+        joinedload(CareRecord.worker),
+        joinedload(CareRecord.care_types),
+        joinedload(CareRecord.care_type),
+        joinedload(CareRecord.vital_sign_readings).joinedload(VitalSignReading.vital_sign_type),
+    ).filter(CareRecord.resident_id == resident_id).order_by(CareRecord.start_time.desc()).all()
+
+    data = []
+    for r in records:
+        types = ', '.join(ct.name for ct in r.care_types) if r.care_types else (r.care_type.name if r.care_type else '')
+        vitals = '; '.join(f'{v.vital_sign_type.name}: {v.value} {v.vital_sign_type.unit}' for v in r.vital_sign_readings) if r.vital_sign_readings else ''
+        data.append({
+            'Tipo de atención': types,
+            'Trabajador': r.worker.name if r.worker else '',
+            'Fecha': r.start_time.strftime('%d/%m/%Y') if r.start_time else '',
+            'Hora': r.start_time.strftime('%H:%M') if r.start_time else '',
+            'Duración': _format_duration(r.start_time, r.end_time),
+            'Constantes vitales': vitals,
+        })
+
+    df = pd.DataFrame(data)
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, sheet_name='Atenciones', index=False)
+    output.seek(0)
+
+    safe_name = resident.name.replace(' ', '_')
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        download_name=f'atenciones_{safe_name}.xlsx',
+    )
+
+
 @app.route('/admin/care-record/<int:record_id>/delete', methods=['POST'])
 @login_required
 def delete_care_record(record_id: int):

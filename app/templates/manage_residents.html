@@ -226,27 +226,29 @@
                         <td class="hide-mobile" style="color:var(--color-text-secondary);font-size:.85rem;max-width:200px">
                             {{ r.notes or '—' }}
                         </td>
-                        <td class="text-end">
-                            <a href="{{ url_for('resident_detail', resident_id=r.id) }}"
-                               class="btn btn-sm btn-outline-info me-1">Ver ficha</a>
-                            <button type="button"
-                                    class="btn btn-sm btn-outline-secondary edit-btn me-1"
-                                    data-id="{{ r.id }}"
-                                    data-name="{{ r.name }}"
-                                    data-nfc="{{ r.nfc_code }}"
-                                    data-room="{{ r.room_number or '' }}"
-                                    data-active="{{ '1' if r.active else '' }}"
-                                    data-group="{{ r.group_id or '' }}"
-                                    data-notes="{{ r.notes or '' }}"
-                                    data-photo="{{ r.photo_path or '' }}"
-                                    data-info="{{ r.relevant_info or '' }}"
-                                    data-docs='{{ r.documents | map(attribute="id") | list | tojson }}'
-                                    aria-label="Editar a {{ r.name }}">Editar</button>
-                            <button type="button"
-                                    class="btn btn-sm btn-outline-danger delete-btn"
-                                    data-name="{{ r.name }}"
-                                    data-action="{{ url_for('delete_resident', id=r.id) }}"
-                                    aria-label="Eliminar a {{ r.name }}">Eliminar</button>
+                        <td class="text-end" style="white-space:nowrap">
+                            <div class="d-inline-flex gap-1 align-items-center">
+                                <a href="{{ url_for('resident_detail', resident_id=r.id) }}"
+                                   class="btn btn-sm btn-outline-info" title="Ver ficha">📋</a>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-secondary edit-btn"
+                                        data-id="{{ r.id }}"
+                                        data-name="{{ r.name }}"
+                                        data-nfc="{{ r.nfc_code }}"
+                                        data-room="{{ r.room_number or '' }}"
+                                        data-active="{{ '1' if r.active else '' }}"
+                                        data-group="{{ r.group_id or '' }}"
+                                        data-notes="{{ r.notes or '' }}"
+                                        data-photo="{{ r.photo_path or '' }}"
+                                        data-info="{{ r.relevant_info or '' }}"
+                                        data-docs='{{ r.documents | map(attribute="id") | list | tojson }}'
+                                        aria-label="Editar a {{ r.name }}" title="Editar">✏️</button>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-danger delete-btn"
+                                        data-name="{{ r.name }}"
+                                        data-action="{{ url_for('delete_resident', id=r.id) }}"
+                                        aria-label="Eliminar a {{ r.name }}" title="Eliminar">🗑</button>
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
