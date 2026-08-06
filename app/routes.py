@@ -2592,7 +2592,7 @@ def resident_detail(resident_id: int):
         CareRecord.start_time >= six_months_ago,
     ).group_by(db.func.date(CareRecord.start_time)).all()
 
-    heatmap_data = {row.day: row.count for row in care_dates}
+    heatmap_data = {str(row.day): row.count for row in care_dates}
 
     return render_template(
         'resident_detail.html',
