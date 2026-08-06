@@ -264,6 +264,13 @@ def start_cleaning():
             'message': f'Limpieza {active_cleaning.id} finalizada en habitación {room_number}.'
         }), 200
 
+    # Check single session restriction
+    if AppSetting.get('single_session', 'false') == 'true':
+        any_active = CleaningRecord.query.filter_by(cleaner_id=cleaner_id, end_time=None).first() or \
+                     CareRecord.query.filter_by(worker_id=cleaner_id, end_time=None).first()
+        if any_active:
+            return jsonify({'error': 'Ya tienes una sesión activa. Finalízala antes de iniciar otra.'}), 409
+
     new_record = CleaningRecord(cleaner_id=cleaner_id, room_id=room.id, start_time=datetime.now())
     db.session.add(new_record)
     db.session.commit()
@@ -1460,6 +1467,13 @@ def nfc_scan():
                 'duration_display': _format_duration(active_this.start_time, active_this.end_time),
             }), 200
 
+        # Check single session restriction
+        if AppSetting.get('single_session', 'false') == 'true':
+            any_active = CleaningRecord.query.filter_by(cleaner_id=worker_id, end_time=None).first() or \
+                         CareRecord.query.filter_by(worker_id=worker_id, end_time=None).first()
+            if any_active:
+                return jsonify({'error': 'Ya tienes una sesión activa. Finalízala antes de iniciar otra.'}), 409
+
         record = CleaningRecord(cleaner_id=worker_id, room_id=room.id, start_time=now)
         db.session.add(record)
         db.session.commit()
@@ -1493,6 +1507,13 @@ def nfc_scan():
                 'start_time': active_this.start_time.isoformat(),
                 'photo_url': f'/api/uploads/{resident.photo_path}' if resident.photo_path else None,
             }), 200
+
+        # Check single session restriction
+        if AppSetting.get('single_session', 'false') == 'true':
+            any_active = CleaningRecord.query.filter_by(cleaner_id=worker_id, end_time=None).first() or \
+                         CareRecord.query.filter_by(worker_id=worker_id, end_time=None).first()
+            if any_active:
+                return jsonify({'error': 'Ya tienes una sesión activa. Finalízala antes de iniciar otra.'}), 409
 
         # Start session immediately without care type
         record = CareRecord(
@@ -3091,11 +3112,13 @@ def admin_settings():
     if request.method == 'POST':
         AppSetting.set('allow_group_care', 'true' if request.form.get('allow_group_care') else 'false')
         AppSetting.set('nfc_only', 'true' if request.form.get('nfc_only') else 'false')
+        AppSetting.set('single_session', 'true' if request.form.get('single_session') else 'false')
         flash('Configuración guardada.', 'success')
         return redirect(url_for('admin_settings'))
     return render_template('admin_settings.html',
         allow_group_care=AppSetting.get('allow_group_care', 'true') == 'true',
         nfc_only=AppSetting.get('nfc_only', 'true') == 'true',
+        single_session=AppSetting.get('single_session', 'false') == 'true',
     )
 
 
@@ -3105,6 +3128,7 @@ def api_config():
     return jsonify({
         'allow_group_care': AppSetting.get('allow_group_care', 'true') == 'true',
         'nfc_only': AppSetting.get('nfc_only', 'true') == 'true',
+        'single_session': AppSetting.get('single_session', 'false') == 'true',
     }), 200
 
 
