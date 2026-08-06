@@ -181,6 +181,7 @@
                             </label>
                         </td>
                         <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-outline-info vf-toggle-btn me-1" data-ct-id="{{ child.id }}" title="Campos vitales">🩺</button>
                             <button type="button" class="btn btn-sm btn-outline-secondary edit-btn me-1"
                                     data-id="{{ child.id }}" data-name="{{ child.name }}"
                                     data-icon="{{ child.icon or '' }}" data-parent="{{ child.parent_id or '' }}"
@@ -189,6 +190,39 @@
                             <button type="button" class="btn btn-sm btn-outline-danger delete-btn"
                                     data-name="{{ child.name }}"
                                     data-action="{{ url_for('delete_care_type', id=child.id) }}">Eliminar</button>
+                        </td>
+                    </tr>
+                    {% if child.vital_sign_types %}
+                    <tr style="background:#f0f8ff">
+                        <td colspan="5" style="padding:8px 16px 8px 3.5rem">
+                            <small class="text-body-secondary fw-bold">🩺 Campos vitales de "{{ child.name }}":</small>
+                            {% for vf in child.vital_sign_types %}
+                            <div class="d-flex align-items-center gap-2 mt-1" style="font-size:.85rem">
+                                <span>{{ vf.name }} ({{ vf.unit }}{% if vf.min_value is not none %}, min:{{ vf.min_value }}{% endif %}{% if vf.max_value is not none %}, max:{{ vf.max_value }}{% endif %})</span>
+                                <span class="badge {{ 'bg-success' if vf.active else 'bg-secondary' }}">{{ 'Activo' if vf.active else 'Inactivo' }}</span>
+                                <form method="post" action="{{ url_for('delete_vital_field', vf_id=vf.id) }}" style="display:inline" onsubmit="return confirm('¿Eliminar campo vital?')">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1" style="font-size:.75rem">✕</button>
+                                </form>
+                            </div>
+                            {% endfor %}
+                        </td>
+                    </tr>
+                    {% endif %}
+                    <tr id="vf-add-{{ child.id }}" style="display:none;background:#f0f8ff">
+                        <td colspan="5" style="padding:8px 16px 12px 3.5rem">
+                            <form method="post" action="{{ url_for('add_edit_vital_field', care_type_id=child.id) }}" class="row g-2 align-items-end">
+                                <div class="col-auto"><input type="text" name="vf_name" class="form-control form-control-sm" placeholder="Nombre (ej: Sistólica)" required></div>
+                                <div class="col-auto"><input type="text" name="vf_unit" class="form-control form-control-sm" placeholder="Unidad (ej: mmHg)" required></div>
+                                <div class="col-auto"><input type="number" name="vf_min" class="form-control form-control-sm" placeholder="Mín" style="width:70px"></div>
+                                <div class="col-auto"><input type="number" name="vf_max" class="form-control form-control-sm" placeholder="Máx" style="width:70px"></div>
+                                <div class="col-auto">
+                                    <select name="vf_input_type" class="form-select form-select-sm">
+                                        <option value="number">Entero</option>
+                                        <option value="decimal">Decimal</option>
+                                    </select>
+                                </div>
+                                <div class="col-auto"><button type="submit" class="btn btn-sm btn-primary">Añadir campo</button></div>
+                            </form>
                         </td>
                     </tr>
                     {% endfor %}

@@ -512,7 +512,7 @@
             <div id="scan-group-items" style="display:flex;flex-wrap:wrap;gap:6px"></div>
         </div>
         <div class="nfc-unsupported" id="nfc-unsupported">
-            Tu navegador no soporta Web NFC. Usa Chrome en Android.
+            Tu navegador no soporta Web NFC. Usa Chrome en Android con conexión HTTPS.
         </div>
         <div class="scan-fallback" id="scan-fallback" style="display:none">
             <div class="fallback-row" style="display:none">
@@ -1855,7 +1855,10 @@ let nfcAbort = null;
 async function startNfc() {
     if (!('NDEFReader' in window)) {
         $('nfc-unsupported').classList.add('visible');
-        $('scan-sub').textContent = 'NFC no disponible — usa el campo manual';
+        const isInsecure = location.protocol !== 'https:' && location.hostname !== 'localhost';
+        $('scan-sub').textContent = isInsecure
+            ? 'NFC requiere HTTPS — contacta al administrador'
+            : 'NFC no disponible — usa el campo manual';
         $('scan-fallback').style.display = '';
         return;
     }
@@ -2196,8 +2199,12 @@ function findVitalFieldsForSelected(selectedIds) {
             }
             if (ct.children) {
                 for (const child of ct.children) {
-                    if (child.id === ctId && child.vital_fields) {
-                        fields.push(...child.vital_fields);
+                    if (child.id === ctId) {
+                        if (child.vital_fields && child.vital_fields.length) {
+                            fields.push(...child.vital_fields);
+                        } else if (ct.vital_fields && ct.vital_fields.length) {
+                            fields.push(...ct.vital_fields);
+                        }
                     }
                 }
             }
