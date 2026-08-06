@@ -2579,10 +2579,10 @@ def resident_detail(resident_id: int):
                 'min_value': float(vst.min_value) if vst.min_value is not None else None,
                 'max_value': float(vst.max_value) if vst.max_value is not None else None,
                 'labels': [],
-                'values': [],
+                'data': [],
             }
         vital_charts[key]['labels'].append(r.care_record.start_time.strftime('%d/%m/%Y %H:%M'))
-        vital_charts[key]['values'].append(float(r.value))
+        vital_charts[key]['data'].append(float(r.value))
 
     # Care activity heatmap: count care records per day (last 6 months)
     six_months_ago = datetime.now() - timedelta(days=180)

@@ -123,12 +123,12 @@
                 <div class="col-md-6">
                     <div style="background:var(--bs-tertiary-bg, #f8f9fa);border-radius:12px;padding:16px">
                         <h6 class="mb-1" style="font-size:.9rem">{{ chart.name }} <small style="color:var(--color-text-secondary)">({{ chart.unit }})</small></h6>
-                        {% if chart.values %}
+                        {% if chart.data %}
                         <p class="mb-2" style="font-size:.8rem;color:var(--color-text-secondary)">
-                            Último: <strong style="color:var(--color-text)">{{ chart.values[-1]|round(1) }} {{ chart.unit }}</strong>
+                            Último: <strong style="color:var(--color-text)">{{ chart.data[-1]|round(1) }} {{ chart.unit }}</strong>
                             &middot; {{ chart.labels[-1] }}
-                            {% if chart.values|length > 1 %}
-                            {% set diff = chart.values[-1] - chart.values[-2] %}
+                            {% if chart.data|length > 1 %}
+                            {% set diff = chart.data[-1] - chart.data[-2] %}
                             &middot; <span style="color:{{ 'var(--color-danger, #dc3545)' if diff > 0 else 'var(--color-success, #198754)' if diff < 0 else 'var(--color-text-secondary)' }}">
                                 {{ '+' if diff > 0 }}{{ diff|round(1) }}
                             </span>
@@ -353,7 +353,7 @@ vitalData.forEach((chart, i) => {
     if (!ctx) return;
     const datasets = [{
         label: chart.name,
-        data: chart.values,
+        data: chart.data,
         borderColor: 'rgba(26, 127, 55, 1)',
         backgroundColor: 'rgba(26, 127, 55, 0.1)',
         borderWidth: 2,
@@ -366,7 +366,7 @@ vitalData.forEach((chart, i) => {
     if (chart.min_value != null) {
         datasets.push({
             label: 'Mín (' + chart.min_value + ')',
-            data: Array(chart.values.length).fill(chart.min_value),
+            data: Array(chart.data.length).fill(chart.min_value),
             borderColor: 'rgba(220, 53, 69, 0.4)',
             borderWidth: 1,
             borderDash: [5, 5],
@@ -377,7 +377,7 @@ vitalData.forEach((chart, i) => {
     if (chart.max_value != null) {
         datasets.push({
             label: 'Máx (' + chart.max_value + ')',
-            data: Array(chart.values.length).fill(chart.max_value),
+            data: Array(chart.data.length).fill(chart.max_value),
             borderColor: 'rgba(220, 53, 69, 0.4)',
             borderWidth: 1,
             borderDash: [5, 5],
