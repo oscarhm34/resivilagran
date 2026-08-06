@@ -2540,6 +2540,23 @@ def registros_atencion():
     )
 
 
+@app.route('/admin/care-record/<int:record_id>/delete', methods=['POST'])
+@login_required
+def delete_care_record(record_id: int):
+    if not current_user.is_admin:
+        abort(403)
+    record = db.session.get(CareRecord, record_id)
+    if not record:
+        flash('Registro no encontrado.', 'error')
+        return redirect(url_for('registros_atencion'))
+    VitalSignReading.query.filter_by(care_record_id=record.id).delete()
+    record.care_types.clear()
+    db.session.delete(record)
+    db.session.commit()
+    flash('Registro de atención eliminado.', 'success')
+    return redirect(url_for('registros_atencion'))
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  UPLOADS — Servir fitxers
 # ══════════════════════════════════════════════════════════════════════════════

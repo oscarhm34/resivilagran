@@ -2198,6 +2198,7 @@ function updateVitalSignsForSelection() {
     const fields = findVitalFieldsForSelected(selected);
     if (fields.length) {
         showVitalSignsInputs(fields);
+        setTimeout(() => $('ct-vital-signs').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     } else {
         $('ct-vital-signs').style.display = 'none';
         $('ct-vital-fields').innerHTML = '';

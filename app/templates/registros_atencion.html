@@ -112,6 +112,11 @@
                                 <button type="submit" class="btn btn-sm btn-outline-danger ms-1">Cerrar</button>
                             </form>
                             {% endif %}
+                            {% if current_user.is_admin %}
+                            <form method="post" action="{{ url_for('delete_care_record', record_id=record.id) }}" style="display:inline" onsubmit="return confirm('¿Eliminar este registro de atención?')">
+                                <button type="submit" class="btn btn-sm btn-outline-danger ms-1">🗑</button>
+                            </form>
+                            {% endif %}
                         </td>
                     </tr>
                     {% else %}
