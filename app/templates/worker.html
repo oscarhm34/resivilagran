@@ -2082,12 +2082,12 @@ function showCareTypesEnd(data) {
 
         // Multi-select toggle for sub-buttons
         grid.querySelectorAll('.ct-sub-btn').forEach(btn => {
-            btn.addEventListener('click', () => btn.classList.toggle('selected'));
+            btn.addEventListener('click', () => { btn.classList.toggle('selected'); updateVitalSignsForSelection(); });
         });
 
         // Multi-select toggle for standalone buttons
         grid.querySelectorAll('.ct-btn').forEach(btn => {
-            btn.addEventListener('click', () => btn.classList.toggle('selected'));
+            btn.addEventListener('click', () => { btn.classList.toggle('selected'); updateVitalSignsForSelection(); });
         });
         // Load authenticated images for custom icons
         grid.querySelectorAll('img[data-auth-src]').forEach(img => loadAuthImg(img, img.dataset.authSrc));
@@ -2190,6 +2190,20 @@ function renderGroupPicker() {
     show('screen-care-type');
 }
 
+function updateVitalSignsForSelection() {
+    const selected = [];
+    $('ct-grid').querySelectorAll('.ct-sub-btn.selected, .ct-btn.selected').forEach(btn => {
+        selected.push(parseInt(btn.dataset.id));
+    });
+    const fields = findVitalFieldsForSelected(selected);
+    if (fields.length) {
+        showVitalSignsInputs(fields);
+    } else {
+        $('ct-vital-signs').style.display = 'none';
+        $('ct-vital-fields').innerHTML = '';
+    }
+}
+
 function findVitalFieldsForSelected(selectedIds) {
     const fields = [];
     for (const ctId of selectedIds) {
@@ -2199,12 +2213,8 @@ function findVitalFieldsForSelected(selectedIds) {
             }
             if (ct.children) {
                 for (const child of ct.children) {
-                    if (child.id === ctId) {
-                        if (child.vital_fields && child.vital_fields.length) {
-                            fields.push(...child.vital_fields);
-                        } else if (ct.vital_fields && ct.vital_fields.length) {
-                            fields.push(...ct.vital_fields);
-                        }
+                    if (child.id === ctId && child.vital_fields && child.vital_fields.length) {
+                        fields.push(...child.vital_fields);
                     }
                 }
             }
@@ -2249,15 +2259,6 @@ async function finalizeCare() {
         selected.push(parseInt(btn.dataset.id));
     });
     if (!selected.length) { toast('Selecciona al menos un tipo de atención'); return; }
-
-    // Check for vital fields and show inputs if not already shown
-    const vitalFields = findVitalFieldsForSelected(selected);
-    if (vitalFields.length && $('ct-vital-signs').style.display === 'none') {
-        showVitalSignsInputs(vitalFields);
-        $('ct-grid').style.display = 'none';
-        $('ct-confirm').textContent = 'Confirmar y finalizar';
-        return;
-    }
 
     const vitalSigns = collectVitalSigns();
     const confirmBtn = $('ct-confirm');
