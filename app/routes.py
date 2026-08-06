@@ -2569,18 +2569,20 @@ def resident_detail(resident_id: int):
     vital_charts = {}
     for r in all_readings:
         vst = r.vital_sign_type
+        if not vst or not r.care_record or not r.care_record.start_time or r.value is None:
+            continue
         key = vst.id
         if key not in vital_charts:
             vital_charts[key] = {
                 'name': vst.name,
                 'unit': vst.unit,
-                'min_value': vst.min_value,
-                'max_value': vst.max_value,
+                'min_value': float(vst.min_value) if vst.min_value is not None else None,
+                'max_value': float(vst.max_value) if vst.max_value is not None else None,
                 'labels': [],
                 'values': [],
             }
         vital_charts[key]['labels'].append(r.care_record.start_time.strftime('%d/%m/%Y %H:%M'))
-        vital_charts[key]['values'].append(r.value)
+        vital_charts[key]['values'].append(float(r.value))
 
     # Care activity heatmap: count care records per day (last 6 months)
     six_months_ago = datetime.now() - timedelta(days=180)
