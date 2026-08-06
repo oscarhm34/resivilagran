@@ -115,32 +115,34 @@
 
     <!-- Seguimiento de constantes vitales -->
     {% if vital_charts %}
-    <div class="card mb-4">
-        <div class="card-header"><strong>Seguimiento de constantes vitales</strong></div>
-        <div class="card-body">
-            <div class="row g-4">
-                {% for chart in vital_charts %}
-                <div class="col-md-6">
-                    <div style="background:var(--bs-tertiary-bg, #f8f9fa);border-radius:12px;padding:16px">
-                        <h6 class="mb-1" style="font-size:.9rem">{{ chart.name }} <small style="color:var(--color-text-secondary)">({{ chart.unit }})</small></h6>
-                        {% if chart.data %}
-                        <p class="mb-2" style="font-size:.8rem;color:var(--color-text-secondary)">
-                            Último: <strong style="color:var(--color-text)">{{ chart.data[-1]|round(1) }} {{ chart.unit }}</strong>
-                            &middot; {{ chart.labels[-1] }}
-                            {% if chart.data|length > 1 %}
-                            {% set diff = chart.data[-1] - chart.data[-2] %}
-                            &middot; <span style="color:{{ 'var(--color-danger, #dc3545)' if diff > 0 else 'var(--color-success, #198754)' if diff < 0 else 'var(--color-text-secondary)' }}">
-                                {{ '+' if diff > 0 }}{{ diff|round(1) }}
-                            </span>
-                            {% endif %}
-                        </p>
+    <div class="row g-4 mb-4">
+        {% for chart in vital_charts %}
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <span style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--color-text-secondary)">{{ chart.name }}</span>
+                        {% if chart.data|length > 1 %}
+                        {% set diff = chart.data[-1] - chart.data[-2] %}
+                        <span style="font-size:.75rem;font-weight:600;padding:2px 8px;border-radius:20px;
+                            {% if diff < 0 %}background:#d4edda;color:#198754{% elif diff > 0 %}background:#f8d7da;color:#dc3545{% else %}background:#e9ecef;color:#6c757d{% endif %}">
+                            {{ '↓' if diff < 0 else '↑' if diff > 0 else '→' }} {{ diff|abs|round(1) }} {{ chart.unit }}
+                        </span>
                         {% endif %}
-                        <canvas id="vital-chart-{{ loop.index }}" height="180"></canvas>
+                    </div>
+                    {% if chart.data %}
+                    <div style="font-size:2rem;font-weight:700;line-height:1.2">
+                        {{ chart.data[-1]|round(1) }}<span style="font-size:1rem;font-weight:400;color:var(--color-text-secondary)">{{ chart.unit }}</span>
+                    </div>
+                    <div style="font-size:.7rem;color:var(--color-text-secondary);margin-bottom:12px">{{ chart.labels[-1] }}</div>
+                    {% endif %}
+                    <div style="position:relative;height:150px">
+                        <canvas id="vital-chart-{{ loop.index }}"></canvas>
                     </div>
                 </div>
-                {% endfor %}
             </div>
         </div>
+        {% endfor %}
     </div>
     {% endif %}
 
@@ -385,20 +387,30 @@ vitalData.forEach((chart, i) => {
             fill: false,
         });
     }
+    // Show only last 20 data points to keep chart clean
+    const maxPoints = 20;
+    const sliceStart = Math.max(0, chart.data.length - maxPoints);
+    const slicedData = chart.data.slice(sliceStart);
+    const slicedLabels = chart.labels.slice(sliceStart).map(l => l.split(' ')[0]); // date only
+    datasets[0].data = slicedData;
+    if (datasets[1]) datasets[1].data = Array(slicedData.length).fill(chart.min_value);
+    if (datasets[2]) datasets[2].data = Array(slicedData.length).fill(chart.max_value);
+
     new Chart(ctx, {
         type: 'line',
-        data: { labels: chart.labels, datasets: datasets },
+        data: { labels: slicedLabels, datasets: datasets },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: datasets.length > 1, position: 'bottom', labels: { font: { size: 11 } } },
-                tooltip: { callbacks: { label: (c) => c.dataset.label + ': ' + c.parsed.y + ' ' + chart.unit } },
+                legend: { display: false },
+                tooltip: { callbacks: { label: (c) => c.parsed.y + ' ' + chart.unit } },
             },
             scales: {
-                y: { beginAtZero: false, grid: { color: 'rgba(0,0,0,.06)' } },
-                x: { grid: { display: false }, ticks: { maxRotation: 45, font: { size: 10 }, maxTicksLimit: 10 } },
+                y: { display: false },
+                x: { grid: { display: false }, ticks: { font: { size: 9 }, maxTicksLimit: 5, color: '#aaa' } },
             },
+            elements: { point: { radius: 2, hoverRadius: 5 } },
         },
     });
 });
