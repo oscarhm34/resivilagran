@@ -18,7 +18,7 @@ ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'webp', 'gif'}
 def _allowed_file(filename: str, allowed: set) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed
 from datetime import datetime, timedelta
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, subqueryload
 from sqlalchemy.exc import IntegrityError
 import pandas as pd
 from io import BytesIO
@@ -2551,8 +2551,8 @@ def resident_detail(resident_id: int):
     query = CareRecord.query.options(
         joinedload(CareRecord.worker),
         joinedload(CareRecord.care_type),
-        joinedload(CareRecord.care_types),
-        joinedload(CareRecord.vital_sign_readings).joinedload(VitalSignReading.vital_sign_type),
+        subqueryload(CareRecord.care_types),
+        subqueryload(CareRecord.vital_sign_readings).joinedload(VitalSignReading.vital_sign_type),
     ).filter(CareRecord.resident_id == resident_id).order_by(CareRecord.start_time.desc())
 
     page = request.args.get('page', 1, type=int)
