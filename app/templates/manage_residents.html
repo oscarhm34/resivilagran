@@ -227,6 +227,8 @@
                             {{ r.notes or '—' }}
                         </td>
                         <td class="text-end">
+                            <a href="{{ url_for('resident_detail', resident_id=r.id) }}"
+                               class="btn btn-sm btn-outline-info me-1">Ver ficha</a>
                             <button type="button"
                                     class="btn btn-sm btn-outline-secondary edit-btn me-1"
                                     data-id="{{ r.id }}"

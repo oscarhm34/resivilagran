@@ -2540,6 +2540,35 @@ def registros_atencion():
     )
 
 
+@app.route('/admin/resident/<int:resident_id>')
+@login_required
+def resident_detail(resident_id: int):
+    resident = db.session.get(Resident, resident_id)
+    if not resident:
+        flash('Residente no encontrado.', 'error')
+        return redirect(url_for('manage_residents'))
+
+    query = CareRecord.query.options(
+        joinedload(CareRecord.worker),
+        joinedload(CareRecord.care_type),
+        joinedload(CareRecord.care_types),
+        joinedload(CareRecord.vital_sign_readings).joinedload(VitalSignReading.vital_sign_type),
+    ).filter(CareRecord.resident_id == resident_id).order_by(CareRecord.start_time.desc())
+
+    page = request.args.get('page', 1, type=int)
+    pagination = query.paginate(page=page, per_page=20, error_out=False)
+
+    for record in pagination.items:
+        record.duration = _format_duration(record.start_time, record.end_time)
+
+    return render_template(
+        'resident_detail.html',
+        resident=resident,
+        records=pagination.items,
+        pagination=pagination,
+    )
+
+
 @app.route('/admin/care-record/<int:record_id>/delete', methods=['POST'])
 @login_required
 def delete_care_record(record_id: int):

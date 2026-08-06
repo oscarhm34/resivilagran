@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}Ficha de {{ resident.name }}{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <div class="mb-3">
+        <a href="{{ url_for('manage_residents') }}" class="btn btn-sm btn-outline-secondary">&larr; Volver a residentes</a>
+    </div>
+
+    <!-- Cabecera del residente -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex align-items-start gap-3 flex-wrap">
+                {% if resident.photo_path %}
+                <img src="{{ url_for('serve_upload', filename=resident.photo_path) }}" alt=""
+                     style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:2px solid var(--color-border)">
+                {% else %}
+                <div style="width:80px;height:80px;border-radius:50%;background:var(--color-primary-lt);display:flex;align-items:center;justify-content:center;font-size:2rem;border:2px solid var(--color-border)">👤</div>
+                {% endif %}
+                <div style="flex:1;min-width:200px">
+                    <h2 class="h4 mb-1">{{ resident.name }}</h2>
+                    <div class="d-flex flex-wrap gap-3" style="font-size:.9rem;color:var(--color-text-secondary)">
+                        {% if resident.room_number %}
+                        <span>🏠 Hab. {{ resident.room_number }}</span>
+                        {% endif %}
+                        {% if resident.group %}
+                        <span>
+                            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{{ resident.group.color }};vertical-align:middle"></span>
+                            {{ resident.group.name }}
+                        </span>
+                        {% endif %}
+                        <span>{{ '🟢 Activo' if resident.active else '🔴 Inactivo' }}</span>
+                    </div>
+                    {% if resident.relevant_info %}
+                    <div class="mt-2 p-2" style="background:var(--color-warning-lt, #fff3cd);border-radius:8px;font-size:.85rem">
+                        <strong>Info relevante:</strong> {{ resident.relevant_info }}
+                    </div>
+                    {% endif %}
+                    {% if resident.notes %}
+                    <div class="mt-2" style="font-size:.85rem;color:var(--color-text-secondary)">
+                        <strong>Notas:</strong> {{ resident.notes }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Historial de atenciones -->
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h3 class="h5 mb-0">Historial de atenciones</h3>
+        {% if pagination %}
+        <span class="small" style="color:var(--color-text-secondary)">
+            {{ pagination.total }} registro{{ 's' if pagination.total != 1 }}
+        </span>
+        {% endif %}
+    </div>
+
+    {% if records %}
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col">Fecha</th>
+                        <th scope="col" class="hide-mobile">Hora</th>
+                        <th scope="col">Tipo</th>
+                        <th scope="col">Trabajador/a</th>
+                        <th scope="col">Duración</th>
+                        <th scope="col">Constantes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in records %}
+                    <tr>
+                        <td>{{ record.start_time.strftime('%d/%m/%Y') if record.start_time else '—' }}</td>
+                        <td class="hide-mobile" style="color:var(--color-text-secondary)">
+                            {{ record.start_time.strftime('%H:%M') if record.start_time else '—' }}
+                        </td>
+                        <td>
+                            {% if record.care_types %}
+                                {% for ct in record.care_types %}
+                                <span class="status-badge status-info">{{ ct.name }}</span>
+                                {% endfor %}
+                            {% elif record.care_type %}
+                            <span class="status-badge status-info">{{ record.care_type.name }}</span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td>{{ record.worker.name if record.worker else '—' }}</td>
+                        <td>
+                            {% if record.duration and record.duration != 'N/A' %}
+                            <span class="status-badge status-muted">{{ record.duration }}</span>
+                            {% else %}
+                            <span class="status-badge status-info">En curso</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if record.vital_sign_readings %}
+                                {% for reading in record.vital_sign_readings %}
+                                <div style="font-size:.85rem">
+                                    {{ reading.vital_sign_type.name }}: <strong>{{ reading.value|round(1) }}</strong> {{ reading.vital_sign_type.unit }}
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                            <span style="color:var(--color-text-secondary)">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Paginación -->
+    {% if pagination and pagination.pages > 1 %}
+    <div class="d-flex align-items-center justify-content-between flex-wrap mt-3">
+        <p class="small mb-2" style="color:var(--color-text-secondary)">
+            Página <strong>{{ pagination.page }}</strong> de <strong>{{ pagination.pages }}</strong>
+        </p>
+        <nav aria-label="Paginación">
+            <ul class="pagination pagination-sm mb-0 flex-wrap">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('resident_detail', resident_id=resident.id, page=pagination.prev_num) }}">&laquo;</a>
+                </li>
+                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                {% if page_num %}
+                <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('resident_detail', resident_id=resident.id, page=page_num) }}">{{ page_num }}</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><a class="page-link">&hellip;</a></li>
+                {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('resident_detail', resident_id=resident.id, page=pagination.next_num) }}">&raquo;</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="alert alert-info">No hay registros de atención para este residente.</div>
+    {% endif %}
+
+</div>
+{% endblock %}
