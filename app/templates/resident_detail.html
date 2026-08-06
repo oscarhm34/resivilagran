@@ -113,6 +113,59 @@
     </div>
     {% endif %}
 
+    <!-- Seguimiento de constantes vitales -->
+    {% if vital_charts %}
+    <div class="card mb-4">
+        <div class="card-header"><strong>Seguimiento de constantes vitales</strong></div>
+        <div class="card-body">
+            <div class="row g-4">
+                {% for chart in vital_charts %}
+                <div class="col-md-6">
+                    <div style="background:var(--bs-tertiary-bg, #f8f9fa);border-radius:12px;padding:16px">
+                        <h6 class="mb-1" style="font-size:.9rem">{{ chart.name }} <small style="color:var(--color-text-secondary)">({{ chart.unit }})</small></h6>
+                        {% if chart.values %}
+                        <p class="mb-2" style="font-size:.8rem;color:var(--color-text-secondary)">
+                            Último: <strong style="color:var(--color-text)">{{ chart.values[-1]|round(1) }} {{ chart.unit }}</strong>
+                            &middot; {{ chart.labels[-1] }}
+                            {% if chart.values|length > 1 %}
+                            {% set diff = chart.values[-1] - chart.values[-2] %}
+                            &middot; <span style="color:{{ 'var(--color-danger, #dc3545)' if diff > 0 else 'var(--color-success, #198754)' if diff < 0 else 'var(--color-text-secondary)' }}">
+                                {{ '+' if diff > 0 }}{{ diff|round(1) }}
+                            </span>
+                            {% endif %}
+                        </p>
+                        {% endif %}
+                        <canvas id="vital-chart-{{ loop.index }}" height="180"></canvas>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Calendario de actividad -->
+    {% if heatmap_data %}
+    <div class="card mb-4">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <strong>Calendario de atenciones</strong>
+            <small style="color:var(--color-text-secondary)">Últimos 6 meses</small>
+        </div>
+        <div class="card-body" style="overflow-x:auto">
+            <div id="heatmap-calendar" style="display:flex;gap:2px;flex-direction:row"></div>
+            <div class="d-flex align-items-center gap-2 mt-3" style="font-size:.75rem;color:var(--color-text-secondary)">
+                <span>Menos</span>
+                <span style="width:12px;height:12px;border-radius:2px;background:#ebedf0"></span>
+                <span style="width:12px;height:12px;border-radius:2px;background:#9be9a8"></span>
+                <span style="width:12px;height:12px;border-radius:2px;background:#40c463"></span>
+                <span style="width:12px;height:12px;border-radius:2px;background:#30a14e"></span>
+                <span style="width:12px;height:12px;border-radius:2px;background:#216e39"></span>
+                <span>Más</span>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Historial de atenciones -->
     <div class="d-flex align-items-center justify-content-between mb-3">
         <h3 class="h5 mb-0">Historial de atenciones</h3>
@@ -212,4 +265,143 @@
     {% endif %}
 
 </div>
+
+{% if heatmap_data %}
+<script>
+(function() {
+    const data = {{ heatmap_data | tojson }};
+    const container = document.getElementById('heatmap-calendar');
+    if (!container) return;
+
+    const today = new Date();
+    const start = new Date(today);
+    start.setDate(start.getDate() - 180);
+    // Align to start of week (Monday)
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+
+    const colors = ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'];
+    const maxCount = Math.max(1, ...Object.values(data));
+
+    function getColor(count) {
+        if (!count) return colors[0];
+        const idx = Math.min(4, Math.ceil((count / maxCount) * 4));
+        return colors[idx];
+    }
+
+    const months = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    const dayLabels = ['L','','M','','V','','D'];
+    let currentDate = new Date(start);
+    let lastMonth = -1;
+
+    // Day labels column
+    const labelsCol = document.createElement('div');
+    labelsCol.style.cssText = 'display:flex;flex-direction:column;gap:2px;margin-right:4px';
+    for (let d = 0; d < 7; d++) {
+        const lbl = document.createElement('div');
+        lbl.style.cssText = 'width:12px;height:12px;font-size:9px;line-height:12px;color:var(--color-text-secondary,#888);text-align:right';
+        lbl.textContent = dayLabels[d];
+        labelsCol.appendChild(lbl);
+    }
+    container.appendChild(labelsCol);
+
+    while (currentDate <= today) {
+        const week = document.createElement('div');
+        week.style.cssText = 'display:flex;flex-direction:column;gap:2px;position:relative';
+
+        // Month label on first week of each month
+        const monthNum = currentDate.getMonth();
+        if (monthNum !== lastMonth) {
+            const monthLabel = document.createElement('div');
+            monthLabel.style.cssText = 'position:absolute;top:-16px;font-size:9px;color:var(--color-text-secondary,#888);white-space:nowrap';
+            monthLabel.textContent = months[monthNum];
+            week.appendChild(monthLabel);
+            lastMonth = monthNum;
+        }
+
+        for (let d = 0; d < 7; d++) {
+            const cell = document.createElement('div');
+            const dateStr = currentDate.toISOString().slice(0, 10);
+            const count = data[dateStr] || 0;
+            const isVisible = currentDate <= today;
+
+            cell.style.cssText = 'width:12px;height:12px;border-radius:2px;background:' +
+                (isVisible ? getColor(count) : 'transparent');
+
+            if (count > 0) {
+                cell.title = currentDate.toLocaleDateString('es-ES') + ': ' + count + ' atenci' + (count === 1 ? 'ón' : 'ones');
+                cell.style.cursor = 'pointer';
+            }
+
+            week.appendChild(cell);
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
+        container.appendChild(week);
+    }
+
+    // Add top padding for month labels
+    container.style.paddingTop = '18px';
+})();
+</script>
+{% endif %}
+
+{% if vital_charts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+const vitalData = {{ vital_charts | tojson }};
+vitalData.forEach((chart, i) => {
+    const ctx = document.getElementById('vital-chart-' + (i + 1));
+    if (!ctx) return;
+    const datasets = [{
+        label: chart.name,
+        data: chart.values,
+        borderColor: 'rgba(26, 127, 55, 1)',
+        backgroundColor: 'rgba(26, 127, 55, 0.1)',
+        borderWidth: 2,
+        pointRadius: 3,
+        pointHoverRadius: 6,
+        tension: 0.3,
+        fill: true,
+    }];
+    // Add min/max reference lines if defined
+    if (chart.min_value != null) {
+        datasets.push({
+            label: 'Mín (' + chart.min_value + ')',
+            data: Array(chart.values.length).fill(chart.min_value),
+            borderColor: 'rgba(220, 53, 69, 0.4)',
+            borderWidth: 1,
+            borderDash: [5, 5],
+            pointRadius: 0,
+            fill: false,
+        });
+    }
+    if (chart.max_value != null) {
+        datasets.push({
+            label: 'Máx (' + chart.max_value + ')',
+            data: Array(chart.values.length).fill(chart.max_value),
+            borderColor: 'rgba(220, 53, 69, 0.4)',
+            borderWidth: 1,
+            borderDash: [5, 5],
+            pointRadius: 0,
+            fill: false,
+        });
+    }
+    new Chart(ctx, {
+        type: 'line',
+        data: { labels: chart.labels, datasets: datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: datasets.length > 1, position: 'bottom', labels: { font: { size: 11 } } },
+                tooltip: { callbacks: { label: (c) => c.dataset.label + ': ' + c.parsed.y + ' ' + chart.unit } },
+            },
+            scales: {
+                y: { beginAtZero: false, grid: { color: 'rgba(0,0,0,.06)' } },
+                x: { grid: { display: false }, ticks: { maxRotation: 45, font: { size: 10 }, maxTicksLimit: 10 } },
+            },
+        },
+    });
+});
+</script>
+{% endif %}
 {% endblock %}

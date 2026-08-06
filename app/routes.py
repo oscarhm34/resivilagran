@@ -2561,11 +2561,46 @@ def resident_detail(resident_id: int):
     for record in pagination.items:
         record.duration = _format_duration(record.start_time, record.end_time)
 
+    # Vital signs chart data: all readings for this resident, grouped by type
+    all_readings = db.session.query(VitalSignReading).join(CareRecord).filter(
+        CareRecord.resident_id == resident_id
+    ).join(VitalSignReading.vital_sign_type).order_by(CareRecord.start_time.asc()).all()
+
+    vital_charts = {}
+    for r in all_readings:
+        vst = r.vital_sign_type
+        key = vst.id
+        if key not in vital_charts:
+            vital_charts[key] = {
+                'name': vst.name,
+                'unit': vst.unit,
+                'min_value': vst.min_value,
+                'max_value': vst.max_value,
+                'labels': [],
+                'values': [],
+            }
+        vital_charts[key]['labels'].append(r.care_record.start_time.strftime('%d/%m/%Y %H:%M'))
+        vital_charts[key]['values'].append(r.value)
+
+    # Care activity heatmap: count care records per day (last 6 months)
+    six_months_ago = datetime.now() - timedelta(days=180)
+    care_dates = db.session.query(
+        db.func.date(CareRecord.start_time).label('day'),
+        db.func.count().label('count'),
+    ).filter(
+        CareRecord.resident_id == resident_id,
+        CareRecord.start_time >= six_months_ago,
+    ).group_by(db.func.date(CareRecord.start_time)).all()
+
+    heatmap_data = {row.day: row.count for row in care_dates}
+
     return render_template(
         'resident_detail.html',
         resident=resident,
         records=pagination.items,
         pagination=pagination,
+        vital_charts=list(vital_charts.values()),
+        heatmap_data=heatmap_data,
     )
 
 
