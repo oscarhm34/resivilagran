@@ -14,6 +14,16 @@ from werkzeug.utils import secure_filename as _secure_filename
 ALLOWED_DOC_EXTENSIONS = {'pdf', 'txt', 'csv', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'webp'}
 ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'webp', 'gif'}
 
+from functools import wraps
+def admin_required(f):
+    @wraps(f)
+    @login_required
+    def decorated(*args, **kwargs):
+        if not current_user.is_admin:
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated
+
 
 def _allowed_file(filename: str, allowed: set) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed
@@ -128,7 +138,7 @@ def admin_logout():
 # ── HOME ─────────────────────────────────────────────────────────────────────
 
 @app.route('/')
-@login_required
+@admin_required
 def index():
     # Auto-close stale sessions older than 24 hours
     stale_cutoff = datetime.now() - timedelta(hours=24)
@@ -224,7 +234,7 @@ def login():
 
     user = Cleaner.query.filter_by(username=username).first()
     if user and user.check_password(password):
-        access_token = create_access_token(identity=username)
+        access_token = create_access_token(identity=username, expires_delta=timedelta(hours=12))
         return jsonify(access_token=access_token, id_cleaner=user.id, cleaner_name=user.name), 200
 
     return jsonify({'error': 'Credenciales incorrectas'}), 401
@@ -332,7 +342,7 @@ def api_registros_limpieza():
 # ── WEB ADMIN – EMPLEADOS ─────────────────────────────────────────────────────
 
 @app.route('/manage_workers')
-@login_required
+@admin_required
 def manage_workers():
     estado = request.args.get('estado', 'altas')
     query = Cleaner.query
@@ -346,7 +356,7 @@ def manage_workers():
 
 
 @app.route('/cleaners/add_edit', methods=['POST'])
-@login_required
+@admin_required
 def add_edit_cleaner():
     cleaner_id = request.form.get('cleaner_id')
     username = request.form.get('username', '').strip()
@@ -384,7 +394,7 @@ def add_edit_cleaner():
 
 
 @app.route('/cleaners/delete/<int:id>', methods=['POST'])
-@login_required
+@admin_required
 def delete_cleaner(id: int):
     try:
         cleaner = db.session.get(Cleaner, id)
@@ -400,7 +410,7 @@ def delete_cleaner(id: int):
 
 
 @app.route('/cleaners/update-groups', methods=['POST'])
-@login_required
+@admin_required
 def update_cleaner_groups():
     data = request.json or {}
     cleaner_id = data.get('cleaner_id')
@@ -416,7 +426,7 @@ def update_cleaner_groups():
 
 
 @app.route('/cleaners/update-active', methods=['POST'])
-@login_required
+@admin_required
 def update_cleaner_active():
     data = request.json or {}
     cleaner_id = data.get('cleaner_id')
@@ -434,7 +444,7 @@ def update_cleaner_active():
 # ── WEB ADMIN – ZONAS DE LIMPIEZA ────────────────────────────────────────────
 
 @app.route('/zonas-limpieza')
-@login_required
+@admin_required
 def manage_cleaning_zones():
     rooms = Room.query.all()
     floors = Floor.query.all()
@@ -446,7 +456,7 @@ def manage_cleaning_zones():
 
 
 @app.route('/rooms/add_edit', methods=['POST'])
-@login_required
+@admin_required
 def add_edit_room():
     room_id = request.form.get('room_id')
     number = request.form.get('number', '').strip()
@@ -480,7 +490,7 @@ def add_edit_room():
 
 
 @app.route('/rooms/delete/<int:id>', methods=['POST'])
-@login_required
+@admin_required
 def delete_room(id: int):
     try:
         room = db.session.get(Room, id)
@@ -498,14 +508,14 @@ def delete_room(id: int):
 # ── WEB ADMIN – TIPOS DE ESPACIO ─────────────────────────────────────────────
 
 @app.route('/manage_room_types')
-@login_required
+@admin_required
 def manage_room_types():
     room_types = RoomType.query.all()
     return render_template('manage_room_types.html', room_types=room_types)
 
 
 @app.route('/room_types/add_edit', methods=['POST'])
-@login_required
+@admin_required
 def add_edit_room_type():
     room_type_id = request.form.get('room_type_id')
     name = request.form.get('name', '').strip()
@@ -526,7 +536,7 @@ def add_edit_room_type():
 
 
 @app.route('/room_types/delete/<int:id>', methods=['POST'])
-@login_required
+@admin_required
 def delete_room_type(id: int):
     try:
         room_type = db.session.get(RoomType, id)
@@ -544,14 +554,14 @@ def delete_room_type(id: int):
 # ── WEB ADMIN – PLANTAS ───────────────────────────────────────────────────────
 
 @app.route('/manage_floors')
-@login_required
+@admin_required
 def manage_floors():
     floors = Floor.query.all()
     return render_template('manage_floors.html', floors=floors)
 
 
 @app.route('/floors/add_edit', methods=['POST'])
-@login_required
+@admin_required
 def add_edit_floor():
     floor_id = request.form.get('floor_id')
     name = request.form.get('name', '').strip()
@@ -572,7 +582,7 @@ def add_edit_floor():
 
 
 @app.route('/floors/delete/<int:id>', methods=['POST'])
-@login_required
+@admin_required
 def delete_floor(id: int):
     try:
         floor = db.session.get(Floor, id)
@@ -590,7 +600,7 @@ def delete_floor(id: int):
 # ── WEB ADMIN – REGISTROS DE LIMPIEZA ────────────────────────────────────────
 
 @app.route('/admin/close-session/<mode>/<int:record_id>', methods=['POST'])
-@login_required
+@admin_required
 def admin_close_session(mode: str, record_id: int):
     now = datetime.now()
     if mode == 'cleaning':
@@ -611,7 +621,7 @@ def admin_close_session(mode: str, record_id: int):
 
 
 @app.route('/registros-limpieza')
-@login_required
+@admin_required
 def registros_limpieza():
     room_id = request.args.get('room_id', '')
     cleaner_id = request.args.get('cleaner_id', '')
@@ -671,7 +681,7 @@ def registros_limpieza():
 
 
 @app.route('/exportar_excel')
-@login_required
+@admin_required
 def exportar_excel():
     room_id = request.args.get('room_id', '')
     cleaner_id = request.args.get('cleaner_id', '')
@@ -714,7 +724,7 @@ def exportar_excel():
 
 
 @app.route('/exportar_atenciones_excel')
-@login_required
+@admin_required
 def exportar_atenciones_excel():
     worker_id = request.args.get('worker_id', '')
     resident_id = request.args.get('resident_id', '')
@@ -771,7 +781,7 @@ def exportar_atenciones_excel():
 
 
 @app.route('/ultima-limpieza')
-@login_required
+@admin_required
 def ultima_limpieza():
     rooms = Room.query.order_by(Room.number).all()
     now = datetime.now()
@@ -912,7 +922,7 @@ def api_transcribe():
 
 
 @app.route('/admin/transcribe', methods=['POST'])
-@login_required
+@admin_required
 def admin_transcribe():
     return _transcribe_audio()
 
@@ -944,7 +954,7 @@ def _transcribe_audio():
 
 
 @app.route('/admin/chat', methods=['POST'])
-@login_required
+@admin_required
 def admin_chat():
     from .chatbot import chat
     api_key = app.config.get('ANTHROPIC_API_KEY')
@@ -989,7 +999,7 @@ def api_care_types():
 
 
 @app.route('/api/debug/record')
-@login_required
+@admin_required
 def debug_record():
     """Diagnóstico: comprueba un registro por ID. Solo admin. /api/debug/record?id=X&mode=cleaning"""
     record_id = request.args.get('id', type=int)
@@ -1305,7 +1315,9 @@ def worker_my_groups():
     if not worker_id:
         return jsonify({'groups': []}), 200
 
-    worker = db.session.get(Cleaner, worker_id)
+    worker = Cleaner.query.options(
+        subqueryload(Cleaner.groups).subqueryload(ResidentGroup.residents),
+    ).get(worker_id)
     if not worker:
         return jsonify({'groups': []}), 200
 
@@ -1313,20 +1325,22 @@ def worker_my_groups():
     hoy_inicio = datetime.combine(today, datetime.min.time())
     hoy_fin = datetime.combine(today + timedelta(days=1), datetime.min.time())
 
-    # Single query: all completed care records today for residents in worker's groups
-    group_ids = [g.id for g in worker.groups]
-    resident_ids_in_groups = [r.id for r in Resident.query.filter(
-        Resident.group_id.in_(group_ids), Resident.active == True
-    ).all()] if group_ids else []
+    # Collect all resident IDs from worker's groups
+    group_residents = {}
+    all_resident_ids = []
+    for group in worker.groups:
+        active_residents = sorted([r for r in group.residents if r.active], key=lambda r: r.name)
+        group_residents[group.id] = active_residents
+        all_resident_ids.extend(r.id for r in active_residents)
 
     from collections import defaultdict
     care_by_resident: dict[int, list] = defaultdict(list)
-    if resident_ids_in_groups:
+    if all_resident_ids:
         all_care = CareRecord.query.options(
             db.joinedload(CareRecord.care_types),
             db.joinedload(CareRecord.care_type),
         ).filter(
-            CareRecord.resident_id.in_(resident_ids_in_groups),
+            CareRecord.resident_id.in_(all_resident_ids),
             CareRecord.start_time >= hoy_inicio,
             CareRecord.start_time < hoy_fin,
             CareRecord.end_time.isnot(None),
@@ -1342,7 +1356,7 @@ def worker_my_groups():
     result: list[dict] = []
     for group in worker.groups:
         residents_data: list[dict] = []
-        for r in Resident.query.filter_by(group_id=group.id, active=True).order_by(Resident.name).all():
+        for r in group_residents.get(group.id, []):
             ct = care_by_resident.get(r.id, [])
             residents_data.append({
                 'id': r.id,
@@ -1800,10 +1814,13 @@ def cancel_session():
 # ── ADMIN – RESIDENTES ────────────────────────────────────────────────────────
 
 @app.route('/manage-residents')
-@login_required
+@admin_required
 def manage_residents():
     estado = request.args.get('estado', 'altas')
-    query = Resident.query.order_by(Resident.name)
+    query = Resident.query.options(
+        joinedload(Resident.group),
+        subqueryload(Resident.documents),
+    ).order_by(Resident.name)
     if estado == 'altas':
         query = query.filter_by(active=True)
     elif estado == 'bajas':
@@ -1828,7 +1845,7 @@ def _save_resident_photo(file_storage, resident_id: int) -> str:
 
 
 @app.route('/residents/add_edit', methods=['POST'])
-@login_required
+@admin_required
 def add_edit_resident():
     resident_id = request.form.get('resident_id')
     name = request.form.get('name', '').strip()
@@ -1899,7 +1916,7 @@ def add_edit_resident():
 
 
 @app.route('/residents/delete/<int:id>', methods=['POST'])
-@login_required
+@admin_required
 def delete_resident(id: int):
     r = db.session.get(Resident, id)
     if r is None:
@@ -1915,7 +1932,7 @@ def delete_resident(id: int):
 
 
 @app.route('/residents/update-group', methods=['POST'])
-@login_required
+@admin_required
 def update_resident_group():
     data = request.json or {}
     resident_id = data.get('resident_id')
@@ -1931,7 +1948,7 @@ def update_resident_group():
 
 
 @app.route('/residents/update-active', methods=['POST'])
-@login_required
+@admin_required
 def update_resident_active():
     data = request.json or {}
     resident_id = data.get('resident_id')
@@ -1949,7 +1966,7 @@ def update_resident_active():
 # ── RESIDENT DOCUMENTS ────────────────────────────────────────────────────────
 
 @app.route('/residents/<int:resident_id>/documents', methods=['POST'])
-@login_required
+@admin_required
 def upload_resident_document(resident_id: int):
     r = db.session.get(Resident, resident_id)
     if not r:
@@ -1992,7 +2009,7 @@ def upload_resident_document(resident_id: int):
 
 
 @app.route('/residents/documents/<int:doc_id>/delete', methods=['POST'])
-@login_required
+@admin_required
 def delete_resident_document(doc_id: int):
     doc = db.session.get(ResidentDocument, doc_id)
     if not doc:
@@ -2009,7 +2026,7 @@ def delete_resident_document(doc_id: int):
 
 
 @app.route('/groups/<int:id>/assign-residents', methods=['POST'])
-@login_required
+@admin_required
 def assign_residents_to_group(id: int):
     group = db.session.get(ResidentGroup, id)
     if not group:
@@ -2029,7 +2046,7 @@ def assign_residents_to_group(id: int):
 # ── ADMIN – TIPOS DE ATENCIÓN ─────────────────────────────────────────────────
 
 @app.route('/manage-care-types')
-@login_required
+@admin_required
 def manage_care_types():
     # Show parent types first, then children indented
     parents = CareType.query.filter_by(parent_id=None).order_by(CareType.sort_order, CareType.name).all()
@@ -2055,7 +2072,7 @@ def _save_care_type_icon(file_storage, care_type_id: int) -> str:
 
 
 @app.route('/care-types/add_edit', methods=['POST'])
-@login_required
+@admin_required
 def add_edit_care_type():
     care_type_id = request.form.get('care_type_id')
     name = request.form.get('name', '').strip()
@@ -2117,7 +2134,7 @@ def add_edit_care_type():
 
 
 @app.route('/care-types/delete/<int:id>', methods=['POST'])
-@login_required
+@admin_required
 def delete_care_type(id: int):
     ct = db.session.get(CareType, id)
     if ct is None:
@@ -2133,7 +2150,7 @@ def delete_care_type(id: int):
 
 
 @app.route('/care-types/toggle-active', methods=['POST'])
-@login_required
+@admin_required
 def toggle_care_type_active():
     data = request.json or {}
     ct = db.session.get(CareType, int(data.get('id', 0)))
@@ -2147,7 +2164,7 @@ def toggle_care_type_active():
 # ── ADMIN – VITAL SIGN TYPES ────────────────────────────────────────────────
 
 @app.route('/care-types/<int:care_type_id>/vital-fields/add_edit', methods=['POST'])
-@login_required
+@admin_required
 def add_edit_vital_field(care_type_id: int):
     ct = db.session.get(CareType, care_type_id)
     if not ct:
@@ -2187,7 +2204,7 @@ def add_edit_vital_field(care_type_id: int):
 
 
 @app.route('/care-types/vital-fields/delete/<int:vf_id>', methods=['POST'])
-@login_required
+@admin_required
 def delete_vital_field(vf_id: int):
     vf = db.session.get(VitalSignType, vf_id)
     if not vf:
@@ -2206,14 +2223,14 @@ def delete_vital_field(vf_id: int):
 # ── ADMIN – CHECKLIST DE LIMPIEZA ────────────────────────────────────────────
 
 @app.route('/manage-checklist')
-@login_required
+@admin_required
 def manage_checklist():
     items = ChecklistItem.query.order_by(ChecklistItem.sort_order, ChecklistItem.id).all()
     return render_template('manage_checklist.html', items=items)
 
 
 @app.route('/checklist/add_edit', methods=['POST'])
-@login_required
+@admin_required
 def add_edit_checklist_item():
     item_id = request.form.get('item_id')
     text = request.form.get('text', '').strip()
@@ -2239,7 +2256,7 @@ def add_edit_checklist_item():
 
 
 @app.route('/checklist/delete/<int:id>', methods=['POST'])
-@login_required
+@admin_required
 def delete_checklist_item(id: int):
     item = db.session.get(ChecklistItem, id)
     if item:
@@ -2250,7 +2267,7 @@ def delete_checklist_item(id: int):
 
 
 @app.route('/checklist/toggle-active', methods=['POST'])
-@login_required
+@admin_required
 def toggle_checklist_active():
     data = request.json or {}
     item = db.session.get(ChecklistItem, int(data.get('id', 0)))
@@ -2264,14 +2281,14 @@ def toggle_checklist_active():
 # ── ADMIN – GRUPOS DE RESIDENTES ─────────────────────────────────────────────
 
 @app.route('/manage-groups')
-@login_required
+@admin_required
 def manage_groups():
     groups = ResidentGroup.query.order_by(ResidentGroup.name).all()
     return render_template('manage_groups.html', groups=groups)
 
 
 @app.route('/groups/<int:id>')
-@login_required
+@admin_required
 def group_detail(id: int):
     group = db.session.get(ResidentGroup, id)
     if group is None:
@@ -2285,7 +2302,7 @@ def group_detail(id: int):
 
 
 @app.route('/groups/add_edit', methods=['POST'])
-@login_required
+@admin_required
 def add_edit_group():
     group_id = request.form.get('group_id')
     name = request.form.get('name', '').strip()
@@ -2317,7 +2334,7 @@ def add_edit_group():
 
 
 @app.route('/groups/delete/<int:id>', methods=['POST'])
-@login_required
+@admin_required
 def delete_group(id: int):
     g = db.session.get(ResidentGroup, id)
     if g is None:
@@ -2410,7 +2427,7 @@ def _build_fichajes(worker_id: int, year: int, mon: int) -> list[dict]:
 
 
 @app.route('/fichajes')
-@login_required
+@admin_required
 def fichajes_trabajador():
     worker_id = request.args.get('worker_id', '', type=str)
     month = request.args.get('month', '')
@@ -2440,7 +2457,7 @@ def fichajes_trabajador():
 
 
 @app.route('/exportar_fichajes')
-@login_required
+@admin_required
 def exportar_fichajes():
     worker_id = request.args.get('worker_id', '', type=str)
     month = request.args.get('month', '')
@@ -2487,7 +2504,7 @@ def exportar_fichajes():
 # ── ADMIN – REGISTROS DE ATENCIÓN ─────────────────────────────────────────────
 
 @app.route('/registros-atencion')
-@login_required
+@admin_required
 def registros_atencion():
     worker_id = request.args.get('worker_id', '')
     resident_id = request.args.get('resident_id', '')
@@ -2541,7 +2558,7 @@ def registros_atencion():
 
 
 @app.route('/admin/resident/<int:resident_id>')
-@login_required
+@admin_required
 def resident_detail(resident_id: int):
     resident = db.session.get(Resident, resident_id)
     if not resident:
@@ -2607,7 +2624,7 @@ def resident_detail(resident_id: int):
 
 
 @app.route('/admin/resident/<int:resident_id>/export-excel')
-@login_required
+@admin_required
 def export_resident_care_excel(resident_id: int):
     resident = db.session.get(Resident, resident_id)
     if not resident:
@@ -2647,7 +2664,7 @@ def export_resident_care_excel(resident_id: int):
 
 
 @app.route('/admin/care-record/<int:record_id>/delete', methods=['POST'])
-@login_required
+@admin_required
 def delete_care_record(record_id: int):
     if not current_user.is_admin:
         abort(403)
@@ -2779,7 +2796,7 @@ def verify_selfie():
 # ══════════════════════════════════════════════════════════════════════════════
 
 @app.route('/admin/documents')
-@login_required
+@admin_required
 def admin_documents():
     docs = LegalDocument.query.order_by(LegalDocument.created_at.desc()).all()
     workers = Cleaner.query.filter_by(active=True).order_by(Cleaner.name).all()
@@ -2787,7 +2804,7 @@ def admin_documents():
 
 
 @app.route('/admin/documents/create', methods=['POST'])
-@login_required
+@admin_required
 def create_document():
     title = request.form.get('title', '').strip()
     content = request.form.get('content', '').strip()
@@ -2806,7 +2823,7 @@ def create_document():
 
 
 @app.route('/admin/documents/<int:doc_id>/edit', methods=['POST'])
-@login_required
+@admin_required
 def edit_document(doc_id: int):
     doc = db.session.get(LegalDocument, doc_id)
     if not doc:
@@ -2823,7 +2840,7 @@ def edit_document(doc_id: int):
 
 
 @app.route('/admin/documents/<int:doc_id>/delete', methods=['POST'])
-@login_required
+@admin_required
 def delete_document(doc_id: int):
     doc = db.session.get(LegalDocument, doc_id)
     if not doc:
@@ -2838,7 +2855,7 @@ def delete_document(doc_id: int):
 
 
 @app.route('/admin/documents/<int:doc_id>/toggle', methods=['POST'])
-@login_required
+@admin_required
 def toggle_document(doc_id: int):
     doc = db.session.get(LegalDocument, doc_id)
     if not doc:
@@ -2850,7 +2867,7 @@ def toggle_document(doc_id: int):
 
 
 @app.route('/admin/documents/<int:doc_id>/signatures')
-@login_required
+@admin_required
 def document_signatures(doc_id: int):
     doc = db.session.get(LegalDocument, doc_id)
     if not doc:
@@ -2937,13 +2954,13 @@ def sign_document(doc_id: int):
 # ══════════════════════════════════════════════════════════════════════════════
 
 @app.route('/admin/help')
-@login_required
+@admin_required
 def admin_help():
     return render_template('admin_help.html')
 
 
 @app.route('/admin/analytics')
-@login_required
+@admin_required
 def admin_analytics():
     days = request.args.get('days', 7, type=int)
     if days not in (7, 14, 30, 90):
@@ -3069,7 +3086,7 @@ def admin_analytics():
 
 
 @app.route('/admin/settings', methods=['GET', 'POST'])
-@login_required
+@admin_required
 def admin_settings():
     if request.method == 'POST':
         AppSetting.set('allow_group_care', 'true' if request.form.get('allow_group_care') else 'false')
@@ -3092,7 +3109,7 @@ def api_config():
 
 
 @app.route('/admin/training')
-@login_required
+@admin_required
 def admin_training():
     pills = TrainingPill.query.order_by(TrainingPill.created_at.desc()).all()
     total_workers = Cleaner.query.filter_by(active=True, is_admin=False).count()
@@ -3113,7 +3130,7 @@ def admin_training():
 
 
 @app.route('/admin/training/create', methods=['POST'])
-@login_required
+@admin_required
 def create_training():
     title = request.form.get('title', '').strip()
     description = request.form.get('description', '').strip()
@@ -3151,7 +3168,7 @@ def create_training():
 
 
 @app.route('/admin/training/<int:pill_id>/edit', methods=['POST'])
-@login_required
+@admin_required
 def edit_training(pill_id: int):
     pill = db.session.get(TrainingPill, pill_id)
     if not pill:
@@ -3183,7 +3200,7 @@ def edit_training(pill_id: int):
 
 
 @app.route('/admin/training/<int:pill_id>/delete', methods=['POST'])
-@login_required
+@admin_required
 def delete_training(pill_id: int):
     pill = db.session.get(TrainingPill, pill_id)
     if not pill:
@@ -3197,7 +3214,7 @@ def delete_training(pill_id: int):
 
 
 @app.route('/admin/training/<int:pill_id>/toggle', methods=['POST'])
-@login_required
+@admin_required
 def toggle_training(pill_id: int):
     pill = db.session.get(TrainingPill, pill_id)
     if not pill:
@@ -3209,7 +3226,7 @@ def toggle_training(pill_id: int):
 
 
 @app.route('/admin/training/<int:pill_id>/results')
-@login_required
+@admin_required
 def training_results(pill_id: int):
     pill = db.session.get(TrainingPill, pill_id)
     if not pill:

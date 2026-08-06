@@ -388,7 +388,10 @@
                 <div class="home-greeting">Bienvenido</div>
                 <div class="home-name" id="home-name">—</div>
             </div>
-            <button class="btn-logout" id="btn-logout" onclick="doLogout()">Cerrar sesión</button>
+            <div style="display:flex;gap:8px;align-items:center">
+                <button class="btn-logout" id="btn-refresh" onclick="refreshAll()" style="background:var(--green-lt);color:var(--green)" title="Actualizar">↻</button>
+                <button class="btn-logout" id="btn-logout" onclick="doLogout()">Cerrar sesión</button>
+            </div>
         </div>
 
         <!-- Sesiones activas -->
@@ -982,6 +985,20 @@ async function initHome() {
     $('chat-fab').style.display = '';
     await Promise.all([loadConfig(), loadActiveSessions(), loadHistory(), loadCareTypes(), loadMyGroups(), loadPendingItems()]);
     startGlobalTimer();
+}
+
+async function refreshAll() {
+    const btn = $('btn-refresh');
+    btn.disabled = true;
+    btn.style.opacity = '.5';
+    btn.textContent = '⟳';
+    try {
+        await Promise.all([loadActiveSessions(), loadHistory(), loadMyGroups(), loadPendingItems()]);
+        toast('Datos actualizados');
+    } catch (e) { toast('Error al actualizar'); }
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.textContent = '↻';
 }
 
 async function loadActiveSessions() {
