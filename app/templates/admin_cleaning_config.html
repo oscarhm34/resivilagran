@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Configuración de Rutas de Limpieza{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div class="d-flex align-items-center gap-3">
+        <a href="{{ url_for('cuadrantes') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Turnos
+        </a>
+        <h1 class="h4 mb-0">Configuraci&oacute;n de Rutas de Limpieza</h1>
+    </div>
+    <a href="{{ url_for('admin_analytics') }}" class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-bar-chart-line me-1" aria-hidden="true"></i>An&aacute;lisis
+    </a>
+</div>
+
+<!-- Card 1: Asignación de zonas -->
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Asignaci&oacute;n de zonas por trabajador
+    </div>
+    <div class="card-body">
+        <p class="text-muted mb-3" style="font-size:.9rem">
+            Asigna plantas/zonas a cada trabajador de limpieza. Si no se asigna ninguna, el trabajador ver&aacute; todas las habitaciones.
+        </p>
+
+        <form method="POST" action="{{ url_for('save_cleaning_assignments') }}">
+            <div class="row g-3 align-items-end mb-3">
+                <div class="col-md-4">
+                    <label for="worker-select" class="form-label">Trabajador</label>
+                    <select id="worker-select" name="worker_id" class="form-select" required>
+                        <option value="">-- Selecciona un trabajador --</option>
+                        {% for w in workers %}
+                        <option value="{{ w.id }}">{{ w.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label">Plantas asignadas</label>
+                    <div id="floor-checkboxes" class="d-flex flex-wrap gap-3">
+                        {% for f in floors %}
+                        <div class="form-check">
+                            <input class="form-check-input floor-cb" type="checkbox"
+                                   name="floor_ids" value="{{ f.id }}" id="floor-{{ f.id }}">
+                            <label class="form-check-label" for="floor-{{ f.id }}">{{ f.name }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">
+                <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Guardar asignaci&oacute;n
+            </button>
+        </form>
+
+        <hr class="my-4">
+
+        <h6 class="mb-3">Asignaciones actuales</h6>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Trabajador</th>
+                        <th>Plantas asignadas</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for w in workers %}
+                    <tr>
+                        <td>{{ w.name }}</td>
+                        <td>
+                            {% if assign_map.get(w.id) %}
+                                {% for f in floors if f.id in assign_map[w.id] %}
+                                <span class="badge bg-primary bg-opacity-10 text-primary me-1">{{ f.name }}</span>
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-muted" style="font-size:.85rem">Todas (sin restricci&oacute;n)</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Card 2: Tiempo objetivo por tipo de habitación -->
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="bi bi-stopwatch me-1" aria-hidden="true"></i>Tiempo objetivo por tipo de habitaci&oacute;n
+    </div>
+    <div class="card-body">
+        <p class="text-muted mb-3" style="font-size:.9rem">
+            Define el tiempo esperado de limpieza por tipo. Se usa como referencia cuando no hay datos hist&oacute;ricos.
+        </p>
+
+        <form method="POST" action="{{ url_for('save_cleaning_targets') }}">
+            <div class="table-responsive">
+                <table class="table mb-3">
+                    <thead>
+                        <tr>
+                            <th>Tipo de habitaci&oacute;n</th>
+                            <th style="width:180px">Tiempo objetivo (min)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for rt in room_types %}
+                        <tr>
+                            <td>{{ rt.name }}</td>
+                            <td>
+                                <input type="number" class="form-control form-control-sm"
+                                       name="target_{{ rt.id }}"
+                                       value="{{ targets.get(rt.id, '') }}"
+                                       min="0" step="0.5"
+                                       placeholder="Sin definir">
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">
+                <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Guardar tiempos
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var assignMap = {
+        {% for wid, fids in assign_map.items() %}
+        {{ wid }}: [{{ fids | join(',') }}]{{ ',' if not loop.last }}
+        {% endfor %}
+    };
+
+    var workerSelect = document.getElementById('worker-select');
+    var checkboxes = document.querySelectorAll('.floor-cb');
+
+    function updateCheckboxes() {
+        var wid = parseInt(workerSelect.value);
+        var assigned = assignMap[wid] || [];
+        checkboxes.forEach(function(cb) {
+            cb.checked = assigned.indexOf(parseInt(cb.value)) !== -1;
+        });
+    }
+
+    workerSelect.addEventListener('change', updateCheckboxes);
+
+    // Initialize: all unchecked
+    updateCheckboxes();
+})();
+</script>
+{% endblock %}

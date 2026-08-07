@@ -452,6 +452,19 @@
             </button>
         </div>
 
+        <!-- Ruta de limpieza -->
+        <div id="route-btn-wrap" style="display:none;margin-bottom:24px">
+            <div class="section-label">Ruta de limpieza</div>
+            <button id="btn-my-route" style="width:100%;border-radius:16px;padding:16px;border:2px solid rgba(0,105,217,.15);background:var(--blue-lt);cursor:pointer;display:flex;align-items:center;gap:12px;font-family:inherit;text-align:left">
+                <span style="font-size:28px">🗺️</span>
+                <div style="flex:1">
+                    <div style="font-family:'Outfit',sans-serif;font-size:16px;font-weight:700;color:var(--blue)">Mi ruta de hoy</div>
+                    <div id="route-summary-home" style="font-size:12px;color:var(--text-2)">Cargando...</div>
+                </div>
+                <span style="color:var(--text-2)">→</span>
+            </button>
+        </div>
+
         <!-- Historial completado hoy -->
         <div class="section-label" id="hist-label">Sin registros hoy</div>
         <div class="hist-list" id="hist-list"></div>
@@ -745,6 +758,18 @@
         <button class="btn-cam secondary" id="train-result-back" style="width:100%">Volver</button>
     </div>
 
+    <!-- ══ CLEANING ROUTE ══ -->
+    <div class="screen" id="screen-route">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+            <button id="route-back" style="background:none;border:1.5px solid var(--border);border-radius:12px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;font-family:inherit">←</button>
+            <div>
+                <div style="font-family:'Outfit',sans-serif;font-size:20px;font-weight:700">Mi ruta de hoy</div>
+                <div id="route-summary-detail" style="font-size:12px;color:var(--text-2)"></div>
+            </div>
+        </div>
+        <div id="route-list" style="display:flex;flex-direction:column;gap:8px"></div>
+    </div>
+
     <dialog id="cancel-dialog" style="border-radius:18px;border:none;padding:0;max-width:320px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.3);background:var(--surface)">
         <div style="padding:24px">
             <p style="font-weight:700;font-size:16px;font-family:'Outfit',system-ui,sans-serif;margin:0 0 6px">Cancelar sesión</p>
@@ -797,6 +822,7 @@ const S = {
     token:       localStorage.getItem('wt'),
     workerId:    localStorage.getItem('wid'),
     workerName:  localStorage.getItem('wname'),
+    workerRole:  localStorage.getItem('wrole') || 'atenciones',
     mode:        null,           // 'cleaning' | 'care' (current scan mode)
     sessions:    [],             // active sessions array
     careTypes:   [],
@@ -938,9 +964,11 @@ $('login-form').addEventListener('submit', async e => {
         S.token      = data.access_token;
         S.workerId   = String(data.id_cleaner);
         S.workerName = data.cleaner_name;
+        S.workerRole = data.role || 'atenciones';
         localStorage.setItem('wt',    S.token);
         localStorage.setItem('wid',   S.workerId);
         localStorage.setItem('wname', S.workerName);
+        localStorage.setItem('wrole', S.workerRole);
         await initHome();
     } else {
         $('login-error').textContent = data.error || 'Error de conexión. Inténtalo de nuevo.';
@@ -954,7 +982,7 @@ function doLogout() {
     stopNfc();
     S.token = S.workerId = S.workerName = null;
     S.sessions = [];
-    ['wt','wid','wname'].forEach(k => localStorage.removeItem(k));
+    ['wt','wid','wname','wrole'].forEach(k => localStorage.removeItem(k));
     $('chat-fab').style.display = 'none';
     try { $('chat-dialog').close(); } catch(e) {}
     try { $('chat-dialog').style.display = 'none'; } catch(e) {}
@@ -983,7 +1011,7 @@ async function initHome() {
     $('home-name').textContent = S.workerName || '—';
     show('screen-home');
     $('chat-fab').style.display = '';
-    await Promise.all([loadConfig(), loadActiveSessions(), loadHistory(), loadCareTypes(), loadMyGroups(), loadPendingItems()]);
+    await Promise.all([loadConfig(), loadActiveSessions(), loadHistory(), loadCareTypes(), loadMyGroups(), loadPendingItems(), loadRoute()]);
     startGlobalTimer();
 }
 
@@ -2869,6 +2897,83 @@ $('quiz-back').addEventListener('click', () => {
 });
 
 $('train-result-back').addEventListener('click', () => show('screen-home'));
+
+// ── Cleaning Route ───────────────────────────────────────────────────────
+async function loadRoute() {
+    if (S.workerRole !== 'limpieza') {
+        var wrap = $('route-btn-wrap');
+        if (wrap) wrap.style.display = 'none';
+        return;
+    }
+    var wrap = $('route-btn-wrap');
+    if (wrap) wrap.style.display = '';
+
+    var res = await api('/api/worker/cleaning-route?worker_id=' + S.workerId);
+    if (!res.ok) return;
+    var data = res.data;
+
+    // Update home summary
+    var homeSum = $('route-summary-home');
+    if (homeSum) {
+        homeSum.textContent = data.summary.remaining + ' habitaciones pendientes · ~' +
+            Math.round(data.summary.remaining_estimated_minutes) + ' min';
+    }
+
+    // Render route list
+    renderRoute(data);
+}
+
+function renderRoute(data) {
+    var list = $('route-list');
+    var detailSum = $('route-summary-detail');
+
+    detailSum.textContent = data.summary.cleaned_today + '/' + data.summary.total_rooms +
+        ' completadas · ' + data.summary.remaining + ' pendientes · ~' +
+        Math.round(data.summary.remaining_estimated_minutes) + ' min restantes';
+
+    var html = '';
+    var currentFloor = '';
+    var seq = 0;
+
+    for (var i = 0; i < data.route.length; i++) {
+        var room = data.route[i];
+
+        // Floor header
+        if (room.floor_name !== currentFloor) {
+            currentFloor = room.floor_name;
+            html += '<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-2);margin-top:12px;margin-bottom:4px">' +
+                esc(currentFloor) + '</div>';
+        }
+
+        if (!room.cleaned_today) seq++;
+
+        var bg = room.cleaned_today ? 'var(--green-lt)' : 'var(--bg)';
+        var border = room.cleaned_today ? 'rgba(26,127,55,.25)' : 'transparent';
+
+        html += '<div style="background:' + bg + ';border:2px solid ' + border + ';border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:12px;' +
+            (room.cleaned_today ? 'opacity:.6' : 'cursor:pointer') + '" ' +
+            (room.cleaned_today ? '' : 'onclick="handleCode(\'' + esc(room.number) + '\')"') + '>' +
+            '<div style="width:36px;height:36px;border-radius:10px;background:' +
+            (room.cleaned_today ? 'var(--green-lt)' : 'var(--blue-lt)') +
+            ';display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:' +
+            (room.cleaned_today ? 'var(--green)' : 'var(--blue)') + '">' +
+            (room.cleaned_today ? '✓' : seq) + '</div>' +
+            '<div style="flex:1;min-width:0">' +
+            '<div style="font-weight:600;font-size:14px">Hab. ' + esc(room.number) + '</div>' +
+            '<div style="font-size:12px;color:var(--text-2)">' + esc(room.description) + '</div>' +
+            '</div>' +
+            '<div style="text-align:right;flex-shrink:0">' +
+            '<div style="font-family:\'Outfit\',monospace;font-size:13px;font-weight:600;color:var(--text-2)">~' + room.estimated_minutes + ' min</div>' +
+            '<div style="font-size:10px;color:var(--text-2)">' + esc(room.room_type) + '</div>' +
+            '</div>' +
+            '</div>';
+    }
+
+    list.innerHTML = html;
+}
+
+$('btn-my-route').addEventListener('click', function() { show('screen-route'); });
+$('route-back').addEventListener('click', function() { show('screen-home'); });
 
 // ── Boot ───────────────────────────────────────────────────────────────────
 (async function boot() {

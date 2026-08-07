@@ -1,0 +1,319 @@
+{% extends "base.html" %}
+{% block title %}Analisis de Limpieza{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <!-- Header -->
+    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+        <div>
+            <h1 class="h3 mb-1"><i class="bi bi-droplet-half me-2" aria-hidden="true"></i>Analisis de Limpieza</h1>
+            <div class="d-flex gap-2 mt-2">
+                <a href="{{ url_for('admin_cleaning_config') }}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-gear me-1" aria-hidden="true"></i>Config rutas
+                </a>
+                <a href="{{ url_for('cuadrantes') }}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Cuadrantes
+                </a>
+            </div>
+        </div>
+        <div class="btn-group btn-group-sm">
+            <a href="?days=7" class="btn {% if days == 7 %}btn-primary{% else %}btn-outline-secondary{% endif %}">7 dias</a>
+            <a href="?days=14" class="btn {% if days == 14 %}btn-primary{% else %}btn-outline-secondary{% endif %}">14 dias</a>
+            <a href="?days=30" class="btn {% if days == 30 %}btn-primary{% else %}btn-outline-secondary{% endif %}">30 dias</a>
+            <a href="?days=90" class="btn {% if days == 90 %}btn-primary{% else %}btn-outline-secondary{% endif %}">90 dias</a>
+        </div>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card text-center p-3">
+                <div style="font-family:'Outfit';font-size:2rem;font-weight:700;color:var(--color-primary)">{{ room_stats|length }}</div>
+                <div class="small text-body-secondary">Habitaciones analizadas</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-center p-3">
+                {% set total_avg = (room_stats | map(attribute='avg_minutes') | list | sum / room_stats|length) if room_stats else 0 %}
+                <div style="font-family:'Outfit';font-size:2rem;font-weight:700;color:var(--color-success)">{{ '%.1f'|format(total_avg) }}</div>
+                <div class="small text-body-secondary">Tiempo medio (min)</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-center p-3">
+                <div style="font-family:'Outfit';font-size:2rem;font-weight:700;color:#bf8700">{{ worker_stats|length }}</div>
+                <div class="small text-body-secondary">Trabajadores analizados</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Two-column layout: Room stats + Type averages -->
+    <div class="row g-4 mb-4">
+        <!-- Left: Tiempo medio por habitacion -->
+        <div class="col-lg-7">
+            <div class="card h-100">
+                <div class="card-header">
+                    <i class="bi bi-door-open me-1" aria-hidden="true"></i>Tiempo medio por habitacion
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Habitacion</th>
+                                    <th class="hide-mobile">Planta</th>
+                                    <th class="hide-mobile">Tipo</th>
+                                    <th class="text-end">Media</th>
+                                    <th class="text-end">N</th>
+                                    <th style="min-width:120px"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for r in room_stats %}
+                                <tr>
+                                    <td><strong>{{ r.room_number }}</strong></td>
+                                    <td class="hide-mobile text-body-secondary">{{ r.floor }}</td>
+                                    <td class="hide-mobile text-body-secondary">{{ r.room_type }}</td>
+                                    <td class="text-end"><strong>{{ '%.1f'|format(r.avg_minutes) }}</strong> min</td>
+                                    <td class="text-end text-body-secondary">{{ r.count }}</td>
+                                    <td>
+                                        {% set bar_pct = [r.avg_minutes / 60 * 100, 100] | min %}
+                                        {% if r.avg_minutes < 15 %}
+                                            {% set bar_color = 'var(--color-success)' %}
+                                        {% elif r.avg_minutes < 30 %}
+                                            {% set bar_color = '#bf8700' %}
+                                        {% else %}
+                                            {% set bar_color = 'var(--color-danger)' %}
+                                        {% endif %}
+                                        <div style="background:#f0f0f0;border-radius:4px;height:8px;overflow:hidden">
+                                            <div style="width:{{ bar_pct }}%;height:100%;background:{{ bar_color }};border-radius:4px;transition:width .3s"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                {% if not room_stats %}
+                                <tr><td colspan="6" class="text-center text-body-secondary py-3">Sin datos</td></tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Tiempo medio por tipo -->
+        <div class="col-lg-5">
+            <div class="card h-100">
+                <div class="card-header">
+                    <i class="bi bi-tags me-1" aria-hidden="true"></i>Tiempo medio por tipo
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Tipo</th>
+                                    <th class="text-end">Media</th>
+                                    <th class="text-end">N</th>
+                                    <th class="text-end">Objetivo</th>
+                                    <th class="text-end">Variacion</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for t in type_averages %}
+                                <tr>
+                                    <td><strong>{{ t.type }}</strong></td>
+                                    <td class="text-end">
+                                        {% set avg_val = t.avg %}
+                                        {% if avg_val < 15 %}
+                                            {% set bar_color = 'var(--color-success)' %}
+                                        {% elif avg_val < 30 %}
+                                            {% set bar_color = '#bf8700' %}
+                                        {% else %}
+                                            {% set bar_color = 'var(--color-danger)' %}
+                                        {% endif %}
+                                        <strong style="color:{{ bar_color }}">{{ avg_val }}</strong> min
+                                    </td>
+                                    <td class="text-end text-body-secondary">{{ t.count }}</td>
+                                    <td class="text-end">
+                                        {% if target_map.get(t.type) %}
+                                            {{ target_map[t.type] }} min
+                                        {% else %}
+                                            <span class="text-body-secondary">&mdash;</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        {% if target_map.get(t.type) %}
+                                            {% set diff = t.avg - target_map[t.type] %}
+                                            {% if diff > 0 %}
+                                                <span class="status-badge status-danger">+{{ '%.1f'|format(diff) }}</span>
+                                            {% elif diff < -2 %}
+                                                <span class="status-badge status-success">{{ '%.1f'|format(diff) }}</span>
+                                            {% else %}
+                                                <span class="status-badge status-muted">{{ '%.1f'|format(diff) }}</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-body-secondary">&mdash;</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                {% if not type_averages %}
+                                <tr><td colspan="5" class="text-center text-body-secondary py-3">Sin datos</td></tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Productividad por trabajador -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="bi bi-person-badge me-1" aria-hidden="true"></i>Productividad por trabajador
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Trabajador</th>
+                            <th class="text-end">Media (min)</th>
+                            <th class="text-end">Limpiezas</th>
+                            <th class="text-end">Horas totales</th>
+                            <th style="min-width:140px"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for w in worker_stats %}
+                        <tr>
+                            <td><strong>{{ w.name }}</strong></td>
+                            <td class="text-end">
+                                {% if w.avg < 15 %}
+                                    {% set w_color = 'var(--color-success)' %}
+                                {% elif w.avg < 30 %}
+                                    {% set w_color = '#bf8700' %}
+                                {% else %}
+                                    {% set w_color = 'var(--color-danger)' %}
+                                {% endif %}
+                                <strong style="color:{{ w_color }}">{{ w.avg }}</strong>
+                            </td>
+                            <td class="text-end text-body-secondary">{{ w.count }}</td>
+                            <td class="text-end text-body-secondary">{{ w.total_hours }} h</td>
+                            <td>
+                                {% set w_pct = [w.avg / 60 * 100, 100] | min %}
+                                {% if w.avg < 15 %}
+                                    {% set w_bar = 'var(--color-success)' %}
+                                {% elif w.avg < 30 %}
+                                    {% set w_bar = '#bf8700' %}
+                                {% else %}
+                                    {% set w_bar = 'var(--color-danger)' %}
+                                {% endif %}
+                                <div style="background:#f0f0f0;border-radius:4px;height:8px;overflow:hidden">
+                                    <div style="width:{{ w_pct }}%;height:100%;background:{{ w_bar }};border-radius:4px;transition:width .3s"></div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if not worker_stats %}
+                        <tr><td colspan="5" class="text-center text-body-secondary py-3">Sin datos</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Coverage gaps -->
+    {% if coverage_gaps %}
+    <div class="card mb-4">
+        <div class="card-header" style="background:#fff3cd;border-color:#ffc107">
+            <span style="color:#856404">
+                <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
+                Habitaciones sin limpiar (ultimos 7 dias) &mdash; {{ coverage_gaps|length }}
+            </span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Habitacion</th>
+                            <th class="hide-mobile">Planta</th>
+                            <th>Ultima limpieza</th>
+                            <th class="text-end">Dias sin limpiar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for g in coverage_gaps %}
+                        <tr>
+                            <td><strong>{{ g.room_number }}</strong></td>
+                            <td class="hide-mobile text-body-secondary">{{ g.floor }}</td>
+                            <td>
+                                {% if g.last_cleaned == 'Nunca' %}
+                                    <span class="status-badge status-danger">Nunca</span>
+                                {% else %}
+                                    {{ g.last_cleaned }}
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                {% if g.days_since is none %}
+                                    <span class="status-badge status-danger">N/A</span>
+                                {% elif g.days_since > 14 %}
+                                    <span class="status-badge status-danger">{{ g.days_since }} dias</span>
+                                {% elif g.days_since > 7 %}
+                                    <span class="status-badge status-warning">{{ g.days_since }} dias</span>
+                                {% else %}
+                                    <span class="status-badge status-muted">{{ g.days_since }} dias</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* Sorting for room stats table */
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.table thead th').forEach(function(th) {
+        th.style.cursor = 'pointer';
+        th.addEventListener('click', function() {
+            var table = th.closest('table');
+            var tbody = table.querySelector('tbody');
+            var rows = Array.from(tbody.querySelectorAll('tr'));
+            var idx = Array.from(th.parentNode.children).indexOf(th);
+            var asc = th.dataset.sort !== 'asc';
+
+            rows.sort(function(a, b) {
+                var aCell = a.children[idx];
+                var bCell = b.children[idx];
+                if (!aCell || !bCell) return 0;
+                var aVal = (aCell.textContent || '').trim();
+                var bVal = (bCell.textContent || '').trim();
+                var aNum = parseFloat(aVal.replace(',', '.'));
+                var bNum = parseFloat(bVal.replace(',', '.'));
+                if (!isNaN(aNum) && !isNaN(bNum)) {
+                    return asc ? aNum - bNum : bNum - aNum;
+                }
+                return asc ? aVal.localeCompare(bVal, 'es') : bVal.localeCompare(aVal, 'es');
+            });
+
+            th.parentNode.querySelectorAll('th').forEach(function(h) { delete h.dataset.sort; });
+            th.dataset.sort = asc ? 'asc' : 'desc';
+            rows.forEach(function(row) { tbody.appendChild(row); });
+        });
+    });
+});
+</script>
+{% endblock %}

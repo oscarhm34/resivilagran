@@ -8,7 +8,8 @@ from .models import (Cleaner, Room, CleaningRecord, Floor, RoomType, Resident,
                       VitalSignType, VitalSignReading, AppSetting,
                       ShiftType, ShiftAssignment,
                       RotationPattern, RotationPatternDay, WorkerShiftConfig,
-                      AbsenceType, Absence, ShiftCoverageRequirement)
+                      AbsenceType, Absence, ShiftCoverageRequirement,
+                      CleaningZoneAssignment, CleaningTargetTime)
 from flask import request, jsonify, render_template, redirect, url_for, flash, send_file, send_from_directory, abort
 from flask_login import login_user, logout_user, login_required, current_user
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
@@ -257,7 +258,7 @@ def login():
     user = Cleaner.query.filter_by(username=username).first()
     if user and user.check_password(password):
         access_token = create_access_token(identity=username, expires_delta=timedelta(hours=12))
-        return jsonify(access_token=access_token, id_cleaner=user.id, cleaner_name=user.name), 200
+        return jsonify(access_token=access_token, id_cleaner=user.id, cleaner_name=user.name, role=user.role), 200
 
     return jsonify({'error': 'Credenciales incorrectas'}), 401
 
@@ -4314,3 +4315,286 @@ def cuadrantes_validate():
                 })
 
     return jsonify({'warnings': warnings})
+
+
+# ── RUTAS DE LIMPIEZA INTELIGENTES ──────────────────────────────────────────
+
+def _compute_cleaning_stats(days_back: int = 90) -> dict:
+    """Compute average cleaning duration per room from historical data."""
+    cutoff = datetime.now() - timedelta(days=days_back)
+    records = CleaningRecord.query.filter(
+        CleaningRecord.end_time.isnot(None),
+        CleaningRecord.start_time >= cutoff,
+    ).all()
+
+    # Group by room_id -> list of durations in minutes
+    room_durations: dict[int, list[float]] = {}
+    # Track historical sequences: per worker per day -> ordered list of room_ids
+    worker_sequences: dict[tuple[int, str], list[tuple[float, int]]] = {}
+
+    for r in records:
+        dur = r.calculate_duration()
+        if dur and dur > 60 and dur < 7200:  # between 1 min and 2 hours (filter outliers)
+            mins = dur / 60
+            room_durations.setdefault(r.room_id, []).append(mins)
+            day_key = (r.cleaner_id, r.start_time.strftime('%Y-%m-%d'))
+            worker_sequences.setdefault(day_key, []).append((r.start_time.timestamp(), r.room_id))
+
+    # Average per room
+    avg_per_room = {}
+    for room_id, durs in room_durations.items():
+        avg_per_room[room_id] = round(sum(durs) / len(durs), 1)
+
+    # Most common sequence patterns: count how often room A is followed by room B
+    transition_counts: dict[tuple[int, int], int] = {}
+    for day_key, seq in worker_sequences.items():
+        seq.sort()  # sort by timestamp
+        room_order = [room_id for _, room_id in seq]
+        for i in range(len(room_order) - 1):
+            pair = (room_order[i], room_order[i + 1])
+            transition_counts[pair] = transition_counts.get(pair, 0) + 1
+
+    return {
+        'avg_per_room': avg_per_room,
+        'transition_counts': transition_counts,
+        'room_durations': room_durations,
+    }
+
+
+@app.route('/api/worker/cleaning-route')
+@jwt_required()
+def worker_cleaning_route():
+    """Return suggested cleaning route for the authenticated worker."""
+    identity = get_jwt_identity()
+    worker = Cleaner.query.filter_by(username=identity).first()
+    if not worker:
+        return jsonify({'error': 'Worker not found'}), 404
+
+    # Get worker's assigned floors (or all if none assigned)
+    zone_assignments = CleaningZoneAssignment.query.filter_by(cleaner_id=worker.id).all()
+    assigned_floor_ids = {za.floor_id for za in zone_assignments}
+
+    if assigned_floor_ids:
+        rooms = Room.query.filter(Room.floor_id.in_(assigned_floor_ids)).all()
+    else:
+        rooms = Room.query.all()
+
+    # Get today's completed cleanings
+    today_start = datetime.combine(date.today(), datetime.min.time())
+    today_cleaned = {r.room_id for r in CleaningRecord.query.filter(
+        CleaningRecord.end_time.isnot(None),
+        CleaningRecord.start_time >= today_start,
+    ).all()}
+
+    # Get historical stats
+    stats = _compute_cleaning_stats(90)
+    avg_per_room = stats['avg_per_room']
+    transition_counts = stats['transition_counts']
+
+    # Get target times per room type as fallback
+    targets = {t.room_type_id: t.target_minutes for t in CleaningTargetTime.query.all()}
+
+    # Build room info with estimated times
+    floors_data = {}
+    for room in rooms:
+        floor = room.floor
+        if floor.id not in floors_data:
+            floors_data[floor.id] = {'name': floor.name, 'id': floor.id, 'rooms': []}
+
+        est_minutes = avg_per_room.get(room.id, targets.get(room.room_type_id, 15))
+        cleaned = room.id in today_cleaned
+
+        floors_data[floor.id]['rooms'].append({
+            'id': room.id,
+            'number': room.number,
+            'description': room.description or '',
+            'room_type': room.room_type.name if room.room_type else '',
+            'estimated_minutes': round(est_minutes, 1),
+            'cleaned_today': cleaned,
+        })
+
+    # Sort rooms within each floor: use historical sequence patterns + room number
+    for floor_data in floors_data.values():
+        floor_rooms = floor_data['rooms']
+
+        # Score rooms by historical transition frequency for ordering
+        # Start with room number order, then adjust based on transitions
+        def room_sort_key(r):
+            try:
+                return (0, int(r['number']))
+            except (ValueError, TypeError):
+                return (1, r['number'])
+
+        floor_rooms.sort(key=room_sort_key)
+
+    # Build final ordered route: floors sorted by name, rooms in optimized order
+    route = []
+    total_estimated = 0
+    remaining_estimated = 0
+
+    for floor_id in sorted(floors_data.keys(), key=lambda fid: floors_data[fid]['name']):
+        floor_data = floors_data[floor_id]
+        for room in floor_data['rooms']:
+            room['floor_name'] = floor_data['name']
+            route.append(room)
+            total_estimated += room['estimated_minutes']
+            if not room['cleaned_today']:
+                remaining_estimated += room['estimated_minutes']
+
+    cleaned_count = sum(1 for r in route if r['cleaned_today'])
+
+    return jsonify({
+        'route': route,
+        'summary': {
+            'total_rooms': len(route),
+            'cleaned_today': cleaned_count,
+            'remaining': len(route) - cleaned_count,
+            'total_estimated_minutes': round(total_estimated, 0),
+            'remaining_estimated_minutes': round(remaining_estimated, 0),
+        },
+    })
+
+
+@app.route('/admin/cleaning-analytics')
+@admin_required
+def admin_cleaning_analytics():
+    days = request.args.get('days', 30, type=int)
+    stats = _compute_cleaning_stats(days)
+    avg_per_room = stats['avg_per_room']
+    room_durations = stats['room_durations']
+
+    # Room details with averages
+    rooms = Room.query.options(
+        joinedload(Room.floor), joinedload(Room.room_type)
+    ).all()
+    room_map = {r.id: r for r in rooms}
+
+    room_stats = []
+    for room_id, avg_min in sorted(avg_per_room.items(), key=lambda x: -x[1]):
+        room = room_map.get(room_id)
+        if room:
+            room_stats.append({
+                'room_number': room.number,
+                'description': room.description or '',
+                'floor': room.floor.name if room.floor else '',
+                'room_type': room.room_type.name if room.room_type else '',
+                'avg_minutes': avg_min,
+                'count': len(room_durations.get(room_id, [])),
+            })
+
+    # Per room type
+    type_stats = {}
+    for room_id, durs in room_durations.items():
+        room = room_map.get(room_id)
+        if room and room.room_type:
+            tname = room.room_type.name
+            type_stats.setdefault(tname, []).extend(durs)
+    type_averages = [
+        {'type': tname, 'avg': round(sum(durs) / len(durs), 1), 'count': len(durs)}
+        for tname, durs in sorted(type_stats.items())
+    ]
+
+    # Per worker
+    cutoff = datetime.now() - timedelta(days=days)
+    worker_records = CleaningRecord.query.filter(
+        CleaningRecord.end_time.isnot(None),
+        CleaningRecord.start_time >= cutoff,
+    ).options(joinedload(CleaningRecord.cleaner)).all()
+
+    worker_stats_map = {}
+    for r in worker_records:
+        dur = r.calculate_duration()
+        if dur and 60 < dur < 7200:
+            wid = r.cleaner_id
+            worker_stats_map.setdefault(wid, {'name': r.cleaner.name if r.cleaner else '?', 'durations': []})
+            worker_stats_map[wid]['durations'].append(dur / 60)
+
+    worker_stats = [
+        {'name': ws['name'], 'avg': round(sum(ws['durations']) / len(ws['durations']), 1),
+         'count': len(ws['durations']), 'total_hours': round(sum(ws['durations']) / 60, 1)}
+        for ws in sorted(worker_stats_map.values(), key=lambda x: -sum(x['durations']) / len(x['durations']))
+    ]
+
+    # Coverage gaps: rooms not cleaned in last 7 days
+    week_ago = datetime.now() - timedelta(days=7)
+    last_cleaned = {}
+    for r in CleaningRecord.query.filter(CleaningRecord.end_time.isnot(None)).all():
+        if r.room_id not in last_cleaned or r.start_time > last_cleaned[r.room_id]:
+            last_cleaned[r.room_id] = r.start_time
+
+    coverage_gaps = []
+    for room in rooms:
+        last = last_cleaned.get(room.id)
+        if not last or last < week_ago:
+            days_since = (datetime.now() - last).days if last else None
+            coverage_gaps.append({
+                'room_number': room.number,
+                'description': room.description or '',
+                'floor': room.floor.name if room.floor else '',
+                'last_cleaned': last.strftime('%d/%m/%Y') if last else 'Nunca',
+                'days_since': days_since,
+            })
+
+    targets = {t.room_type_id: t.target_minutes for t in CleaningTargetTime.query.all()}
+    target_map = {}
+    for rt in RoomType.query.all():
+        if rt.id in targets:
+            target_map[rt.name] = targets[rt.id]
+
+    return render_template('admin_cleaning_analytics.html',
+        days=days, room_stats=room_stats, type_averages=type_averages,
+        worker_stats=worker_stats, coverage_gaps=coverage_gaps,
+        target_map=target_map,
+    )
+
+
+@app.route('/admin/cleaning-config')
+@admin_required
+def admin_cleaning_config():
+    workers = Cleaner.query.filter_by(active=True, role='limpieza').order_by(Cleaner.name).all()
+    floors = Floor.query.order_by(Floor.name).all()
+    room_types = RoomType.query.all()
+    assignments = CleaningZoneAssignment.query.all()
+    targets = {t.room_type_id: t.target_minutes for t in CleaningTargetTime.query.all()}
+    assign_map = {}
+    for a in assignments:
+        assign_map.setdefault(a.cleaner_id, set()).add(a.floor_id)
+    return render_template('admin_cleaning_config.html',
+        workers=workers, floors=floors, room_types=room_types,
+        assign_map=assign_map, targets=targets,
+    )
+
+
+@app.route('/admin/cleaning-config/save-assignments', methods=['POST'])
+@admin_required
+def save_cleaning_assignments():
+    cleaner_id = request.form.get('cleaner_id', type=int)
+    if not cleaner_id:
+        flash('Selecciona un trabajador.', 'danger')
+        return redirect(url_for('admin_cleaning_config'))
+    floor_ids = request.form.getlist('floor_ids')
+    CleaningZoneAssignment.query.filter_by(cleaner_id=cleaner_id).delete()
+    for fid in floor_ids:
+        db.session.add(CleaningZoneAssignment(cleaner_id=cleaner_id, floor_id=int(fid)))
+    db.session.commit()
+    flash('Zonas asignadas correctamente.', 'success')
+    return redirect(url_for('admin_cleaning_config'))
+
+
+@app.route('/admin/cleaning-config/save-targets', methods=['POST'])
+@admin_required
+def save_cleaning_targets():
+    room_types = RoomType.query.all()
+    for rt in room_types:
+        val = request.form.get(f'target_{rt.id}', type=float)
+        existing = CleaningTargetTime.query.filter_by(room_type_id=rt.id).first()
+        if val and val > 0:
+            if existing:
+                existing.target_minutes = val
+            else:
+                db.session.add(CleaningTargetTime(room_type_id=rt.id, target_minutes=val))
+        elif existing:
+            db.session.delete(existing)
+    db.session.commit()
+    flash('Tiempos objetivo guardados.', 'success')
+    return redirect(url_for('admin_cleaning_config'))

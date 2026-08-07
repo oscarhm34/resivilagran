@@ -452,3 +452,28 @@ class ShiftCoverageRequirement(db.Model):
     shift_type = db.relationship('ShiftType')
 
     __table_args__ = (db.UniqueConstraint('shift_type_id', 'day_type', name='uq_coverage_shift_day'),)
+
+
+# ── RUTAS DE LIMPIEZA ────────────────────────────────────────────────────────
+
+class CleaningZoneAssignment(db.Model):
+    """Assigns a worker to specific floors for cleaning."""
+    __tablename__ = 'cleaning_zone_assignment'
+    id = db.Column(db.Integer, primary_key=True)
+    cleaner_id = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=False)
+    floor_id = db.Column(db.Integer, db.ForeignKey('floor.id'), nullable=False)
+
+    cleaner = db.relationship('Cleaner', backref=db.backref('zone_assignments', lazy=True))
+    floor = db.relationship('Floor')
+
+    __table_args__ = (db.UniqueConstraint('cleaner_id', 'floor_id', name='uq_cleaner_floor'),)
+
+
+class CleaningTargetTime(db.Model):
+    """Admin-defined target cleaning time per room type."""
+    __tablename__ = 'cleaning_target_time'
+    id = db.Column(db.Integer, primary_key=True)
+    room_type_id = db.Column(db.Integer, db.ForeignKey('room_type.id'), nullable=False, unique=True)
+    target_minutes = db.Column(db.Float, nullable=False, default=15)
+
+    room_type = db.relationship('RoomType')
