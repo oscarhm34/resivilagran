@@ -4473,12 +4473,28 @@ def worker_cleaning_route():
 
     now = datetime.now()
 
+    # Check which numeric rooms have active residents assigned
+    occupied_room_numbers = {r.room_number for r in Resident.query.filter_by(active=True).all()
+                             if r.room_number}
+
     # Build room info with estimated times and urgency
     route = []
     for room in rooms:
         est_minutes = avg_per_room.get(room.id, targets.get(room.room_type_id, 15))
         cleaned = room.id in today_cleaned
         floor = room.floor
+
+        # Check if this is a numeric room (habitacion) vs zone
+        is_numeric = False
+        try:
+            int(room.number)
+            is_numeric = True
+        except (ValueError, TypeError):
+            pass
+
+        # Check if room has a resident (only relevant for numeric rooms)
+        is_occupied = room.number in occupied_room_numbers
+        is_resident_room = room.room_type and 'residen' in room.room_type.name.lower()
 
         # Calculate urgency: how overdue is this room?
         count = room_clean_count.get(room.id, 0)
@@ -4487,6 +4503,10 @@ def worker_cleaning_route():
             expected_freq_days = 90 / count  # how often it's usually cleaned
         else:
             expected_freq_days = 7  # default: weekly
+
+        # Empty resident rooms need less frequent cleaning (3x less urgent)
+        if is_numeric and is_resident_room and not is_occupied:
+            expected_freq_days *= 3
 
         if last:
             days_since = (now - last).days
@@ -4497,19 +4517,20 @@ def worker_cleaning_route():
             urgency = 10  # never cleaned = highest urgency
 
         # Priority label
+        empty_tag = ' (vacía)' if is_numeric and is_resident_room and not is_occupied else ''
         if cleaned:
             priority = 'done'
             priority_label = 'Limpiada hoy'
         elif urgency >= 2:
             priority = 'urgent'
-            priority_label = f'Atrasada ({days_since}d sin limpiar, se limpia cada {expected_freq_days:.0f}d)'
+            priority_label = f'Atrasada ({days_since}d sin limpiar, se limpia cada {expected_freq_days:.0f}d){empty_tag}'
         elif urgency >= 1:
             priority = 'due'
-            priority_label = f'Toca hoy ({days_since}d sin limpiar)'
+            priority_label = f'Toca hoy ({days_since}d sin limpiar){empty_tag}'
         else:
             priority = 'ok'
             remaining_days = expected_freq_days - (days_since or 0)
-            priority_label = f'Faltan {remaining_days:.0f}d para la siguiente'
+            priority_label = f'Faltan {remaining_days:.0f}d{empty_tag}'
 
         route.append({
             'id': room.id,
