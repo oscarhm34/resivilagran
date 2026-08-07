@@ -2926,10 +2926,12 @@ async function loadRoute() {
         return;
     }
 
-    // Update home summary with shift info
+    // Update home summary with shift and urgency info
     var shiftInfo = data.summary.shift ? (' · Turno ' + data.summary.shift.name + ' (' + data.summary.shift.start_time + '-' + data.summary.shift.end_time + ')') : '';
+    var urgentInfo = data.summary.urgent > 0 ? (data.summary.urgent + ' urgentes') : '';
     if (homeSum) {
-        homeSum.textContent = data.summary.remaining + ' hab. pendientes · ~' +
+        homeSum.textContent = (urgentInfo ? urgentInfo + ' · ' : '') +
+            data.summary.remaining + ' pendientes · ~' +
             Math.round(data.summary.remaining_estimated_minutes) + ' min' + shiftInfo;
     }
 
@@ -2941,43 +2943,61 @@ function renderRoute(data) {
     var list = $('route-list');
     var detailSum = $('route-summary-detail');
 
-    detailSum.textContent = data.summary.cleaned_today + '/' + data.summary.total_rooms +
+    var urgentText = data.summary.urgent > 0 ? (data.summary.urgent + ' urgentes · ') : '';
+    detailSum.textContent = urgentText + data.summary.cleaned_today + '/' + data.summary.total_rooms +
         ' completadas · ' + data.summary.remaining + ' pendientes · ~' +
         Math.round(data.summary.remaining_estimated_minutes) + ' min restantes';
 
     var html = '';
-    var currentFloor = '';
+    var currentPriority = '';
     var seq = 0;
 
     for (var i = 0; i < data.route.length; i++) {
         var room = data.route[i];
 
-        // Floor header
-        if (room.floor_name !== currentFloor) {
-            currentFloor = room.floor_name;
-            html += '<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-2);margin-top:12px;margin-bottom:4px">' +
-                esc(currentFloor) + '</div>';
+        // Priority section headers
+        var sectionLabel = '';
+        if (room.priority === 'urgent' && currentPriority !== 'urgent') {
+            sectionLabel = '<div style="font-size:12px;font-weight:700;color:#cf222e;margin-top:12px;margin-bottom:6px;display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:#cf222e;display:inline-block"></span>Atrasadas (necesitan limpieza urgente)</div>';
+            currentPriority = 'urgent';
+        } else if (room.priority === 'due' && currentPriority !== 'due') {
+            sectionLabel = '<div style="font-size:12px;font-weight:700;color:#bf8700;margin-top:16px;margin-bottom:6px;display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:#bf8700;display:inline-block"></span>Toca hoy</div>';
+            currentPriority = 'due';
+        } else if (room.priority === 'ok' && currentPriority !== 'ok') {
+            sectionLabel = '<div style="font-size:12px;font-weight:700;color:var(--text-2);margin-top:16px;margin-bottom:6px;display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:var(--text-2);display:inline-block"></span>Al dia</div>';
+            currentPriority = 'ok';
+        } else if (room.priority === 'done' && currentPriority !== 'done') {
+            sectionLabel = '<div style="font-size:12px;font-weight:700;color:var(--green);margin-top:16px;margin-bottom:6px;display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block"></span>Completadas hoy</div>';
+            currentPriority = 'done';
         }
+        html += sectionLabel;
 
         if (!room.cleaned_today) seq++;
 
-        var bg = room.cleaned_today ? 'var(--green-lt)' : 'var(--bg)';
-        var border = room.cleaned_today ? 'rgba(26,127,55,.25)' : 'transparent';
+        // Colors by priority
+        var bg, border, iconBg, iconColor;
+        if (room.cleaned_today) {
+            bg = 'var(--green-lt)'; border = 'rgba(26,127,55,.25)'; iconBg = 'var(--green-lt)'; iconColor = 'var(--green)';
+        } else if (room.priority === 'urgent') {
+            bg = '#fff5f5'; border = 'rgba(207,34,46,.3)'; iconBg = '#ffddd9'; iconColor = '#cf222e';
+        } else if (room.priority === 'due') {
+            bg = '#fff8e6'; border = 'rgba(191,135,0,.25)'; iconBg = '#fff3cd'; iconColor = '#bf8700';
+        } else {
+            bg = 'var(--bg)'; border = 'transparent'; iconBg = 'var(--blue-lt)'; iconColor = 'var(--blue)';
+        }
 
         html += '<div style="background:' + bg + ';border:2px solid ' + border + ';border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:12px;' +
             (room.cleaned_today ? 'opacity:.6' : 'cursor:pointer') + '" ' +
             (room.cleaned_today ? '' : 'onclick="handleCode(\'' + esc(room.number) + '\')"') + '>' +
-            '<div style="width:36px;height:36px;border-radius:10px;background:' +
-            (room.cleaned_today ? 'var(--green-lt)' : 'var(--blue-lt)') +
-            ';display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:' +
-            (room.cleaned_today ? 'var(--green)' : 'var(--blue)') + '">' +
+            '<div style="width:36px;height:36px;border-radius:10px;background:' + iconBg +
+            ';display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:' + iconColor + '">' +
             (room.cleaned_today ? '✓' : seq) + '</div>' +
             '<div style="flex:1;min-width:0">' +
             '<div style="font-weight:600;font-size:14px">Hab. ' + esc(room.number) + '</div>' +
-            '<div style="font-size:12px;color:var(--text-2)">' + esc(room.description) + '</div>' +
+            '<div style="font-size:11px;color:var(--text-2)">' + esc(room.priority_label) + '</div>' +
             '</div>' +
             '<div style="text-align:right;flex-shrink:0">' +
-            '<div style="font-family:\'Outfit\',monospace;font-size:13px;font-weight:600;color:var(--text-2)">~' + room.estimated_minutes + ' min</div>' +
+            '<div style="font-family:\'Outfit\',monospace;font-size:13px;font-weight:600;color:' + iconColor + '">~' + room.estimated_minutes + ' min</div>' +
             '<div style="font-size:10px;color:var(--text-2)">' + esc(room.room_type) + '</div>' +
             '</div>' +
             '</div>';

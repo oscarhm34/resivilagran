@@ -4454,59 +4454,96 @@ def worker_cleaning_route():
     # Get historical stats
     stats = _compute_cleaning_stats(90)
     avg_per_room = stats['avg_per_room']
-    transition_counts = stats['transition_counts']
 
     # Get target times per room type as fallback
     targets = {t.room_type_id: t.target_minutes for t in CleaningTargetTime.query.all()}
 
-    # Build room info with estimated times
-    floors_data = {}
-    for room in rooms:
-        floor = room.floor
-        if floor.id not in floors_data:
-            floors_data[floor.id] = {'name': floor.name, 'id': floor.id, 'rooms': []}
+    # Calculate cleaning frequency and urgency per room
+    cutoff_freq = datetime.now() - timedelta(days=90)
+    all_records = CleaningRecord.query.filter(
+        CleaningRecord.end_time.isnot(None),
+        CleaningRecord.start_time >= cutoff_freq,
+    ).all()
+    room_clean_count = {}
+    room_last_cleaned = {}
+    for rec in all_records:
+        room_clean_count[rec.room_id] = room_clean_count.get(rec.room_id, 0) + 1
+        if rec.room_id not in room_last_cleaned or rec.start_time > room_last_cleaned[rec.room_id]:
+            room_last_cleaned[rec.room_id] = rec.start_time
 
+    now = datetime.now()
+
+    # Build room info with estimated times and urgency
+    route = []
+    for room in rooms:
         est_minutes = avg_per_room.get(room.id, targets.get(room.room_type_id, 15))
         cleaned = room.id in today_cleaned
+        floor = room.floor
 
-        floors_data[floor.id]['rooms'].append({
+        # Calculate urgency: how overdue is this room?
+        count = room_clean_count.get(room.id, 0)
+        last = room_last_cleaned.get(room.id)
+        if count > 0:
+            expected_freq_days = 90 / count  # how often it's usually cleaned
+        else:
+            expected_freq_days = 7  # default: weekly
+
+        if last:
+            days_since = (now - last).days
+            # Urgency ratio: >1 means overdue, >2 means very overdue
+            urgency = days_since / expected_freq_days if expected_freq_days > 0 else 0
+        else:
+            days_since = None
+            urgency = 10  # never cleaned = highest urgency
+
+        # Priority label
+        if cleaned:
+            priority = 'done'
+            priority_label = 'Limpiada hoy'
+        elif urgency >= 2:
+            priority = 'urgent'
+            priority_label = f'Atrasada ({days_since}d sin limpiar, se limpia cada {expected_freq_days:.0f}d)'
+        elif urgency >= 1:
+            priority = 'due'
+            priority_label = f'Toca hoy ({days_since}d sin limpiar)'
+        else:
+            priority = 'ok'
+            remaining_days = expected_freq_days - (days_since or 0)
+            priority_label = f'Faltan {remaining_days:.0f}d para la siguiente'
+
+        route.append({
             'id': room.id,
             'number': room.number,
             'description': room.description or '',
             'room_type': room.room_type.name if room.room_type else '',
+            'floor_name': floor.name if floor else '',
+            'floor_id': floor.id if floor else 0,
             'estimated_minutes': round(est_minutes, 1),
             'cleaned_today': cleaned,
+            'days_since_cleaned': days_since,
+            'expected_frequency': round(expected_freq_days, 1),
+            'urgency': round(urgency, 2),
+            'priority': priority,
+            'priority_label': priority_label,
         })
 
-    # Sort rooms within each floor: use historical sequence patterns + room number
-    for floor_data in floors_data.values():
-        floor_rooms = floor_data['rooms']
+    # Sort: urgent first, then due, then by floor+number for the rest
+    def route_sort_key(r):
+        priority_order = {'urgent': 0, 'due': 1, 'ok': 2, 'done': 3}
+        p = priority_order.get(r['priority'], 2)
+        try:
+            num = (0, int(r['number']))
+        except (ValueError, TypeError):
+            num = (1, r['number'])
+        return (p, r['floor_name'], num)
 
-        # Score rooms by historical transition frequency for ordering
-        # Start with room number order, then adjust based on transitions
-        def room_sort_key(r):
-            try:
-                return (0, int(r['number']))
-            except (ValueError, TypeError):
-                return (1, r['number'])
+    route.sort(key=route_sort_key)
 
-        floor_rooms.sort(key=room_sort_key)
-
-    # Build final ordered route: floors sorted by name, rooms in optimized order
-    route = []
-    total_estimated = 0
-    remaining_estimated = 0
-
-    for floor_id in sorted(floors_data.keys(), key=lambda fid: floors_data[fid]['name']):
-        floor_data = floors_data[floor_id]
-        for room in floor_data['rooms']:
-            room['floor_name'] = floor_data['name']
-            route.append(room)
-            total_estimated += room['estimated_minutes']
-            if not room['cleaned_today']:
-                remaining_estimated += room['estimated_minutes']
-
+    total_estimated = sum(r['estimated_minutes'] for r in route)
+    remaining_estimated = sum(r['estimated_minutes'] for r in route if not r['cleaned_today'])
     cleaned_count = sum(1 for r in route if r['cleaned_today'])
+    urgent_count = sum(1 for r in route if r['priority'] == 'urgent')
+    due_count = sum(1 for r in route if r['priority'] == 'due')
 
     return jsonify({
         'route': route,
@@ -4514,6 +4551,8 @@ def worker_cleaning_route():
             'total_rooms': len(route),
             'cleaned_today': cleaned_count,
             'remaining': len(route) - cleaned_count,
+            'urgent': urgent_count,
+            'due': due_count,
             'total_estimated_minutes': round(total_estimated, 0),
             'remaining_estimated_minutes': round(remaining_estimated, 0),
             'status': 'ok',
