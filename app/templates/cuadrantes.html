@@ -491,6 +491,9 @@
     <button type="button" class="sp-btn sp-libre" data-stid="" title="Libre (sin turno)">&times;</button>
 </div>
 
+{% endblock %}
+
+{% block scripts %}
 <script>
 (function(){
     var YEAR = {{ year }};
@@ -974,4 +977,4 @@
     });
 })();
 </script>
-{% endblock %}
+{% endblock %} {# scripts #}
