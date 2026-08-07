@@ -32,9 +32,10 @@
                 <div class="col-md-4">
                     <ul class="list-unstyled mb-0">
                         <li><a href="#empleados">8. Empleados y grupos</a></li>
-                        <li><a href="#registros">9. Registros y exportacion</a></li>
-                        <li><a href="#config">10. Configuracion</a></li>
-                        <li><a href="#changelog">11. Registro de cambios</a></li>
+                        <li><a href="#turnos">9. Cuadrantes de turnos</a></li>
+                        <li><a href="#registros">10. Registros y exportacion</a></li>
+                        <li><a href="#config">11. Configuracion</a></li>
+                        <li><a href="#changelog">12. Registro de cambios</a></li>
                     </ul>
                 </div>
             </div>
@@ -265,9 +266,58 @@
         </div>
     </div>
 
-    <!-- 9. Registros y exportacion -->
+    <!-- 9. Cuadrantes de turnos -->
+    <div class="card mb-4" id="turnos">
+        <div class="card-header">9. Cuadrantes de turnos</div>
+        <div class="card-body">
+            <p>El modulo de <strong>Turnos</strong> (<i class="bi bi-calendar3"></i>) permite planificar los cuadrantes de trabajo de los empleados.</p>
+
+            <h6 class="mt-3">Vista de cuadrantes</h6>
+            <ul>
+                <li>Accesible desde el menu principal <strong>Turnos</strong>.</li>
+                <li><strong>Cuadricula mensual:</strong> filas = trabajadores, columnas = dias del mes.</li>
+                <li>Cada celda muestra la letra del turno asignado (M/T/N) con su color.</li>
+                <li>Los fines de semana se marcan con un fondo sutil para identificarlos rapidamente.</li>
+                <li>Al final de la cuadricula hay una <strong>fila resumen de cobertura</strong> que muestra cuantos trabajadores hay por turno cada dia.</li>
+            </ul>
+
+            <h6 class="mt-3">Asignar turnos</h6>
+            <ul>
+                <li><strong>Click en una celda</strong> de la cuadricula para abrir el selector de turno.</li>
+                <li>Seleccionar M (Manana), T (Tarde), N (Noche) o Libre.</li>
+                <li>La asignacion se guarda automaticamente sin recargar la pagina.</li>
+            </ul>
+
+            <h6 class="mt-3">Operaciones en bloque</h6>
+            <ul>
+                <li><strong>Copiar semana:</strong> Botones encima de la cuadricula que copian las asignaciones de una semana a la siguiente. Util para replicar patrones rapidamente.</li>
+            </ul>
+
+            <h6 class="mt-3">Filtros y navegacion</h6>
+            <ul>
+                <li>Navegar entre meses con las flechas.</li>
+                <li>Filtrar por <strong>grupo de residentes</strong> para ver solo los trabajadores de un grupo.</li>
+            </ul>
+
+            <h6 class="mt-3">Tipos de turno</h6>
+            <ul>
+                <li>Desde <strong>Tipos de turno</strong> (enlace en la pagina de cuadrantes) se gestionan los turnos disponibles.</li>
+                <li>Cada tipo tiene: nombre, abreviatura, color, hora de inicio/fin y minutos de pausa.</li>
+                <li>Por defecto vienen creados Manana (7:00-15:00), Tarde (15:00-22:00) y Noche (22:00-7:00).</li>
+                <li>Se pueden crear turnos personalizados (ej: turno partido, refuerzo, etc.).</li>
+            </ul>
+
+            <h6 class="mt-3">Exportar</h6>
+            <ul>
+                <li>Boton <strong>"Exportar Excel"</strong> para descargar el cuadrante del mes en formato .xlsx.</li>
+                <li>Ideal para imprimir y colgar en el tablon de la residencia.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 10. Registros y exportacion -->
     <div class="card mb-4" id="registros">
-        <div class="card-header">9. Registros, analiticas y exportacion</div>
+        <div class="card-header">10. Registros, analiticas y exportacion</div>
         <div class="card-body">
             <h6>Registros</h6>
             <ul>
@@ -302,9 +352,9 @@
         </div>
     </div>
 
-    <!-- 10. Configuracion -->
+    <!-- 11. Configuracion -->
     <div class="card mb-4" id="config">
-        <div class="card-header">10. Configuracion</div>
+        <div class="card-header">11. Configuracion</div>
         <div class="card-body">
             <p>Desde <strong><i class="bi bi-gear"></i> Config</strong> en el menu, el administrador puede activar o desactivar opciones:</p>
             <ul>
@@ -314,9 +364,9 @@
         </div>
     </div>
 
-    <!-- 11. Registro de cambios -->
+    <!-- 12. Registro de cambios -->
     <div class="card mb-4" id="changelog">
-        <div class="card-header">11. Registro de cambios recientes</div>
+        <div class="card-header">12. Registro de cambios recientes</div>
         <div class="card-body">
 
             <h6>Agosto 2026</h6>
@@ -325,6 +375,16 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>07/08</td><td><strong>Modulo de Cuadrantes de Turnos:</strong> cuadricula mensual para planificar turnos (M/T/N) de todos los trabajadores, con click-to-assign, copiar semana, resumen de cobertura y exportacion a Excel.</td></tr>
+                    <tr><td>07/08</td><td><strong>Gestion de tipos de turno:</strong> crear, editar y desactivar turnos personalizados con horarios y colores.</td></tr>
+                    <tr><td>07/08</td><td><strong>API de turnos del trabajador:</strong> endpoint para que los trabajadores consulten su horario desde la webapp.</td></tr>
+                    <tr><td>07/08</td><td><strong>Rediseno UX/UI completo:</strong> nueva navegacion agrupada (Personas, Espacios, Registros, Formacion), formularios en panel lateral (offcanvas), iconos Bootstrap Icons en toda la app, sistema de toasts y modales de confirmacion.</td></tr>
+                    <tr><td>07/08</td><td>Dashboard mejorado: resumen de residencia (residentes activos, empleados activos, trabajadores con actividad hoy), metrica "Sin limpiar hoy".</td></tr>
+                    <tr><td>07/08</td><td>Busqueda rapida en tablas de residentes y empleados.</td></tr>
+                    <tr><td>07/08</td><td>Breadcrumbs en paginas de detalle (ficha residente, grupo, documentos, formacion).</td></tr>
+                    <tr><td>07/08</td><td>Ficha del residente organizada en pestanas (Resumen, Historial, Documentos).</td></tr>
+                    <tr><td>07/08</td><td>Mejoras de accesibilidad: skip-to-content, ARIA labels, validacion de formularios.</td></tr>
+                    <tr><td>07/08</td><td>Terminologia actualizada: "Servicio de Limpieza" renombrado a "Gestion Residencial", "Limpiadora" a "Trabajador/a".</td></tr>
                     <tr><td>03/08</td><td>Constantes vitales: sistema extensible per registrar tension arterial, glucemia, temperatura, saturacion O2, frecuencia cardiaca durant les atencions.</td></tr>
                     <tr><td>03/08</td><td>Alertas de constantes vitales: aviso rojo inmediato al trabajador y banner al dashboard admin cuando un valor esta fuera de rango.</td></tr>
                     <tr><td>03/08</td><td>Pagina de analiticas (<i class="bi bi-bar-chart-line"></i>) con graficos de actividad, productividad, duracion media y alertas vitales.</td></tr>
