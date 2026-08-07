@@ -4484,17 +4484,9 @@ def worker_cleaning_route():
         cleaned = room.id in today_cleaned
         floor = room.floor
 
-        # Check if this is a numeric room (habitacion) vs zone
-        is_numeric = False
-        try:
-            int(room.number)
-            is_numeric = True
-        except (ValueError, TypeError):
-            pass
-
-        # Check if room has a resident (only relevant for numeric rooms)
-        is_occupied = room.number in occupied_room_numbers
+        # Check if room is a resident room (by type, not by number format)
         is_resident_room = room.room_type and 'residen' in room.room_type.name.lower()
+        is_occupied = room.number in occupied_room_numbers
 
         # Calculate urgency: how overdue is this room?
         count = room_clean_count.get(room.id, 0)
@@ -4505,7 +4497,7 @@ def worker_cleaning_route():
             expected_freq_days = 7  # default: weekly
 
         # Empty resident rooms need less frequent cleaning (3x less urgent)
-        if is_numeric and is_resident_room and not is_occupied:
+        if is_resident_room and not is_occupied:
             expected_freq_days *= 3
 
         if last:
@@ -4559,6 +4551,76 @@ def worker_cleaning_route():
         return (p, r['floor_name'], num)
 
     route.sort(key=route_sort_key)
+
+    # Calculate shift duration to fill the full workday
+    shift_net_minutes = 0
+    if today_shift and today_shift.shift_type:
+        st = today_shift.shift_type
+        start_dt = datetime.combine(date.today(), st.start_time)
+        end_dt = datetime.combine(date.today(), st.end_time)
+        if end_dt <= start_dt:
+            end_dt += timedelta(days=1)
+        shift_net_minutes = ((end_dt - start_dt).total_seconds() / 60) - (st.breaks_minutes or 0)
+
+    remaining_estimated = sum(r['estimated_minutes'] for r in route if not r['cleaned_today'])
+
+    # If worker has spare time, assign extra rooms from uncovered pool
+    route_room_ids = {r['id'] for r in route}
+    if shift_net_minutes > 0 and remaining_estimated < shift_net_minutes:
+        spare_minutes = shift_net_minutes - remaining_estimated
+        # Get ALL rooms not already in this worker's route, sorted by urgency
+        extra_rooms = Room.query.options(
+            joinedload(Room.floor), joinedload(Room.room_type)
+        ).filter(~Room.id.in_(route_room_ids)).all()
+
+        extra_candidates = []
+        for room in extra_rooms:
+            if room.id in today_cleaned:
+                continue
+            est = avg_per_room.get(room.id, targets.get(room.room_type_id, 15))
+            count = room_clean_count.get(room.id, 0)
+            last = room_last_cleaned.get(room.id)
+            freq = (90 / count) if count > 0 else 7
+            is_res = room.room_type and 'residen' in room.room_type.name.lower()
+            if is_res and room.number not in occupied_room_numbers:
+                freq *= 3
+            days_since = (now - last).days if last else None
+            urg = (days_since / freq) if (last and freq > 0) else (10 if count == 0 else 0)
+            if urg >= 0.5:  # include rooms approaching their due date
+                extra_candidates.append((room, est, urg, days_since, freq))
+
+        extra_candidates.sort(key=lambda x: -x[2])  # most urgent first
+
+        for room, est, urg, days_since, freq in extra_candidates:
+            if spare_minutes <= 0:
+                break
+            floor = room.floor
+            priority = 'urgent' if urg >= 2 else ('due' if urg >= 1 else 'ok')
+            empty_tag = ''
+            is_res = room.room_type and 'residen' in room.room_type.name.lower()
+            if is_res and room.number not in occupied_room_numbers:
+                empty_tag = ' (vacía)'
+            p_label = f'Extra: {days_since}d sin limpiar{empty_tag}' if days_since else f'Extra{empty_tag}'
+
+            route.append({
+                'id': room.id, 'number': room.number,
+                'description': room.description or '',
+                'room_type': room.room_type.name if room.room_type else '',
+                'floor_name': floor.name if floor else '',
+                'floor_id': floor.id if floor else 0,
+                'estimated_minutes': round(est, 1),
+                'cleaned_today': False,
+                'days_since_cleaned': days_since,
+                'expected_frequency': round(freq, 1),
+                'urgency': round(urg, 2),
+                'priority': priority,
+                'priority_label': p_label,
+            })
+            spare_minutes -= est
+            route_room_ids.add(room.id)
+
+        # Re-sort after adding extras
+        route.sort(key=route_sort_key)
 
     total_estimated = sum(r['estimated_minutes'] for r in route)
     remaining_estimated = sum(r['estimated_minutes'] for r in route if not r['cleaned_today'])
@@ -4687,9 +4749,8 @@ def admin_cleaning_plan():
             count = room_clean_count.get(room.id, 0)
             last = room_last_cleaned.get(room.id)
             freq = (90 / count) if count > 0 else 7
-            is_numeric = room.number.isdigit()
             is_resident = room.room_type and 'residen' in room.room_type.name.lower()
-            if is_numeric and is_resident and room.number not in occupied:
+            if is_resident and room.number not in occupied:
                 freq *= 3
             days_since = (now - last).days if last else None
             urgency = (days_since / freq) if (last and freq > 0) else 10
@@ -4728,8 +4789,37 @@ def admin_cleaning_plan():
             'remaining_est_min': round(total_est),
         })
 
+    # Find uncovered rooms: rooms that need cleaning today but no worker has them
+    covered_room_ids = set()
+    for wp in worker_plans:
+        if wp['status'] == 'working':
+            for rp in wp['rooms']:
+                covered_room_ids.add(rp['room'].id)
+
+    today_cleaned_ids = {rec.room_id for rec in today_records}
+    uncovered = []
+    for room in all_rooms:
+        if room.id in covered_room_ids or room.id in today_cleaned_ids:
+            continue
+        count = room_clean_count.get(room.id, 0)
+        last = room_last_cleaned.get(room.id)
+        freq = (90 / count) if count > 0 else 7
+        is_resident = room.room_type and 'residen' in room.room_type.name.lower()
+        if is_resident and room.number not in occupied:
+            freq *= 3
+        days_since = (now - last).days if last else None
+        urgency = (days_since / freq) if (last and freq > 0) else (10 if count == 0 else 0)
+        if urgency >= 1:
+            uncovered.append({
+                'room': room, 'days_since': days_since, 'frequency': round(freq, 1),
+                'urgency': round(urgency, 2),
+                'priority': 'urgent' if urgency >= 2 else 'due',
+            })
+    uncovered.sort(key=lambda x: -x['urgency'])
+
     return render_template('admin_cleaning_plan.html',
         plan_date=plan_date, worker_plans=worker_plans,
+        uncovered=uncovered,
         is_today=plan_date == date.today(),
         prev_date=(plan_date - timedelta(days=1)).isoformat(),
         next_date=(plan_date + timedelta(days=1)).isoformat(),

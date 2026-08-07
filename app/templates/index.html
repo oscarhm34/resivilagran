@@ -178,6 +178,24 @@
             </a>
         </div>
         <div class="col-6 col-lg-3">
+            <a href="{{ url_for('admin_cleaning_plan') }}" class="text-decoration-none">
+                <div class="card h-100 text-center p-3 home-card" style="border-color:var(--color-success)">
+                    <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-map" style="color:var(--color-success)"></i></div>
+                    <h2 class="h6 mb-1" style="color:var(--color-success)">Plan de Limpieza</h2>
+                    <p class="small mb-0" style="color:var(--color-text-secondary)">Rutas de hoy, progreso y cobertura</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-lg-3">
+            <a href="{{ url_for('cuadrantes') }}" class="text-decoration-none">
+                <div class="card h-100 text-center p-3 home-card">
+                    <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-calendar3"></i></div>
+                    <h2 class="h6 mb-1">Cuadrantes</h2>
+                    <p class="small mb-0" style="color:var(--color-text-secondary)">Turnos y planificación mensual</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-lg-3">
             <a href="{{ url_for('worker') }}" class="text-decoration-none" target="_blank">
                 <div class="card h-100 text-center p-3 home-card" style="border-color:var(--color-primary)">
                     <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-phone"></i></div>
