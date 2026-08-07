@@ -3569,6 +3569,7 @@ def cuadrantes():
         assign_map=assign_map, coverage=coverage,
         absence_map=absence_map, worker_configs=worker_configs,
         coverage_reqs={f'{r.shift_type_id}_{r.day_type}': r.min_workers for r in ShiftCoverageRequirement.query.all()},
+        patterns=RotationPattern.query.filter_by(active=True).order_by(RotationPattern.name).all(),
         groups=groups, group_id=group_id,
         prev_year=prev_year, prev_month=prev_month,
         next_year=next_year, next_month=next_month,

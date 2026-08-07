@@ -318,8 +318,23 @@
                 </thead>
                 <tbody>
                     {% for w in workers %}
+                    {% set wconfig = worker_configs.get(w.id) %}
                     <tr data-worker="{{ w.id }}" data-worker-id="{{ w.id }}">
-                        <td>{{ w.name }}</td>
+                        <td>
+                            <a href="#" class="worker-config-link text-decoration-none" style="color:var(--color-text)"
+                               data-id="{{ w.id }}" data-name="{{ w.name }}"
+                               data-pattern-id="{{ wconfig.pattern_id or '' if wconfig else '' }}"
+                               data-fixed-shift="{{ wconfig.fixed_shift_type_id or '' if wconfig else '' }}"
+                               data-cycle-start="{{ wconfig.cycle_start_date.isoformat() if wconfig and wconfig.cycle_start_date else '' }}"
+                               title="Click para configurar patrón">
+                                {{ w.name }}
+                                {% if wconfig and wconfig.pattern %}
+                                <small class="text-body-secondary" style="font-size:.65rem">{{ wconfig.pattern.name }}</small>
+                                {% elif wconfig and wconfig.fixed_shift_type_id %}
+                                <small class="text-body-secondary" style="font-size:.65rem">Fijo</small>
+                                {% endif %}
+                            </a>
+                        </td>
                         {% for d in range(1, num_days + 1) %}
                         {% set iso = '%04d-%02d-%02d' | format(year, month, d) %}
                         {% set assignment = assign_map.get((w.id, iso)) %}
@@ -394,6 +409,65 @@
             </span>
         </span>
         {% endfor %}
+    </div>
+</div>
+
+{# ── Worker config offcanvas ──────────────────────────────── #}
+<div class="offcanvas offcanvas-end no-print" tabindex="-1" id="workerConfigPanel" aria-labelledby="workerConfigTitle" style="width:min(420px,90vw)">
+    <div class="offcanvas-header" style="border-bottom:1px solid var(--color-border);border-top:3px solid var(--color-primary)">
+        <h5 class="offcanvas-title" id="workerConfigTitle">Configurar turno</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+    </div>
+    <div class="offcanvas-body">
+        <p class="text-body-secondary small mb-3">Define el patrón de rotación o turno fijo para este trabajador. Al pulsar "Generar mes" se aplicará automáticamente.</p>
+
+        <div class="mb-3">
+            <label class="form-label fw-bold">Modo de asignación</label>
+            <select id="wc-mode" class="form-select">
+                <option value="">Sin patrón (solo manual)</option>
+                <option value="pattern">Patrón de rotación</option>
+                <option value="fixed">Turno fijo</option>
+            </select>
+        </div>
+
+        <div id="wc-pattern-fields" class="d-none">
+            <div class="mb-3">
+                <label class="form-label">Patrón</label>
+                <select id="wc-pattern-id" class="form-select">
+                    <option value="">Seleccionar patrón...</option>
+                    {% for p in patterns %}
+                    <option value="{{ p.id }}">{{ p.name }} ({{ p.cycle_days }} días)</option>
+                    {% endfor %}
+                </select>
+                <small class="text-body-secondary">Gestiona patrones desde <a href="{{ url_for('manage_patterns') }}">Patrones</a></small>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Fecha inicio del ciclo</label>
+                <input type="date" id="wc-cycle-start" class="form-control" value="{{ '%04d-%02d-01' | format(year, month) }}">
+                <small class="text-body-secondary">Escalonar entre trabajadores para que no todos libren el mismo día</small>
+            </div>
+        </div>
+
+        <div id="wc-fixed-fields" class="d-none">
+            <div class="mb-3">
+                <label class="form-label">Turno fijo</label>
+                <select id="wc-fixed-shift" class="form-select">
+                    <option value="">Seleccionar turno...</option>
+                    {% for st in shift_types %}
+                    <option value="{{ st.id }}">{{ st.short_name }} - {{ st.name }} ({{ st.start_time.strftime('%H:%M') }}-{{ st.end_time.strftime('%H:%M') }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Fecha inicio</label>
+                <input type="date" id="wc-fixed-start" class="form-control" value="{{ '%04d-%02d-01' | format(year, month) }}">
+            </div>
+        </div>
+
+        <input type="hidden" id="wc-worker-id" value="">
+        <div class="d-grid">
+            <button type="button" class="btn btn-primary" id="wc-save-btn">Guardar configuración</button>
+        </div>
     </div>
 </div>
 
@@ -699,6 +773,81 @@
 
     // Calculate hours on page load
     updateWorkerHours();
+
+    /* ── Worker config offcanvas ──────────────────────────── */
+    var wcPanel = document.getElementById('workerConfigPanel');
+    var wcOffcanvas = new bootstrap.Offcanvas(wcPanel);
+    var wcMode = document.getElementById('wc-mode');
+    var wcPatternFields = document.getElementById('wc-pattern-fields');
+    var wcFixedFields = document.getElementById('wc-fixed-fields');
+
+    wcMode.addEventListener('change', function() {
+        wcPatternFields.classList.toggle('d-none', this.value !== 'pattern');
+        wcFixedFields.classList.toggle('d-none', this.value !== 'fixed');
+    });
+
+    document.querySelectorAll('.worker-config-link').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            document.getElementById('wc-worker-id').value = this.dataset.id;
+            document.getElementById('workerConfigTitle').textContent = 'Configurar: ' + this.dataset.name;
+            var patternId = this.dataset.patternId;
+            var fixedShift = this.dataset.fixedShift;
+            var cycleStart = this.dataset.cycleStart;
+
+            if (patternId) {
+                wcMode.value = 'pattern';
+                document.getElementById('wc-pattern-id').value = patternId;
+                document.getElementById('wc-cycle-start').value = cycleStart || '';
+            } else if (fixedShift) {
+                wcMode.value = 'fixed';
+                document.getElementById('wc-fixed-shift').value = fixedShift;
+                document.getElementById('wc-fixed-start').value = cycleStart || '';
+            } else {
+                wcMode.value = '';
+            }
+            wcMode.dispatchEvent(new Event('change'));
+            wcOffcanvas.show();
+        });
+    });
+
+    document.getElementById('wc-save-btn').addEventListener('click', function() {
+        var workerId = document.getElementById('wc-worker-id').value;
+        var mode = wcMode.value;
+        var body = { cleaner_id: parseInt(workerId) };
+
+        if (mode === 'pattern') {
+            body.pattern_id = document.getElementById('wc-pattern-id').value || null;
+            body.cycle_start_date = document.getElementById('wc-cycle-start').value;
+            if (!body.pattern_id || !body.cycle_start_date) {
+                showToast('Selecciona un patrón y fecha de inicio', 'warning');
+                return;
+            }
+        } else if (mode === 'fixed') {
+            body.fixed_shift_type_id = document.getElementById('wc-fixed-shift').value || null;
+            body.cycle_start_date = document.getElementById('wc-fixed-start').value;
+            if (!body.fixed_shift_type_id || !body.cycle_start_date) {
+                showToast('Selecciona un turno y fecha de inicio', 'warning');
+                return;
+            }
+        } else {
+            body.cycle_start_date = new Date().toISOString().split('T')[0];
+        }
+
+        fetch('/cuadrantes/worker-config', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body),
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            if (data.ok) {
+                showToast('Configuración guardada', 'success');
+                wcOffcanvas.hide();
+                setTimeout(function() { location.reload(); }, 500);
+            } else {
+                showToast(data.error || 'Error al guardar', 'error');
+            }
+        }).catch(function() { showToast('Error de conexión', 'error'); });
+    });
 
     /* ── Generate month from patterns ─────────────────────── */
     document.getElementById('btn-generate').addEventListener('click', function() {
