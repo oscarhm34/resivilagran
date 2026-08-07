@@ -375,47 +375,64 @@
     <div class="card mb-4" id="rutas">
         <div class="card-header">10. Rutas de limpieza inteligentes</div>
         <div class="card-body">
-            <p>El sistema analiza el historico de limpiezas para sugerir rutas optimas a los trabajadores de limpieza.</p>
+            <p>El sistema analiza el historico de limpiezas para generar rutas inteligentes que priorizan las habitaciones que mas necesitan limpieza.</p>
+
+            <h6 class="mt-3">Plan de limpieza del dia (admin)</h6>
+            <ul>
+                <li>Desde <strong>Espacios > Plan de limpieza hoy</strong> el admin ve el plan completo del dia.</li>
+                <li><strong>Resumen:</strong> cuantos trabajadores estan de turno, habitaciones pendientes, urgentes y tiempo estimado total.</li>
+                <li><strong>Tarjeta por trabajador:</strong> nombre, turno (M/T/N con horario), barra de progreso (completadas/total).</li>
+                <li><strong>Lista de habitaciones</strong> agrupadas por prioridad:
+                    <ul>
+                        <li><span style="color:#cf222e;font-weight:600">Atrasadas (rojo):</span> llevan mas del doble de su frecuencia habitual sin limpiar.</li>
+                        <li><span style="color:#bf8700;font-weight:600">Toca hoy (amarillo):</span> han alcanzado su frecuencia habitual de limpieza.</li>
+                        <li><span style="color:var(--color-text-secondary);font-weight:600">Al dia (gris):</span> aun no les toca.</li>
+                        <li><span style="color:#1a7f37;font-weight:600">Completadas (verde):</span> ya limpiadas hoy.</li>
+                    </ul>
+                </li>
+                <li><strong>Limpiezas completadas:</strong> detalle de lo que cada trabajador ha hecho hoy con hora y duracion.</li>
+                <li><strong>Navegacion por fecha:</strong> ver planes de dias anteriores o siguientes.</li>
+                <li><strong>Auto-actualizacion:</strong> si estas viendo el dia de hoy, la pagina se refresca cada 60 segundos.</li>
+                <li>Seccion de trabajadores <strong>ausentes</strong> o <strong>sin turno</strong> asignado.</li>
+            </ul>
 
             <h6 class="mt-3">Ruta del trabajador (webapp)</h6>
             <ul>
                 <li>Los trabajadores con rol <strong>Limpieza</strong> o <strong>Mixto</strong> ven un boton <strong>"Mi ruta de hoy"</strong> en la webapp.</li>
-                <li>La ruta muestra una lista ordenada de habitaciones a limpiar, agrupadas por planta y en orden de numero (recorrido fisico).</li>
-                <li>Cada habitacion muestra el <strong>tiempo estimado</strong> de limpieza, calculado a partir del historico real de los ultimos 90 dias.</li>
-                <li>Las habitaciones ya limpiadas hoy aparecen con un check verde.</li>
+                <li>La ruta prioriza automaticamente las habitaciones por urgencia (las mas atrasadas primero).</li>
+                <li>Cada habitacion muestra: <strong>tiempo estimado</strong>, <strong>dias sin limpiar</strong>, <strong>frecuencia habitual</strong> y <strong>estado de urgencia</strong>.</li>
                 <li>Al pulsar una habitacion se inicia directamente la sesion de limpieza.</li>
-                <li><strong>Vinculacion con cuadrantes:</strong> la ruta solo aparece si el trabajador tiene turno asignado ese dia. Si no tiene turno o tiene ausencia, ve un mensaje informativo.</li>
+                <li><strong>Vinculacion con cuadrantes:</strong> la ruta solo aparece si el trabajador tiene turno asignado ese dia.</li>
+                <li><strong>Deteccion automatica:</strong> el sistema sabe que habitaciones limpia cada trabajador por su historico (no hace falta configurar nada).</li>
             </ul>
 
-            <h6 class="mt-3">Asignacion de zonas (admin)</h6>
+            <h6 class="mt-3">Habitaciones vacias</h6>
             <ul>
-                <li>Desde <strong>Espacios > Rutas y asignaciones</strong> el admin puede asignar plantas especificas a cada trabajador de limpieza.</li>
-                <li>Si un trabajador tiene zonas asignadas, su ruta solo muestra las habitaciones de esas plantas.</li>
-                <li>Si no tiene zonas asignadas, ve todas las habitaciones.</li>
+                <li>Las habitaciones de residente con codigo numerico que <strong>no tienen residente asignado</strong> se consideran vacias.</li>
+                <li>Las habitaciones vacias necesitan limpieza <strong>3 veces menos frecuente</strong> que las ocupadas.</li>
+                <li>Se marcan con la etiqueta "(vacia)" en la ruta.</li>
+                <li>Las zonas comunes (codigos no numericos como ESC01, MENJPB, etc.) no se ven afectadas por esta regla.</li>
             </ul>
 
-            <h6 class="mt-3">Tiempos objetivo</h6>
+            <h6 class="mt-3">Como se calcula la prioridad</h6>
             <ul>
-                <li>En la misma pagina de configuracion se pueden definir <strong>tiempos objetivo</strong> por tipo de habitacion (ej: "Individual: 20 min", "Doble: 30 min").</li>
-                <li>Estos tiempos se usan como referencia cuando no hay datos historicos para una habitacion concreta.</li>
+                <li>El sistema analiza los <strong>ultimos 90 dias</strong> de limpiezas completadas.</li>
+                <li>Calcula la <strong>frecuencia real</strong> de limpieza de cada habitacion (ej: cada 5 dias, cada 30 dias).</li>
+                <li>Compara cuantos dias han pasado desde la ultima limpieza con la frecuencia habitual.</li>
+                <li>Si han pasado mas del doble de la frecuencia: <strong>urgente</strong>. Si han pasado mas que la frecuencia: <strong>toca hoy</strong>. Si no: <strong>al dia</strong>.</li>
+                <li>Calcula el <strong>tiempo estimado</strong> de cada habitacion basandose en la media real de los ultimos 90 dias.</li>
+            </ul>
+
+            <h6 class="mt-3">Configuracion (admin)</h6>
+            <ul>
+                <li>Desde <strong>Espacios > Rutas y asignaciones</strong> se puede opcionalmente asignar plantas a trabajadores (si no se asigna, el sistema detecta automaticamente del historico).</li>
+                <li>Se pueden definir <strong>tiempos objetivo</strong> por tipo de habitacion como referencia.</li>
             </ul>
 
             <h6 class="mt-3">Analisis de limpieza (admin)</h6>
             <ul>
-                <li>Desde <strong>Espacios > Analisis de limpieza</strong> se accede a un dashboard con:</li>
-                <li><strong>Tiempo medio por habitacion:</strong> tabla ordenable con barras de color (verde &lt;15min, amarillo 15-30min, rojo &gt;30min).</li>
-                <li><strong>Tiempo medio por tipo:</strong> comparativa con tiempos objetivo configurados.</li>
-                <li><strong>Productividad por trabajador:</strong> tiempo medio, numero de limpiezas y horas totales.</li>
-                <li><strong>Habitaciones sin limpiar:</strong> lista de habitaciones no limpiadas en los ultimos 7 dias.</li>
+                <li>Desde <strong>Espacios > Analisis de limpieza</strong>: tiempos medios por habitacion/tipo/trabajador, productividad, habitaciones sin limpiar, tendencias.</li>
                 <li>Filtrable por periodo: 7, 14, 30 o 90 dias.</li>
-            </ul>
-
-            <h6 class="mt-3">Como se calcula la ruta</h6>
-            <ul>
-                <li>El sistema analiza los <strong>ultimos 90 dias</strong> de limpiezas completadas.</li>
-                <li>Calcula el tiempo medio real de limpieza de cada habitacion.</li>
-                <li>Ordena por planta y numero de habitacion (los numeros consecutivos reflejan proximidad fisica).</li>
-                <li>Filtra las habitaciones ya limpiadas hoy y las que no pertenecen a las zonas asignadas al trabajador.</li>
             </ul>
         </div>
     </div>
@@ -495,6 +512,9 @@
                     <tr><td>07/08</td><td><strong>Asignacion de zonas:</strong> el admin puede asignar plantas especificas a cada trabajador de limpieza y definir tiempos objetivo por tipo de habitacion.</td></tr>
                     <tr><td>07/08</td><td><strong>Roles de trabajador:</strong> Atenciones, Limpieza, Mixto (ambas funciones), Gestion (no aparece en cuadrantes). Clasificacion automatica desde historico con <code>flask auto-assign-roles</code>.</td></tr>
                     <tr><td>07/08</td><td><strong>Ruta vinculada a cuadrante:</strong> la ruta de limpieza solo aparece si el trabajador tiene turno asignado ese dia.</td></tr>
+                    <tr><td>07/08</td><td><strong>Plan de limpieza del dia:</strong> nueva vista admin (Espacios > Plan de limpieza hoy) con resumen de trabajadores, habitaciones por prioridad, progreso en tiempo real y auto-actualizacion.</td></tr>
+                    <tr><td>07/08</td><td><strong>Prioridad inteligente:</strong> las habitaciones se priorizan por urgencia segun su frecuencia historica de limpieza. Las atrasadas aparecen primero en rojo.</td></tr>
+                    <tr><td>07/08</td><td><strong>Habitaciones vacias:</strong> las habitaciones de residente sin residente asignado se limpian con 3x menos frecuencia.</td></tr>
                     <tr><td>03/08</td><td>Constantes vitales: sistema extensible per registrar tension arterial, glucemia, temperatura, saturacion O2, frecuencia cardiaca durant les atencions.</td></tr>
                     <tr><td>03/08</td><td>Alertas de constantes vitales: aviso rojo inmediato al trabajador y banner al dashboard admin cuando un valor esta fuera de rango.</td></tr>
                     <tr><td>03/08</td><td>Pagina de analiticas (<i class="bi bi-bar-chart-line"></i>) con graficos de actividad, productividad, duracion media y alertas vitales.</td></tr>
