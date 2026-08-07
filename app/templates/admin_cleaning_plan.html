@@ -124,6 +124,11 @@
     <div class="card-header d-flex flex-wrap align-items-center gap-2">
         <i class="bi bi-person-fill" aria-hidden="true"></i>
         <strong class="me-2">{{ wp.worker.name }}</strong>
+        {% if wp.worker.role == 'mixto' %}
+        <span class="badge" style="background:#e8d5f5;color:#6f42c1;font-size:.7rem">Mixto</span>
+        {% else %}
+        <span class="badge" style="background:#dbeafe;color:#0550ae;font-size:.7rem">Limpieza</span>
+        {% endif %}
         {% if wp.shift %}
         <span class="badge" style="background-color:{{ wp.shift.color }};color:#fff;font-size:.75rem">
             {{ wp.shift.short_name }} {{ wp.shift.start_time.strftime('%H:%M') }}-{{ wp.shift.end_time.strftime('%H:%M') }}
