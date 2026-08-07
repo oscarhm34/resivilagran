@@ -4564,6 +4564,11 @@ def worker_cleaning_route():
 
     remaining_estimated = sum(r['estimated_minutes'] for r in route if not r['cleaned_today'])
 
+    # Only fill shift with extras for 'limpieza' role workers.
+    # 'mixto' workers use their spare time for care tasks, not extra cleaning.
+    if worker.role != 'limpieza':
+        shift_net_minutes = 0  # skip extra room assignment
+
     # If worker has spare time, assign extra rooms from uncovered pool
     route_room_ids = {r['id'] for r in route}
     if shift_net_minutes > 0 and remaining_estimated < shift_net_minutes:
@@ -4586,8 +4591,7 @@ def worker_cleaning_route():
                 freq *= 3
             days_since = (now - last).days if last else None
             urg = (days_since / freq) if (last and freq > 0) else (10 if count == 0 else 0)
-            if urg >= 0.5:  # include rooms approaching their due date
-                extra_candidates.append((room, est, urg, days_since, freq))
+            extra_candidates.append((room, est, urg, days_since, freq))
 
         extra_candidates.sort(key=lambda x: -x[2])  # most urgent first
 
