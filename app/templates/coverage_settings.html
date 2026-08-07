@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Configuración de Cobertura{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4">
+    <a href="{{ url_for('cuadrantes') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left" aria-hidden="true"></i>
+    </a>
+    <h1 class="h4 mb-0">Configuración de Cobertura</h1>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <p class="mb-0" style="color:var(--color-text-secondary);font-size:.9rem">
+            <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+            Define el número mínimo de trabajadores necesarios por turno.
+            El sistema usará estos valores para detectar gaps de cobertura y rellenarlos automáticamente al generar el cuadrante.
+        </p>
+    </div>
+</div>
+
+<form method="POST" action="{{ url_for('save_coverage_settings') }}">
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Turno</th>
+                        <th>Entre semana (L-V)</th>
+                        <th>Fin de semana (S-D)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for st in shift_types %}
+                    <tr>
+                        <td>
+                            <span class="d-inline-block rounded-circle me-2" style="width:10px;height:10px;background:{{ st.color }}"></span>
+                            {{ st.name }}
+                        </td>
+                        <td>
+                            <input type="number"
+                                   class="form-control form-control-sm"
+                                   style="max-width:100px"
+                                   name="min_{{ st.id }}_weekday"
+                                   min="0"
+                                   value="{{ req_map.get((st.id, 'weekday'), {}).min_workers|default(0) }}">
+                        </td>
+                        <td>
+                            <input type="number"
+                                   class="form-control form-control-sm"
+                                   style="max-width:100px"
+                                   name="min_{{ st.id }}_weekend"
+                                   min="0"
+                                   value="{{ req_map.get((st.id, 'weekend'), {}).min_workers|default(0) }}">
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Guardar
+        </button>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}{% endblock %}

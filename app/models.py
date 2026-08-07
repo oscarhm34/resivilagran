@@ -438,3 +438,16 @@ class Absence(db.Model):
                               backref=db.backref('absences', lazy=True))
     absence_type = db.relationship('AbsenceType')
     creator = db.relationship('Cleaner', foreign_keys=[created_by])
+
+
+class ShiftCoverageRequirement(db.Model):
+    __tablename__ = 'shift_coverage_requirement'
+    id = db.Column(db.Integer, primary_key=True)
+    shift_type_id = db.Column(db.Integer, db.ForeignKey('shift_type.id'), nullable=False)
+    day_type = db.Column(db.String(20), default='all')  # 'all', 'weekday', 'weekend'
+    min_workers = db.Column(db.Integer, nullable=False, default=1)
+    ideal_workers = db.Column(db.Integer, nullable=True)
+
+    shift_type = db.relationship('ShiftType')
+
+    __table_args__ = (db.UniqueConstraint('shift_type_id', 'day_type', name='uq_coverage_shift_day'),)

@@ -285,6 +285,9 @@
             <a href="{{ url_for('manage_absences') }}" class="btn btn-outline-secondary btn-sm no-print">
                 <i class="bi bi-calendar-x me-1"></i>Ausencias
             </a>
+            <a href="{{ url_for('coverage_settings') }}" class="btn btn-outline-secondary btn-sm no-print">
+                <i class="bi bi-sliders me-1"></i>Cobertura
+            </a>
             <button type="button" class="btn btn-primary btn-sm no-print" id="btn-generate" title="Generar mes desde patrones">
                 <i class="bi bi-magic me-1"></i>Generar mes
             </button>
@@ -409,6 +412,7 @@
     var MONTH = {{ month }};
     var NUM_DAYS = {{ num_days }};
     var SHIFT_TYPES = [{% for st in shift_types %}{"id":{{ st.id }},"name":"{{ st.name }}","short_name":"{{ st.short_name }}","color":"{{ st.color }}","start_time":"{{ st.start_time.strftime('%H:%M') }}","end_time":"{{ st.end_time.strftime('%H:%M') }}"}{% if not loop.last %},{% endif %}{% endfor %}];
+    var COVERAGE_REQS = {{ coverage_reqs | tojson }};
     var DOW_NAMES = ['D','L','M','X','J','V','S']; // JS: 0=Sun
 
     /* ── Day-of-week headers & weekend tinting ─────────────── */
@@ -621,18 +625,41 @@
     function updateCoverage() {
         var coverageCells = document.querySelectorAll('.coverage-row td[data-day]');
         coverageCells.forEach(function(covTd) {
-            var day = covTd.dataset.day;
-            var iso = isoDate(parseInt(day));
-            var counts = {};
-            document.querySelectorAll('td.grid-cell[data-date="' + iso + '"] .shift-cell:not(.empty)').forEach(function(sc) {
+            var day = parseInt(covTd.dataset.day);
+            var iso = isoDate(day);
+            var jsDay = new Date(YEAR, MONTH - 1, day).getDay();
+            var isWeekend = (jsDay === 0 || jsDay === 6);
+            var daySuffix = isWeekend ? 'weekend' : 'weekday';
+
+            // Count by shift type id
+            var countsById = {};
+            var countsBySn = {};
+            document.querySelectorAll('td.grid-cell[data-date="' + iso + '"] .shift-cell:not(.empty):not(.absence)').forEach(function(sc) {
                 var sn = sc.textContent.trim();
-                if (!counts[sn]) counts[sn] = { count: 0, color: sc.style.background || sc.style.backgroundColor };
-                counts[sn].count++;
+                var stId = sc.dataset.shiftId;
+                if (!countsBySn[sn]) countsBySn[sn] = { count: 0, color: sc.style.background || sc.style.backgroundColor, id: stId };
+                countsBySn[sn].count++;
+                if (stId) {
+                    if (!countsById[stId]) countsById[stId] = 0;
+                    countsById[stId]++;
+                }
             });
             var html = '';
-            for (var sn in counts) {
-                html += '<span class="coverage-pill" style="background:' + counts[sn].color + '">' +
-                    sn + counts[sn].count + '</span>';
+            for (var sn in countsBySn) {
+                var cnt = countsBySn[sn].count;
+                var stId = countsBySn[sn].id;
+                var reqKey = stId + '_' + daySuffix;
+                var minReq = (COVERAGE_REQS && COVERAGE_REQS[reqKey]) ? COVERAGE_REQS[reqKey] : 0;
+                var pillStyle = 'background:' + countsBySn[sn].color;
+                if (minReq > 0 && cnt < minReq) {
+                    pillStyle += ';outline:2px solid #dc3545;outline-offset:1px';
+                }
+                html += '<span class="coverage-pill" style="' + pillStyle + '">' +
+                    sn + cnt;
+                if (minReq > 0) {
+                    html += '<small style="opacity:.7">/' + minReq + '</small>';
+                }
+                html += '</span>';
             }
             covTd.innerHTML = html;
         });
@@ -675,19 +702,50 @@
 
     /* ── Generate month from patterns ─────────────────────── */
     document.getElementById('btn-generate').addEventListener('click', function() {
-        showConfirm('¿Generar turnos del mes desde los patrones asignados? Los cambios manuales se preservarán.', function() {
+        var msg = '¿Generar turnos del mes?\n\nOpciones:\n' +
+            '• Aplicar patrones de rotación\n' +
+            '• Saltar días con ausencia\n' +
+            '• Eliminar asignaciones que violen normativa laboral\n' +
+            '• Rellenar gaps de cobertura automáticamente\n' +
+            '• Preservar cambios manuales previos\n';
+        showConfirm(msg, function() {
+            var btn = document.getElementById('btn-generate');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generando...';
             fetch('/cuadrantes/generate', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({year: YEAR, month: MONTH, preserve_overrides: true})
+                body: JSON.stringify({year: YEAR, month: MONTH, preserve_overrides: true, fill_gaps: true})
             }).then(function(r) { return r.json(); }).then(function(data) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-magic me-1"></i>Generar mes';
                 if (data.ok) {
-                    showToast('Generados ' + data.generated + ' turnos (' + data.skipped + ' manuales preservados)', 'success');
-                    setTimeout(function() { location.reload(); }, 1000);
+                    var msg = 'Generación completada:\n\n' +
+                        '• ' + data.generated_from_patterns + ' turnos desde patrones\n' +
+                        '• ' + data.absences_skipped + ' días de ausencia saltados\n' +
+                        '• ' + data.overrides_preserved + ' cambios manuales preservados\n' +
+                        '• ' + data.invalid_removed + ' asignaciones inválidas eliminadas\n' +
+                        '• ' + data.gaps_filled + ' gaps de cobertura rellenados\n';
+                    if (data.gaps_remaining > 0) {
+                        msg += '• ⚠ ' + data.gaps_remaining + ' gaps sin cubrir\n';
+                    }
+                    if (data.fairness) {
+                        msg += '\nDistribución:\n' +
+                            '• Turnos totales: mín ' + data.fairness.total_shifts.min + ', máx ' + data.fairness.total_shifts.max + ', media ' + data.fairness.total_shifts.avg + '\n' +
+                            '• Fines de semana: mín ' + data.fairness.weekend_shifts.min + ', máx ' + data.fairness.weekend_shifts.max + '\n';
+                    }
+                    showToast('Cuadrante generado correctamente', 'success');
+                    // Show results in a modal-like alert, then reload
+                    alert(msg);
+                    location.reload();
                 } else {
                     showToast(data.error || 'Error al generar', 'error');
                 }
-            }).catch(function() { showToast('Error de conexión', 'error'); });
+            }).catch(function() {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-magic me-1"></i>Generar mes';
+                showToast('Error de conexión', 'error');
+            });
         });
     });
 

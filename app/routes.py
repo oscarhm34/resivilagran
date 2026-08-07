@@ -8,7 +8,7 @@ from .models import (Cleaner, Room, CleaningRecord, Floor, RoomType, Resident,
                       VitalSignType, VitalSignReading, AppSetting,
                       ShiftType, ShiftAssignment,
                       RotationPattern, RotationPatternDay, WorkerShiftConfig,
-                      AbsenceType, Absence)
+                      AbsenceType, Absence, ShiftCoverageRequirement)
 from flask import request, jsonify, render_template, redirect, url_for, flash, send_file, send_from_directory, abort
 from flask_login import login_user, logout_user, login_required, current_user
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
@@ -3568,6 +3568,7 @@ def cuadrantes():
         workers=workers, shift_types=shift_types,
         assign_map=assign_map, coverage=coverage,
         absence_map=absence_map, worker_configs=worker_configs,
+        coverage_reqs={f'{r.shift_type_id}_{r.day_type}': r.min_workers for r in ShiftCoverageRequirement.query.all()},
         groups=groups, group_id=group_id,
         prev_year=prev_year, prev_month=prev_month,
         next_year=next_year, next_month=next_month,
@@ -3950,75 +3951,119 @@ def set_worker_shift_config():
 @app.route('/cuadrantes/generate', methods=['POST'])
 @admin_required
 def cuadrantes_generate():
-    """Generate shift assignments for a month based on worker patterns."""
+    """Generate shift assignments using the SmartScheduler."""
+    from .scheduler import SmartScheduler
     data = request.get_json()
     year = data.get('year')
     month = data.get('month')
     preserve_overrides = data.get('preserve_overrides', True)
+    fill_gaps = data.get('fill_gaps', True)
 
-    import calendar
-    num_days = calendar.monthrange(year, month)[1]
+    scheduler = SmartScheduler(year, month)
+    result = scheduler.generate(
+        preserve_overrides=preserve_overrides,
+        fill_gaps=fill_gaps,
+        created_by_id=current_user.id,
+    )
+    return jsonify(result)
 
-    # Get all workers with active configs
-    configs = WorkerShiftConfig.query.filter(
-        WorkerShiftConfig.effective_until.is_(None),
-    ).all()
 
-    generated = 0
-    skipped = 0
+@app.route('/cuadrantes/fill-gap', methods=['POST'])
+@admin_required
+def cuadrantes_fill_gap():
+    """Fill a single coverage gap on a specific day/shift."""
+    from .scheduler import SmartScheduler
+    data = request.get_json()
+    target_date = date.fromisoformat(data.get('date'))
+    shift_type_id = data.get('shift_type_id')
 
-    for config in configs:
-        worker_id = config.cleaner_id
-        pattern = config.pattern
+    scheduler = SmartScheduler(target_date.year, target_date.month)
+    # Load current schedule into memory
+    for a in ShiftAssignment.query.filter(
+        ShiftAssignment.date >= scheduler.first_day,
+        ShiftAssignment.date <= scheduler.last_day,
+    ).all():
+        scheduler.schedule[(a.cleaner_id, a.date)] = a.shift_type_id
+        if a.is_override:
+            scheduler.overrides.add((a.cleaner_id, a.date))
 
-        for d in range(1, num_days + 1):
-            target_date = date(year, month, d)
+    # Find best worker for this gap
+    best_worker = None
+    best_score = -1
+    for w in scheduler.workers:
+        key = (w.id, target_date)
+        if key in scheduler.schedule and scheduler.schedule[key]:
+            continue
+        if key in scheduler.absent_days:
+            continue
+        if not scheduler._check_rest(w.id, target_date, shift_type_id):
+            continue
+        if scheduler._week_hours_with(w.id, target_date, shift_type_id) > 40:
+            continue
+        if scheduler._consecutive_days(w.id, target_date) >= 6:
+            continue
+        score = scheduler._fairness_score(w.id, target_date, shift_type_id)
+        if score > best_score:
+            best_score = score
+            best_worker = w
 
-            # Check if there's an existing override to preserve
-            existing = ShiftAssignment.query.filter_by(
-                cleaner_id=worker_id, date=target_date
+    if best_worker:
+        existing = ShiftAssignment.query.filter_by(
+            cleaner_id=best_worker.id, date=target_date
+        ).first()
+        if existing:
+            existing.shift_type_id = shift_type_id
+            existing.source = 'smart'
+        else:
+            db.session.add(ShiftAssignment(
+                cleaner_id=best_worker.id, date=target_date,
+                shift_type_id=shift_type_id, source='smart',
+                created_by=current_user.id,
+            ))
+        db.session.commit()
+        st = db.session.get(ShiftType, shift_type_id)
+        return jsonify({
+            'ok': True,
+            'worker_id': best_worker.id,
+            'worker_name': best_worker.name,
+            'short_name': st.short_name if st else '',
+            'color': st.color if st else '',
+        })
+    return jsonify({'ok': False, 'error': 'No hay trabajadores disponibles para cubrir este turno.'}), 404
+
+
+@app.route('/cuadrantes/coverage-settings')
+@admin_required
+def coverage_settings():
+    shift_types = ShiftType.query.filter_by(active=True).order_by(ShiftType.sort_order).all()
+    requirements = ShiftCoverageRequirement.query.all()
+    req_map = {(r.shift_type_id, r.day_type): r for r in requirements}
+    return render_template('coverage_settings.html', shift_types=shift_types, req_map=req_map)
+
+
+@app.route('/cuadrantes/coverage-settings/save', methods=['POST'])
+@admin_required
+def save_coverage_settings():
+    shift_types = ShiftType.query.filter_by(active=True).all()
+    for st in shift_types:
+        for day_type in ['weekday', 'weekend']:
+            field_name = f'min_{st.id}_{day_type}'
+            val = request.form.get(field_name, '', type=int)
+            existing = ShiftCoverageRequirement.query.filter_by(
+                shift_type_id=st.id, day_type=day_type
             ).first()
-
-            if existing and existing.is_override and preserve_overrides:
-                skipped += 1
-                continue
-
-            # Calculate shift from pattern or fixed
-            if config.fixed_shift_type_id:
-                # Fixed shift: assign the fixed shift every day - admin can override days off
-                shift_type_id = config.fixed_shift_type_id
-            elif pattern and pattern.days:
-                # Calculate position in cycle
-                delta = (target_date - config.cycle_start_date).days
-                day_in_cycle = delta % pattern.cycle_days
-                if day_in_cycle < 0:
-                    day_in_cycle += pattern.cycle_days
-
-                # Find the pattern day
-                pattern_day = next(
-                    (pd for pd in pattern.days if pd.day_number == day_in_cycle), None
-                )
-                shift_type_id = pattern_day.shift_type_id if pattern_day else None
-            else:
-                continue
-
-            if existing:
-                existing.shift_type_id = shift_type_id
-                existing.is_override = False
-                existing.source = 'pattern'
-            else:
-                db.session.add(ShiftAssignment(
-                    cleaner_id=worker_id,
-                    date=target_date,
-                    shift_type_id=shift_type_id,
-                    is_override=False,
-                    source='pattern',
-                    created_by=current_user.id,
-                ))
-            generated += 1
-
+            if val and val > 0:
+                if existing:
+                    existing.min_workers = val
+                else:
+                    db.session.add(ShiftCoverageRequirement(
+                        shift_type_id=st.id, day_type=day_type, min_workers=val,
+                    ))
+            elif existing:
+                db.session.delete(existing)
     db.session.commit()
-    return jsonify({'ok': True, 'generated': generated, 'skipped': skipped})
+    flash('Requisitos de cobertura guardados.', 'success')
+    return redirect(url_for('coverage_settings'))
 
 
 @app.route('/cuadrantes/ausencias')
