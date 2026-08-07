@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% block title %}Ausencias{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <a href="{{ url_for('cuadrantes') }}" class="btn btn-outline-secondary btn-sm" title="Volver a cuadrantes">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+            <h1 class="h3 mb-0">Ausencias</h1>
+            <span class="badge bg-secondary">{{ absences|length }}</span>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" onclick="openAbsenceForm()">
+            <i class="bi bi-plus-lg me-1"></i>Registrar ausencia
+        </button>
+    </div>
+
+    <!-- Offcanvas formulario añadir / editar -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="absenceFormPanel" aria-labelledby="absenceFormTitle" style="width:min(480px,90vw)">
+        <div class="offcanvas-header" id="offcanvas-header-bar" style="border-bottom:1px solid var(--color-border);border-top:3px solid var(--color-primary)">
+            <h5 class="offcanvas-title" id="absenceFormTitle">Nueva ausencia</h5>
+            <span id="edit-badge" class="badge bg-warning text-dark d-none ms-2">Editando</span>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+        </div>
+        <div class="offcanvas-body">
+            <form id="absence-form" method="POST" action="{{ url_for('add_edit_absence') }}" class="needs-validation" novalidate>
+                <input type="hidden" name="absence_id" value="">
+
+                <div class="mb-3">
+                    <label for="abs-worker" class="form-label">Trabajador <span class="text-danger" aria-hidden="true">*</span></label>
+                    <select id="abs-worker" name="cleaner_id" class="form-select" required>
+                        <option value="">Seleccionar trabajador...</option>
+                        {% for w in workers %}
+                        <option value="{{ w.id }}">{{ w.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="invalid-feedback">Selecciona un trabajador.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="abs-type" class="form-label">Tipo de ausencia <span class="text-danger" aria-hidden="true">*</span></label>
+                    <select id="abs-type" name="absence_type_id" class="form-select" required>
+                        <option value="">Seleccionar tipo...</option>
+                        {% for at in absence_types %}
+                        <option value="{{ at.id }}" data-color="{{ at.color }}">{{ at.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="invalid-feedback">Selecciona un tipo de ausencia.</div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label for="abs-start" class="form-label">Fecha inicio <span class="text-danger" aria-hidden="true">*</span></label>
+                        <input type="date" id="abs-start" name="start_date" class="form-control" required>
+                        <div class="invalid-feedback">La fecha de inicio es obligatoria.</div>
+                    </div>
+                    <div class="col-6">
+                        <label for="abs-end" class="form-label">Fecha fin <span class="text-danger" aria-hidden="true">*</span></label>
+                        <input type="date" id="abs-end" name="end_date" class="form-control" required>
+                        <div class="invalid-feedback">La fecha de fin es obligatoria.</div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="abs-notes" class="form-label">Notas</label>
+                    <textarea id="abs-notes" name="notes" class="form-control" rows="3" placeholder="Observaciones opcionales..."></textarea>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary" id="submit-btn">Registrar ausencia</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla de ausencias -->
+    {% if absences %}
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col">Trabajador</th>
+                        <th scope="col">Tipo</th>
+                        <th scope="col">Periodo</th>
+                        <th scope="col">Duración</th>
+                        <th scope="col" class="hide-mobile">Notas</th>
+                        <th scope="col" class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in absences %}
+                    <tr>
+                        <td>{{ a.cleaner.name }}</td>
+                        <td>
+                            <span class="badge" style="background:{{ a.absence_type.color or '#6c757d' }};color:#fff">
+                                {{ a.absence_type.short_name }}
+                            </span>
+                        </td>
+                        <td>
+                            {{ a.start_date.strftime('%d/%m/%Y') }} - {{ a.end_date.strftime('%d/%m/%Y') }}
+                        </td>
+                        <td>
+                            {% set duration = (a.end_date - a.start_date).days + 1 %}
+                            {{ duration }} día{{ 's' if duration != 1 else '' }}
+                        </td>
+                        <td class="hide-mobile">
+                            {% if a.notes %}
+                            <span title="{{ a.notes }}">{{ a.notes[:40] }}{{ '...' if a.notes|length > 40 else '' }}</span>
+                            {% else %}
+                            <span class="text-body-secondary">--</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-secondary edit-absence me-1"
+                                    data-id="{{ a.id }}"
+                                    data-cleaner-id="{{ a.cleaner.id }}"
+                                    data-cleaner-name="{{ a.cleaner.name }}"
+                                    data-absence-type-id="{{ a.absence_type.id }}"
+                                    data-start-date="{{ a.start_date.strftime('%Y-%m-%d') }}"
+                                    data-end-date="{{ a.end_date.strftime('%Y-%m-%d') }}"
+                                    data-notes="{{ a.notes or '' }}"
+                                    aria-label="Editar ausencia de {{ a.cleaner.name }}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <form method="POST" action="{{ url_for('delete_absence', id=a.id) }}"
+                                  class="d-inline" data-confirm="¿Seguro que quieres eliminar esta ausencia de «{{ a.cleaner.name }}»?">
+                                <button type="submit" class="btn btn-sm btn-outline-danger"
+                                        aria-label="Eliminar ausencia de {{ a.cleaner.name }}">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info" role="status">Aún no hay ausencias registradas.</div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    'use strict';
+
+    var offcanvasEl = document.getElementById('absenceFormPanel');
+    var offcanvas = new bootstrap.Offcanvas(offcanvasEl);
+    var headerBar = document.getElementById('offcanvas-header-bar');
+    var startInput = document.getElementById('abs-start');
+    var endInput = document.getElementById('abs-end');
+
+    function resetForm() {
+        var form = document.getElementById('absence-form');
+        form.reset();
+        form.classList.remove('was-validated');
+        form.querySelector('[name="absence_id"]').value = '';
+        startInput.removeAttribute('max');
+        endInput.removeAttribute('min');
+        document.getElementById('submit-btn').textContent = 'Registrar ausencia';
+        document.getElementById('absenceFormTitle').textContent = 'Nueva ausencia';
+        document.getElementById('edit-badge').classList.add('d-none');
+        headerBar.style.borderTopColor = 'var(--color-primary)';
+    }
+
+    window.openAbsenceForm = function () {
+        resetForm();
+        offcanvas.show();
+    };
+
+    // Date constraints: start <= end
+    startInput.addEventListener('change', function () {
+        endInput.min = this.value;
+        if (endInput.value && endInput.value < this.value) {
+            endInput.value = this.value;
+        }
+    });
+
+    endInput.addEventListener('change', function () {
+        startInput.max = this.value;
+        if (startInput.value && startInput.value > this.value) {
+            startInput.value = this.value;
+        }
+    });
+
+    // Edit buttons
+    document.querySelectorAll('.edit-absence').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var form = document.getElementById('absence-form');
+            form.classList.remove('was-validated');
+            form.querySelector('[name="absence_id"]').value       = this.dataset.id;
+            form.querySelector('[name="cleaner_id"]').value       = this.dataset.cleanerId;
+            form.querySelector('[name="absence_type_id"]').value  = this.dataset.absenceTypeId;
+            startInput.value = this.dataset.startDate;
+            endInput.value   = this.dataset.endDate;
+            endInput.min     = this.dataset.startDate;
+            startInput.max   = this.dataset.endDate;
+            form.querySelector('[name="notes"]').value            = this.dataset.notes;
+            document.getElementById('submit-btn').textContent       = 'Guardar cambios';
+            document.getElementById('absenceFormTitle').textContent = 'Editando ausencia: ' + this.dataset.cleanerName;
+            document.getElementById('edit-badge').classList.remove('d-none');
+            headerBar.style.borderTopColor = 'var(--color-warning)';
+            offcanvas.show();
+        });
+    });
+
+    // Auto-reset on close
+    offcanvasEl.addEventListener('hidden.bs.offcanvas', resetForm);
+})();
+</script>
+{% endblock %}

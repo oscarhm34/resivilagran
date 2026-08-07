@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+{% block title %}Patrones de Rotación{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <a href="{{ url_for('cuadrantes') }}" class="btn btn-outline-secondary btn-sm" title="Volver a cuadrantes">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+            <h1 class="h3 mb-0">Patrones de Rotación</h1>
+            <span class="badge bg-secondary">{{ patterns|length }}</span>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" onclick="openPatternForm()">
+            <i class="bi bi-plus-lg me-1"></i>Añadir patrón
+        </button>
+    </div>
+
+    <!-- Offcanvas formulario añadir / editar -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="patternFormPanel" aria-labelledby="patternFormTitle" style="width:min(560px,90vw)">
+        <div class="offcanvas-header" id="offcanvas-header-bar" style="border-bottom:1px solid var(--color-border);border-top:3px solid var(--color-primary)">
+            <h5 class="offcanvas-title" id="patternFormTitle">Nuevo patrón</h5>
+            <span id="edit-badge" class="badge bg-warning text-dark d-none ms-2">Editando</span>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+        </div>
+        <div class="offcanvas-body">
+            <form id="pattern-form" method="POST" action="{{ url_for('add_edit_pattern') }}" class="needs-validation" novalidate>
+                <input type="hidden" name="pattern_id" value="">
+
+                <div class="mb-3">
+                    <label for="pat-name" class="form-label">Nombre <span class="text-danger" aria-hidden="true">*</span></label>
+                    <input type="text" id="pat-name" name="name"
+                           class="form-control" required autocomplete="off"
+                           placeholder="ej. Rotación semanal A">
+                    <div class="invalid-feedback">El nombre es obligatorio.</div>
+                </div>
+                <div class="mb-3">
+                    <label for="pat-description" class="form-label">Descripción</label>
+                    <textarea id="pat-description" name="description"
+                              class="form-control" rows="2" autocomplete="off"
+                              placeholder="Descripción opcional del patrón"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label for="pat-cycle-days" class="form-label">Días del ciclo <span class="text-danger" aria-hidden="true">*</span></label>
+                    <input type="number" id="pat-cycle-days" name="cycle_days"
+                           class="form-control" required min="1" max="56" value="7">
+                    <div class="form-text">Número de días que dura el ciclo de rotación (1-56).</div>
+                    <div class="invalid-feedback">Introduce un valor entre 1 y 56.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Turnos por día</label>
+                    <div id="day-grid" class="d-flex flex-wrap gap-2"></div>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary" id="submit-btn">Añadir patrón</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla de patrones -->
+    {% if patterns %}
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col">Nombre</th>
+                        <th scope="col" class="hide-mobile">Descripción</th>
+                        <th scope="col">Ciclo</th>
+                        <th scope="col">Patrón</th>
+                        <th scope="col">Activo</th>
+                        <th scope="col" class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in patterns %}
+                    <tr>
+                        <td><strong>{{ p.name }}</strong></td>
+                        <td class="hide-mobile">
+                            {% if p.description %}
+                                <span class="text-body-secondary">{{ p.description|truncate(60) }}</span>
+                            {% else %}
+                                <span class="text-body-secondary">--</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ p.cycle_days }} días</td>
+                        <td>
+                            <div class="d-flex flex-wrap gap-1">
+                                {% for day in p.days|sort(attribute='day_number') %}
+                                    {% if day.shift_type %}
+                                    <span class="badge" style="background:{{ day.shift_type.color }};color:#fff;font-size:.72rem;min-width:26px">{{ day.shift_type.short_name }}</span>
+                                    {% else %}
+                                    <span class="badge bg-light text-body-secondary border" style="font-size:.72rem;min-width:26px">L</span>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td>
+                            {% if p.active %}
+                                <span class="status-badge status-success">Activo</span>
+                            {% else %}
+                                <span class="status-badge status-muted">Inactivo</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-secondary edit-pattern me-1"
+                                    data-id="{{ p.id }}"
+                                    data-name="{{ p.name }}"
+                                    data-description="{{ p.description or '' }}"
+                                    data-cycle-days="{{ p.cycle_days }}"
+                                    data-days='{{ p.days|map(attribute="shift_type")|map(attribute="id", default="")|list|tojson }}'
+                                    data-day-ids='{% set ns = namespace(result=[]) %}{% for day in p.days|sort(attribute="day_number") %}{% if day.shift_type %}{% set _ = ns.result.append(day.shift_type.id) %}{% else %}{% set _ = ns.result.append(0) %}{% endif %}{% endfor %}{{ ns.result|tojson }}'
+                                    aria-label="Editar {{ p.name }}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <form method="POST" action="{{ url_for('delete_pattern', id=p.id) }}"
+                                  class="d-inline" data-confirm="¿Seguro que quieres eliminar el patrón «{{ p.name }}»?">
+                                <button type="submit" class="btn btn-sm btn-outline-danger"
+                                        aria-label="Eliminar {{ p.name }}">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info" role="status">Aún no hay patrones de rotación creados.</div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    'use strict';
+
+    // Shift types data for JS
+    var shiftTypes = [
+        {% for st in shift_types %}
+        { id: {{ st.id }}, name: {{ st.name|tojson }}, short_name: {{ st.short_name|tojson }}, color: {{ (st.color or '#0069d9')|tojson }} }{{ ',' if not loop.last }}
+        {% endfor %}
+    ];
+
+    var offcanvasEl = document.getElementById('patternFormPanel');
+    var offcanvas = new bootstrap.Offcanvas(offcanvasEl);
+    var headerBar = document.getElementById('offcanvas-header-bar');
+    var dayGrid = document.getElementById('day-grid');
+    var cycleDaysInput = document.getElementById('pat-cycle-days');
+
+    function generateDayGrid(cycleDays, values) {
+        dayGrid.innerHTML = '';
+        values = values || [];
+        for (var i = 0; i < cycleDays; i++) {
+            var wrapper = document.createElement('div');
+            wrapper.className = 'd-inline-flex flex-column align-items-center';
+            wrapper.style.width = '50px';
+
+            var label = document.createElement('small');
+            label.className = 'text-body-secondary';
+            label.textContent = 'Día ' + (i + 1);
+
+            var select = document.createElement('select');
+            select.name = 'day_' + i;
+            select.className = 'form-select form-select-sm text-center';
+            select.style.cssText = 'width:50px;padding:4px';
+
+            // Libre option
+            var optLibre = document.createElement('option');
+            optLibre.value = '';
+            optLibre.textContent = 'L';
+            select.appendChild(optLibre);
+
+            // Shift type options
+            for (var j = 0; j < shiftTypes.length; j++) {
+                var st = shiftTypes[j];
+                var opt = document.createElement('option');
+                opt.value = st.id;
+                opt.textContent = st.short_name;
+                opt.style.background = st.color;
+                opt.style.color = '#fff';
+                select.appendChild(opt);
+            }
+
+            // Set value if provided
+            if (values[i] && values[i] !== 0) {
+                select.value = values[i];
+            }
+
+            // Update background on change
+            select.addEventListener('change', function () {
+                updateSelectStyle(this);
+            });
+
+            wrapper.appendChild(label);
+            wrapper.appendChild(select);
+            dayGrid.appendChild(wrapper);
+
+            // Set initial style
+            updateSelectStyle(select);
+        }
+    }
+
+    function updateSelectStyle(selectEl) {
+        var val = selectEl.value;
+        if (!val) {
+            selectEl.style.backgroundColor = '';
+            selectEl.style.color = '';
+            return;
+        }
+        for (var i = 0; i < shiftTypes.length; i++) {
+            if (String(shiftTypes[i].id) === String(val)) {
+                selectEl.style.backgroundColor = shiftTypes[i].color;
+                selectEl.style.color = '#fff';
+                return;
+            }
+        }
+        selectEl.style.backgroundColor = '';
+        selectEl.style.color = '';
+    }
+
+    function resetForm() {
+        var form = document.getElementById('pattern-form');
+        form.reset();
+        form.classList.remove('was-validated');
+        form.querySelector('[name="pattern_id"]').value = '';
+        cycleDaysInput.value = '7';
+        generateDayGrid(7);
+        document.getElementById('submit-btn').textContent = 'Añadir patrón';
+        document.getElementById('patternFormTitle').textContent = 'Nuevo patrón';
+        document.getElementById('edit-badge').classList.add('d-none');
+        headerBar.style.borderTopColor = 'var(--color-primary)';
+    }
+
+    window.openPatternForm = function () {
+        resetForm();
+        offcanvas.show();
+    };
+
+    // Cycle days change
+    cycleDaysInput.addEventListener('change', function () {
+        var val = parseInt(this.value) || 7;
+        if (val < 1) val = 1;
+        if (val > 56) val = 56;
+        this.value = val;
+        generateDayGrid(val);
+    });
+
+    cycleDaysInput.addEventListener('input', function () {
+        var val = parseInt(this.value);
+        if (val && val >= 1 && val <= 56) {
+            generateDayGrid(val);
+        }
+    });
+
+    // Edit pattern
+    document.querySelectorAll('.edit-pattern').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var form = document.getElementById('pattern-form');
+            form.classList.remove('was-validated');
+            form.querySelector('[name="pattern_id"]').value = this.dataset.id;
+            form.querySelector('[name="name"]').value = this.dataset.name;
+            form.querySelector('[name="description"]').value = this.dataset.description;
+            var cycleDays = parseInt(this.dataset.cycleDays) || 7;
+            cycleDaysInput.value = cycleDays;
+
+            var dayValues = [];
+            try {
+                dayValues = JSON.parse(this.dataset.dayIds);
+            } catch (e) {
+                dayValues = [];
+            }
+
+            generateDayGrid(cycleDays, dayValues);
+
+            document.getElementById('submit-btn').textContent = 'Guardar cambios';
+            document.getElementById('patternFormTitle').textContent = 'Editando: ' + this.dataset.name;
+            document.getElementById('edit-badge').classList.remove('d-none');
+            headerBar.style.borderTopColor = 'var(--color-warning)';
+            offcanvas.show();
+        });
+    });
+
+    offcanvasEl.addEventListener('hidden.bs.offcanvas', resetForm);
+})();
+</script>
+{% endblock %}

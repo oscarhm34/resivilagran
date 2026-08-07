@@ -354,3 +354,87 @@ class ShiftAssignment(db.Model):
     creator = db.relationship('Cleaner', foreign_keys=[created_by])
 
     __table_args__ = (db.UniqueConstraint('cleaner_id', 'date', name='uq_worker_date'),)
+
+    @property
+    def net_hours(self):
+        """Effective working hours for this assignment."""
+        if not self.shift_type:
+            return 0.0
+        st = self.shift_type
+        from datetime import datetime as _dt, timedelta as _td
+        start = _dt.combine(self.date, st.start_time)
+        end = _dt.combine(self.date, st.end_time)
+        if end <= start:
+            end += _td(days=1)  # night shift crosses midnight
+        total_min = (end - start).total_seconds() / 60
+        return (total_min - (st.breaks_minutes or 0)) / 60
+
+
+class RotationPattern(db.Model):
+    __tablename__ = 'rotation_pattern'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    cycle_days = db.Column(db.Integer, nullable=False, default=7)
+    active = db.Column(db.Boolean, default=True)
+
+    days = db.relationship('RotationPatternDay', back_populates='pattern',
+                           lazy=True, order_by='RotationPatternDay.day_number',
+                           cascade='all, delete-orphan')
+    worker_configs = db.relationship('WorkerShiftConfig', back_populates='pattern', lazy=True)
+
+
+class RotationPatternDay(db.Model):
+    __tablename__ = 'rotation_pattern_day'
+    id = db.Column(db.Integer, primary_key=True)
+    pattern_id = db.Column(db.Integer, db.ForeignKey('rotation_pattern.id'), nullable=False)
+    day_number = db.Column(db.Integer, nullable=False)
+    shift_type_id = db.Column(db.Integer, db.ForeignKey('shift_type.id'), nullable=True)
+
+    pattern = db.relationship('RotationPattern', back_populates='days')
+    shift_type = db.relationship('ShiftType')
+
+    __table_args__ = (db.UniqueConstraint('pattern_id', 'day_number', name='uq_pattern_day'),)
+
+
+class WorkerShiftConfig(db.Model):
+    __tablename__ = 'worker_shift_config'
+    id = db.Column(db.Integer, primary_key=True)
+    cleaner_id = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=False)
+    pattern_id = db.Column(db.Integer, db.ForeignKey('rotation_pattern.id'), nullable=True)
+    fixed_shift_type_id = db.Column(db.Integer, db.ForeignKey('shift_type.id'), nullable=True)
+    cycle_start_date = db.Column(db.Date, nullable=False)
+    effective_from = db.Column(db.Date, nullable=False)
+    effective_until = db.Column(db.Date, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+
+    cleaner = db.relationship('Cleaner', backref=db.backref('shift_configs', lazy=True))
+    pattern = db.relationship('RotationPattern', back_populates='worker_configs')
+    fixed_shift_type = db.relationship('ShiftType')
+
+
+class AbsenceType(db.Model):
+    __tablename__ = 'absence_type'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False, unique=True)
+    short_name = db.Column(db.String(5), nullable=False)
+    color = db.Column(db.String(7), nullable=False)
+    counts_as_worked = db.Column(db.Boolean, default=False)
+    active = db.Column(db.Boolean, default=True)
+
+
+class Absence(db.Model):
+    __tablename__ = 'absence'
+    id = db.Column(db.Integer, primary_key=True)
+    cleaner_id = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=False)
+    absence_type_id = db.Column(db.Integer, db.ForeignKey('absence_type.id'), nullable=False)
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=False)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
+
+    cleaner = db.relationship('Cleaner', foreign_keys=[cleaner_id],
+                              backref=db.backref('absences', lazy=True))
+    absence_type = db.relationship('AbsenceType')
+    creator = db.relationship('Cleaner', foreign_keys=[created_by])

@@ -94,6 +94,12 @@
         font-weight: 400;
         font-size: .6rem;
     }
+    .shift-cell.absence {
+        font-size: .55rem;
+        letter-spacing: -.02em;
+        opacity: .85;
+    }
+    .has-absence { pointer-events: none; } /* can't reassign days with absence */
 
     /* ── Coverage summary row ──────────────────────────────── */
     .shift-grid .coverage-row td {
@@ -273,6 +279,18 @@
                class="btn btn-outline-secondary btn-sm no-print" title="Gestionar tipos de turno">
                 <i class="bi bi-palette me-1"></i>Tipos de turno
             </a>
+            <a href="{{ url_for('manage_patterns') }}" class="btn btn-outline-secondary btn-sm no-print">
+                <i class="bi bi-arrow-repeat me-1"></i>Patrones
+            </a>
+            <a href="{{ url_for('manage_absences') }}" class="btn btn-outline-secondary btn-sm no-print">
+                <i class="bi bi-calendar-x me-1"></i>Ausencias
+            </a>
+            <button type="button" class="btn btn-primary btn-sm no-print" id="btn-generate" title="Generar mes desde patrones">
+                <i class="bi bi-magic me-1"></i>Generar mes
+            </button>
+            <button type="button" class="btn btn-outline-warning btn-sm no-print" id="btn-validate" title="Validar cumplimiento laboral">
+                <i class="bi bi-shield-check me-1"></i>Validar
+            </button>
         </div>
     </div>
 
@@ -292,19 +310,27 @@
                             <span class="day-header-dow" data-day="{{ d }}"></span>
                         </th>
                         {% endfor %}
+                        <th class="no-print" style="min-width:50px">Horas</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for w in workers %}
-                    <tr data-worker="{{ w.id }}">
+                    <tr data-worker="{{ w.id }}" data-worker-id="{{ w.id }}">
                         <td>{{ w.name }}</td>
                         {% for d in range(1, num_days + 1) %}
                         {% set iso = '%04d-%02d-%02d' | format(year, month, d) %}
                         {% set assignment = assign_map.get((w.id, iso)) %}
-                        <td class="grid-cell" data-worker="{{ w.id }}" data-date="{{ iso }}" data-day="{{ d }}">
-                            {% if assignment %}
+                        {% set abs_type = absence_map.get((w.id, iso)) %}
+                        <td class="grid-cell{% if abs_type %} has-absence{% endif %}" data-worker="{{ w.id }}" data-date="{{ iso }}" data-day="{{ d }}">
+                            {% if abs_type %}
+                            <span class="shift-cell absence" style="background:{{ abs_type.color }}"
+                                  title="{{ abs_type.name }}">
+                                {{ abs_type.short_name }}
+                            </span>
+                            {% elif assignment and assignment.shift_type %}
                             <span class="shift-cell" style="background:{{ assignment.shift_type.color }}"
-                                  title="{{ assignment.shift_type.name }}">
+                                  title="{{ assignment.shift_type.name }}"
+                                  data-shift-id="{{ assignment.shift_type.id }}">
                                 {{ assignment.shift_type.short_name }}
                             </span>
                             {% else %}
@@ -312,6 +338,7 @@
                             {% endif %}
                         </td>
                         {% endfor %}
+                        <td class="worker-hours no-print" style="font-size:.75rem;font-weight:600"></td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -330,8 +357,23 @@
                             {% endfor %}
                         </td>
                         {% endfor %}
+                        <td class="no-print"></td>
                     </tr>
                 </tfoot>
+            </table>
+        </div>
+    </div>
+
+    {# ── Validation warnings panel ─────────────────────────── #}
+    <div class="card mb-3 d-none no-print" id="validation-panel">
+        <div class="card-header d-flex align-items-center justify-content-between" style="background:var(--color-warning-lt, #fff3cd)">
+            <span><i class="bi bi-exclamation-triangle me-1"></i>Alertas de validaci&oacute;n (<span id="warning-count">0</span>)</span>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('validation-panel').classList.add('d-none')">Cerrar</button>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0" id="warnings-table">
+                <thead><tr><th>Trabajador</th><th>Fecha</th><th>Problema</th></tr></thead>
+                <tbody></tbody>
             </table>
         </div>
     </div>
@@ -561,6 +603,7 @@
         if (!shiftTypeId) {
             cell.innerHTML = '<span class="shift-cell empty" title="Sin turno">&middot;</span>';
             updateCoverage();
+            updateWorkerHours();
             return;
         }
         var st = null;
@@ -569,8 +612,9 @@
         }
         if (!st) return;
         cell.innerHTML = '<span class="shift-cell" style="background:' + st.color +
-            '" title="' + st.name + '">' + st.short_name + '</span>';
+            '" title="' + st.name + '" data-shift-id="' + st.id + '">' + st.short_name + '</span>';
         updateCoverage();
+        updateWorkerHours();
     }
 
     /* ── Recalculate coverage row ──────────────────────────── */
@@ -593,6 +637,107 @@
             covTd.innerHTML = html;
         });
     }
+
+    /* ── Worker hours calculation ─────────────────────────── */
+    function updateWorkerHours() {
+        document.querySelectorAll('tr[data-worker-id]').forEach(function(row) {
+            var hours = 0;
+            row.querySelectorAll('.shift-cell[data-shift-id]').forEach(function(cell) {
+                var shiftId = parseInt(cell.dataset.shiftId);
+                if (shiftId) {
+                    var st = SHIFT_TYPES.find(function(s) { return s.id === shiftId; });
+                    if (st && st.start_time && st.end_time) {
+                        var start = st.start_time.split(':');
+                        var end = st.end_time.split(':');
+                        var startMin = parseInt(start[0]) * 60 + parseInt(start[1]);
+                        var endMin = parseInt(end[0]) * 60 + parseInt(end[1]);
+                        if (endMin <= startMin) endMin += 24 * 60; // night shift
+                        hours += (endMin - startMin) / 60;
+                    }
+                }
+            });
+            var hoursCell = row.querySelector('.worker-hours');
+            if (hoursCell) {
+                hoursCell.textContent = hours > 0 ? hours.toFixed(0) + 'h' : '';
+                if (hours > 40 * 4.33) {
+                    hoursCell.style.color = 'var(--color-danger)';
+                    hoursCell.style.fontWeight = '700';
+                } else {
+                    hoursCell.style.color = '';
+                    hoursCell.style.fontWeight = '';
+                }
+            }
+        });
+    }
+
+    // Calculate hours on page load
+    updateWorkerHours();
+
+    /* ── Generate month from patterns ─────────────────────── */
+    document.getElementById('btn-generate').addEventListener('click', function() {
+        showConfirm('¿Generar turnos del mes desde los patrones asignados? Los cambios manuales se preservarán.', function() {
+            fetch('/cuadrantes/generate', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({year: YEAR, month: MONTH, preserve_overrides: true})
+            }).then(function(r) { return r.json(); }).then(function(data) {
+                if (data.ok) {
+                    showToast('Generados ' + data.generated + ' turnos (' + data.skipped + ' manuales preservados)', 'success');
+                    setTimeout(function() { location.reload(); }, 1000);
+                } else {
+                    showToast(data.error || 'Error al generar', 'error');
+                }
+            }).catch(function() { showToast('Error de conexión', 'error'); });
+        });
+    });
+
+    /* ── Validate labor law compliance ────────────────────── */
+    document.getElementById('btn-validate').addEventListener('click', function() {
+        fetch('/cuadrantes/validate?year=' + YEAR + '&month=' + MONTH)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var panel = document.getElementById('validation-panel');
+            var tbody = document.querySelector('#warnings-table tbody');
+            var count = document.getElementById('warning-count');
+            tbody.innerHTML = '';
+
+            // Clear any previous cell highlights
+            document.querySelectorAll('.grid-cell[style*="outline"]').forEach(function(c) {
+                c.style.outline = '';
+                c.title = '';
+            });
+
+            if (data.warnings && data.warnings.length > 0) {
+                panel.classList.remove('d-none');
+                count.textContent = data.warnings.length;
+
+                var iconMap = {rest: 'bi-moon', hours: 'bi-clock', weekly_rest: 'bi-calendar-x'};
+                var colorMap = {rest: 'var(--color-danger)', hours: 'var(--color-warning)', weekly_rest: 'var(--color-info)'};
+
+                data.warnings.forEach(function(w) {
+                    var tr = document.createElement('tr');
+                    tr.innerHTML = '<td><strong>' + w.worker_name + '</strong></td>' +
+                        '<td>' + (w.date ? new Date(w.date).toLocaleDateString('es-ES') : '') + '</td>' +
+                        '<td><i class="bi ' + (iconMap[w.type]||'bi-exclamation') + ' me-1" style="color:' + (colorMap[w.type]||'') + '"></i>' + w.message + '</td>';
+                    tbody.appendChild(tr);
+                });
+
+                // Highlight cells with warnings
+                data.warnings.forEach(function(w) {
+                    if (w.date) {
+                        var cell = document.querySelector('td[data-worker="' + w.worker_id + '"][data-date="' + w.date + '"]');
+                        if (cell) {
+                            cell.style.outline = '2px solid red';
+                            cell.title = w.message;
+                        }
+                    }
+                });
+            } else {
+                panel.classList.add('d-none');
+                showToast('Sin alertas - todo correcto', 'success');
+            }
+        }).catch(function() { showToast('Error al validar', 'error'); });
+    });
 })();
 </script>
 {% endblock %}

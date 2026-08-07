@@ -6,7 +6,9 @@ from .models import (Cleaner, Room, CleaningRecord, Floor, RoomType, Resident,
                       TrainingPill, TrainingQuestion, TrainingCompletion,
                       ChecklistItem, ResidentDocument,
                       VitalSignType, VitalSignReading, AppSetting,
-                      ShiftType, ShiftAssignment)
+                      ShiftType, ShiftAssignment,
+                      RotationPattern, RotationPatternDay, WorkerShiftConfig,
+                      AbsenceType, Absence)
 from flask import request, jsonify, render_template, redirect, url_for, flash, send_file, send_from_directory, abort
 from flask_login import login_user, logout_user, login_required, current_user
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
@@ -3532,6 +3534,25 @@ def cuadrantes():
 
     groups = ResidentGroup.query.order_by(ResidentGroup.name).all()
 
+    # Absences for this month: {(cleaner_id, date_iso): AbsenceType}
+    absences = Absence.query.options(
+        joinedload(Absence.absence_type),
+    ).filter(
+        Absence.start_date <= last_day,
+        Absence.end_date >= first_day,
+    ).all()
+    absence_map = {}
+    for ab in absences:
+        d = max(ab.start_date, first_day)
+        while d <= min(ab.end_date, last_day):
+            absence_map[(ab.cleaner_id, d.isoformat())] = ab.absence_type
+            d += timedelta(days=1)
+
+    # Worker shift configs (active ones)
+    worker_configs = {c.cleaner_id: c for c in WorkerShiftConfig.query.filter(
+        WorkerShiftConfig.effective_until.is_(None),
+    ).options(joinedload(WorkerShiftConfig.pattern)).all()}
+
     # Navigation: prev/next month
     if month == 1:
         prev_year, prev_month = year - 1, 12
@@ -3546,6 +3567,7 @@ def cuadrantes():
         year=year, month=month, num_days=num_days,
         workers=workers, shift_types=shift_types,
         assign_map=assign_map, coverage=coverage,
+        absence_map=absence_map, worker_configs=worker_configs,
         groups=groups, group_id=group_id,
         prev_year=prev_year, prev_month=prev_month,
         next_year=next_year, next_month=next_month,
@@ -3807,3 +3829,416 @@ def worker_my_shifts():
             } if st else None,
         })
     return jsonify({'year': year, 'month': mo, 'shifts': result})
+
+
+# ─── Phase 2 & 3: Rotation Patterns, Absences, Validation ─────────────────────
+
+@app.cli.command('seed-absence-types')
+def seed_absence_types():
+    defaults = [
+        {'name': 'Vacaciones', 'short_name': 'VAC', 'color': '#198754', 'counts_as_worked': False},
+        {'name': 'Baja médica', 'short_name': 'BAJ', 'color': '#dc3545', 'counts_as_worked': False},
+        {'name': 'Asuntos propios', 'short_name': 'AP', 'color': '#ffc107', 'counts_as_worked': False},
+        {'name': 'Permiso retribuido', 'short_name': 'PR', 'color': '#0dcaf0', 'counts_as_worked': True},
+        {'name': 'Festivo', 'short_name': 'FES', 'color': '#6c757d', 'counts_as_worked': False},
+    ]
+    for d in defaults:
+        if not AbsenceType.query.filter_by(name=d['name']).first():
+            db.session.add(AbsenceType(**d))
+            print(f'  Created: {d["name"]}')
+        else:
+            print(f'  Exists: {d["name"]}')
+    db.session.commit()
+    print('Done.')
+
+
+@app.route('/cuadrantes/patrones')
+@admin_required
+def manage_patterns():
+    patterns = RotationPattern.query.order_by(RotationPattern.name).all()
+    shift_types = ShiftType.query.filter_by(active=True).order_by(ShiftType.sort_order).all()
+    return render_template('manage_patterns.html', patterns=patterns, shift_types=shift_types)
+
+
+@app.route('/cuadrantes/patrones/add_edit', methods=['POST'])
+@admin_required
+def add_edit_pattern():
+    pattern_id = request.form.get('pattern_id', '').strip()
+    name = request.form.get('name', '').strip()
+    description = request.form.get('description', '').strip()
+    cycle_days = request.form.get('cycle_days', '7', type=int)
+
+    if not name or cycle_days < 1:
+        flash('Nombre y días del ciclo son obligatorios.', 'danger')
+        return redirect(url_for('manage_patterns'))
+
+    if pattern_id:
+        pattern = db.session.get(RotationPattern, int(pattern_id))
+        if pattern:
+            pattern.name = name
+            pattern.description = description
+            pattern.cycle_days = cycle_days
+            # Delete existing days and recreate
+            RotationPatternDay.query.filter_by(pattern_id=pattern.id).delete()
+    else:
+        pattern = RotationPattern(name=name, description=description, cycle_days=cycle_days)
+        db.session.add(pattern)
+        db.session.flush()  # get pattern.id
+
+    # Parse days from form: day_0, day_1, ..., day_N
+    for d in range(cycle_days):
+        st_id = request.form.get(f'day_{d}', '')
+        db.session.add(RotationPatternDay(
+            pattern_id=pattern.id,
+            day_number=d,
+            shift_type_id=int(st_id) if st_id else None,
+        ))
+
+    db.session.commit()
+    flash('Patrón guardado correctamente.', 'success')
+    return redirect(url_for('manage_patterns'))
+
+
+@app.route('/cuadrantes/patrones/delete/<int:id>', methods=['POST'])
+@admin_required
+def delete_pattern(id):
+    pattern = db.session.get(RotationPattern, id)
+    if pattern:
+        if pattern.worker_configs:
+            flash('No se puede eliminar: hay trabajadores asignados a este patrón.', 'danger')
+        else:
+            db.session.delete(pattern)
+            db.session.commit()
+            flash('Patrón eliminado.', 'success')
+    return redirect(url_for('manage_patterns'))
+
+
+@app.route('/cuadrantes/worker-config', methods=['POST'])
+@admin_required
+def set_worker_shift_config():
+    data = request.get_json()
+    cleaner_id = data.get('cleaner_id')
+    pattern_id = data.get('pattern_id')  # null = fixed shift
+    fixed_shift_type_id = data.get('fixed_shift_type_id')  # null = pattern
+    cycle_start_date_str = data.get('cycle_start_date')
+
+    if not cleaner_id or not cycle_start_date_str:
+        return jsonify({'error': 'Faltan datos'}), 400
+
+    cycle_start = date.fromisoformat(cycle_start_date_str)
+
+    # Deactivate previous configs
+    existing = WorkerShiftConfig.query.filter(
+        WorkerShiftConfig.cleaner_id == cleaner_id,
+        WorkerShiftConfig.effective_until.is_(None),
+    ).all()
+    for e in existing:
+        e.effective_until = date.today()
+
+    config = WorkerShiftConfig(
+        cleaner_id=cleaner_id,
+        pattern_id=int(pattern_id) if pattern_id else None,
+        fixed_shift_type_id=int(fixed_shift_type_id) if fixed_shift_type_id else None,
+        cycle_start_date=cycle_start,
+        effective_from=date.today(),
+    )
+    db.session.add(config)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/cuadrantes/generate', methods=['POST'])
+@admin_required
+def cuadrantes_generate():
+    """Generate shift assignments for a month based on worker patterns."""
+    data = request.get_json()
+    year = data.get('year')
+    month = data.get('month')
+    preserve_overrides = data.get('preserve_overrides', True)
+
+    import calendar
+    num_days = calendar.monthrange(year, month)[1]
+
+    # Get all workers with active configs
+    configs = WorkerShiftConfig.query.filter(
+        WorkerShiftConfig.effective_until.is_(None),
+    ).all()
+
+    generated = 0
+    skipped = 0
+
+    for config in configs:
+        worker_id = config.cleaner_id
+        pattern = config.pattern
+
+        for d in range(1, num_days + 1):
+            target_date = date(year, month, d)
+
+            # Check if there's an existing override to preserve
+            existing = ShiftAssignment.query.filter_by(
+                cleaner_id=worker_id, date=target_date
+            ).first()
+
+            if existing and existing.is_override and preserve_overrides:
+                skipped += 1
+                continue
+
+            # Calculate shift from pattern or fixed
+            if config.fixed_shift_type_id:
+                # Fixed shift: assign the fixed shift every day - admin can override days off
+                shift_type_id = config.fixed_shift_type_id
+            elif pattern and pattern.days:
+                # Calculate position in cycle
+                delta = (target_date - config.cycle_start_date).days
+                day_in_cycle = delta % pattern.cycle_days
+                if day_in_cycle < 0:
+                    day_in_cycle += pattern.cycle_days
+
+                # Find the pattern day
+                pattern_day = next(
+                    (pd for pd in pattern.days if pd.day_number == day_in_cycle), None
+                )
+                shift_type_id = pattern_day.shift_type_id if pattern_day else None
+            else:
+                continue
+
+            if existing:
+                existing.shift_type_id = shift_type_id
+                existing.is_override = False
+                existing.source = 'pattern'
+            else:
+                db.session.add(ShiftAssignment(
+                    cleaner_id=worker_id,
+                    date=target_date,
+                    shift_type_id=shift_type_id,
+                    is_override=False,
+                    source='pattern',
+                    created_by=current_user.id,
+                ))
+            generated += 1
+
+    db.session.commit()
+    return jsonify({'ok': True, 'generated': generated, 'skipped': skipped})
+
+
+@app.route('/cuadrantes/ausencias')
+@admin_required
+def manage_absences():
+    month = request.args.get('month', datetime.now().month, type=int)
+    year = request.args.get('year', datetime.now().year, type=int)
+
+    absences = Absence.query.options(
+        joinedload(Absence.cleaner),
+        joinedload(Absence.absence_type),
+    ).order_by(Absence.start_date.desc()).all()
+
+    workers = Cleaner.query.filter_by(active=True).order_by(Cleaner.name).all()
+    absence_types = AbsenceType.query.filter_by(active=True).order_by(AbsenceType.name).all()
+
+    return render_template('manage_absences.html',
+        absences=absences, workers=workers, absence_types=absence_types,
+        year=year, month=month)
+
+
+@app.route('/cuadrantes/ausencias/add_edit', methods=['POST'])
+@admin_required
+def add_edit_absence():
+    absence_id = request.form.get('absence_id', '').strip()
+    cleaner_id = request.form.get('cleaner_id', type=int)
+    absence_type_id = request.form.get('absence_type_id', type=int)
+    start_date_str = request.form.get('start_date', '')
+    end_date_str = request.form.get('end_date', '')
+    notes = request.form.get('notes', '').strip()
+
+    if not cleaner_id or not absence_type_id or not start_date_str or not end_date_str:
+        flash('Todos los campos son obligatorios.', 'danger')
+        return redirect(url_for('manage_absences'))
+
+    start_d = date.fromisoformat(start_date_str)
+    end_d = date.fromisoformat(end_date_str)
+
+    if end_d < start_d:
+        flash('La fecha fin debe ser posterior a la fecha inicio.', 'danger')
+        return redirect(url_for('manage_absences'))
+
+    if absence_id:
+        absence = db.session.get(Absence, int(absence_id))
+        if absence:
+            absence.cleaner_id = cleaner_id
+            absence.absence_type_id = absence_type_id
+            absence.start_date = start_d
+            absence.end_date = end_d
+            absence.notes = notes
+    else:
+        absence = Absence(
+            cleaner_id=cleaner_id,
+            absence_type_id=absence_type_id,
+            start_date=start_d,
+            end_date=end_d,
+            notes=notes,
+            created_by=current_user.id,
+        )
+        db.session.add(absence)
+
+    db.session.commit()
+    flash('Ausencia registrada.', 'success')
+    return redirect(url_for('manage_absences'))
+
+
+@app.route('/cuadrantes/ausencias/delete/<int:id>', methods=['POST'])
+@admin_required
+def delete_absence(id):
+    absence = db.session.get(Absence, id)
+    if absence:
+        db.session.delete(absence)
+        db.session.commit()
+        flash('Ausencia eliminada.', 'success')
+    return redirect(url_for('manage_absences'))
+
+
+@app.route('/cuadrantes/validate')
+@admin_required
+def cuadrantes_validate():
+    """Validate shift assignments for labor law compliance. Returns warnings."""
+    year = request.args.get('year', type=int)
+    month = request.args.get('month', type=int)
+
+    import calendar
+    num_days = calendar.monthrange(year, month)[1]
+    first_day = date(year, month, 1)
+    last_day = date(year, month, num_days)
+
+    # Get a few days before and after for cross-boundary checks
+    check_start = first_day - timedelta(days=1)
+    check_end = last_day + timedelta(days=1)
+
+    workers = Cleaner.query.filter_by(active=True).all()
+    shift_types = {st.id: st for st in ShiftType.query.all()}
+
+    assignments = ShiftAssignment.query.filter(
+        ShiftAssignment.date >= check_start,
+        ShiftAssignment.date <= check_end,
+    ).all()
+
+    # Build lookup: {cleaner_id: {date: assignment}}
+    assign_map = {}
+    for a in assignments:
+        if a.cleaner_id not in assign_map:
+            assign_map[a.cleaner_id] = {}
+        assign_map[a.cleaner_id][a.date] = a
+
+    # Get absences for the month
+    absences = Absence.query.filter(
+        Absence.start_date <= last_day,
+        Absence.end_date >= first_day,
+    ).all()
+    absence_map = {}  # {cleaner_id: set of dates}
+    for ab in absences:
+        if ab.cleaner_id not in absence_map:
+            absence_map[ab.cleaner_id] = set()
+        d = max(ab.start_date, first_day)
+        while d <= min(ab.end_date, last_day):
+            absence_map[ab.cleaner_id].add(d)
+            d += timedelta(days=1)
+
+    warnings = []
+
+    for worker in workers:
+        wid = worker.id
+        worker_assignments = assign_map.get(wid, {})
+        worker_absences = absence_map.get(wid, set())
+
+        # --- Check 1: Minimum 12h rest between consecutive shifts ---
+        prev_assignment = worker_assignments.get(check_start)
+        for d in range(1, num_days + 1):
+            current_date = date(year, month, d)
+            current = worker_assignments.get(current_date)
+
+            if prev_assignment and current and prev_assignment.shift_type_id and current.shift_type_id:
+                if current_date not in worker_absences:
+                    prev_st = shift_types.get(prev_assignment.shift_type_id)
+                    curr_st = shift_types.get(current.shift_type_id)
+                    if prev_st and curr_st:
+                        # Calculate hours between end of prev shift and start of current
+                        prev_end = datetime.combine(prev_assignment.date, prev_st.end_time)
+                        if prev_st.end_time <= prev_st.start_time:
+                            prev_end += timedelta(days=1)
+                        curr_start = datetime.combine(current_date, curr_st.start_time)
+                        rest_hours = (curr_start - prev_end).total_seconds() / 3600
+                        if rest_hours < 12 and rest_hours >= 0:
+                            warnings.append({
+                                'type': 'rest',
+                                'worker_id': wid,
+                                'worker_name': worker.name,
+                                'date': current_date.isoformat(),
+                                'message': f'Solo {rest_hours:.0f}h de descanso entre turnos (mínimo 12h)',
+                            })
+
+            prev_assignment = current
+
+        # --- Check 2: Weekly hours (max 40h) ---
+        checked_weeks = set()
+        for d in range(1, num_days + 1):
+            current_date = date(year, month, d)
+            iso_year, iso_week, _ = current_date.isocalendar()
+            week_key = (iso_year, iso_week)
+            if week_key in checked_weeks:
+                continue
+            checked_weeks.add(week_key)
+
+            # Calculate total hours for this week
+            week_hours = 0.0
+            monday = current_date - timedelta(days=current_date.weekday())
+            for wd in range(7):
+                week_date = monday + timedelta(days=wd)
+                wa = worker_assignments.get(week_date)
+                if wa and wa.shift_type_id and week_date not in worker_absences:
+                    st = shift_types.get(wa.shift_type_id)
+                    if st:
+                        start_dt = datetime.combine(week_date, st.start_time)
+                        end_dt = datetime.combine(week_date, st.end_time)
+                        if end_dt <= start_dt:
+                            end_dt += timedelta(days=1)
+                        hours = ((end_dt - start_dt).total_seconds() / 3600) - ((st.breaks_minutes or 0) / 60)
+                        week_hours += hours
+
+            if week_hours > 40:
+                sunday = monday + timedelta(days=6)
+                warnings.append({
+                    'type': 'hours',
+                    'worker_id': wid,
+                    'worker_name': worker.name,
+                    'date': monday.isoformat(),
+                    'message': f'{week_hours:.1f}h en semana {monday.strftime("%d/%m")}-{sunday.strftime("%d/%m")} (máximo 40h)',
+                })
+
+        # --- Check 3: Weekly rest (at least 1.5 consecutive days off per week) ---
+        checked_rest_weeks = set()
+        for d in range(1, num_days + 1):
+            current_date = date(year, month, d)
+            iso_year, iso_week, _ = current_date.isocalendar()
+            week_key = (iso_year, iso_week)
+            if week_key in checked_rest_weeks:
+                continue
+            checked_rest_weeks.add(week_key)
+
+            monday = current_date - timedelta(days=current_date.weekday())
+
+            has_work_every_day = all(
+                worker_assignments.get(monday + timedelta(days=wd))
+                and worker_assignments.get(monday + timedelta(days=wd)).shift_type_id
+                and (monday + timedelta(days=wd)) not in worker_absences
+                for wd in range(7)
+            )
+
+            if has_work_every_day:
+                sunday = monday + timedelta(days=6)
+                warnings.append({
+                    'type': 'weekly_rest',
+                    'worker_id': wid,
+                    'worker_name': worker.name,
+                    'date': monday.isoformat(),
+                    'message': f'Sin día libre en semana {monday.strftime("%d/%m")}-{sunday.strftime("%d/%m")}',
+                })
+
+    return jsonify({'warnings': warnings})
