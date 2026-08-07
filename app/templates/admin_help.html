@@ -31,11 +31,12 @@
                 </div>
                 <div class="col-md-4">
                     <ul class="list-unstyled mb-0">
-                        <li><a href="#empleados">8. Empleados y grupos</a></li>
+                        <li><a href="#empleados">8. Empleados, roles y grupos</a></li>
                         <li><a href="#turnos">9. Cuadrantes de turnos</a></li>
-                        <li><a href="#registros">10. Registros y exportacion</a></li>
-                        <li><a href="#config">11. Configuracion</a></li>
-                        <li><a href="#changelog">12. Registro de cambios</a></li>
+                        <li><a href="#rutas">10. Rutas de limpieza</a></li>
+                        <li><a href="#registros">11. Registros y exportacion</a></li>
+                        <li><a href="#config">12. Configuracion</a></li>
+                        <li><a href="#changelog">13. Registro de cambios</a></li>
                     </ul>
                 </div>
             </div>
@@ -256,11 +257,33 @@
 
     <!-- 8. Empleados y grupos -->
     <div class="card mb-4" id="empleados">
-        <div class="card-header">8. Empleados y grupos</div>
+        <div class="card-header">8. Empleados, roles y grupos</div>
         <div class="card-body">
+            <h6>Empleados</h6>
             <ul>
-                <li><strong>Empleados:</strong> Desde el menu se gestionan los trabajadores con usuario, contrasena, nombre y permisos de admin.</li>
-                <li><strong>Grupos de residentes:</strong> Se pueden crear grupos (ej: "Planta Baja", "Ala Norte") y asignar residentes y trabajadores. Los trabajadores ven "Mi grupo" en la webapp para acceso rapido.</li>
+                <li>Desde <strong>Personas > Empleados</strong> se gestionan los trabajadores con usuario, contrasena, nombre y permisos de admin.</li>
+            </ul>
+
+            <h6 class="mt-3">Roles de trabajador</h6>
+            <ul>
+                <li>Cada trabajador tiene un <strong>rol</strong> que determina sus funciones y visibilidad:</li>
+                <li><span class="status-badge status-success">Atenciones</span> Auxiliares y cuidadores que atienden a residentes.</li>
+                <li><span class="status-badge status-info">Limpieza</span> Personal de limpieza de zonas y habitaciones. Ve la <strong>"Ruta de limpieza"</strong> en la webapp.</li>
+                <li><span class="status-badge" style="color:#6f42c1;background:#e8d5f5">Mixto</span> Trabajadores que hacen tanto limpieza como atenciones. Ve la ruta de limpieza y tambien puede registrar atenciones.</li>
+                <li><span class="status-badge status-warning">Gestion</span> Personal administrativo. <strong>No aparece</strong> en los cuadrantes de turnos.</li>
+            </ul>
+
+            <h6 class="mt-3">Asignacion automatica de roles</h6>
+            <ul>
+                <li>El sistema puede clasificar automaticamente los trabajadores segun su historico de actividad.</li>
+                <li>Los que solo han hecho limpiezas se asignan como "Limpieza", los que solo atenciones como "Atenciones", y los que han hecho ambas como "Mixto".</li>
+                <li>Comando: <code>flask auto-assign-roles</code></li>
+            </ul>
+
+            <h6 class="mt-3">Grupos de residentes</h6>
+            <ul>
+                <li>Se pueden crear grupos (ej: "Planta Baja", "Ala Norte") y asignar residentes y trabajadores.</li>
+                <li>Los trabajadores ven "Mi grupo" en la webapp para acceso rapido.</li>
                 <li>Cada grupo tiene un color para identificarlo visualmente.</li>
             </ul>
         </div>
@@ -348,9 +371,58 @@
         </div>
     </div>
 
-    <!-- 10. Registros y exportacion -->
+    <!-- 10. Rutas de limpieza -->
+    <div class="card mb-4" id="rutas">
+        <div class="card-header">10. Rutas de limpieza inteligentes</div>
+        <div class="card-body">
+            <p>El sistema analiza el historico de limpiezas para sugerir rutas optimas a los trabajadores de limpieza.</p>
+
+            <h6 class="mt-3">Ruta del trabajador (webapp)</h6>
+            <ul>
+                <li>Los trabajadores con rol <strong>Limpieza</strong> o <strong>Mixto</strong> ven un boton <strong>"Mi ruta de hoy"</strong> en la webapp.</li>
+                <li>La ruta muestra una lista ordenada de habitaciones a limpiar, agrupadas por planta y en orden de numero (recorrido fisico).</li>
+                <li>Cada habitacion muestra el <strong>tiempo estimado</strong> de limpieza, calculado a partir del historico real de los ultimos 90 dias.</li>
+                <li>Las habitaciones ya limpiadas hoy aparecen con un check verde.</li>
+                <li>Al pulsar una habitacion se inicia directamente la sesion de limpieza.</li>
+                <li><strong>Vinculacion con cuadrantes:</strong> la ruta solo aparece si el trabajador tiene turno asignado ese dia. Si no tiene turno o tiene ausencia, ve un mensaje informativo.</li>
+            </ul>
+
+            <h6 class="mt-3">Asignacion de zonas (admin)</h6>
+            <ul>
+                <li>Desde <strong>Espacios > Rutas y asignaciones</strong> el admin puede asignar plantas especificas a cada trabajador de limpieza.</li>
+                <li>Si un trabajador tiene zonas asignadas, su ruta solo muestra las habitaciones de esas plantas.</li>
+                <li>Si no tiene zonas asignadas, ve todas las habitaciones.</li>
+            </ul>
+
+            <h6 class="mt-3">Tiempos objetivo</h6>
+            <ul>
+                <li>En la misma pagina de configuracion se pueden definir <strong>tiempos objetivo</strong> por tipo de habitacion (ej: "Individual: 20 min", "Doble: 30 min").</li>
+                <li>Estos tiempos se usan como referencia cuando no hay datos historicos para una habitacion concreta.</li>
+            </ul>
+
+            <h6 class="mt-3">Analisis de limpieza (admin)</h6>
+            <ul>
+                <li>Desde <strong>Espacios > Analisis de limpieza</strong> se accede a un dashboard con:</li>
+                <li><strong>Tiempo medio por habitacion:</strong> tabla ordenable con barras de color (verde &lt;15min, amarillo 15-30min, rojo &gt;30min).</li>
+                <li><strong>Tiempo medio por tipo:</strong> comparativa con tiempos objetivo configurados.</li>
+                <li><strong>Productividad por trabajador:</strong> tiempo medio, numero de limpiezas y horas totales.</li>
+                <li><strong>Habitaciones sin limpiar:</strong> lista de habitaciones no limpiadas en los ultimos 7 dias.</li>
+                <li>Filtrable por periodo: 7, 14, 30 o 90 dias.</li>
+            </ul>
+
+            <h6 class="mt-3">Como se calcula la ruta</h6>
+            <ul>
+                <li>El sistema analiza los <strong>ultimos 90 dias</strong> de limpiezas completadas.</li>
+                <li>Calcula el tiempo medio real de limpieza de cada habitacion.</li>
+                <li>Ordena por planta y numero de habitacion (los numeros consecutivos reflejan proximidad fisica).</li>
+                <li>Filtra las habitaciones ya limpiadas hoy y las que no pertenecen a las zonas asignadas al trabajador.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 11. Registros y exportacion -->
     <div class="card mb-4" id="registros">
-        <div class="card-header">10. Registros, analiticas y exportacion</div>
+        <div class="card-header">11. Registros, analiticas y exportacion</div>
         <div class="card-body">
             <h6>Registros</h6>
             <ul>
@@ -385,9 +457,9 @@
         </div>
     </div>
 
-    <!-- 11. Configuracion -->
+    <!-- 12. Configuracion -->
     <div class="card mb-4" id="config">
-        <div class="card-header">11. Configuracion</div>
+        <div class="card-header">12. Configuracion</div>
         <div class="card-body">
             <p>Desde <strong><i class="bi bi-gear"></i> Config</strong> en el menu, el administrador puede activar o desactivar opciones:</p>
             <ul>
@@ -397,9 +469,9 @@
         </div>
     </div>
 
-    <!-- 12. Registro de cambios -->
+    <!-- 13. Registro de cambios -->
     <div class="card mb-4" id="changelog">
-        <div class="card-header">12. Registro de cambios recientes</div>
+        <div class="card-header">13. Registro de cambios recientes</div>
         <div class="card-body">
 
             <h6>Agosto 2026</h6>
@@ -418,6 +490,11 @@
                     <tr><td>07/08</td><td>Ficha del residente organizada en pestanas (Resumen, Historial, Documentos).</td></tr>
                     <tr><td>07/08</td><td>Mejoras de accesibilidad: skip-to-content, ARIA labels, validacion de formularios.</td></tr>
                     <tr><td>07/08</td><td>Terminologia actualizada: "Servicio de Limpieza" renombrado a "Gestion Residencial", "Limpiadora" a "Trabajador/a".</td></tr>
+                    <tr><td>07/08</td><td><strong>Rutas de limpieza inteligentes:</strong> el sistema analiza el historico para sugerir la ruta optima de limpieza, con tiempos estimados por habitacion. Vista "Mi ruta de hoy" en la webapp.</td></tr>
+                    <tr><td>07/08</td><td><strong>Analisis de limpieza:</strong> dashboard admin con tiempos medios por habitacion, tipo, trabajador, y habitaciones sin limpiar.</td></tr>
+                    <tr><td>07/08</td><td><strong>Asignacion de zonas:</strong> el admin puede asignar plantas especificas a cada trabajador de limpieza y definir tiempos objetivo por tipo de habitacion.</td></tr>
+                    <tr><td>07/08</td><td><strong>Roles de trabajador:</strong> Atenciones, Limpieza, Mixto (ambas funciones), Gestion (no aparece en cuadrantes). Clasificacion automatica desde historico con <code>flask auto-assign-roles</code>.</td></tr>
+                    <tr><td>07/08</td><td><strong>Ruta vinculada a cuadrante:</strong> la ruta de limpieza solo aparece si el trabajador tiene turno asignado ese dia.</td></tr>
                     <tr><td>03/08</td><td>Constantes vitales: sistema extensible per registrar tension arterial, glucemia, temperatura, saturacion O2, frecuencia cardiaca durant les atencions.</td></tr>
                     <tr><td>03/08</td><td>Alertas de constantes vitales: aviso rojo inmediato al trabajador y banner al dashboard admin cuando un valor esta fuera de rango.</td></tr>
                     <tr><td>03/08</td><td>Pagina de analiticas (<i class="bi bi-bar-chart-line"></i>) con graficos de actividad, productividad, duracion media y alertas vitales.</td></tr>
