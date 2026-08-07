@@ -296,6 +296,9 @@
             <a href="{{ url_for('coverage_settings') }}" class="btn btn-outline-secondary btn-sm no-print">
                 <i class="bi bi-sliders me-1"></i>Cobertura
             </a>
+            <button type="button" class="btn btn-outline-primary btn-sm no-print" id="btn-bulk-assign" title="Asignar patrón a varios trabajadores">
+                <i class="bi bi-people me-1"></i>Asignar patrones
+            </button>
             <button type="button" class="btn btn-primary btn-sm no-print" id="btn-generate" title="Generar mes desde patrones">
                 <i class="bi bi-magic me-1"></i>Generar mes
             </button>
@@ -332,7 +335,7 @@
                     {% set wconfig = worker_configs.get(w.id) %}
                     <tr data-worker="{{ w.id }}" data-worker-id="{{ w.id }}">
                         <td>
-                            <a href="#" class="worker-config-link text-decoration-none" style="color:var(--color-text)"
+                            <a href="#" class="worker-config-link text-decoration-none" style="color:var(--color-primary);font-weight:600"
                                data-id="{{ w.id }}" data-name="{{ w.name }}"
                                data-pattern-id="{{ wconfig.pattern_id or '' if wconfig else '' }}"
                                data-fixed-shift="{{ wconfig.fixed_shift_type_id or '' if wconfig else '' }}"
@@ -478,6 +481,61 @@
         <input type="hidden" id="wc-worker-id" value="">
         <div class="d-grid">
             <button type="button" class="btn btn-primary" id="wc-save-btn">Guardar configuración</button>
+        </div>
+    </div>
+</div>
+
+{# ── Bulk pattern assignment offcanvas ─────────────────────── #}
+<div class="offcanvas offcanvas-end no-print" tabindex="-1" id="bulkAssignPanel" aria-labelledby="bulkAssignTitle" style="width:min(520px,90vw)">
+    <div class="offcanvas-header" style="border-bottom:1px solid var(--color-border);border-top:3px solid var(--color-primary)">
+        <h5 class="offcanvas-title" id="bulkAssignTitle">Asignar patrón a trabajadores</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+    </div>
+    <div class="offcanvas-body">
+        <p class="text-body-secondary small mb-3">Selecciona un patrón y los trabajadores. El sistema escalonará automáticamente las fechas de inicio para que no todos libren el mismo día.</p>
+
+        <div class="mb-3">
+            <label class="form-label fw-bold">Patrón de rotación</label>
+            <select id="ba-pattern" class="form-select">
+                <option value="">Seleccionar patrón...</option>
+                {% for p in patterns %}
+                <option value="{{ p.id }}" data-cycle="{{ p.cycle_days }}">{{ p.name }} ({{ p.cycle_days }} días)</option>
+                {% endfor %}
+            </select>
+            {% if not patterns %}
+            <small class="text-danger">No hay patrones creados. <a href="{{ url_for('manage_patterns') }}">Crear uno primero</a>.</small>
+            {% endif %}
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label fw-bold">Fecha inicio del primer trabajador</label>
+            <input type="date" id="ba-start-date" class="form-control" value="{{ '%04d-%02d-01' | format(year, month) }}">
+            <small class="text-body-secondary">Los siguientes se escalonarán automáticamente</small>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label fw-bold d-flex justify-content-between">
+                <span>Trabajadores</span>
+                <a href="#" id="ba-select-all" style="font-size:.8rem">Seleccionar todos</a>
+            </label>
+            <div id="ba-worker-list" style="max-height:300px;overflow-y:auto;border:1px solid var(--color-border);border-radius:var(--radius-md);padding:8px">
+                {% for w in workers %}
+                {% set wconfig = worker_configs.get(w.id) %}
+                <label class="d-flex align-items-center gap-2 py-1 px-2" style="cursor:pointer;border-radius:4px;font-size:.85rem" onmouseover="this.style.background='var(--color-primary-lt)'" onmouseout="this.style.background=''">
+                    <input type="checkbox" class="form-check-input ba-worker-cb m-0" value="{{ w.id }}">
+                    <span>{{ w.name }}</span>
+                    {% if wconfig and wconfig.pattern %}
+                    <small class="text-body-secondary ms-auto">{{ wconfig.pattern.name }}</small>
+                    {% endif %}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="d-grid">
+            <button type="button" class="btn btn-primary" id="ba-save-btn">
+                <i class="bi bi-check-lg me-1"></i>Asignar patrón
+            </button>
         </div>
     </div>
 </div>
@@ -861,6 +919,75 @@
                 showToast(data.error || 'Error al guardar', 'error');
             }
         }).catch(function() { showToast('Error de conexión', 'error'); });
+    });
+
+    /* ── Bulk pattern assignment ─────────────────────────── */
+    var bulkPanel = document.getElementById('bulkAssignPanel');
+    var bulkOffcanvas = new bootstrap.Offcanvas(bulkPanel);
+
+    document.getElementById('btn-bulk-assign').addEventListener('click', function() {
+        bulkOffcanvas.show();
+    });
+
+    document.getElementById('ba-select-all').addEventListener('click', function(e) {
+        e.preventDefault();
+        var cbs = document.querySelectorAll('.ba-worker-cb');
+        var allChecked = Array.from(cbs).every(function(cb) { return cb.checked; });
+        cbs.forEach(function(cb) { cb.checked = !allChecked; });
+    });
+
+    document.getElementById('ba-save-btn').addEventListener('click', async function() {
+        var patternId = document.getElementById('ba-pattern').value;
+        var startDate = document.getElementById('ba-start-date').value;
+        if (!patternId) { showToast('Selecciona un patrón', 'warning'); return; }
+        if (!startDate) { showToast('Selecciona fecha de inicio', 'warning'); return; }
+
+        var selectedWorkers = Array.from(document.querySelectorAll('.ba-worker-cb:checked')).map(function(cb) {
+            return parseInt(cb.value);
+        });
+        if (!selectedWorkers.length) { showToast('Selecciona al menos un trabajador', 'warning'); return; }
+
+        // Get cycle days for staggering
+        var patternOption = document.querySelector('#ba-pattern option[value="' + patternId + '"]');
+        var cycleDays = parseInt(patternOption.dataset.cycle) || 7;
+        var stagger = Math.max(1, Math.floor(cycleDays / selectedWorkers.length));
+
+        var btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Asignando...';
+
+        var errors = 0;
+        for (var i = 0; i < selectedWorkers.length; i++) {
+            // Stagger start dates
+            var workerStart = new Date(startDate);
+            workerStart.setDate(workerStart.getDate() + (i * stagger));
+            var workerStartStr = workerStart.toISOString().split('T')[0];
+
+            try {
+                var res = await fetch('/cuadrantes/worker-config', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        cleaner_id: selectedWorkers[i],
+                        pattern_id: patternId,
+                        cycle_start_date: workerStartStr,
+                    }),
+                });
+                var data = await res.json();
+                if (!data.ok) errors++;
+            } catch(e) { errors++; }
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Asignar patrón';
+
+        if (errors === 0) {
+            showToast('Patrón asignado a ' + selectedWorkers.length + ' trabajadores (escalonados cada ' + stagger + ' días)', 'success');
+            bulkOffcanvas.hide();
+            setTimeout(function() { location.reload(); }, 500);
+        } else {
+            showToast(errors + ' errores al asignar', 'error');
+        }
     });
 
     /* ── Generate month from patterns ─────────────────────── */
