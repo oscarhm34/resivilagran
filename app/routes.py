@@ -4509,7 +4509,7 @@ def worker_cleaning_route():
             urgency = 10  # never cleaned = highest urgency
 
         # Priority label
-        empty_tag = ' (vacía)' if is_numeric and is_resident_room and not is_occupied else ''
+        empty_tag = ' (vacía)' if is_resident_room and not is_occupied else ''
         if cleaned:
             priority = 'done'
             priority_label = 'Limpiada hoy'
@@ -4786,7 +4786,9 @@ def admin_cleaning_plan():
             'total_rooms': len(rooms_plan),
             'done_count': sum(1 for r in rooms_plan if r['completed']),
             'urgent_count': sum(1 for r in rooms_plan if r['priority'] == 'urgent'),
+            'total_est_min': round(sum(r['estimated_min'] for r in rooms_plan)),
             'remaining_est_min': round(total_est),
+            'shift_net_min': round(((datetime.combine(date.today(), sa.shift_type.end_time) + (timedelta(days=1) if sa.shift_type.end_time <= sa.shift_type.start_time else timedelta()) - datetime.combine(date.today(), sa.shift_type.start_time)).total_seconds() / 60) - (sa.shift_type.breaks_minutes or 0)) if sa and sa.shift_type else 0,
         })
 
     # Find uncovered rooms: rooms that need cleaning today but no worker has them

@@ -131,7 +131,11 @@
         {% endif %}
         <span class="ms-auto" style="font-size:.82rem;color:var(--color-text-secondary)">
             {{ wp.done_count }}/{{ wp.total_rooms }} completadas
-            &middot; ~{{ wp.remaining_est_min }} min restantes
+            &middot; Asignado: <strong>{{ '%d:%02d' | format(wp.total_est_min // 60, wp.total_est_min % 60) }}</strong>h
+            / Jornada: {{ '%d:%02d' | format(wp.shift_net_min // 60, wp.shift_net_min % 60) }}h
+            {% if wp.remaining_est_min > 0 %}
+            &middot; Pendiente: {{ '%d:%02d' | format(wp.remaining_est_min // 60, wp.remaining_est_min % 60) }}h
+            {% endif %}
         </span>
     </div>
 
