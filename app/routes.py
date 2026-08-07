@@ -4370,6 +4370,33 @@ def worker_cleaning_route():
     if not worker:
         return jsonify({'error': 'Worker not found'}), 404
 
+    # Check if worker has a shift assigned today
+    today = date.today()
+    today_shift = ShiftAssignment.query.filter_by(cleaner_id=worker.id, date=today).first()
+    has_shift = today_shift and today_shift.shift_type_id is not None
+
+    # Check if worker is absent today
+    from sqlalchemy import and_
+    is_absent = Absence.query.filter(
+        Absence.cleaner_id == worker.id,
+        Absence.start_date <= today,
+        Absence.end_date >= today,
+    ).first() is not None
+
+    if is_absent:
+        return jsonify({'route': [], 'summary': {
+            'total_rooms': 0, 'cleaned_today': 0, 'remaining': 0,
+            'total_estimated_minutes': 0, 'remaining_estimated_minutes': 0,
+            'status': 'absent', 'message': 'Hoy tienes ausencia registrada.',
+        }})
+
+    if not has_shift:
+        return jsonify({'route': [], 'summary': {
+            'total_rooms': 0, 'cleaned_today': 0, 'remaining': 0,
+            'total_estimated_minutes': 0, 'remaining_estimated_minutes': 0,
+            'status': 'no_shift', 'message': 'No tienes turno asignado hoy.',
+        }})
+
     # Get worker's assigned floors (or all if none assigned)
     zone_assignments = CleaningZoneAssignment.query.filter_by(cleaner_id=worker.id).all()
     assigned_floor_ids = {za.floor_id for za in zone_assignments}
@@ -4451,6 +4478,13 @@ def worker_cleaning_route():
             'remaining': len(route) - cleaned_count,
             'total_estimated_minutes': round(total_estimated, 0),
             'remaining_estimated_minutes': round(remaining_estimated, 0),
+            'status': 'ok',
+            'shift': {
+                'name': today_shift.shift_type.name,
+                'short_name': today_shift.shift_type.short_name,
+                'start_time': today_shift.shift_type.start_time.strftime('%H:%M'),
+                'end_time': today_shift.shift_type.end_time.strftime('%H:%M'),
+            } if today_shift and today_shift.shift_type else None,
         },
     })
 

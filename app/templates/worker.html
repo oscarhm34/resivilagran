@@ -2912,11 +2912,25 @@ async function loadRoute() {
     if (!res.ok) return;
     var data = res.data;
 
-    // Update home summary
     var homeSum = $('route-summary-home');
+    if (data.summary.status === 'no_shift') {
+        if (homeSum) homeSum.textContent = 'No tienes turno asignado hoy';
+        $('route-list').innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text-2)"><div style="font-size:40px;margin-bottom:12px">📋</div><p>No tienes turno asignado para hoy.</p><p style="font-size:12px">Contacta con tu responsable si crees que es un error.</p></div>';
+        $('route-summary-detail').textContent = '';
+        return;
+    }
+    if (data.summary.status === 'absent') {
+        if (homeSum) homeSum.textContent = 'Ausencia registrada hoy';
+        $('route-list').innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text-2)"><div style="font-size:40px;margin-bottom:12px">🏖️</div><p>Hoy tienes ausencia registrada.</p></div>';
+        $('route-summary-detail').textContent = '';
+        return;
+    }
+
+    // Update home summary with shift info
+    var shiftInfo = data.summary.shift ? (' · Turno ' + data.summary.shift.name + ' (' + data.summary.shift.start_time + '-' + data.summary.shift.end_time + ')') : '';
     if (homeSum) {
-        homeSum.textContent = data.summary.remaining + ' habitaciones pendientes · ~' +
-            Math.round(data.summary.remaining_estimated_minutes) + ' min';
+        homeSum.textContent = data.summary.remaining + ' hab. pendientes · ~' +
+            Math.round(data.summary.remaining_estimated_minutes) + ' min' + shiftInfo;
     }
 
     // Render route list
