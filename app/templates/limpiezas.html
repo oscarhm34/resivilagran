@@ -198,6 +198,9 @@
     </div>
 </div>
 
+{% endblock %}
+
+{% block scripts %}
 <script>
 var _chkData = {
     {% for record in records %}{% if record.checklist_items is not none %}{{ record.id }}: {{ record.checklist_items | tojson }},{% endif %}
