@@ -75,6 +75,14 @@
                                 aria-label="Mostrar u ocultar contraseña"><i class="bi bi-eye"></i></button>
                     </div>
                 </div>
+                <div class="mb-3">
+                    <label for="role" class="form-label">Rol</label>
+                    <select id="role" name="role" class="form-select">
+                        <option value="atenciones">Atenciones (auxiliar/cuidador)</option>
+                        <option value="limpieza">Limpieza</option>
+                        <option value="gestion">Gestión (no aparece en cuadrantes)</option>
+                    </select>
+                </div>
                 <div class="row g-3 mb-3">
                     <div class="col-6">
                         <div class="form-check">
@@ -145,10 +153,15 @@
                         <td><code style="color:var(--color-primary);background:var(--color-primary-lt);padding:1px 6px;border-radius:4px">{{ cleaner.username }}</code></td>
                         <td>{{ cleaner.name }}</td>
                         <td>
+                            {% if cleaner.role == 'limpieza' %}
+                            <span class="status-badge status-info">Limpieza</span>
+                            {% elif cleaner.role == 'gestion' %}
+                            <span class="status-badge status-warning">Gestión</span>
+                            {% else %}
+                            <span class="status-badge status-success">Atenciones</span>
+                            {% endif %}
                             {% if cleaner.is_admin %}
                             <span class="status-badge status-info">Admin</span>
-                            {% else %}
-                            <span class="status-badge status-muted">Trabajador/a</span>
                             {% endif %}
                         </td>
                         <td>
@@ -197,6 +210,7 @@
                                     data-name="{{ cleaner.name }}"
                                     data-is-admin="{{ '1' if cleaner.is_admin else '' }}"
                                     data-active="{{ '1' if cleaner.active else '' }}"
+                                    data-role="{{ cleaner.role or 'atenciones' }}"
                                     data-groups="{{ cleaner.groups|map(attribute='id')|list|join(',') }}"
                                     aria-label="Editar a {{ cleaner.name }}">Editar</button>
                             <button type="button"
@@ -287,6 +301,7 @@
             form.querySelector('[name="password"]').value   = '';
             form.querySelector('[name="is_admin"]').checked = this.dataset.isAdmin === '1';
             form.querySelector('[name="active"]').checked   = this.dataset.active === '1';
+            form.querySelector('[name="role"]').value       = this.dataset.role || 'atenciones';
             var groupIds = this.dataset.groups ? this.dataset.groups.split(',') : [];
             form.querySelectorAll('[name="group_ids"]').forEach(function(cb) {
                 cb.checked = groupIds.indexOf(cb.value) !== -1;

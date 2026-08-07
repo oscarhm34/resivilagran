@@ -270,6 +270,14 @@
             </select>
             {% endif %}
 
+            {# Role filter #}
+            <select class="form-select form-select-sm no-print" style="width:auto"
+                    onchange="window.location.href='{{ url_for('cuadrantes', year=year, month=month, group_id=group_id) }}&role='+this.value">
+                <option value="">Todos los roles</option>
+                <option value="atenciones" {{ 'selected' if role_filter == 'atenciones' }}>Atenciones</option>
+                <option value="limpieza" {{ 'selected' if role_filter == 'limpieza' }}>Limpieza</option>
+            </select>
+
             {# Export / config links #}
             <a href="{{ url_for('cuadrantes_export', year=year, month=month, group_id=group_id) }}"
                class="btn btn-outline-secondary btn-sm no-print" title="Exportar a Excel">
@@ -293,6 +301,9 @@
             </button>
             <button type="button" class="btn btn-outline-warning btn-sm no-print" id="btn-validate" title="Validar cumplimiento laboral">
                 <i class="bi bi-shield-check me-1"></i>Validar
+            </button>
+            <button type="button" class="btn btn-outline-danger btn-sm no-print" id="btn-clear" title="Borrar todo el cuadrante del mes">
+                <i class="bi bi-trash me-1"></i>Borrar mes
             </button>
         </div>
     </div>
@@ -894,6 +905,22 @@
                 btn.disabled = false;
                 btn.innerHTML = '<i class="bi bi-magic me-1"></i>Generar mes';
                 showToast('Error de conexión', 'error');
+            });
+        });
+    });
+
+    /* ── Clear month ──────────────────────────────────────── */
+    document.getElementById('btn-clear').addEventListener('click', function() {
+        showConfirm('¿Borrar TODOS los turnos del mes? Esta acción no se puede deshacer.', function() {
+            fetch('/cuadrantes/clear', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({year: YEAR, month: MONTH})
+            }).then(function(r) { return r.json(); }).then(function(data) {
+                if (data.ok) {
+                    showToast('Borrados ' + data.deleted + ' turnos', 'success');
+                    setTimeout(function() { location.reload(); }, 500);
+                }
             });
         });
     });

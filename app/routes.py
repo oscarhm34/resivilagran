@@ -393,6 +393,9 @@ def add_edit_cleaner():
     password = request.form.get('password', '')
     is_admin = bool(request.form.get('is_admin'))
     active = bool(request.form.get('active'))
+    role = request.form.get('role', 'atenciones').strip()
+    if role not in ('limpieza', 'atenciones', 'gestion'):
+        role = 'atenciones'
 
     group_ids = request.form.getlist('group_ids')
     selected_groups = ResidentGroup.query.filter(ResidentGroup.id.in_(group_ids)).all() if group_ids else []
@@ -404,6 +407,7 @@ def add_edit_cleaner():
             cleaner.name = name
             cleaner.is_admin = is_admin
             cleaner.active = active
+            cleaner.role = role
             cleaner.groups = selected_groups
             if password:
                 cleaner.set_password(password)
@@ -412,7 +416,7 @@ def add_edit_cleaner():
         else:
             flash('Trabajador no encontrado.', 'error')
     else:
-        new_cleaner = Cleaner(username=username, name=name, is_admin=is_admin, active=active)
+        new_cleaner = Cleaner(username=username, name=name, is_admin=is_admin, active=active, role=role)
         new_cleaner.set_password(password)
         new_cleaner.groups = selected_groups
         db.session.add(new_cleaner)
@@ -3499,10 +3503,13 @@ def cuadrantes():
     num_days = calendar.monthrange(year, month)[1]
     last_day = date(year, month, num_days)
 
-    # Workers filtered by group if specified
-    query = Cleaner.query.filter_by(active=True)
+    # Workers: exclude 'gestion' role, filter by group and role
+    role_filter = request.args.get('role', '', type=str)
+    query = Cleaner.query.filter(Cleaner.active == True, Cleaner.role != 'gestion')
     if group_id:
         query = query.filter(Cleaner.groups.any(ResidentGroup.id == int(group_id)))
+    if role_filter:
+        query = query.filter(Cleaner.role == role_filter)
     workers = query.order_by(Cleaner.name).all()
 
     # Shift types
@@ -3570,7 +3577,7 @@ def cuadrantes():
         absence_map=absence_map, worker_configs=worker_configs,
         coverage_reqs={f'{r.shift_type_id}_{r.day_type}': r.min_workers for r in ShiftCoverageRequirement.query.all()},
         patterns=RotationPattern.query.filter_by(active=True).order_by(RotationPattern.name).all(),
-        groups=groups, group_id=group_id,
+        groups=groups, group_id=group_id, role_filter=role_filter,
         prev_year=prev_year, prev_month=prev_month,
         next_year=next_year, next_month=next_month,
     )
@@ -3656,6 +3663,25 @@ def cuadrantes_bulk_assign():
         return jsonify({'ok': True})
 
     return jsonify({'error': 'Acción no válida'}), 400
+
+
+@app.route('/cuadrantes/clear', methods=['POST'])
+@admin_required
+def cuadrantes_clear():
+    """Clear all shift assignments for a month."""
+    data = request.get_json()
+    year = data.get('year')
+    month = data.get('month')
+    import calendar
+    num_days = calendar.monthrange(year, month)[1]
+    first_day = date(year, month, 1)
+    last_day = date(year, month, num_days)
+    deleted = ShiftAssignment.query.filter(
+        ShiftAssignment.date >= first_day,
+        ShiftAssignment.date <= last_day,
+    ).delete()
+    db.session.commit()
+    return jsonify({'ok': True, 'deleted': deleted})
 
 
 @app.route('/cuadrantes/export')
