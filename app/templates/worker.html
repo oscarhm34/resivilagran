@@ -2900,6 +2900,7 @@ $('train-result-back').addEventListener('click', () => show('screen-home'));
 
 // ── Cleaning Route ───────────────────────────────────────────────────────
 async function loadRoute() {
+    try {
     if (S.workerRole !== 'limpieza' && S.workerRole !== 'mixto') {
         var wrap = $('route-btn-wrap');
         if (wrap) wrap.style.display = 'none';
@@ -2937,6 +2938,7 @@ async function loadRoute() {
 
     // Render route list
     renderRoute(data);
+    } catch(e) { console.error('loadRoute error:', e); }
 }
 
 function renderRoute(data) {
