@@ -256,7 +256,7 @@
                         </ul>
                     </li>
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {% if request.endpoint in ('manage_cleaning_zones','manage_checklist','manage_floors','manage_room_types','admin_cleaning_analytics','admin_cleaning_config') %}active{% endif %}"
+                        <a class="nav-link dropdown-toggle {% if request.endpoint in ('manage_cleaning_zones','manage_checklist','manage_floors','manage_room_types','admin_cleaning_analytics','admin_cleaning_config','admin_cleaning_plan') %}active{% endif %}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-building me-1" aria-hidden="true"></i>Espacios
                         </a>
@@ -264,6 +264,7 @@
                             <li><a class="dropdown-item" href="{{ url_for('manage_cleaning_zones') }}"><i class="bi bi-door-open me-1" aria-hidden="true"></i>Zonas de limpieza</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('manage_checklist') }}"><i class="bi bi-check2-square me-1" aria-hidden="true"></i>Checklist</a></li>
                             <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin_cleaning_plan') }}"><i class="bi bi-map me-1" aria-hidden="true"></i>Plan de limpieza hoy</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('admin_cleaning_analytics') }}"><i class="bi bi-speedometer2 me-1" aria-hidden="true"></i>Análisis de limpieza</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('admin_cleaning_config') }}"><i class="bi bi-signpost-2 me-1" aria-hidden="true"></i>Rutas y asignaciones</a></li>
                         </ul>

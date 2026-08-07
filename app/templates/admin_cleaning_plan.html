@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+
+{% block title %}Plan de limpieza - {{ plan_date.strftime('%d/%m/%Y') }}{% endblock %}
+
+{% block content %}
+{# ── Header ──────────────────────────────────────────────────── #}
+{# prev_date / next_date: ISO date strings passed from the route #}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+    <div>
+        <h1 class="h3 mb-1"><i class="bi bi-clipboard2-check me-2" aria-hidden="true"></i>Plan de limpieza</h1>
+        <div class="d-flex align-items-center gap-2">
+            <a href="{{ url_for('admin_cleaning_plan', date=prev_date) }}"
+               class="btn btn-outline-secondary btn-sm" title="Día anterior">
+                <i class="bi bi-chevron-left"></i>
+            </a>
+            <span class="fw-semibold" style="font-size:1.05rem">
+                {{ plan_date.strftime('%A %d de %B de %Y') | capitalize }}
+                {% if is_today %}<span class="badge bg-primary ms-1">Hoy</span>{% endif %}
+            </span>
+            <a href="{{ url_for('admin_cleaning_plan', date=next_date) }}"
+               class="btn btn-outline-secondary btn-sm" title="Día siguiente">
+                <i class="bi bi-chevron-right"></i>
+            </a>
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        {% if not is_today %}
+        <a href="{{ url_for('admin_cleaning_plan') }}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-calendar-event me-1"></i>Hoy
+        </a>
+        {% endif %}
+        <a href="{{ url_for('admin_cleaning_analytics') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-speedometer2 me-1"></i>Análisis
+        </a>
+    </div>
+</div>
+
+{# ── Summary cards ───────────────────────────────────────────── #}
+{% set working_workers = worker_plans | selectattr('status', 'equalto', 'working') | list %}
+{% set all_total_rooms = working_workers | sum(attribute='total_rooms') %}
+{% set all_done = working_workers | sum(attribute='done_count') %}
+{% set all_urgent = working_workers | sum(attribute='urgent_count') %}
+{% set all_remaining_min = working_workers | sum(attribute='remaining_est_min') %}
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body text-center py-3">
+                <div style="font-size:1.8rem;font-weight:700;color:var(--color-primary)">{{ working_workers | length }}</div>
+                <div class="text-muted" style="font-size:.82rem">Trabajadores en turno</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body text-center py-3">
+                <div style="font-size:1.8rem;font-weight:700;color:var(--color-text)">{{ all_total_rooms }}</div>
+                <div class="text-muted" style="font-size:.82rem">Habitaciones a limpiar</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body text-center py-3">
+                <div style="font-size:1.8rem;font-weight:700;color:var(--color-danger)">{{ all_urgent }}</div>
+                <div class="text-muted" style="font-size:.82rem">Urgentes</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body text-center py-3">
+                <div style="font-size:1.8rem;font-weight:700;color:var(--color-warning)">~{{ all_remaining_min }} min</div>
+                <div class="text-muted" style="font-size:.82rem">Tiempo restante estimado</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Worker cards (status='working') ────────────────────────── #}
+{% for wp in worker_plans if wp.status == 'working' %}
+<div class="card mb-3">
+    <div class="card-header d-flex flex-wrap align-items-center gap-2">
+        <i class="bi bi-person-fill" aria-hidden="true"></i>
+        <strong class="me-2">{{ wp.worker.name }}</strong>
+        {% if wp.shift %}
+        <span class="badge" style="background-color:{{ wp.shift.color }};color:#fff;font-size:.75rem">
+            {{ wp.shift.short_name }} {{ wp.shift.start_time.strftime('%H:%M') }}-{{ wp.shift.end_time.strftime('%H:%M') }}
+        </span>
+        {% endif %}
+        <span class="ms-auto text-muted" style="font-size:.82rem">
+            {{ wp.done_count }}/{{ wp.total_rooms }} completadas
+        </span>
+    </div>
+    <div class="card-body">
+        {# Progress bar #}
+        <div class="progress mb-2" style="height:6px">
+            <div class="progress-bar bg-success" role="progressbar"
+                 style="width:{{ (wp.done_count / wp.total_rooms * 100) if wp.total_rooms else 0 }}%"
+                 aria-valuenow="{{ wp.done_count }}" aria-valuemin="0" aria-valuemax="{{ wp.total_rooms }}"></div>
+        </div>
+
+        {# Stats line #}
+        <p class="mb-3" style="font-size:.85rem;color:var(--color-text-secondary)">
+            <span class="text-danger fw-semibold">{{ wp.urgent_count }} urgentes</span>
+            &middot; {{ wp.total_rooms - wp.done_count }} pendientes
+            &middot; ~{{ wp.remaining_est_min }} min restantes
+        </p>
+
+        {# Collapsible room list #}
+        <button class="btn btn-sm btn-outline-secondary mb-2" type="button"
+                data-bs-toggle="collapse" data-bs-target="#rooms-{{ loop.index }}"
+                aria-expanded="false" aria-controls="rooms-{{ loop.index }}">
+            <i class="bi bi-list-ul me-1"></i>Ver habitaciones ({{ wp.rooms | length }})
+        </button>
+
+        <div class="collapse" id="rooms-{{ loop.index }}">
+            {% set priority_order = ['urgent', 'due', 'ok', 'done'] %}
+            {% set priority_labels = {'urgent': 'Urgente', 'due': 'Pendiente', 'ok': 'Normal', 'done': 'Completada'} %}
+            {% set priority_colors = {'urgent': 'bg-danger', 'due': 'bg-warning text-dark', 'ok': 'bg-secondary', 'done': 'bg-success'} %}
+            {% set priority_icons = {'urgent': 'bi-exclamation-triangle-fill', 'due': 'bi-clock-fill', 'ok': 'bi-dash-circle', 'done': 'bi-check-circle-fill'} %}
+
+            {% for prio in priority_order %}
+            {% set prio_rooms = wp.rooms | selectattr('priority', 'equalto', prio) | list %}
+            {% if prio_rooms %}
+            <h6 class="mt-3 mb-2" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--color-text-secondary)">
+                <span class="badge {{ priority_colors[prio] }} me-1">{{ priority_labels[prio] }}</span>
+                ({{ prio_rooms | length }})
+            </h6>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Hab.</th>
+                            <th>Descripción</th>
+                            <th class="hide-mobile">Planta</th>
+                            <th class="hide-mobile">Tipo</th>
+                            <th>Días</th>
+                            <th>Est.</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in prio_rooms %}
+                        <tr{% if r.completed %} class="table-success"{% endif %}>
+                            <td class="fw-semibold">{{ r.room.number }}</td>
+                            <td>{{ r.room.description or '-' }}</td>
+                            <td class="hide-mobile">{{ r.room.floor.name }}</td>
+                            <td class="hide-mobile">{{ r.room.room_type.name if r.room.room_type else '-' }}</td>
+                            <td>
+                                {% if r.days_since is not none %}
+                                <span class="{% if r.priority == 'urgent' %}text-danger fw-bold{% elif r.priority == 'due' %}text-warning{% endif %}">
+                                    {{ r.days_since }}d
+                                </span>
+                                <small class="text-muted">/{{ r.frequency }}d</small>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>~{{ r.estimated_min }} min</td>
+                            <td>
+                                {% if r.completed %}
+                                <i class="bi bi-check-circle-fill text-success" title="Completada"></i>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+
+        {# Completed cleanings today #}
+        {% if wp.completed %}
+        <hr class="my-3">
+        <h6 style="font-size:.85rem"><i class="bi bi-check2-all me-1 text-success"></i>Limpiezas realizadas hoy</h6>
+        <div class="table-responsive">
+            <table class="table table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Hab.</th>
+                        <th>Descripción</th>
+                        <th>Inicio</th>
+                        <th>Fin</th>
+                        <th>Duración</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cr in wp.completed %}
+                    <tr>
+                        <td class="fw-semibold">{{ cr.room.number }}</td>
+                        <td>{{ cr.room.description or '-' }}</td>
+                        <td>{{ cr.start_time.strftime('%H:%M') if cr.start_time else '-' }}</td>
+                        <td>{{ cr.end_time.strftime('%H:%M') if cr.end_time else '-' }}</td>
+                        <td>
+                            {% if cr.start_time and cr.end_time %}
+                            {{ ((cr.end_time - cr.start_time).total_seconds() / 60) | int }} min
+                            {% else %}-{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
+
+{# ── No workers working ─────────────────────────────────────── #}
+{% if not working_workers %}
+<div class="alert alert-info">
+    <i class="bi bi-info-circle me-1"></i>No hay trabajadores en turno para esta fecha.
+</div>
+{% endif %}
+
+{# ── Absent / No shift workers ──────────────────────────────── #}
+{% set absent_workers = worker_plans | selectattr('status', 'equalto', 'absent') | list %}
+{% set no_shift_workers = worker_plans | selectattr('status', 'equalto', 'no_shift') | list %}
+
+{% if absent_workers or no_shift_workers %}
+<div class="card mt-4" style="border-color:var(--color-border)">
+    <div class="card-header" style="font-size:.85rem">
+        <i class="bi bi-person-x me-1" aria-hidden="true"></i>Trabajadores ausentes o sin turno
+    </div>
+    <div class="card-body py-2">
+        {% if absent_workers %}
+        <div class="mb-2">
+            <small class="text-muted fw-semibold text-uppercase" style="font-size:.72rem;letter-spacing:.05em">Ausentes</small>
+            <div class="d-flex flex-wrap gap-2 mt-1">
+                {% for wp in absent_workers %}
+                <span class="badge bg-danger bg-opacity-10 text-danger" style="font-size:.8rem">
+                    <i class="bi bi-person-dash me-1"></i>{{ wp.worker.name }}
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        {% if no_shift_workers %}
+        <div>
+            <small class="text-muted fw-semibold text-uppercase" style="font-size:.72rem;letter-spacing:.05em">Sin turno asignado</small>
+            <div class="d-flex flex-wrap gap-2 mt-1">
+                {% for wp in no_shift_workers %}
+                <span class="badge bg-secondary bg-opacity-10 text-secondary" style="font-size:.8rem">
+                    <i class="bi bi-person me-1"></i>{{ wp.worker.name }}
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if is_today %}
+<script>
+(function() {
+    // Auto-refresh every 60 seconds for today's plan
+    var REFRESH_INTERVAL = 60000;
+    var timer = setTimeout(function reload() {
+        window.location.reload();
+    }, REFRESH_INTERVAL);
+
+    // Show countdown in console for debugging
+    console.log('Plan de limpieza: auto-refresh activo cada 60s');
+
+    // Pause auto-refresh when tab is hidden, resume when visible
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            clearTimeout(timer);
+        } else {
+            timer = setTimeout(function() {
+                window.location.reload();
+            }, REFRESH_INTERVAL);
+        }
+    });
+})();
+</script>
+{% endif %}
+{% endblock %}

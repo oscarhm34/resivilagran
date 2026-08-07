@@ -4587,6 +4587,155 @@ def worker_cleaning_route():
     })
 
 
+@app.route('/admin/cleaning-plan')
+@admin_required
+def admin_cleaning_plan():
+    """Show today's cleaning plan: who cleans what, when, and progress."""
+    target_date = request.args.get('date', '')
+    if target_date:
+        plan_date = date.fromisoformat(target_date)
+    else:
+        plan_date = date.today()
+
+    # Get cleaning workers with shift today
+    cleaning_workers = Cleaner.query.filter(
+        Cleaner.active == True,
+        Cleaner.role.in_(['limpieza', 'mixto']),
+    ).order_by(Cleaner.name).all()
+
+    shifts_today = {sa.cleaner_id: sa for sa in ShiftAssignment.query.filter_by(date=plan_date).all()}
+
+    # Absences today
+    absent_ids = {a.cleaner_id for a in Absence.query.filter(
+        Absence.start_date <= plan_date, Absence.end_date >= plan_date,
+    ).all()}
+
+    # Today's completed cleanings
+    day_start = datetime.combine(plan_date, datetime.min.time())
+    day_end = datetime.combine(plan_date + timedelta(days=1), datetime.min.time())
+    today_records = CleaningRecord.query.filter(
+        CleaningRecord.start_time >= day_start,
+        CleaningRecord.start_time < day_end,
+    ).options(joinedload(CleaningRecord.cleaner)).all()
+
+    # Group completed by worker
+    worker_completed = {}
+    for rec in today_records:
+        wid = rec.cleaner_id
+        worker_completed.setdefault(wid, []).append(rec)
+
+    # Historical stats for route calculation
+    stats = _compute_cleaning_stats(90)
+    avg_per_room = stats['avg_per_room']
+    targets_map = {t.room_type_id: t.target_minutes for t in CleaningTargetTime.query.all()}
+
+    # Room data
+    all_rooms = Room.query.options(joinedload(Room.floor), joinedload(Room.room_type)).all()
+    room_map = {r.id: r for r in all_rooms}
+
+    # Cleaning frequency data
+    cutoff_freq = datetime.now() - timedelta(days=90)
+    freq_records = CleaningRecord.query.filter(
+        CleaningRecord.end_time.isnot(None), CleaningRecord.start_time >= cutoff_freq,
+    ).all()
+    room_clean_count = {}
+    room_last_cleaned = {}
+    for rec in freq_records:
+        room_clean_count[rec.room_id] = room_clean_count.get(rec.room_id, 0) + 1
+        if rec.room_id not in room_last_cleaned or rec.start_time > room_last_cleaned[rec.room_id]:
+            room_last_cleaned[rec.room_id] = rec.start_time
+
+    # Occupied rooms
+    occupied = {r.room_number for r in Resident.query.filter_by(active=True).all() if r.room_number}
+    now = datetime.now()
+
+    # Build plan per worker
+    worker_plans = []
+    for w in cleaning_workers:
+        sa = shifts_today.get(w.id)
+        is_absent = w.id in absent_ids
+
+        if is_absent:
+            worker_plans.append({'worker': w, 'status': 'absent', 'shift': None, 'rooms': [], 'completed': []})
+            continue
+        if not sa or not sa.shift_type_id:
+            worker_plans.append({'worker': w, 'status': 'no_shift', 'shift': None, 'rooms': [], 'completed': []})
+            continue
+
+        # Get worker's rooms (auto-detect from history)
+        worker_room_ids = {r[0] for r in db.session.query(CleaningRecord.room_id).filter(
+            CleaningRecord.cleaner_id == w.id, CleaningRecord.end_time.isnot(None),
+            CleaningRecord.start_time >= cutoff_freq,
+        ).distinct().all()}
+
+        # Manual zone assignments override
+        zone_assigns = CleaningZoneAssignment.query.filter_by(cleaner_id=w.id).all()
+        if zone_assigns:
+            assigned_floors = {za.floor_id for za in zone_assigns}
+            worker_rooms = [r for r in all_rooms if r.floor_id in assigned_floors]
+        elif worker_room_ids:
+            worker_rooms = [r for r in all_rooms if r.id in worker_room_ids]
+        else:
+            worker_rooms = all_rooms
+
+        # Today's cleaned room ids for this worker
+        completed_room_ids = {rec.room_id for rec in worker_completed.get(w.id, [])}
+
+        # Build room list with urgency
+        rooms_plan = []
+        for room in worker_rooms:
+            count = room_clean_count.get(room.id, 0)
+            last = room_last_cleaned.get(room.id)
+            freq = (90 / count) if count > 0 else 7
+            is_numeric = room.number.isdigit()
+            is_resident = room.room_type and 'residen' in room.room_type.name.lower()
+            if is_numeric and is_resident and room.number not in occupied:
+                freq *= 3
+            days_since = (now - last).days if last else None
+            urgency = (days_since / freq) if (last and freq > 0) else 10
+
+            if room.id in completed_room_ids:
+                priority = 'done'
+            elif urgency >= 2:
+                priority = 'urgent'
+            elif urgency >= 1:
+                priority = 'due'
+            else:
+                priority = 'ok'
+
+            est = avg_per_room.get(room.id, targets_map.get(room.room_type_id, 15))
+            rooms_plan.append({
+                'room': room, 'priority': priority, 'urgency': urgency,
+                'days_since': days_since, 'frequency': round(freq, 1),
+                'estimated_min': round(est, 1),
+                'completed': room.id in completed_room_ids,
+            })
+
+        rooms_plan.sort(key=lambda r: ({'urgent': 0, 'due': 1, 'ok': 2, 'done': 3}.get(r['priority'], 2), -r['urgency']))
+
+        completed_records = sorted(worker_completed.get(w.id, []), key=lambda r: r.start_time)
+        total_est = sum(r['estimated_min'] for r in rooms_plan if not r['completed'])
+
+        worker_plans.append({
+            'worker': w,
+            'status': 'working',
+            'shift': sa.shift_type if sa else None,
+            'rooms': rooms_plan,
+            'completed': completed_records,
+            'total_rooms': len(rooms_plan),
+            'done_count': sum(1 for r in rooms_plan if r['completed']),
+            'urgent_count': sum(1 for r in rooms_plan if r['priority'] == 'urgent'),
+            'remaining_est_min': round(total_est),
+        })
+
+    return render_template('admin_cleaning_plan.html',
+        plan_date=plan_date, worker_plans=worker_plans,
+        is_today=plan_date == date.today(),
+        prev_date=(plan_date - timedelta(days=1)).isoformat(),
+        next_date=(plan_date + timedelta(days=1)).isoformat(),
+    )
+
+
 @app.route('/admin/cleaning-analytics')
 @admin_required
 def admin_cleaning_analytics():
