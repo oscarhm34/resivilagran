@@ -270,7 +270,7 @@
     <div class="card mb-4" id="turnos">
         <div class="card-header">9. Cuadrantes de turnos</div>
         <div class="card-body">
-            <p>El modulo de <strong>Turnos</strong> (<i class="bi bi-calendar3"></i>) permite planificar los cuadrantes de trabajo de los empleados.</p>
+            <p>El modulo de <strong>Turnos</strong> (<i class="bi bi-calendar3"></i>) permite planificar los cuadrantes de trabajo de los empleados, con control de horas y cumplimiento laboral.</p>
 
             <h6 class="mt-3">Vista de cuadrantes</h6>
             <ul>
@@ -278,40 +278,73 @@
                 <li><strong>Cuadricula mensual:</strong> filas = trabajadores, columnas = dias del mes.</li>
                 <li>Cada celda muestra la letra del turno asignado (M/T/N) con su color.</li>
                 <li>Los fines de semana se marcan con un fondo sutil para identificarlos rapidamente.</li>
-                <li>Al final de la cuadricula hay una <strong>fila resumen de cobertura</strong> que muestra cuantos trabajadores hay por turno cada dia.</li>
+                <li><strong>Fila de cobertura:</strong> al final de la cuadricula muestra cuantos trabajadores hay por turno cada dia (ej: M:12 T:10 N:8).</li>
+                <li><strong>Columna de horas:</strong> a la derecha se muestra el total de horas planificadas del mes para cada trabajador. Se marca en rojo si supera el maximo mensual.</li>
             </ul>
 
-            <h6 class="mt-3">Asignar turnos</h6>
+            <h6 class="mt-3">Asignar turnos manualmente</h6>
             <ul>
                 <li><strong>Click en una celda</strong> de la cuadricula para abrir el selector de turno.</li>
                 <li>Seleccionar M (Manana), T (Tarde), N (Noche) o Libre.</li>
                 <li>La asignacion se guarda automaticamente sin recargar la pagina.</li>
             </ul>
 
-            <h6 class="mt-3">Operaciones en bloque</h6>
+            <h6 class="mt-3">Patrones de rotacion</h6>
             <ul>
-                <li><strong>Copiar semana:</strong> Botones encima de la cuadricula que copian las asignaciones de una semana a la siguiente. Util para replicar patrones rapidamente.</li>
+                <li>Desde <strong>Patrones</strong> se definen ciclos de turnos reutilizables (ej: un ciclo de 7 dias "M M T T N L L").</li>
+                <li>Cada patron tiene un nombre, descripcion y el numero de dias del ciclo.</li>
+                <li>Se asigna un patron a cada trabajador indicando la <strong>fecha de inicio del ciclo</strong> (escalonada para que no todos libren el mismo dia).</li>
+                <li>Boton <strong>"Generar mes"</strong> en la cuadricula: genera automaticamente los turnos de todo el mes segun el patron de cada trabajador.</li>
+                <li>Los cambios manuales previos se <strong>preservan</strong> al regenerar (no se pierden).</li>
             </ul>
 
-            <h6 class="mt-3">Filtros y navegacion</h6>
+            <h6 class="mt-3">Ausencias</h6>
             <ul>
-                <li>Navegar entre meses con las flechas.</li>
-                <li>Filtrar por <strong>grupo de residentes</strong> para ver solo los trabajadores de un grupo.</li>
+                <li>Desde <strong>Ausencias</strong> se registran vacaciones, bajas medicas, asuntos propios, permisos retribuidos y festivos.</li>
+                <li>Cada ausencia tiene: trabajador, tipo, fecha inicio, fecha fin y notas opcionales.</li>
+                <li>Las ausencias se muestran en la cuadricula con su color y abreviatura (ej: VAC, BAJ) y <strong>bloquean la celda</strong> para que no se pueda asignar turno en esos dias.</li>
+                <li>Tipos de ausencia por defecto: Vacaciones, Baja medica, Asuntos propios, Permiso retribuido, Festivo.</li>
+            </ul>
+
+            <h6 class="mt-3">Validacion de cumplimiento laboral</h6>
+            <ul>
+                <li>Boton <strong>"Validar"</strong> (<i class="bi bi-shield-check"></i>) en la cuadricula: analiza el mes y detecta incumplimientos.</li>
+                <li><strong>Descanso minimo entre turnos:</strong> alerta si entre el fin de un turno y el inicio del siguiente hay menos de 12 horas (requisito legal en Espana).</li>
+                <li><strong>Maximo 40 horas semanales:</strong> alerta si un trabajador supera las 40h en una semana ISO.</li>
+                <li><strong>Dia libre semanal:</strong> alerta si un trabajador no tiene ningun dia libre en una semana completa.</li>
+                <li>Las alertas se muestran en un panel con detalle (trabajador, fecha, problema) y las celdas afectadas se marcan en rojo en la cuadricula.</li>
+            </ul>
+
+            <h6 class="mt-3">Copiar semana</h6>
+            <ul>
+                <li>Botones encima de la cuadricula para <strong>copiar la semana anterior</strong> a la siguiente. Util para replicar patrones rapidamente sin usar rotaciones.</li>
             </ul>
 
             <h6 class="mt-3">Tipos de turno</h6>
             <ul>
-                <li>Desde <strong>Tipos de turno</strong> (enlace en la pagina de cuadrantes) se gestionan los turnos disponibles.</li>
-                <li>Cada tipo tiene: nombre, abreviatura, color, hora de inicio/fin y minutos de pausa.</li>
-                <li>Por defecto vienen creados Manana (7:00-15:00), Tarde (15:00-22:00) y Noche (22:00-7:00).</li>
-                <li>Se pueden crear turnos personalizados (ej: turno partido, refuerzo, etc.).</li>
+                <li>Desde <strong>Tipos de turno</strong> se gestionan los turnos disponibles.</li>
+                <li>Cada tipo tiene: nombre, abreviatura (1-5 letras), color, hora de inicio/fin y minutos de pausa.</li>
+                <li>Por defecto: Manana (M, 7:00-15:00), Tarde (T, 15:00-22:00) y Noche (N, 22:00-7:00).</li>
+                <li>Se pueden crear turnos personalizados (ej: turno partido, refuerzo, guardia, etc.).</li>
             </ul>
 
-            <h6 class="mt-3">Exportar</h6>
+            <h6 class="mt-3">Exportar e imprimir</h6>
             <ul>
                 <li>Boton <strong>"Exportar Excel"</strong> para descargar el cuadrante del mes en formato .xlsx.</li>
                 <li>Ideal para imprimir y colgar en el tablon de la residencia.</li>
             </ul>
+
+            <h6 class="mt-3">Flujo tipico de uso</h6>
+            <ol>
+                <li>Crear los <strong>tipos de turno</strong> necesarios (o usar los predefinidos M/T/N).</li>
+                <li>Crear <strong>patrones de rotacion</strong> para los diferentes equipos.</li>
+                <li>Asignar cada trabajador a su patron con la fecha de inicio del ciclo.</li>
+                <li>Pulsar <strong>"Generar mes"</strong> para rellenar la cuadricula automaticamente.</li>
+                <li>Registrar las <strong>ausencias</strong> conocidas (vacaciones, festivos).</li>
+                <li>Ajustar manualmente los dias que necesiten cambios.</li>
+                <li>Pulsar <strong>"Validar"</strong> para comprobar que no hay incumplimientos laborales.</li>
+                <li>Corregir las alertas y <strong>exportar</strong> el cuadrante definitivo.</li>
+            </ol>
         </div>
     </div>
 
