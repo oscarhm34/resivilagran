@@ -1,0 +1,598 @@
+{% extends "base.html" %}
+{% block title %}Cuadrantes{% endblock %}
+
+{% block content %}
+<style>
+    /* ── Grid table ─────────────────────────────────────────── */
+    .shift-grid-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        background: var(--color-surface);
+    }
+    .shift-grid {
+        border-collapse: separate;
+        border-spacing: 0;
+        width: max-content;
+        min-width: 100%;
+    }
+    .shift-grid th,
+    .shift-grid td {
+        padding: 4px 2px;
+        text-align: center;
+        font-size: .75rem;
+        min-width: 36px;
+        white-space: nowrap;
+        border-bottom: 1px solid var(--color-border);
+    }
+    .shift-grid thead th {
+        background: var(--color-bg);
+        border-bottom: 2px solid var(--color-border);
+        position: sticky;
+        top: 0;
+        z-index: 3;
+    }
+    .shift-grid th:first-child,
+    .shift-grid td:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background: var(--color-surface);
+        min-width: 150px;
+        text-align: left;
+        padding-left: 8px;
+        font-weight: 600;
+        font-size: .8rem;
+        border-right: 2px solid var(--color-border);
+    }
+    .shift-grid thead th:first-child {
+        z-index: 4;
+        background: var(--color-bg);
+    }
+    .shift-grid .col-weekend {
+        background-color: rgba(0,0,0,.03);
+    }
+    .shift-grid td:first-child.col-weekend {
+        background-color: var(--color-surface);
+    }
+    .shift-grid thead th.col-weekend {
+        background-color: rgba(0,0,0,.05);
+    }
+    .shift-grid tbody tr:hover td {
+        background-color: var(--color-primary-lt);
+    }
+    .shift-grid tbody tr:hover td:first-child {
+        background-color: var(--color-primary-lt);
+    }
+    .shift-grid tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    /* ── Shift cell pill ────────────────────────────────────── */
+    .shift-cell {
+        cursor: pointer;
+        border-radius: 4px;
+        width: 28px;
+        height: 28px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: .7rem;
+        transition: transform .1s;
+        color: #fff;
+        user-select: none;
+    }
+    .shift-cell:hover {
+        transform: scale(1.15);
+    }
+    .shift-cell.empty {
+        background: transparent;
+        color: var(--color-text-secondary);
+        border: 1px dashed var(--color-border);
+        font-weight: 400;
+        font-size: .6rem;
+    }
+
+    /* ── Coverage summary row ──────────────────────────────── */
+    .shift-grid .coverage-row td {
+        background: var(--color-bg);
+        border-top: 2px solid var(--color-border);
+        font-size: .65rem;
+        padding: 3px 2px;
+        vertical-align: top;
+    }
+    .shift-grid .coverage-row td:first-child {
+        background: var(--color-bg);
+        font-weight: 600;
+        font-size: .7rem;
+    }
+    .coverage-pill {
+        display: inline-block;
+        border-radius: 3px;
+        padding: 1px 4px;
+        font-weight: 600;
+        font-size: .6rem;
+        color: #fff;
+        margin: 1px 0;
+    }
+
+    /* ── Shift picker popup ─────────────────────────────────── */
+    .shift-picker {
+        position: absolute;
+        z-index: 1050;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-md);
+        padding: 6px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        max-width: 200px;
+    }
+    .shift-picker .sp-btn {
+        border: none;
+        border-radius: 4px;
+        width: 32px;
+        height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: .75rem;
+        color: #fff;
+        cursor: pointer;
+        transition: transform .1s, box-shadow .1s;
+    }
+    .shift-picker .sp-btn:hover {
+        transform: scale(1.15);
+        box-shadow: var(--shadow-sm);
+    }
+    .shift-picker .sp-btn.sp-libre {
+        background: #adb5bd;
+        font-size: .85rem;
+    }
+
+    /* ── Copy week buttons ──────────────────────────────────── */
+    .copy-week-row {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 8px;
+        flex-wrap: wrap;
+    }
+    .copy-week-btn {
+        font-size: .7rem;
+        padding: 2px 8px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--color-border);
+        background: var(--color-surface);
+        cursor: pointer;
+        color: var(--color-text-secondary);
+        transition: background .15s, border-color .15s;
+    }
+    .copy-week-btn:hover {
+        background: var(--color-primary-lt);
+        border-color: var(--color-primary);
+        color: var(--color-primary);
+    }
+
+    /* ── Day-of-week in header ──────────────────────────────── */
+    .day-header-num {
+        display: block;
+        font-weight: 700;
+        font-size: .8rem;
+    }
+    .day-header-dow {
+        display: block;
+        font-weight: 400;
+        font-size: .6rem;
+        color: var(--color-text-secondary);
+        text-transform: uppercase;
+    }
+
+    /* ── Print styles ───────────────────────────────────────── */
+    @media print {
+        body { padding-top: 0; }
+        .navbar, .footer, #chat-fab, #chat-dialog,
+        .flash-container, .no-print, .shift-picker,
+        .copy-week-row, #toast-container { display: none !important; }
+        .shift-grid-wrap {
+            overflow: visible;
+            border: 1px solid #000;
+            box-shadow: none;
+        }
+        .shift-grid th,
+        .shift-grid td {
+            font-size: .55rem;
+            min-width: 22px;
+            padding: 2px 1px;
+            border-color: #ccc;
+        }
+        .shift-grid th:first-child,
+        .shift-grid td:first-child {
+            min-width: 100px;
+            font-size: .6rem;
+        }
+        .shift-cell {
+            width: 20px;
+            height: 20px;
+            font-size: .55rem;
+            color: #000 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .coverage-pill {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+    }
+</style>
+
+<div class="py-4">
+    {# ── Header bar ────────────────────────────────────────── #}
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <h1 class="h3 mb-0">Cuadrantes</h1>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            {# Month navigation #}
+            <div class="btn-group btn-group-sm no-print" role="group" aria-label="Navegación mensual">
+                <a href="{{ url_for('cuadrantes', year=prev_year, month=prev_month, group_id=group_id) }}"
+                   class="btn btn-outline-secondary" title="Mes anterior">
+                    <i class="bi bi-chevron-left"></i>
+                </a>
+                <span class="btn btn-outline-secondary disabled" style="font-weight:600; min-width:140px; pointer-events:none">
+                    {% set month_names = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'] %}
+                    {{ month_names[month - 1] }} {{ year }}
+                </span>
+                <a href="{{ url_for('cuadrantes', year=next_year, month=next_month, group_id=group_id) }}"
+                   class="btn btn-outline-secondary" title="Mes siguiente">
+                    <i class="bi bi-chevron-right"></i>
+                </a>
+            </div>
+
+            {# Group filter #}
+            {% if groups %}
+            <select class="form-select form-select-sm no-print" style="width:auto"
+                    onchange="window.location.href='{{ url_for('cuadrantes', year=year, month=month) }}&group_id='+this.value">
+                <option value="">Todos los grupos</option>
+                {% for g in groups %}
+                <option value="{{ g.id }}" {{ 'selected' if group_id == g.id }}>{{ g.name }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+
+            {# Export / config links #}
+            <a href="{{ url_for('cuadrantes_export', year=year, month=month, group_id=group_id) }}"
+               class="btn btn-outline-secondary btn-sm no-print" title="Exportar a Excel">
+                <i class="bi bi-file-earmark-spreadsheet me-1"></i>Exportar Excel
+            </a>
+            <a href="{{ url_for('manage_shift_types') }}"
+               class="btn btn-outline-secondary btn-sm no-print" title="Gestionar tipos de turno">
+                <i class="bi bi-palette me-1"></i>Tipos de turno
+            </a>
+        </div>
+    </div>
+
+    {# ── Copy week buttons ─────────────────────────────────── #}
+    <div class="copy-week-row no-print" id="copy-week-row"></div>
+
+    {# ── Monthly grid ──────────────────────────────────────── #}
+    <div class="card">
+        <div class="shift-grid-wrap">
+            <table class="shift-grid" id="shift-grid">
+                <thead>
+                    <tr>
+                        <th>Empleado</th>
+                        {% for d in range(1, num_days + 1) %}
+                        <th id="dh-{{ d }}">
+                            <span class="day-header-num">{{ d }}</span>
+                            <span class="day-header-dow" data-day="{{ d }}"></span>
+                        </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for w in workers %}
+                    <tr data-worker="{{ w.id }}">
+                        <td>{{ w.name }}</td>
+                        {% for d in range(1, num_days + 1) %}
+                        {% set iso = '%04d-%02d-%02d' | format(year, month, d) %}
+                        {% set assignment = assign_map.get((w.id, iso)) %}
+                        <td class="grid-cell" data-worker="{{ w.id }}" data-date="{{ iso }}" data-day="{{ d }}">
+                            {% if assignment %}
+                            <span class="shift-cell" style="background:{{ assignment.shift_type.color }}"
+                                  title="{{ assignment.shift_type.name }}">
+                                {{ assignment.shift_type.short_name }}
+                            </span>
+                            {% else %}
+                            <span class="shift-cell empty" title="Sin turno">&middot;</span>
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="coverage-row">
+                        <td>Cobertura</td>
+                        {% for d in range(1, num_days + 1) %}
+                        {% set iso = '%04d-%02d-%02d' | format(year, month, d) %}
+                        {% set day_cov = coverage.get(iso, {}) %}
+                        <td data-day="{{ d }}">
+                            {% for st in shift_types %}
+                            {% set cnt = day_cov.get(st.id, 0) %}
+                            {% if cnt > 0 %}
+                            <span class="coverage-pill" style="background:{{ st.color }}">{{ st.short_name }}{{ cnt }}</span>
+                            {% endif %}
+                            {% endfor %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    {# ── Shift type legend ─────────────────────────────────── #}
+    <div class="mt-3 d-flex flex-wrap gap-2 no-print" style="font-size:.8rem">
+        <span class="text-muted fw-semibold me-1">Leyenda:</span>
+        {% for st in shift_types %}
+        <span class="d-inline-flex align-items-center gap-1">
+            <span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:{{ st.color }}"></span>
+            <span>{{ st.short_name }} &ndash; {{ st.name }}
+                {% if st.start_time and st.end_time %}
+                ({{ st.start_time }} - {{ st.end_time }})
+                {% endif %}
+            </span>
+        </span>
+        {% endfor %}
+    </div>
+</div>
+
+{# ── Shift picker template (hidden, positioned on click) ── #}
+<div class="shift-picker" id="shift-picker" style="display:none">
+    {% for st in shift_types %}
+    <button type="button" class="sp-btn" data-stid="{{ st.id }}"
+            style="background:{{ st.color }}" title="{{ st.name }}">{{ st.short_name }}</button>
+    {% endfor %}
+    <button type="button" class="sp-btn sp-libre" data-stid="" title="Libre (sin turno)">&times;</button>
+</div>
+
+<script>
+(function(){
+    var YEAR = {{ year }};
+    var MONTH = {{ month }};
+    var NUM_DAYS = {{ num_days }};
+    var SHIFT_TYPES = [{% for st in shift_types %}{"id":{{ st.id }},"name":"{{ st.name }}","short_name":"{{ st.short_name }}","color":"{{ st.color }}","start_time":"{{ st.start_time.strftime('%H:%M') }}","end_time":"{{ st.end_time.strftime('%H:%M') }}"}{% if not loop.last %},{% endif %}{% endfor %}];
+    var DOW_NAMES = ['D','L','M','X','J','V','S']; // JS: 0=Sun
+
+    /* ── Day-of-week headers & weekend tinting ─────────────── */
+    for (var d = 1; d <= NUM_DAYS; d++) {
+        var jsDay = new Date(YEAR, MONTH - 1, d).getDay(); // 0=Sun
+        var dowEs = ['D','L','M','X','J','V','S'][jsDay];
+        var dowSpan = document.querySelector('.day-header-dow[data-day="' + d + '"]');
+        if (dowSpan) dowSpan.textContent = dowEs;
+
+        var isWeekend = (jsDay === 0 || jsDay === 6);
+        if (isWeekend) {
+            var headerTh = document.getElementById('dh-' + d);
+            if (headerTh) headerTh.classList.add('col-weekend');
+            document.querySelectorAll('td[data-day="' + d + '"]').forEach(function(td) {
+                if (!td.matches('td:first-child')) td.classList.add('col-weekend');
+            });
+        }
+    }
+
+    /* ── Copy week buttons ─────────────────────────────────── */
+    (function buildCopyBtns() {
+        var row = document.getElementById('copy-week-row');
+        if (!row) return;
+        // Find week boundaries (Mon-Sun)
+        var firstDow = new Date(YEAR, MONTH - 1, 1).getDay(); // 0=Sun
+        var weeks = [];
+        var weekStart = 1;
+        for (var d = 1; d <= NUM_DAYS; d++) {
+            var dow = new Date(YEAR, MONTH - 1, d).getDay();
+            if (dow === 1 && d > 1) {
+                weeks.push({ start: weekStart, end: d - 1 });
+                weekStart = d;
+            }
+        }
+        weeks.push({ start: weekStart, end: NUM_DAYS });
+
+        for (var i = 1; i < weeks.length; i++) {
+            (function(wi, prevWeek, thisWeek) {
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'copy-week-btn';
+                btn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copiar semana ' +
+                    prevWeek.start + '-' + prevWeek.end + ' → ' +
+                    thisWeek.start + '-' + thisWeek.end;
+                btn.addEventListener('click', function() {
+                    showConfirm(
+                        '¿Copiar los turnos de los días ' + prevWeek.start + '-' + prevWeek.end +
+                        ' a los días ' + thisWeek.start + '-' + thisWeek.end + '?',
+                        function() { doBulkCopy(prevWeek, thisWeek); }
+                    );
+                });
+                row.appendChild(btn);
+            })(i, weeks[i-1], weeks[i]);
+        }
+    })();
+
+    function doBulkCopy(srcWeek, dstWeek) {
+        var assignments = [];
+        var srcDays = [];
+        for (var d = srcWeek.start; d <= srcWeek.end; d++) srcDays.push(d);
+
+        var workerRows = document.querySelectorAll('#shift-grid tbody tr[data-worker]');
+        workerRows.forEach(function(tr) {
+            var workerId = parseInt(tr.dataset.worker);
+            for (var i = 0; i < srcDays.length; i++) {
+                var dstDay = dstWeek.start + i;
+                if (dstDay > NUM_DAYS) break;
+                var srcIso = isoDate(srcDays[i]);
+                var srcCell = tr.querySelector('td[data-date="' + srcIso + '"]');
+                var srcShift = srcCell ? srcCell.querySelector('.shift-cell:not(.empty)') : null;
+                var stId = null;
+                if (srcShift) {
+                    // Find shift type id from the picker
+                    var shortName = srcShift.textContent.trim();
+                    var bg = srcShift.style.background || srcShift.style.backgroundColor;
+                    for (var s = 0; s < SHIFT_TYPES.length; s++) {
+                        if (SHIFT_TYPES[s].short_name === shortName) {
+                            stId = SHIFT_TYPES[s].id;
+                            break;
+                        }
+                    }
+                }
+                assignments.push({
+                    cleaner_id: workerId,
+                    date: isoDate(dstDay),
+                    shift_type_id: stId
+                });
+            }
+        });
+
+        fetch('{{ url_for("cuadrantes_bulk_assign") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ assignments: assignments })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                showToast('Semana copiada correctamente', 'success');
+                location.reload();
+            } else {
+                showToast(data.error || 'Error al copiar semana', 'error');
+            }
+        })
+        .catch(function() { showToast('Error de conexión', 'error'); });
+    }
+
+    function isoDate(day) {
+        return YEAR + '-' + String(MONTH).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+    }
+
+    /* ── Shift picker logic ────────────────────────────────── */
+    var picker = document.getElementById('shift-picker');
+    var activeCell = null;
+
+    // Close picker on outside click
+    document.addEventListener('click', function(e) {
+        if (picker.style.display !== 'none' && !picker.contains(e.target) && e.target !== activeCell && !activeCell.contains(e.target)) {
+            closePicker();
+        }
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closePicker();
+    });
+
+    function closePicker() {
+        picker.style.display = 'none';
+        activeCell = null;
+    }
+
+    // Attach click handlers to all grid cells
+    document.querySelectorAll('#shift-grid .grid-cell').forEach(function(td) {
+        td.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (activeCell === td) { closePicker(); return; }
+            activeCell = td;
+
+            // Position the picker below the cell
+            var rect = td.getBoundingClientRect();
+            var scrollX = window.pageXOffset || document.documentElement.scrollLeft;
+            var scrollY = window.pageYOffset || document.documentElement.scrollTop;
+            picker.style.display = 'flex';
+            picker.style.left = (rect.left + scrollX) + 'px';
+            picker.style.top = (rect.bottom + scrollY + 4) + 'px';
+
+            // Adjust if overflowing right edge
+            var pickerRect = picker.getBoundingClientRect();
+            if (pickerRect.right > window.innerWidth) {
+                picker.style.left = (window.innerWidth - pickerRect.width - 8 + scrollX) + 'px';
+            }
+        });
+    });
+
+    // Handle shift type button clicks in picker
+    picker.querySelectorAll('.sp-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (!activeCell) return;
+            var stId = btn.dataset.stid ? parseInt(btn.dataset.stid) : null;
+            var workerId = parseInt(activeCell.dataset.worker);
+            var date = activeCell.dataset.date;
+
+            assignShift(workerId, date, stId, activeCell);
+            closePicker();
+        });
+    });
+
+    function assignShift(workerId, date, shiftTypeId, cell) {
+        fetch('{{ url_for("cuadrantes_assign") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                cleaner_id: workerId,
+                date: date,
+                shift_type_id: shiftTypeId
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                updateCell(cell, shiftTypeId);
+                showToast('Turno actualizado', 'success');
+            } else {
+                showToast(data.error || 'Error al asignar turno', 'error');
+            }
+        })
+        .catch(function() { showToast('Error de conexión', 'error'); });
+    }
+
+    function updateCell(cell, shiftTypeId) {
+        if (!shiftTypeId) {
+            cell.innerHTML = '<span class="shift-cell empty" title="Sin turno">&middot;</span>';
+            updateCoverage();
+            return;
+        }
+        var st = null;
+        for (var i = 0; i < SHIFT_TYPES.length; i++) {
+            if (SHIFT_TYPES[i].id === shiftTypeId) { st = SHIFT_TYPES[i]; break; }
+        }
+        if (!st) return;
+        cell.innerHTML = '<span class="shift-cell" style="background:' + st.color +
+            '" title="' + st.name + '">' + st.short_name + '</span>';
+        updateCoverage();
+    }
+
+    /* ── Recalculate coverage row ──────────────────────────── */
+    function updateCoverage() {
+        var coverageCells = document.querySelectorAll('.coverage-row td[data-day]');
+        coverageCells.forEach(function(covTd) {
+            var day = covTd.dataset.day;
+            var iso = isoDate(parseInt(day));
+            var counts = {};
+            document.querySelectorAll('td.grid-cell[data-date="' + iso + '"] .shift-cell:not(.empty)').forEach(function(sc) {
+                var sn = sc.textContent.trim();
+                if (!counts[sn]) counts[sn] = { count: 0, color: sc.style.background || sc.style.backgroundColor };
+                counts[sn].count++;
+            });
+            var html = '';
+            for (var sn in counts) {
+                html += '<span class="coverage-pill" style="background:' + counts[sn].color + '">' +
+                    sn + counts[sn].count + '</span>';
+            }
+            covTd.innerHTML = html;
+        });
+    }
+})();
+</script>
+{% endblock %}

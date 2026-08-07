@@ -317,3 +317,40 @@ class TrainingCompletion(db.Model):
 
     pill = db.relationship('TrainingPill', back_populates='completions')
     cleaner = db.relationship('Cleaner', backref=db.backref('training_completions', lazy=True))
+
+
+# ── TURNOS / CUADRANTES ──────────────────────────────────────────────────────
+
+class ShiftType(db.Model):
+    __tablename__ = 'shift_type'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False, unique=True)
+    short_name = db.Column(db.String(5), nullable=False)
+    color = db.Column(db.String(7), nullable=False)
+    start_time = db.Column(db.Time, nullable=False)
+    end_time = db.Column(db.Time, nullable=False)
+    breaks_minutes = db.Column(db.Integer, default=0)
+    sort_order = db.Column(db.Integer, default=0)
+    active = db.Column(db.Boolean, default=True)
+
+    assignments = db.relationship('ShiftAssignment', back_populates='shift_type', lazy=True)
+
+
+class ShiftAssignment(db.Model):
+    __tablename__ = 'shift_assignment'
+    id = db.Column(db.Integer, primary_key=True)
+    cleaner_id = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    shift_type_id = db.Column(db.Integer, db.ForeignKey('shift_type.id'), nullable=True)
+    is_override = db.Column(db.Boolean, default=False)
+    source = db.Column(db.String(20), default='manual')
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
+
+    cleaner = db.relationship('Cleaner', foreign_keys=[cleaner_id],
+                              backref=db.backref('shift_assignments', lazy=True))
+    shift_type = db.relationship('ShiftType', back_populates='assignments')
+    creator = db.relationship('Cleaner', foreign_keys=[created_by])
+
+    __table_args__ = (db.UniqueConstraint('cleaner_id', 'date', name='uq_worker_date'),)

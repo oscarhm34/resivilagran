@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block title %}Tipos de Turno{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <a href="{{ url_for('cuadrantes') }}" class="btn btn-outline-secondary btn-sm" title="Volver a cuadrantes">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+            <h1 class="h3 mb-0">Tipos de Turno</h1>
+            <span class="badge bg-secondary">{{ shift_types|length }}</span>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" onclick="openShiftTypeForm()">
+            <i class="bi bi-plus-lg me-1"></i>Añadir tipo de turno
+        </button>
+    </div>
+
+    <!-- Offcanvas formulario añadir / editar -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="shiftTypeFormPanel" aria-labelledby="shiftTypeFormTitle" style="width:min(480px,90vw)">
+        <div class="offcanvas-header" id="offcanvas-header-bar" style="border-bottom:1px solid var(--color-border);border-top:3px solid var(--color-primary)">
+            <h5 class="offcanvas-title" id="shiftTypeFormTitle">Nuevo tipo de turno</h5>
+            <span id="edit-badge" class="badge bg-warning text-dark d-none ms-2">Editando</span>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+        </div>
+        <div class="offcanvas-body">
+            <form id="shift-type-form" method="POST" action="{{ url_for('add_edit_shift_type') }}" class="needs-validation" novalidate>
+                <input type="hidden" name="shift_type_id" value="">
+
+                <div class="mb-3">
+                    <label for="st-name" class="form-label">Nombre <span class="text-danger" aria-hidden="true">*</span></label>
+                    <input type="text" id="st-name" name="name"
+                           class="form-control" required autocomplete="off"
+                           placeholder="ej. Mañana">
+                    <div class="invalid-feedback">El nombre es obligatorio.</div>
+                </div>
+                <div class="mb-3">
+                    <label for="st-short-name" class="form-label">Abreviatura <span class="text-danger" aria-hidden="true">*</span></label>
+                    <input type="text" id="st-short-name" name="short_name"
+                           class="form-control" required maxlength="5" autocomplete="off"
+                           placeholder="ej. M">
+                    <div class="invalid-feedback">La abreviatura es obligatoria (máx. 5 caracteres).</div>
+                </div>
+                <div class="mb-3">
+                    <label for="st-color" class="form-label">Color</label>
+                    <input type="color" id="st-color" name="color"
+                           class="form-control form-control-color" value="#0069d9">
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label for="st-start-time" class="form-label">Hora inicio</label>
+                        <input type="time" id="st-start-time" name="start_time" class="form-control">
+                    </div>
+                    <div class="col-6">
+                        <label for="st-end-time" class="form-label">Hora fin</label>
+                        <input type="time" id="st-end-time" name="end_time" class="form-control">
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label for="st-breaks" class="form-label">Descanso (min)</label>
+                        <input type="number" id="st-breaks" name="breaks_minutes"
+                               class="form-control" min="0" value="0">
+                    </div>
+                    <div class="col-6">
+                        <label for="st-sort-order" class="form-label">Orden</label>
+                        <input type="number" id="st-sort-order" name="sort_order"
+                               class="form-control" min="0" value="0">
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary" id="submit-btn">Añadir tipo de turno</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla de tipos de turno -->
+    {% if shift_types %}
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col">Color</th>
+                        <th scope="col">Nombre</th>
+                        <th scope="col">Abrev.</th>
+                        <th scope="col">Horario</th>
+                        <th scope="col" class="hide-mobile">Descanso</th>
+                        <th scope="col" class="hide-mobile">Orden</th>
+                        <th scope="col">Activo</th>
+                        <th scope="col" class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for st in shift_types %}
+                    <tr>
+                        <td>
+                            <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:{{ st.color or '#ccc' }};border:1px solid var(--color-border)"></span>
+                        </td>
+                        <td>{{ st.name }}</td>
+                        <td><code style="color:var(--color-primary);background:var(--color-primary-lt);padding:1px 6px;border-radius:4px">{{ st.short_name }}</code></td>
+                        <td>
+                            {% if st.start_time and st.end_time %}
+                                {{ st.start_time }} - {{ st.end_time }}
+                            {% else %}
+                                <span class="text-body-secondary">--</span>
+                            {% endif %}
+                        </td>
+                        <td class="hide-mobile">
+                            {% if st.breaks_minutes %}
+                                {{ st.breaks_minutes }} min
+                            {% else %}
+                                <span class="text-body-secondary">--</span>
+                            {% endif %}
+                        </td>
+                        <td class="hide-mobile">{{ st.sort_order }}</td>
+                        <td>
+                            <label class="form-check m-0 d-flex align-items-center gap-1" style="cursor:pointer">
+                                <input type="checkbox" class="form-check-input toggle-active m-0"
+                                       data-id="{{ st.id }}"
+                                       {% if st.active %}checked{% endif %}
+                                       style="cursor:pointer">
+                                <span style="font-size:.85rem">Activo</span>
+                            </label>
+                        </td>
+                        <td class="text-end">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-secondary edit-shift-type me-1"
+                                    data-id="{{ st.id }}"
+                                    data-name="{{ st.name }}"
+                                    data-short-name="{{ st.short_name }}"
+                                    data-color="{{ st.color or '#0069d9' }}"
+                                    data-start-time="{{ st.start_time or '' }}"
+                                    data-end-time="{{ st.end_time or '' }}"
+                                    data-breaks-minutes="{{ st.breaks_minutes or 0 }}"
+                                    data-sort-order="{{ st.sort_order or 0 }}"
+                                    data-active="{{ '1' if st.active else '' }}"
+                                    aria-label="Editar {{ st.name }}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <form method="POST" action="{{ url_for('delete_shift_type', id=st.id) }}"
+                                  class="d-inline" data-confirm="¿Seguro que quieres eliminar el tipo de turno «{{ st.name }}»?">
+                                <button type="submit" class="btn btn-sm btn-outline-danger"
+                                        aria-label="Eliminar {{ st.name }}">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info" role="status">Aún no hay tipos de turno creados.</div>
+    {% endif %}
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    var offcanvasEl = document.getElementById('shiftTypeFormPanel');
+    var offcanvas = new bootstrap.Offcanvas(offcanvasEl);
+    var headerBar = document.getElementById('offcanvas-header-bar');
+
+    function resetForm() {
+        var form = document.getElementById('shift-type-form');
+        form.reset();
+        form.classList.remove('was-validated');
+        form.querySelector('[name="shift_type_id"]').value = '';
+        form.querySelector('[name="color"]').value = '#0069d9';
+        form.querySelector('[name="breaks_minutes"]').value = '0';
+        form.querySelector('[name="sort_order"]').value = '0';
+        document.getElementById('submit-btn').textContent = 'Añadir tipo de turno';
+        document.getElementById('shiftTypeFormTitle').textContent = 'Nuevo tipo de turno';
+        document.getElementById('edit-badge').classList.add('d-none');
+        headerBar.style.borderTopColor = 'var(--color-primary)';
+    }
+
+    window.openShiftTypeForm = function () {
+        resetForm();
+        offcanvas.show();
+    };
+
+    document.querySelectorAll('.edit-shift-type').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var form = document.getElementById('shift-type-form');
+            form.classList.remove('was-validated');
+            form.querySelector('[name="shift_type_id"]').value    = this.dataset.id;
+            form.querySelector('[name="name"]').value             = this.dataset.name;
+            form.querySelector('[name="short_name"]').value       = this.dataset.shortName;
+            form.querySelector('[name="color"]').value            = this.dataset.color;
+            form.querySelector('[name="start_time"]').value       = this.dataset.startTime;
+            form.querySelector('[name="end_time"]').value         = this.dataset.endTime;
+            form.querySelector('[name="breaks_minutes"]').value   = this.dataset.breaksMinutes;
+            form.querySelector('[name="sort_order"]').value       = this.dataset.sortOrder;
+            document.getElementById('submit-btn').textContent       = 'Guardar cambios';
+            document.getElementById('shiftTypeFormTitle').textContent = 'Editando: ' + this.dataset.name;
+            document.getElementById('edit-badge').classList.remove('d-none');
+            headerBar.style.borderTopColor = 'var(--color-warning)';
+            offcanvas.show();
+        });
+    });
+
+    offcanvasEl.addEventListener('hidden.bs.offcanvas', resetForm);
+
+    // Active toggle via AJAX
+    document.querySelectorAll('.toggle-active').forEach(function (cb) {
+        cb.addEventListener('change', async function () {
+            var id = parseInt(this.dataset.id);
+            var active = this.checked;
+            try {
+                var res = await fetch('/shift-types/toggle-active', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id, active: active }),
+                });
+                if (res.ok) {
+                    showToast('Estado actualizado', 'success');
+                } else {
+                    this.checked = !active;
+                    showToast('Error al actualizar', 'error');
+                }
+            } catch (e) {
+                this.checked = !active;
+                showToast('Error al actualizar', 'error');
+            }
+        });
+    });
+})();
+</script>
+{% endblock %}

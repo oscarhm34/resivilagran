@@ -5,7 +5,8 @@ from .models import (Cleaner, Room, CleaningRecord, Floor, RoomType, Resident,
                       WorkerSelfie, LegalDocument, DocumentSignature,
                       TrainingPill, TrainingQuestion, TrainingCompletion,
                       ChecklistItem, ResidentDocument,
-                      VitalSignType, VitalSignReading, AppSetting)
+                      VitalSignType, VitalSignReading, AppSetting,
+                      ShiftType, ShiftAssignment)
 from flask import request, jsonify, render_template, redirect, url_for, flash, send_file, send_from_directory, abort
 from flask_login import login_user, logout_user, login_required, current_user
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
@@ -27,7 +28,7 @@ def admin_required(f):
 
 def _allowed_file(filename: str, allowed: set) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date, time as dt_time
 from sqlalchemy.orm import joinedload, subqueryload
 from sqlalchemy.exc import IntegrityError
 import pandas as pd
@@ -3462,3 +3463,347 @@ def submit_training(pill_id: int):
         'total': total,
         'threshold': pill.pass_threshold,
     })
+
+
+# ── TURNOS / CUADRANTES ─────────────────────────────────────────────────────
+
+@app.cli.command('seed-shift-types')
+def seed_shift_types():
+    """Create default shift types (Mañana, Tarde, Noche)."""
+    defaults = [
+        {'name': 'Mañana', 'short_name': 'M', 'color': '#0d6efd', 'start_time': dt_time(7, 0), 'end_time': dt_time(15, 0), 'breaks_minutes': 30, 'sort_order': 1},
+        {'name': 'Tarde', 'short_name': 'T', 'color': '#fd7e14', 'start_time': dt_time(15, 0), 'end_time': dt_time(22, 0), 'breaks_minutes': 30, 'sort_order': 2},
+        {'name': 'Noche', 'short_name': 'N', 'color': '#6f42c1', 'start_time': dt_time(22, 0), 'end_time': dt_time(7, 0), 'breaks_minutes': 30, 'sort_order': 3},
+    ]
+    for d in defaults:
+        if not ShiftType.query.filter_by(name=d['name']).first():
+            db.session.add(ShiftType(**d))
+            print(f'  Created: {d["name"]}')
+        else:
+            print(f'  Exists: {d["name"]}')
+    db.session.commit()
+    print('Done.')
+
+
+@app.route('/cuadrantes')
+@admin_required
+def cuadrantes():
+    import calendar
+    year = request.args.get('year', datetime.now().year, type=int)
+    month = request.args.get('month', datetime.now().month, type=int)
+    group_id = request.args.get('group_id', '', type=str)
+
+    first_day = date(year, month, 1)
+    num_days = calendar.monthrange(year, month)[1]
+    last_day = date(year, month, num_days)
+
+    # Workers filtered by group if specified
+    query = Cleaner.query.filter_by(active=True)
+    if group_id:
+        query = query.filter(Cleaner.groups.any(ResidentGroup.id == int(group_id)))
+    workers = query.order_by(Cleaner.name).all()
+
+    # Shift types
+    shift_types = ShiftType.query.filter_by(active=True).order_by(ShiftType.sort_order).all()
+
+    # Assignments for this month
+    assignments = ShiftAssignment.query.filter(
+        ShiftAssignment.date >= first_day,
+        ShiftAssignment.date <= last_day,
+    ).all()
+
+    # Build lookup: {(cleaner_id, date_iso): assignment}
+    assign_map = {}
+    for a in assignments:
+        assign_map[(a.cleaner_id, a.date.isoformat())] = a
+
+    # Coverage summary: {day_iso: {shift_type_id: count}}
+    coverage = {}
+    for d in range(1, num_days + 1):
+        day = date(year, month, d)
+        day_iso = day.isoformat()
+        coverage[day_iso] = {}
+        for st in shift_types:
+            coverage[day_iso][st.id] = 0
+    for a in assignments:
+        if a.shift_type_id and a.date.isoformat() in coverage:
+            coverage[a.date.isoformat()][a.shift_type_id] = \
+                coverage[a.date.isoformat()].get(a.shift_type_id, 0) + 1
+
+    groups = ResidentGroup.query.order_by(ResidentGroup.name).all()
+
+    # Navigation: prev/next month
+    if month == 1:
+        prev_year, prev_month = year - 1, 12
+    else:
+        prev_year, prev_month = year, month - 1
+    if month == 12:
+        next_year, next_month = year + 1, 1
+    else:
+        next_year, next_month = year, month + 1
+
+    return render_template('cuadrantes.html',
+        year=year, month=month, num_days=num_days,
+        workers=workers, shift_types=shift_types,
+        assign_map=assign_map, coverage=coverage,
+        groups=groups, group_id=group_id,
+        prev_year=prev_year, prev_month=prev_month,
+        next_year=next_year, next_month=next_month,
+    )
+
+
+@app.route('/cuadrantes/assign', methods=['POST'])
+@admin_required
+def cuadrantes_assign():
+    """AJAX: assign or clear a shift for a worker on a date."""
+    data = request.get_json()
+    cleaner_id = data.get('cleaner_id')
+    date_str = data.get('date')
+    shift_type_id = data.get('shift_type_id')  # None or 0 = clear (libre)
+
+    if not cleaner_id or not date_str:
+        return jsonify({'error': 'Faltan datos'}), 400
+
+    target_date = date.fromisoformat(date_str)
+    existing = ShiftAssignment.query.filter_by(
+        cleaner_id=cleaner_id, date=target_date
+    ).first()
+
+    if shift_type_id:
+        st = db.session.get(ShiftType, int(shift_type_id))
+        if not st:
+            return jsonify({'error': 'Tipo de turno no válido'}), 400
+        if existing:
+            existing.shift_type_id = st.id
+            existing.is_override = True
+            existing.source = 'manual'
+        else:
+            existing = ShiftAssignment(
+                cleaner_id=cleaner_id, date=target_date,
+                shift_type_id=st.id, source='manual',
+                created_by=current_user.id,
+            )
+            db.session.add(existing)
+        db.session.commit()
+        return jsonify({'ok': True, 'short_name': st.short_name, 'color': st.color})
+    else:
+        # Clear assignment (día libre)
+        if existing:
+            db.session.delete(existing)
+            db.session.commit()
+        return jsonify({'ok': True, 'short_name': '', 'color': ''})
+
+
+@app.route('/cuadrantes/bulk-assign', methods=['POST'])
+@admin_required
+def cuadrantes_bulk_assign():
+    """AJAX: copy a week or assign in bulk."""
+    data = request.get_json()
+    action = data.get('action')
+
+    if action == 'copy_week':
+        year = data.get('year')
+        month = data.get('month')
+        source_week_start = date.fromisoformat(data.get('source_start'))
+        target_week_start = date.fromisoformat(data.get('target_start'))
+
+        for offset in range(7):
+            src_date = source_week_start + timedelta(days=offset)
+            tgt_date = target_week_start + timedelta(days=offset)
+            if tgt_date.month != month:
+                continue
+            # Get all assignments for source date
+            sources = ShiftAssignment.query.filter_by(date=src_date).all()
+            for sa in sources:
+                existing = ShiftAssignment.query.filter_by(
+                    cleaner_id=sa.cleaner_id, date=tgt_date
+                ).first()
+                if existing:
+                    existing.shift_type_id = sa.shift_type_id
+                    existing.is_override = True
+                    existing.source = 'manual'
+                else:
+                    db.session.add(ShiftAssignment(
+                        cleaner_id=sa.cleaner_id, date=tgt_date,
+                        shift_type_id=sa.shift_type_id, source='manual',
+                        created_by=current_user.id,
+                    ))
+        db.session.commit()
+        return jsonify({'ok': True})
+
+    return jsonify({'error': 'Acción no válida'}), 400
+
+
+@app.route('/cuadrantes/export')
+@admin_required
+def cuadrantes_export():
+    """Export the monthly shift grid to Excel."""
+    import pandas as pd
+    import io
+    year = request.args.get('year', datetime.now().year, type=int)
+    month = request.args.get('month', datetime.now().month, type=int)
+    import calendar as cal_mod
+    num_days = cal_mod.monthrange(year, month)[1]
+
+    first_day = date(year, month, 1)
+    last_day = date(year, month, num_days)
+
+    workers = Cleaner.query.filter_by(active=True).order_by(Cleaner.name).all()
+    shift_types = {st.id: st for st in ShiftType.query.all()}
+    assignments = ShiftAssignment.query.filter(
+        ShiftAssignment.date >= first_day,
+        ShiftAssignment.date <= last_day,
+    ).all()
+
+    assign_map = {}
+    for a in assignments:
+        assign_map[(a.cleaner_id, a.date.day)] = a
+
+    # Build dataframe
+    day_names_es = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
+    columns = ['Trabajador']
+    for d in range(1, num_days + 1):
+        dow = date(year, month, d).weekday()
+        columns.append(f'{d} {day_names_es[dow]}')
+
+    rows = []
+    for w in workers:
+        row = [w.name]
+        for d in range(1, num_days + 1):
+            a = assign_map.get((w.id, d))
+            if a and a.shift_type_id and a.shift_type_id in shift_types:
+                row.append(shift_types[a.shift_type_id].short_name)
+            else:
+                row.append('')
+        rows.append(row)
+
+    df = pd.DataFrame(rows, columns=columns)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name=f'Cuadrante {month:02d}-{year}')
+    output.seek(0)
+    return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                     as_attachment=True, download_name=f'cuadrante_{year}_{month:02d}.xlsx')
+
+
+@app.route('/cuadrantes/manage-shift-types')
+@admin_required
+def manage_shift_types():
+    shift_types = ShiftType.query.order_by(ShiftType.sort_order).all()
+    return render_template('manage_shift_types.html', shift_types=shift_types)
+
+
+@app.route('/shift-types/add_edit', methods=['POST'])
+@admin_required
+def add_edit_shift_type():
+    st_id = request.form.get('shift_type_id', '').strip()
+    name = request.form.get('name', '').strip()
+    short_name = request.form.get('short_name', '').strip()
+    color = request.form.get('color', '#0d6efd').strip()
+    start_h, start_m = request.form.get('start_time', '07:00').split(':')
+    end_h, end_m = request.form.get('end_time', '15:00').split(':')
+    breaks_min = request.form.get('breaks_minutes', '0', type=int)
+    sort_order = request.form.get('sort_order', '0', type=int)
+
+    if not name or not short_name:
+        flash('Nombre y abreviatura son obligatorios.', 'danger')
+        return redirect(url_for('manage_shift_types'))
+
+    start_t = dt_time(int(start_h), int(start_m))
+    end_t = dt_time(int(end_h), int(end_m))
+
+    if st_id:
+        st = db.session.get(ShiftType, int(st_id))
+        if st:
+            st.name = name
+            st.short_name = short_name
+            st.color = color
+            st.start_time = start_t
+            st.end_time = end_t
+            st.breaks_minutes = breaks_min
+            st.sort_order = sort_order
+            flash('Tipo de turno actualizado.', 'success')
+    else:
+        st = ShiftType(name=name, short_name=short_name, color=color,
+                       start_time=start_t, end_time=end_t,
+                       breaks_minutes=breaks_min, sort_order=sort_order)
+        db.session.add(st)
+        flash('Tipo de turno creado.', 'success')
+
+    db.session.commit()
+    return redirect(url_for('manage_shift_types'))
+
+
+@app.route('/shift-types/delete/<int:id>', methods=['POST'])
+@admin_required
+def delete_shift_type(id):
+    st = db.session.get(ShiftType, id)
+    if st:
+        if st.assignments:
+            flash('No se puede eliminar: tiene asignaciones asociadas.', 'danger')
+        else:
+            db.session.delete(st)
+            db.session.commit()
+            flash('Tipo de turno eliminado.', 'success')
+    return redirect(url_for('manage_shift_types'))
+
+
+@app.route('/shift-types/toggle-active', methods=['POST'])
+@admin_required
+def toggle_shift_type_active():
+    data = request.get_json()
+    st = db.session.get(ShiftType, data.get('id'))
+    if st:
+        st.active = data.get('active', True)
+        db.session.commit()
+        return jsonify({'ok': True})
+    return jsonify({'error': 'No encontrado'}), 404
+
+
+# ── API WORKER: MIS TURNOS ──────────────────────────────────────────────────
+
+@app.route('/api/worker/my-shifts')
+@jwt_required()
+def worker_my_shifts():
+    """Return shift assignments for the authenticated worker."""
+    identity = get_jwt_identity()
+    worker = Cleaner.query.filter_by(username=identity).first()
+    if not worker:
+        return jsonify({'error': 'Worker not found'}), 404
+    worker_id = worker.id
+
+    month_str = request.args.get('month', '')
+    if month_str:
+        try:
+            year, mo = month_str.split('-')
+            year, mo = int(year), int(mo)
+        except ValueError:
+            return jsonify({'error': 'Invalid month format (YYYY-MM)'}), 400
+    else:
+        year, mo = datetime.now().year, datetime.now().month
+
+    import calendar
+    num_days = calendar.monthrange(year, mo)[1]
+    first_day = date(year, mo, 1)
+    last_day = date(year, mo, num_days)
+
+    assignments = ShiftAssignment.query.filter(
+        ShiftAssignment.cleaner_id == worker_id,
+        ShiftAssignment.date >= first_day,
+        ShiftAssignment.date <= last_day,
+    ).order_by(ShiftAssignment.date).all()
+
+    result = []
+    for a in assignments:
+        st = a.shift_type
+        result.append({
+            'date': a.date.isoformat(),
+            'shift': {
+                'name': st.name if st else 'Libre',
+                'short_name': st.short_name if st else 'L',
+                'color': st.color if st else '#dee2e6',
+                'start_time': st.start_time.strftime('%H:%M') if st else None,
+                'end_time': st.end_time.strftime('%H:%M') if st else None,
+            } if st else None,
+        })
+    return jsonify({'year': year, 'month': mo, 'shifts': result})
