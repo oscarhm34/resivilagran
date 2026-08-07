@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Servicio de Limpieza{% endblock %} - La Vila Gran</title>
+    <title>{% block title %}Gestión Residencial{% endblock %} - La Vila Gran</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
         /* ── Tokens de diseño ───────────────────────────────────── */
         :root {
@@ -228,6 +229,7 @@
     </style>
 </head>
 <body>
+    <a href="#main-content" class="visually-hidden-focusable position-absolute top-0 start-0 p-2 bg-primary text-white" style="z-index:9999">Saltar al contenido</a>
     <header class="navbar navbar-expand-md fixed-top">
         <div class="container">
             <a href="{{ url_for('index') }}" class="navbar-brand">
@@ -242,56 +244,61 @@
 
             <div class="collapse navbar-collapse" id="navMenu">
                 <ul class="navbar-nav me-auto gap-1">
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'manage_workers' %}active{% endif %}"
-                           href="{{ url_for('manage_workers') }}">Empleados</a>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if request.endpoint in ('manage_workers','manage_residents','manage_care_types','manage_groups','resident_detail','group_detail') %}active{% endif %}"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-people me-1" aria-hidden="true"></i>Personas
+                        </a>
+                        <ul class="dropdown-menu shadow-sm" style="border-color:var(--color-border);border-radius:var(--radius-md)">
+                            <li><a class="dropdown-item" href="{{ url_for('manage_workers') }}"><i class="bi bi-person-badge me-1" aria-hidden="true"></i>Empleados</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('manage_residents') }}"><i class="bi bi-person-heart me-1" aria-hidden="true"></i>Residentes</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('manage_groups') }}"><i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Grupos</a></li>
+                        </ul>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint in ('manage_residents','manage_care_types') %}active{% endif %}"
-                           href="{{ url_for('manage_residents') }}">Residentes</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'manage_groups' %}active{% endif %}"
-                           href="{{ url_for('manage_groups') }}">Grupos</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'manage_cleaning_zones' %}active{% endif %}"
-                           href="{{ url_for('manage_cleaning_zones') }}">Zonas</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'manage_checklist' %}active{% endif %}"
-                           href="{{ url_for('manage_checklist') }}">Checklist</a>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if request.endpoint in ('manage_cleaning_zones','manage_checklist','manage_floors','manage_room_types') %}active{% endif %}"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-building me-1" aria-hidden="true"></i>Espacios
+                        </a>
+                        <ul class="dropdown-menu shadow-sm" style="border-color:var(--color-border);border-radius:var(--radius-md)">
+                            <li><a class="dropdown-item" href="{{ url_for('manage_cleaning_zones') }}"><i class="bi bi-door-open me-1" aria-hidden="true"></i>Zonas de limpieza</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('manage_checklist') }}"><i class="bi bi-check2-square me-1" aria-hidden="true"></i>Checklist</a></li>
+                        </ul>
                     </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {% if request.endpoint in ('registros_limpieza','registros_atencion','ultima_limpieza','fichajes_trabajador') %}active{% endif %}"
-                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Registros</a>
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-journal-text me-1" aria-hidden="true"></i>Registros
+                        </a>
                         <ul class="dropdown-menu shadow-sm" style="border-color:var(--color-border);border-radius:var(--radius-md)">
-                            <li><a class="dropdown-item" href="{{ url_for('registros_limpieza') }}"><span aria-hidden="true">🧹</span> Limpiezas</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('registros_atencion') }}"><span aria-hidden="true">🤲</span> Atenciones</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('fichajes_trabajador') }}"><span aria-hidden="true">📋</span> Fichajes por trabajador</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('registros_limpieza') }}"><i class="bi bi-droplet me-1" aria-hidden="true"></i>Limpiezas</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('registros_atencion') }}"><i class="bi bi-heart-pulse me-1" aria-hidden="true"></i>Atenciones</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('fichajes_trabajador') }}"><i class="bi bi-clipboard-check me-1" aria-hidden="true"></i>Fichajes por trabajador</a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('ultima_limpieza') }}"><span aria-hidden="true">⏰</span> Última limpieza</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('ultima_limpieza') }}"><i class="bi bi-clock-history me-1" aria-hidden="true"></i>Última limpieza</a></li>
                         </ul>
                     </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {% if request.endpoint in ('admin_documents','document_signatures','admin_training','training_results') %}active{% endif %}"
-                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Formación</a>
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-mortarboard me-1" aria-hidden="true"></i>Formación
+                        </a>
                         <ul class="dropdown-menu shadow-sm" style="border-color:var(--color-border);border-radius:var(--radius-md)">
-                            <li><a class="dropdown-item" href="{{ url_for('admin_documents') }}"><span aria-hidden="true">📄</span> Documentos legales</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('admin_training') }}"><span aria-hidden="true">🎓</span> Píldoras formativas</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin_documents') }}"><i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Documentos legales</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin_training') }}"><i class="bi bi-play-circle me-1" aria-hidden="true"></i>Píldoras formativas</a></li>
                         </ul>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'admin_analytics' %}active{% endif %}"
-                           href="{{ url_for('admin_analytics') }}"><span aria-hidden="true">📊</span> Analiticas</a>
+                           href="{{ url_for('admin_analytics') }}"><i class="bi bi-bar-chart-line me-1" aria-hidden="true"></i>Analíticas</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'admin_help' %}active{% endif %}"
-                           href="{{ url_for('admin_help') }}"><span aria-hidden="true">❓</span> Ayuda</a>
+                           href="{{ url_for('admin_help') }}" title="Ayuda"><i class="bi bi-question-circle" aria-hidden="true"></i></a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'admin_settings' %}active{% endif %}"
-                           href="{{ url_for('admin_settings') }}"><span aria-hidden="true">⚙️</span> Config</a>
+                           href="{{ url_for('admin_settings') }}" title="Configuración"><i class="bi bi-gear" aria-hidden="true"></i></a>
                     </li>
                 </ul>
 
@@ -338,7 +345,8 @@
         {% endwith %}
     </div>
 
-    <main class="container">
+    <main class="container" id="main-content">
+        {% block breadcrumbs %}{% endblock %}
         {% block content %}{% endblock %}
     </main>
 
@@ -350,23 +358,110 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
+    <!-- Modal de confirmación global -->
+    <div class="modal fade" id="globalConfirmModal" tabindex="-1" aria-labelledby="globalConfirmLabel" aria-modal="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content" style="border-radius:var(--radius-lg);border:1px solid var(--color-border)">
+                <div class="modal-header" style="border-color:var(--color-border)">
+                    <h5 class="modal-title" id="globalConfirmLabel">Confirmar acción</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body" id="globalConfirmBody"></div>
+                <div class="modal-footer" style="border-color:var(--color-border)">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger btn-sm" id="globalConfirmOk">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast container -->
+    <div id="toast-container" class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index:1055"></div>
+
+    <script>
+    /* ── Confirm modal global ── */
+    (function(){
+        var modal = new bootstrap.Modal(document.getElementById('globalConfirmModal'));
+        var bodyEl = document.getElementById('globalConfirmBody');
+        var okBtn = document.getElementById('globalConfirmOk');
+        var pendingForm = null;
+        var pendingCallback = null;
+
+        okBtn.addEventListener('click', function(){
+            modal.hide();
+            if (pendingForm) { pendingForm.submit(); pendingForm = null; }
+            if (pendingCallback) { pendingCallback(); pendingCallback = null; }
+        });
+
+        // Intercept forms with data-confirm
+        document.addEventListener('submit', function(e){
+            var form = e.target;
+            var msg = form.dataset.confirm;
+            if (!msg) return;
+            e.preventDefault();
+            bodyEl.textContent = msg;
+            pendingForm = form;
+            pendingCallback = null;
+            modal.show();
+        });
+
+        // Global function for JS-triggered confirms
+        window.showConfirm = function(message, callback){
+            bodyEl.textContent = message;
+            pendingForm = null;
+            pendingCallback = callback;
+            modal.show();
+        };
+    })();
+
+    /* ── Toast notifications ── */
+    window.showToast = function(message, type) {
+        type = type || 'info';
+        var iconMap = { success: 'bi-check-circle-fill', error: 'bi-exclamation-triangle-fill', warning: 'bi-exclamation-triangle-fill', info: 'bi-info-circle-fill' };
+        var colorMap = { success: 'var(--color-success)', error: 'var(--color-danger)', warning: 'var(--color-warning)', info: 'var(--color-info)' };
+        var container = document.getElementById('toast-container');
+        var toastEl = document.createElement('div');
+        toastEl.className = 'toast align-items-center border-0 show';
+        toastEl.setAttribute('role', 'alert');
+        toastEl.setAttribute('aria-live', 'assertive');
+        toastEl.setAttribute('aria-atomic', 'true');
+        toastEl.style.cssText = 'border-left:4px solid ' + colorMap[type] + ';border-radius:var(--radius-md)';
+        toastEl.innerHTML = '<div class="d-flex"><div class="toast-body d-flex align-items-center gap-2"><i class="bi ' + (iconMap[type]||'bi-info-circle-fill') + '" style="color:' + colorMap[type] + '"></i>' + message + '</div><button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button></div>';
+        container.appendChild(toastEl);
+        var toast = new bootstrap.Toast(toastEl, { delay: 4000 });
+        toast.show();
+        toastEl.addEventListener('hidden.bs.toast', function(){ toastEl.remove(); });
+    };
+
+    /* ── Form validation (needs-validation class) ── */
+    document.querySelectorAll('form.needs-validation').forEach(function(form){
+        form.addEventListener('submit', function(e){
+            if (!form.checkValidity()) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            form.classList.add('was-validated');
+        });
+    });
+    </script>
+
     {% if current_user.is_authenticated %}
     <!-- Chat IA -->
-    <button id="chat-fab" title="Asistente IA" style="position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:50%;border:none;background:var(--color-primary,#0069d9);color:#fff;font-size:24px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);z-index:9999;transition:transform .15s" onclick="document.getElementById('chat-dialog').showModal()">💬</button>
-    <dialog id="chat-dialog" style="border:none;border-radius:16px;padding:0;max-width:420px;width:95vw;height:70vh;max-height:600px;background:#fff;box-shadow:0 20px 60px rgba(0,0,0,.3);position:fixed;bottom:90px;right:24px;margin:0">
+    <button id="chat-fab" title="Asistente IA" aria-label="Abrir asistente IA" style="position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:50%;border:none;background:var(--color-primary,#0069d9);color:#fff;font-size:24px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);z-index:9999;transition:transform .15s" onclick="document.getElementById('chat-dialog').showModal()"><i class="bi bi-chat-dots"></i></button>
+    <dialog id="chat-dialog" role="dialog" aria-modal="true" aria-labelledby="chat-dialog-title" style="border:none;border-radius:16px;padding:0;max-width:420px;width:95vw;height:70vh;max-height:600px;background:#fff;box-shadow:0 20px 60px rgba(0,0,0,.3);position:fixed;bottom:90px;right:24px;margin:0">
         <div style="padding:14px 18px;border-bottom:1px solid #e0e0e0;display:flex;align-items:center;gap:10px;flex-shrink:0">
-            <span style="font-size:20px">🤖</span>
-            <strong style="flex:1;font-size:15px">Asistente La Vila Gran</strong>
+            <i class="bi bi-robot" style="font-size:20px;color:var(--color-primary)"></i>
+            <strong id="chat-dialog-title" style="flex:1;font-size:15px">Asistente La Vila Gran</strong>
             <button onclick="document.getElementById('chat-dialog').close()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#666">&times;</button>
         </div>
         <div id="chat-messages" style="flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:10px">
             <div class="chat-msg bot">Hola, soy el asistente de La Vila Gran. ¿En qué puedo ayudarte?</div>
         </div>
         <div style="padding:12px 18px;border-top:1px solid #e0e0e0;display:flex;gap:8px;flex-shrink:0">
-            <button id="chat-mic" title="Hablar" style="width:40px;height:40px;border-radius:50%;border:1.5px solid #d0d7de;background:none;font-size:18px;cursor:pointer;flex-shrink:0">🎤</button>
+            <button id="chat-mic" title="Hablar" aria-label="Grabar audio" style="width:40px;height:40px;border-radius:50%;border:1.5px solid #d0d7de;background:none;font-size:18px;cursor:pointer;flex-shrink:0"><i class="bi bi-mic"></i></button>
             <input id="chat-audio-file" type="file" accept="audio/*" style="display:none">
             <input id="chat-input" type="text" placeholder="Escribe tu pregunta..." style="flex:1;padding:10px 14px;border:1.5px solid #d0d7de;border-radius:20px;font-size:14px;font-family:inherit;outline:none" autocomplete="off">
-            <button id="chat-send" style="width:40px;height:40px;border-radius:50%;border:none;background:var(--color-primary,#0069d9);color:#fff;font-size:16px;cursor:pointer;flex-shrink:0">➤</button>
+            <button id="chat-send" aria-label="Enviar mensaje" style="width:40px;height:40px;border-radius:50%;border:none;background:var(--color-primary,#0069d9);color:#fff;font-size:16px;cursor:pointer;flex-shrink:0"><i class="bi bi-send"></i></button>
         </div>
     </dialog>
     <style>
@@ -470,11 +565,11 @@
                         } else if (data.error && data.error.includes('OPENAI_API_KEY')) {
                             useWhisper = false;
                             if (recognition) { micBtn.classList.remove('transcribing'); recognition.start(); micBtn.classList.add('recording'); }
-                            else alert('Transcripcion de voz no disponible');
+                            else showToast('Transcripción de voz no disponible', 'warning');
                         } else {
-                            alert(data.error || 'Error en la transcripcion');
+                            showToast(data.error || 'Error en la transcripción', 'error');
                         }
-                    } catch(err) { alert('Error al enviar audio'); }
+                    } catch(err) { showToast('Error al enviar audio', 'error'); }
                     micBtn.classList.remove('transcribing');
                 };
                 mediaRecorder.start();
@@ -482,7 +577,7 @@
             } catch(err) {
                 useWhisper = false;
                 if (recognition) { recognition.start(); micBtn.classList.add('recording'); }
-                else alert('No se pudo acceder al microfono');
+                else showToast('No se pudo acceder al micrófono', 'error');
             }
         }
 
@@ -499,8 +594,8 @@
                 var resp = await fetch('/admin/transcribe', { method: 'POST', body: formData });
                 var data = await resp.json();
                 if (data.text) { input.value = data.text; sendMessage(); }
-                else alert(data.error || 'Error en la transcripcion');
-            } catch(err) { alert('Error al enviar audio'); }
+                else showToast(data.error || 'Error en la transcripción', 'error');
+            } catch(err) { showToast('Error al enviar audio', 'error'); }
             micBtn.classList.remove('transcribing');
         });
 

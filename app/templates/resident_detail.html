@@ -1,21 +1,32 @@
 {% extends "base.html" %}
 {% block title %}Ficha de {{ resident.name }}{% endblock %}
 
+{% block breadcrumbs %}
+<nav aria-label="Navegación" class="mt-3 mb-2 no-print">
+    <ol class="breadcrumb mb-0" style="font-size:.85rem">
+        <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Inicio</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('manage_residents') }}">Residentes</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ resident.name }}</li>
+    </ol>
+</nav>
+{% endblock %}
+
 {% block content %}
 <style>
 @media print {
     .no-print { display: none !important; }
     .card { border: 1px solid #ddd !important; break-inside: avoid; }
     table { font-size: 12px; }
+    .tab-pane { display: block !important; opacity: 1 !important; }
+    .nav-tabs { display: none !important; }
 }
 </style>
 <div class="py-4">
 
-    <div class="mb-3 d-flex align-items-center justify-content-between no-print">
-        <a href="{{ url_for('manage_residents') }}" class="btn btn-sm btn-outline-secondary">&larr; Volver a residentes</a>
+    <div class="mb-3 d-flex align-items-center justify-content-end no-print">
         <div class="d-flex gap-2">
             <a href="{{ url_for('export_resident_care_excel', resident_id=resident.id) }}" class="btn btn-sm btn-outline-success">↓ Exportar Excel</a>
-            <button onclick="window.print()" class="btn btn-sm btn-outline-secondary">🖨 Imprimir</button>
+            <button onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir</button>
         </div>
     </div>
 
@@ -28,7 +39,7 @@
                 <img src="{{ url_for('serve_upload', filename=resident.photo_path) }}" alt=""
                      style="width:100px;height:100px;border-radius:50%;object-fit:cover;border:2px solid var(--color-border)">
                 {% else %}
-                <div style="width:100px;height:100px;border-radius:50%;background:var(--color-primary-lt);display:flex;align-items:center;justify-content:center;font-size:2.5rem;border:2px solid var(--color-border)">👤</div>
+                <div style="width:100px;height:100px;border-radius:50%;background:var(--color-primary-lt);display:flex;align-items:center;justify-content:center;font-size:2.5rem;border:2px solid var(--color-border)"><i class="bi bi-person-circle"></i></div>
                 {% endif %}
                 <div style="flex:1;min-width:250px">
                     <h2 class="h4 mb-2">{{ resident.name }}</h2>
@@ -80,191 +91,219 @@
         </div>
     </div>
 
-    <!-- Documentos -->
-    {% if resident.documents %}
-    <div class="card mb-4">
-        <div class="card-header"><strong>Documentos</strong></div>
-        <div class="card-body p-0">
-            <table class="table table-hover mb-0">
-                <thead>
-                    <tr>
-                        <th scope="col">Archivo</th>
-                        <th scope="col">Tipo</th>
-                        <th scope="col" class="hide-mobile">Descripción</th>
-                        <th scope="col">Fecha</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for doc in resident.documents %}
-                    <tr>
-                        <td>
-                            <a href="{{ url_for('serve_upload', filename=doc.file_path) }}" target="_blank">
-                                {{ doc.original_filename }}
-                            </a>
-                        </td>
-                        <td><span class="status-badge status-muted">{{ doc.doc_type or '—' }}</span></td>
-                        <td class="hide-mobile" style="color:var(--color-text-secondary);font-size:.85rem">{{ doc.description or '—' }}</td>
-                        <td style="font-size:.85rem">{{ doc.uploaded_at.strftime('%d/%m/%Y') if doc.uploaded_at else '—' }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    {% endif %}
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-3 no-print" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-resumen" type="button" role="tab" aria-selected="true">Resumen</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-historial" type="button" role="tab" aria-selected="false">Historial</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-documentos" type="button" role="tab" aria-selected="false">Documentos</button>
+        </li>
+    </ul>
 
-    <!-- Seguimiento de constantes vitales -->
-    {% if vital_charts %}
-    <div class="row g-4 mb-4">
-        {% for chart in vital_charts %}
-        <div class="col-md-6">
-            <div class="card h-100">
-                <div class="card-body">
-                    <div class="d-flex align-items-center justify-content-between mb-1">
-                        <span style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--color-text-secondary)">{{ chart.name }}</span>
-                        {% if chart.data|length > 1 %}
-                        {% set diff = chart.data[-1] - chart.data[-2] %}
-                        <span style="font-size:.75rem;font-weight:600;padding:2px 8px;border-radius:20px;
-                            {% if diff < 0 %}background:#d4edda;color:#198754{% elif diff > 0 %}background:#f8d7da;color:#dc3545{% else %}background:#e9ecef;color:#6c757d{% endif %}">
-                            {{ '↓' if diff < 0 else '↑' if diff > 0 else '→' }} {{ diff|abs|round(1) }} {{ chart.unit }}
-                        </span>
-                        {% endif %}
+    <div class="tab-content">
+        <!-- Tab Resumen -->
+        <div class="tab-pane fade show active" id="tab-resumen" role="tabpanel">
+            <!-- Seguimiento de constantes vitales -->
+            {% if vital_charts %}
+            <div class="row g-4 mb-4">
+                {% for chart in vital_charts %}
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center justify-content-between mb-1">
+                                <span style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--color-text-secondary)">{{ chart.name }}</span>
+                                {% if chart.data|length > 1 %}
+                                {% set diff = chart.data[-1] - chart.data[-2] %}
+                                <span style="font-size:.75rem;font-weight:600;padding:2px 8px;border-radius:20px;
+                                    {% if diff < 0 %}background:#d4edda;color:#198754{% elif diff > 0 %}background:#f8d7da;color:#dc3545{% else %}background:#e9ecef;color:#6c757d{% endif %}">
+                                    {{ '↓' if diff < 0 else '↑' if diff > 0 else '→' }} {{ diff|abs|round(1) }} {{ chart.unit }}
+                                </span>
+                                {% endif %}
+                            </div>
+                            {% if chart.data %}
+                            <div style="font-size:2rem;font-weight:700;line-height:1.2">
+                                {{ chart.data[-1]|round(1) }}<span style="font-size:1rem;font-weight:400;color:var(--color-text-secondary)">{{ chart.unit }}</span>
+                            </div>
+                            <div style="font-size:.7rem;color:var(--color-text-secondary);margin-bottom:12px">{{ chart.labels[-1] }}</div>
+                            {% endif %}
+                            <div style="position:relative;height:150px">
+                                <canvas id="vital-chart-{{ loop.index }}"></canvas>
+                            </div>
+                        </div>
                     </div>
-                    {% if chart.data %}
-                    <div style="font-size:2rem;font-weight:700;line-height:1.2">
-                        {{ chart.data[-1]|round(1) }}<span style="font-size:1rem;font-weight:400;color:var(--color-text-secondary)">{{ chart.unit }}</span>
-                    </div>
-                    <div style="font-size:.7rem;color:var(--color-text-secondary);margin-bottom:12px">{{ chart.labels[-1] }}</div>
-                    {% endif %}
-                    <div style="position:relative;height:150px">
-                        <canvas id="vital-chart-{{ loop.index }}"></canvas>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Calendario de actividad -->
+            {% if heatmap_data %}
+            <div class="card mb-4">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <strong>Calendario de atenciones</strong>
+                    <small style="color:var(--color-text-secondary)">Últimos 6 meses</small>
+                </div>
+                <div class="card-body" style="overflow-x:auto">
+                    <div id="heatmap-calendar" style="display:flex;gap:2px;flex-direction:row"></div>
+                    <div class="d-flex align-items-center gap-2 mt-3" style="font-size:.75rem;color:var(--color-text-secondary)">
+                        <span>Menos</span>
+                        <span style="width:12px;height:12px;border-radius:2px;background:#ebedf0"></span>
+                        <span style="width:12px;height:12px;border-radius:2px;background:#9be9a8"></span>
+                        <span style="width:12px;height:12px;border-radius:2px;background:#40c463"></span>
+                        <span style="width:12px;height:12px;border-radius:2px;background:#30a14e"></span>
+                        <span style="width:12px;height:12px;border-radius:2px;background:#216e39"></span>
+                        <span>Más</span>
                     </div>
                 </div>
             </div>
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
+            {% endif %}
 
-    <!-- Calendario de actividad -->
-    {% if heatmap_data %}
-    <div class="card mb-4">
-        <div class="card-header d-flex align-items-center justify-content-between">
-            <strong>Calendario de atenciones</strong>
-            <small style="color:var(--color-text-secondary)">Últimos 6 meses</small>
+            {% if not vital_charts and not heatmap_data %}
+            <div class="alert alert-info">No hay datos de resumen disponibles todavía.</div>
+            {% endif %}
         </div>
-        <div class="card-body" style="overflow-x:auto">
-            <div id="heatmap-calendar" style="display:flex;gap:2px;flex-direction:row"></div>
-            <div class="d-flex align-items-center gap-2 mt-3" style="font-size:.75rem;color:var(--color-text-secondary)">
-                <span>Menos</span>
-                <span style="width:12px;height:12px;border-radius:2px;background:#ebedf0"></span>
-                <span style="width:12px;height:12px;border-radius:2px;background:#9be9a8"></span>
-                <span style="width:12px;height:12px;border-radius:2px;background:#40c463"></span>
-                <span style="width:12px;height:12px;border-radius:2px;background:#30a14e"></span>
-                <span style="width:12px;height:12px;border-radius:2px;background:#216e39"></span>
-                <span>Más</span>
-            </div>
-        </div>
-    </div>
-    {% endif %}
 
-    <!-- Historial de atenciones -->
-    <div class="d-flex align-items-center justify-content-between mb-3">
-        <h3 class="h5 mb-0">Historial de atenciones</h3>
-        {% if pagination %}
-        <span class="small" style="color:var(--color-text-secondary)">
-            {{ pagination.total }} registro{{ 's' if pagination.total != 1 }}
-        </span>
-        {% endif %}
-    </div>
-
-    {% if records %}
-    <div class="card">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead>
-                    <tr>
-                        <th scope="col">Fecha</th>
-                        <th scope="col" class="hide-mobile">Hora</th>
-                        <th scope="col">Tipo</th>
-                        <th scope="col">Trabajador/a</th>
-                        <th scope="col">Duración</th>
-                        <th scope="col">Constantes</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for record in records %}
-                    <tr>
-                        <td>{{ record.start_time.strftime('%d/%m/%Y') if record.start_time else '—' }}</td>
-                        <td class="hide-mobile" style="color:var(--color-text-secondary)">
-                            {{ record.start_time.strftime('%H:%M') if record.start_time else '—' }}
-                        </td>
-                        <td>
-                            {% if record.care_types %}
-                                {% for ct in record.care_types %}
-                                <span class="status-badge status-info">{{ ct.name }}</span>
-                                {% endfor %}
-                            {% elif record.care_type %}
-                            <span class="status-badge status-info">{{ record.care_type.name }}</span>
-                            {% else %}—{% endif %}
-                        </td>
-                        <td>{{ record.worker.name if record.worker else '—' }}</td>
-                        <td>
-                            {% if record.duration and record.duration != 'N/A' %}
-                            <span class="status-badge status-muted">{{ record.duration }}</span>
-                            {% else %}
-                            <span class="status-badge status-info">En curso</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if record.vital_sign_readings %}
-                                {% for reading in record.vital_sign_readings %}
-                                <div style="font-size:.85rem">
-                                    {{ reading.vital_sign_type.name }}: <strong>{{ reading.value|round(1) }}</strong> {{ reading.vital_sign_type.unit }}
-                                </div>
-                                {% endfor %}
-                            {% else %}
-                            <span style="color:var(--color-text-secondary)">—</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Paginación -->
-    {% if pagination and pagination.pages > 1 %}
-    <div class="d-flex align-items-center justify-content-between flex-wrap mt-3 no-print">
-        <p class="small mb-2" style="color:var(--color-text-secondary)">
-            Página <strong>{{ pagination.page }}</strong> de <strong>{{ pagination.pages }}</strong>
-        </p>
-        <nav aria-label="Paginación">
-            <ul class="pagination pagination-sm mb-0 flex-wrap">
-                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for('resident_detail', resident_id=resident.id, page=pagination.prev_num) }}">&laquo;</a>
-                </li>
-                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
-                {% if page_num %}
-                <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
-                    <a class="page-link" href="{{ url_for('resident_detail', resident_id=resident.id, page=page_num) }}">{{ page_num }}</a>
-                </li>
-                {% else %}
-                <li class="page-item disabled"><a class="page-link">&hellip;</a></li>
+        <!-- Tab Historial -->
+        <div class="tab-pane fade" id="tab-historial" role="tabpanel">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <h3 class="h5 mb-0">Historial de atenciones</h3>
+                {% if pagination %}
+                <span class="small" style="color:var(--color-text-secondary)">
+                    {{ pagination.total }} registro{{ 's' if pagination.total != 1 }}
+                </span>
                 {% endif %}
-                {% endfor %}
-                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for('resident_detail', resident_id=resident.id, page=pagination.next_num) }}">&raquo;</a>
-                </li>
-            </ul>
-        </nav>
-    </div>
-    {% endif %}
+            </div>
 
-    {% else %}
-    <div class="alert alert-info">No hay registros de atención para este residente.</div>
-    {% endif %}
+            {% if records %}
+            <div class="card">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th scope="col">Fecha</th>
+                                <th scope="col" class="hide-mobile">Hora</th>
+                                <th scope="col">Tipo</th>
+                                <th scope="col">Trabajador/a</th>
+                                <th scope="col">Duración</th>
+                                <th scope="col">Constantes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for record in records %}
+                            <tr>
+                                <td>{{ record.start_time.strftime('%d/%m/%Y') if record.start_time else '—' }}</td>
+                                <td class="hide-mobile" style="color:var(--color-text-secondary)">
+                                    {{ record.start_time.strftime('%H:%M') if record.start_time else '—' }}
+                                </td>
+                                <td>
+                                    {% if record.care_types %}
+                                        {% for ct in record.care_types %}
+                                        <span class="status-badge status-info">{{ ct.name }}</span>
+                                        {% endfor %}
+                                    {% elif record.care_type %}
+                                    <span class="status-badge status-info">{{ record.care_type.name }}</span>
+                                    {% else %}—{% endif %}
+                                </td>
+                                <td>{{ record.worker.name if record.worker else '—' }}</td>
+                                <td>
+                                    {% if record.duration and record.duration != 'N/A' %}
+                                    <span class="status-badge status-muted">{{ record.duration }}</span>
+                                    {% else %}
+                                    <span class="status-badge status-info">En curso</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if record.vital_sign_readings %}
+                                        {% for reading in record.vital_sign_readings %}
+                                        <div style="font-size:.85rem">
+                                            {{ reading.vital_sign_type.name }}: <strong>{{ reading.value|round(1) }}</strong> {{ reading.vital_sign_type.unit }}
+                                        </div>
+                                        {% endfor %}
+                                    {% else %}
+                                    <span style="color:var(--color-text-secondary)">—</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Paginación -->
+            {% if pagination and pagination.pages > 1 %}
+            <div class="d-flex align-items-center justify-content-between flex-wrap mt-3 no-print">
+                <p class="small mb-2" style="color:var(--color-text-secondary)">
+                    Página <strong>{{ pagination.page }}</strong> de <strong>{{ pagination.pages }}</strong>
+                </p>
+                <nav aria-label="Paginación">
+                    <ul class="pagination pagination-sm mb-0 flex-wrap">
+                        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('resident_detail', resident_id=resident.id, page=pagination.prev_num) }}">&laquo;</a>
+                        </li>
+                        {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                        {% if page_num %}
+                        <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('resident_detail', resident_id=resident.id, page=page_num) }}">{{ page_num }}</a>
+                        </li>
+                        {% else %}
+                        <li class="page-item disabled"><a class="page-link">&hellip;</a></li>
+                        {% endif %}
+                        {% endfor %}
+                        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('resident_detail', resident_id=resident.id, page=pagination.next_num) }}">&raquo;</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+            {% endif %}
+
+            {% else %}
+            <div class="alert alert-info">No hay registros de atención para este residente.</div>
+            {% endif %}
+        </div>
+
+        <!-- Tab Documentos -->
+        <div class="tab-pane fade" id="tab-documentos" role="tabpanel">
+            {% if resident.documents %}
+            <div class="card mb-4">
+                <div class="card-header"><strong>Documentos</strong></div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th scope="col">Archivo</th>
+                                <th scope="col">Tipo</th>
+                                <th scope="col" class="hide-mobile">Descripción</th>
+                                <th scope="col">Fecha</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for doc in resident.documents %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('serve_upload', filename=doc.file_path) }}" target="_blank">
+                                        {{ doc.original_filename }}
+                                    </a>
+                                </td>
+                                <td><span class="status-badge status-muted">{{ doc.doc_type or '—' }}</span></td>
+                                <td class="hide-mobile" style="color:var(--color-text-secondary);font-size:.85rem">{{ doc.description or '—' }}</td>
+                                <td style="font-size:.85rem">{{ doc.uploaded_at.strftime('%d/%m/%Y') if doc.uploaded_at else '—' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% else %}
+            <div class="alert alert-info">No hay documentos para este residente.</div>
+            {% endif %}
+        </div>
+    </div>
 
 </div>
 

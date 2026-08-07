@@ -108,13 +108,13 @@
                             <span class="status-badge status-muted">{{ record.duration }}</span>
                             {% else %}
                             <span class="status-badge status-info">En curso</span>
-                            <form method="post" action="{{ url_for('admin_close_session', mode='care', record_id=record.id) }}" style="display:inline" onsubmit="return confirm('¿Cerrar esta sesión de atención?')">
+                            <form method="post" action="{{ url_for('admin_close_session', mode='care', record_id=record.id) }}" style="display:inline" data-confirm="¿Cerrar esta sesión de atención?">
                                 <button type="submit" class="btn btn-sm btn-outline-danger ms-1">Cerrar</button>
                             </form>
                             {% endif %}
                             {% if current_user.is_admin %}
-                            <form method="post" action="{{ url_for('delete_care_record', record_id=record.id) }}" style="display:inline" onsubmit="return confirm('¿Eliminar este registro de atención?')">
-                                <button type="submit" class="btn btn-sm btn-outline-danger ms-1">🗑</button>
+                            <form method="post" action="{{ url_for('delete_care_record', record_id=record.id) }}" style="display:inline" data-confirm="¿Eliminar este registro de atención?">
+                                <button type="submit" class="btn btn-sm btn-outline-danger ms-1"><i class="bi bi-trash"></i></button>
                             </form>
                             {% endif %}
                         </td>

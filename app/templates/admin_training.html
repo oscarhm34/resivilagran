@@ -59,7 +59,7 @@
                         </button>
                     </form>
                     <form method="post" action="{{ url_for('delete_training', pill_id=pill.id) }}"
-                          class="d-inline" onsubmit="return confirm('¿Eliminar esta píldora y todos sus resultados?')">
+                          class="d-inline" data-confirm="¿Eliminar esta píldora y todos sus resultados?">
                         <button class="btn btn-sm btn-outline-danger">Eliminar</button>
                     </form>
                 </td>

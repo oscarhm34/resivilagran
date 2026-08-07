@@ -34,7 +34,7 @@
                                min="{{ filters.start_date if filters.start_date else '' }}">
                     </div>
                     <div class="col-sm-6 col-md-3">
-                        <label for="cleaner_id" class="form-label">Limpiadora</label>
+                        <label for="cleaner_id" class="form-label">Trabajador/a</label>
                         <select id="cleaner_id" name="cleaner_id" class="form-select">
                             <option value="">Todas</option>
                             {% for cleaner in cleaners %}
@@ -81,7 +81,7 @@
             <table class="table table-hover mb-0">
                 <thead>
                     <tr>
-                        <th scope="col">Limpiadora</th>
+                        <th scope="col">Trabajador/a</th>
                         <th scope="col">Hab.</th>
                         <th scope="col" class="hide-mobile">Descripción</th>
                         <th scope="col" class="hide-mobile">Tipo</th>
@@ -113,7 +113,7 @@
                                 <span class="status-badge status-muted">{{ record.duration }}</span>
                             {% else %}
                                 <span class="status-badge status-info">En curso</span>
-                                <form method="post" action="{{ url_for('admin_close_session', mode='cleaning', record_id=record.id) }}" style="display:inline" onsubmit="return confirm('¿Cerrar esta sesión de limpieza?')">
+                                <form method="post" action="{{ url_for('admin_close_session', mode='cleaning', record_id=record.id) }}" style="display:inline" data-confirm="¿Cerrar esta sesión de limpieza?">
                                     <button type="submit" class="btn btn-sm btn-outline-danger ms-1">Cerrar</button>
                                 </form>
                             {% endif %}

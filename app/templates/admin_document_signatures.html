@@ -1,10 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Firmas — {{ document.title }}{% endblock %}
 
+{% block breadcrumbs %}
+<nav aria-label="Navegación" class="mt-3 mb-2 no-print">
+    <ol class="breadcrumb mb-0" style="font-size:.85rem">
+        <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Inicio</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('admin_documents') }}">Documentos</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ document.title }}</li>
+    </ol>
+</nav>
+{% endblock %}
+
 {% block content %}
-<div class="mb-3">
-    <a href="{{ url_for('admin_documents') }}" class="btn btn-outline-secondary btn-sm">← Documentos</a>
-</div>
 <h2 style="font-family:'Outfit',system-ui,sans-serif;font-weight:700;font-size:22px;margin:0 0 4px">
     {{ document.title }}
 </h2>

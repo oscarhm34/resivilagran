@@ -138,7 +138,7 @@
                             <div class="d-flex align-items-center gap-2 mt-1" style="font-size:.85rem">
                                 <span>{{ vf.name }} ({{ vf.unit }}{% if vf.min_value is not none %}, min:{{ vf.min_value }}{% endif %}{% if vf.max_value is not none %}, max:{{ vf.max_value }}{% endif %})</span>
                                 <span class="badge {{ 'bg-success' if vf.active else 'bg-secondary' }}">{{ 'Activo' if vf.active else 'Inactivo' }}</span>
-                                <form method="post" action="{{ url_for('delete_vital_field', vf_id=vf.id) }}" style="display:inline" onsubmit="return confirm('¿Eliminar campo vital?')">
+                                <form method="post" action="{{ url_for('delete_vital_field', vf_id=vf.id) }}" style="display:inline" data-confirm="¿Eliminar campo vital?">
                                     <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1" style="font-size:.75rem">✕</button>
                                 </form>
                             </div>
@@ -200,7 +200,7 @@
                             <div class="d-flex align-items-center gap-2 mt-1" style="font-size:.85rem">
                                 <span>{{ vf.name }} ({{ vf.unit }}{% if vf.min_value is not none %}, min:{{ vf.min_value }}{% endif %}{% if vf.max_value is not none %}, max:{{ vf.max_value }}{% endif %})</span>
                                 <span class="badge {{ 'bg-success' if vf.active else 'bg-secondary' }}">{{ 'Activo' if vf.active else 'Inactivo' }}</span>
-                                <form method="post" action="{{ url_for('delete_vital_field', vf_id=vf.id) }}" style="display:inline" onsubmit="return confirm('¿Eliminar campo vital?')">
+                                <form method="post" action="{{ url_for('delete_vital_field', vf_id=vf.id) }}" style="display:inline" data-confirm="¿Eliminar campo vital?">
                                     <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1" style="font-size:.75rem">✕</button>
                                 </form>
                             </div>

@@ -5,9 +5,12 @@
 <div class="py-4">
 
     <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
-        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">← Inicio</a>
+        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">&larr; Inicio</a>
         <h1 class="h3 mb-0">Checklist de Limpieza</h1>
         <span class="badge bg-secondary ms-auto">{{ items|length }} item{{ 's' if items|length != 1 }}</span>
+        <button type="button" class="btn btn-primary btn-sm" onclick="openChecklistForm()">
+            <i class="bi bi-plus-lg me-1"></i>Añadir ítem
+        </button>
     </div>
 
     <div class="alert alert-info mb-4" role="note" style="font-size:.9rem">
@@ -15,28 +18,27 @@
         Debe verificar cada punto antes de confirmar.
     </div>
 
-    <!-- Formulario -->
-    <div class="card mb-4">
-        <div class="card-header d-flex align-items-center justify-content-between">
-            <span id="form-title">Añadir ítem</span>
-            <span id="edit-badge" class="badge bg-warning text-dark d-none">Modo edición</span>
+    <!-- Offcanvas formulario añadir / editar -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="checklistFormPanel" aria-labelledby="checklistFormTitle" style="width:min(480px,90vw)">
+        <div class="offcanvas-header" id="checklist-header-bar" style="border-bottom:1px solid var(--color-border);border-top:3px solid var(--color-primary)">
+            <h5 class="offcanvas-title" id="checklistFormTitle">Nuevo ítem</h5>
+            <span id="edit-badge" class="badge bg-warning text-dark d-none ms-2">Editando</span>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
         </div>
-        <div class="card-body">
-            <form id="chk-form" method="POST" action="{{ url_for('add_edit_checklist_item') }}" novalidate>
+        <div class="offcanvas-body">
+            <form id="chk-form" method="POST" action="{{ url_for('add_edit_checklist_item') }}" class="needs-validation" novalidate>
                 <input type="hidden" name="item_id" value="">
-                <div class="row g-3 align-items-end">
-                    <div class="col-sm-6">
-                        <label for="text" class="form-label">Texto <span class="text-danger">*</span></label>
-                        <input type="text" id="text" name="text" class="form-control" required placeholder="ej. Apagar la luz">
-                    </div>
-                    <div class="col-sm-2">
-                        <label for="sort_order" class="form-label">Orden</label>
-                        <input type="number" id="sort_order" name="sort_order" class="form-control" value="0" min="0">
-                    </div>
-                    <div class="col-auto d-flex gap-2">
-                        <button type="submit" class="btn btn-primary" id="submit-btn">Añadir</button>
-                        <button type="button" class="btn btn-outline-secondary" id="cancel-btn" style="display:none">Cancelar</button>
-                    </div>
+                <div class="mb-3">
+                    <label for="text" class="form-label">Texto <span class="text-danger" aria-hidden="true">*</span></label>
+                    <input type="text" id="text" name="text" class="form-control" required placeholder="ej. Apagar la luz">
+                    <div class="invalid-feedback">El texto es obligatorio.</div>
+                </div>
+                <div class="mb-3">
+                    <label for="sort_order" class="form-label">Orden</label>
+                    <input type="number" id="sort_order" name="sort_order" class="form-control" value="0" min="0">
+                </div>
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary" id="submit-btn">Añadir ítem</button>
                 </div>
             </form>
         </div>
@@ -103,27 +105,42 @@
 <script>
 (function () {
     'use strict';
+
+    var offcanvasEl = document.getElementById('checklistFormPanel');
+    var offcanvas = new bootstrap.Offcanvas(offcanvasEl);
+    var headerBar = document.getElementById('checklist-header-bar');
+
+    function resetForm() {
+        var form = document.getElementById('chk-form');
+        form.reset();
+        form.classList.remove('was-validated');
+        form.querySelector('[name="item_id"]').value = '';
+        document.getElementById('submit-btn').textContent = 'Añadir ítem';
+        document.getElementById('checklistFormTitle').textContent = 'Nuevo ítem';
+        document.getElementById('edit-badge').classList.add('d-none');
+        headerBar.style.borderTopColor = 'var(--color-primary)';
+    }
+
+    window.openChecklistForm = function () {
+        resetForm();
+        offcanvas.show();
+    };
+
+    offcanvasEl.addEventListener('hidden.bs.offcanvas', resetForm);
+
     document.querySelectorAll('.edit-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
             var form = document.getElementById('chk-form');
+            form.classList.remove('was-validated');
             form.querySelector('[name="item_id"]').value    = this.dataset.id;
             form.querySelector('[name="text"]').value        = this.dataset.text;
             form.querySelector('[name="sort_order"]').value  = this.dataset.sort;
-            document.getElementById('submit-btn').textContent   = 'Guardar';
-            document.getElementById('cancel-btn').style.display = 'inline-block';
-            document.getElementById('form-title').textContent   = 'Editando ítem';
+            document.getElementById('submit-btn').textContent = 'Guardar cambios';
+            document.getElementById('checklistFormTitle').textContent = 'Editando: ' + this.dataset.text;
             document.getElementById('edit-badge').classList.remove('d-none');
-            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            headerBar.style.borderTopColor = 'var(--color-warning)';
+            offcanvas.show();
         });
-    });
-    document.getElementById('cancel-btn').addEventListener('click', function () {
-        var form = document.getElementById('chk-form');
-        form.reset();
-        form.querySelector('[name="item_id"]').value = '';
-        document.getElementById('submit-btn').textContent  = 'Añadir';
-        document.getElementById('form-title').textContent  = 'Añadir ítem';
-        document.getElementById('edit-badge').classList.add('d-none');
-        this.style.display = 'none';
     });
     document.querySelectorAll('.delete-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {

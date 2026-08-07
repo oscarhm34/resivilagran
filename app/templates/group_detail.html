@@ -1,11 +1,20 @@
 {% extends "base.html" %}
 {% block title %}{{ group.name }}{% endblock %}
 
+{% block breadcrumbs %}
+<nav aria-label="Navegación" class="mt-3 mb-2 no-print">
+    <ol class="breadcrumb mb-0" style="font-size:.85rem">
+        <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Inicio</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('manage_groups') }}">Grupos</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ group.name }}</li>
+    </ol>
+</nav>
+{% endblock %}
+
 {% block content %}
 <div class="py-4">
 
     <div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
-        <a href="{{ url_for('manage_groups') }}" class="btn btn-outline-secondary btn-sm">&larr; Grupos</a>
         <span style="display:inline-block;width:24px;height:24px;border-radius:50%;background:{{ group.color }};vertical-align:middle;flex-shrink:0"></span>
         <h1 class="h3 mb-0">{{ group.name }}</h1>
     </div>

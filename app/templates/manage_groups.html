@@ -7,6 +7,9 @@
     <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
         <h1 class="h3 mb-0">Grupos de Residentes</h1>
         <span class="badge bg-secondary ms-auto">{{ groups|length }} grupo{{ 's' if groups|length != 1 }}</span>
+        <button type="button" class="btn btn-primary btn-sm" onclick="openGroupForm()">
+            <i class="bi bi-plus-lg me-1"></i>Añadir grupo
+        </button>
     </div>
 
     <div class="alert alert-info mb-4" role="note" style="font-size:.9rem">
@@ -14,28 +17,27 @@
         Cada grupo se identifica por un color.
     </div>
 
-    <!-- Formulario -->
-    <div class="card mb-4">
-        <div class="card-header d-flex align-items-center justify-content-between">
-            <span id="form-title">Añadir grupo</span>
-            <span id="edit-badge" class="badge bg-warning text-dark d-none">Modo edición</span>
+    <!-- Offcanvas formulario añadir / editar -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="groupFormPanel" aria-labelledby="groupFormTitle" style="width:min(480px,90vw)">
+        <div class="offcanvas-header" id="group-header-bar" style="border-bottom:1px solid var(--color-border);border-top:3px solid var(--color-primary)">
+            <h5 class="offcanvas-title" id="groupFormTitle">Nuevo grupo</h5>
+            <span id="edit-badge" class="badge bg-warning text-dark d-none ms-2">Editando</span>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
         </div>
-        <div class="card-body">
-            <form id="grp-form" method="POST" action="{{ url_for('add_edit_group') }}" novalidate>
+        <div class="offcanvas-body">
+            <form id="grp-form" method="POST" action="{{ url_for('add_edit_group') }}" class="needs-validation" novalidate>
                 <input type="hidden" name="group_id" value="">
-                <div class="row g-3 align-items-end">
-                    <div class="col-sm-5 col-md-4">
-                        <label for="name" class="form-label">Nombre <span class="text-danger">*</span></label>
-                        <input type="text" id="name" name="name" class="form-control" required placeholder="ej. Grupo A">
-                    </div>
-                    <div class="col-sm-3 col-md-2">
-                        <label for="color" class="form-label">Color <span class="text-danger">*</span></label>
-                        <input type="color" id="color" name="color" class="form-control form-control-color" value="#3b82f6" required>
-                    </div>
-                    <div class="col-auto d-flex gap-2">
-                        <button type="submit" class="btn btn-primary" id="submit-btn">Añadir grupo</button>
-                        <button type="button" class="btn btn-outline-secondary" id="cancel-btn" style="display:none">Cancelar</button>
-                    </div>
+                <div class="mb-3">
+                    <label for="name" class="form-label">Nombre <span class="text-danger" aria-hidden="true">*</span></label>
+                    <input type="text" id="name" name="name" class="form-control" required placeholder="ej. Grupo A">
+                    <div class="invalid-feedback">El nombre es obligatorio.</div>
+                </div>
+                <div class="mb-3">
+                    <label for="color" class="form-label">Color <span class="text-danger" aria-hidden="true">*</span></label>
+                    <input type="color" id="color" name="color" class="form-control form-control-color" value="#3b82f6" required>
+                </div>
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary" id="submit-btn">Añadir grupo</button>
                 </div>
             </form>
         </div>
@@ -90,7 +92,7 @@
     </div>
     {% else %}
     <div class="alert alert-info" role="status">
-        No hay grupos creados. Añade uno usando el formulario de arriba.
+        No hay grupos creados. Añade uno usando el botón de arriba.
     </div>
     {% endif %}
 </div>
@@ -117,28 +119,43 @@
 <script>
 (function () {
     'use strict';
+
+    var offcanvasEl = document.getElementById('groupFormPanel');
+    var offcanvas = new bootstrap.Offcanvas(offcanvasEl);
+    var headerBar = document.getElementById('group-header-bar');
+
+    function resetForm() {
+        var form = document.getElementById('grp-form');
+        form.reset();
+        form.classList.remove('was-validated');
+        form.querySelector('[name="group_id"]').value = '';
+        form.querySelector('[name="color"]').value    = '#3b82f6';
+        document.getElementById('submit-btn').textContent = 'Añadir grupo';
+        document.getElementById('groupFormTitle').textContent = 'Nuevo grupo';
+        document.getElementById('edit-badge').classList.add('d-none');
+        headerBar.style.borderTopColor = 'var(--color-primary)';
+    }
+
+    window.openGroupForm = function () {
+        resetForm();
+        offcanvas.show();
+    };
+
+    offcanvasEl.addEventListener('hidden.bs.offcanvas', resetForm);
+
     document.querySelectorAll('.edit-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
             var form = document.getElementById('grp-form');
+            form.classList.remove('was-validated');
             form.querySelector('[name="group_id"]').value = this.dataset.id;
             form.querySelector('[name="name"]').value     = this.dataset.name;
             form.querySelector('[name="color"]').value    = this.dataset.color;
-            document.getElementById('submit-btn').textContent   = 'Guardar cambios';
-            document.getElementById('cancel-btn').style.display = 'inline-block';
-            document.getElementById('form-title').textContent   = 'Editando grupo';
+            document.getElementById('submit-btn').textContent = 'Guardar cambios';
+            document.getElementById('groupFormTitle').textContent = 'Editando: ' + this.dataset.name;
             document.getElementById('edit-badge').classList.remove('d-none');
-            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            headerBar.style.borderTopColor = 'var(--color-warning)';
+            offcanvas.show();
         });
-    });
-    document.getElementById('cancel-btn').addEventListener('click', function () {
-        var form = document.getElementById('grp-form');
-        form.reset();
-        form.querySelector('[name="group_id"]').value = '';
-        form.querySelector('[name="color"]').value    = '#3b82f6';
-        document.getElementById('submit-btn').textContent  = 'Añadir grupo';
-        document.getElementById('form-title').textContent  = 'Añadir grupo';
-        document.getElementById('edit-badge').classList.add('d-none');
-        this.style.display = 'none';
     });
     document.querySelectorAll('.delete-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {

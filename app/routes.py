@@ -170,16 +170,32 @@ def index():
 
     en_curso = CleaningRecord.query.filter(CleaningRecord.end_time.is_(None)).count()
 
-    limpiadas_ids = [
+    # Rooms not cleaned TODAY (more useful than "never cleaned")
+    limpiadas_hoy_ids = [
         r[0] for r in db.session.query(CleaningRecord.room_id)
-        .filter(CleaningRecord.end_time.isnot(None))
+        .filter(
+            CleaningRecord.end_time.isnot(None),
+            CleaningRecord.start_time >= hoy_inicio,
+            CleaningRecord.start_time < hoy_fin,
+        )
         .distinct()
         .all()
     ]
-    if limpiadas_ids:
-        habitaciones_sin_limpiar = Room.query.filter(~Room.id.in_(limpiadas_ids)).count()
+    total_rooms = Room.query.count()
+    if limpiadas_hoy_ids:
+        habitaciones_sin_limpiar = total_rooms - len(limpiadas_hoy_ids)
     else:
-        habitaciones_sin_limpiar = Room.query.count()
+        habitaciones_sin_limpiar = total_rooms
+
+    # Residence overview stats
+    total_residents_active = Resident.query.filter_by(active=True).count()
+    total_workers_active = Cleaner.query.filter_by(active=True).count()
+    workers_with_sessions_today = db.session.query(
+        db.func.count(db.func.distinct(CareRecord.worker_id))
+    ).filter(
+        CareRecord.start_time >= hoy_inicio,
+        CareRecord.start_time < hoy_fin,
+    ).scalar() or 0
 
     atenciones_hoy = CareRecord.query.filter(
         CareRecord.start_time >= hoy_inicio,
@@ -217,6 +233,9 @@ def index():
         atenciones_en_curso=atenciones_en_curso,
         stale_closed=stale_count,
         alertas_vitales=alertas_vitales,
+        total_residents_active=total_residents_active,
+        total_workers_active=total_workers_active,
+        workers_with_sessions_today=workers_with_sessions_today,
     )
 
 

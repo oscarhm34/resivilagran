@@ -31,55 +31,59 @@
                 <option value="bajas" {{ 'selected' if estado_filtro == 'bajas' }}>Ver bajas</option>
                 <option value="todos" {{ 'selected' if estado_filtro == 'todos' }}>Ver todos</option>
             </select>
+            <button type="button" class="btn btn-primary btn-sm" onclick="openWorkerForm()">
+                <i class="bi bi-plus-lg me-1"></i>Añadir empleado
+            </button>
         </div>
     </div>
 
-    <!-- Formulario añadir / editar -->
-    <div class="card mb-4">
-        <div class="card-header d-flex align-items-center justify-content-between">
-            <span id="form-title">Añadir empleado</span>
-            <span id="edit-badge" class="badge bg-warning text-dark d-none">Modo edición</span>
+    <!-- Offcanvas formulario añadir / editar -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="workerFormPanel" aria-labelledby="workerFormTitle" style="width:min(520px,90vw)">
+        <div class="offcanvas-header" id="offcanvas-header-bar" style="border-bottom:1px solid var(--color-border);border-top:3px solid var(--color-primary)">
+            <h5 class="offcanvas-title" id="workerFormTitle">Nuevo empleado</h5>
+            <span id="edit-badge" class="badge bg-warning text-dark d-none ms-2">Editando</span>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
         </div>
-        <div class="card-body">
-            <form id="worker-form" method="POST" action="{{ url_for('add_edit_cleaner') }}" novalidate>
+        <div class="offcanvas-body">
+            <form id="worker-form" method="POST" action="{{ url_for('add_edit_cleaner') }}" class="needs-validation" novalidate>
                 <input type="hidden" name="cleaner_id" value="">
 
-                <div class="row g-3">
-                    <div class="col-md-3">
-                        <label for="username" class="form-label">Usuario <span class="text-danger" aria-hidden="true">*</span></label>
-                        <input type="text" id="username" name="username"
-                               class="form-control" required autocomplete="off"
-                               placeholder="ej. maria.garcia">
-                        <div class="invalid-feedback">El usuario es obligatorio.</div>
+                <div class="mb-3">
+                    <label for="username" class="form-label">Usuario <span class="text-danger" aria-hidden="true">*</span></label>
+                    <input type="text" id="username" name="username"
+                           class="form-control" required autocomplete="off"
+                           placeholder="ej. maria.garcia">
+                    <div class="invalid-feedback">El usuario es obligatorio.</div>
+                </div>
+                <div class="mb-3">
+                    <label for="name" class="form-label">Nombre completo <span class="text-danger" aria-hidden="true">*</span></label>
+                    <input type="text" id="name" name="name"
+                           class="form-control" required placeholder="ej. María García">
+                    <div class="invalid-feedback">El nombre es obligatorio.</div>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">
+                        Contraseña
+                        <small class="text-body-secondary" id="pwd-hint">(dejar vacío = no cambiar)</small>
+                    </label>
+                    <div class="input-group">
+                        <input type="password" id="password" name="password"
+                               class="form-control" autocomplete="new-password"
+                               placeholder="Nueva contraseña">
+                        <button type="button" class="btn btn-outline-secondary"
+                                id="toggle-password" tabindex="-1"
+                                aria-label="Mostrar u ocultar contraseña"><i class="bi bi-eye"></i></button>
                     </div>
-                    <div class="col-md-3">
-                        <label for="name" class="form-label">Nombre completo <span class="text-danger" aria-hidden="true">*</span></label>
-                        <input type="text" id="name" name="name"
-                               class="form-control" required placeholder="ej. María García">
-                        <div class="invalid-feedback">El nombre es obligatorio.</div>
-                    </div>
-                    <div class="col-md-3">
-                        <label for="password" class="form-label">
-                            Contraseña
-                            <small class="text-body-secondary" id="pwd-hint">(dejar vacío = no cambiar)</small>
-                        </label>
-                        <div class="input-group">
-                            <input type="password" id="password" name="password"
-                                   class="form-control" autocomplete="new-password"
-                                   placeholder="Nueva contraseña">
-                            <button type="button" class="btn btn-outline-secondary"
-                                    id="toggle-password" tabindex="-1"
-                                    aria-label="Mostrar u ocultar contraseña">&#128065;</button>
-                        </div>
-                    </div>
-                    <div class="col-md-2 d-flex align-items-end pb-1">
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
                         <div class="form-check">
                             <input type="checkbox" id="is_admin" name="is_admin"
                                    class="form-check-input" value="1">
                             <label class="form-check-label" for="is_admin">Administrador</label>
                         </div>
                     </div>
-                    <div class="col-md-1 d-flex align-items-end pb-1">
+                    <div class="col-6">
                         <div class="form-check">
                             <input type="checkbox" id="active" name="active"
                                    class="form-check-input" value="1" checked>
@@ -88,33 +92,36 @@
                     </div>
                 </div>
 
-                <div class="row g-3 mt-0">
-                    <div class="col-md-8">
-                        <label class="form-label">Grupos de residentes</label>
-                        <div id="group-checkboxes" class="d-flex flex-wrap gap-2">
-                            {% if groups %}
-                            {% for g in groups %}
-                            <label class="group-chip" style="--chip-color:{{ g.color }}">
-                                <input type="checkbox" name="group_ids" value="{{ g.id }}" class="group-chip-input">
-                                <span class="group-chip-label">
-                                    <span class="group-chip-dot" style="background:{{ g.color }}"></span>
-                                    {{ g.name }}
-                                </span>
-                            </label>
-                            {% endfor %}
-                            {% else %}
-                            <span class="text-body-secondary" style="font-size:.85rem">No hay grupos creados</span>
-                            {% endif %}
-                        </div>
+                <div class="mb-3">
+                    <label class="form-label">Grupos de residentes</label>
+                    <div id="group-checkboxes" class="d-flex flex-wrap gap-2">
+                        {% if groups %}
+                        {% for g in groups %}
+                        <label class="group-chip" style="--chip-color:{{ g.color }}">
+                            <input type="checkbox" name="group_ids" value="{{ g.id }}" class="group-chip-input">
+                            <span class="group-chip-label">
+                                <span class="group-chip-dot" style="background:{{ g.color }}"></span>
+                                {{ g.name }}
+                            </span>
+                        </label>
+                        {% endfor %}
+                        {% else %}
+                        <span class="text-body-secondary" style="font-size:.85rem">No hay grupos creados</span>
+                        {% endif %}
                     </div>
                 </div>
 
-                <div class="d-flex align-items-center gap-2 mt-3">
+                <div class="d-grid gap-2">
                     <button type="submit" class="btn btn-primary" id="submit-btn">Añadir empleado</button>
-                    <button type="button" class="btn btn-outline-secondary" id="cancel-btn" style="display:none">Cancelar</button>
                 </div>
             </form>
         </div>
+    </div>
+
+    <!-- Buscador de tabla -->
+    <div class="input-group mb-3" style="max-width:400px">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="text" id="table-search" class="form-control" placeholder="Buscar por nombre, usuario o grupo...">
     </div>
 
     <!-- Tabla de empleados -->
@@ -141,7 +148,7 @@
                             {% if cleaner.is_admin %}
                             <span class="status-badge status-info">Admin</span>
                             {% else %}
-                            <span class="status-badge status-muted">Limpiadora</span>
+                            <span class="status-badge status-muted">Trabajador/a</span>
                             {% endif %}
                         </td>
                         <td>
@@ -235,17 +242,42 @@
 (function () {
     'use strict';
 
+    var offcanvasEl = document.getElementById('workerFormPanel');
+    var offcanvas = new bootstrap.Offcanvas(offcanvasEl);
+    var headerBar = document.getElementById('offcanvas-header-bar');
+
     var toggleBtn = document.getElementById('toggle-password');
     var pwdInput  = document.getElementById('password');
     toggleBtn.addEventListener('click', function () {
         var hidden = pwdInput.type === 'password';
         pwdInput.type = hidden ? 'text' : 'password';
-        this.textContent = hidden ? '🙈' : '👁️';
+        this.innerHTML = hidden ? '<i class="bi bi-eye-slash"></i>' : '<i class="bi bi-eye"></i>';
     });
+
+    function resetForm() {
+        var form = document.getElementById('worker-form');
+        form.reset();
+        form.classList.remove('was-validated');
+        form.querySelector('[name="cleaner_id"]').value = '';
+        form.querySelector('[name="active"]').checked = true;
+        pwdInput.type = 'password';
+        toggleBtn.innerHTML = '<i class="bi bi-eye"></i>';
+        document.getElementById('submit-btn').textContent       = 'Añadir empleado';
+        document.getElementById('workerFormTitle').textContent   = 'Nuevo empleado';
+        document.getElementById('edit-badge').classList.add('d-none');
+        document.getElementById('pwd-hint').textContent          = '(dejar vacío = no cambiar)';
+        headerBar.style.borderTopColor = 'var(--color-primary)';
+    }
+
+    window.openWorkerForm = function () {
+        resetForm();
+        offcanvas.show();
+    };
 
     document.querySelectorAll('.edit-cleaner').forEach(function (btn) {
         btn.addEventListener('click', function () {
             var form = document.getElementById('worker-form');
+            form.classList.remove('was-validated');
             form.querySelector('[name="cleaner_id"]').value = this.dataset.id;
             form.querySelector('[name="username"]').value   = this.dataset.username;
             form.querySelector('[name="name"]').value       = this.dataset.name;
@@ -256,24 +288,16 @@
             form.querySelectorAll('[name="group_ids"]').forEach(function(cb) {
                 cb.checked = groupIds.indexOf(cb.value) !== -1;
             });
-            document.getElementById('submit-btn').textContent   = 'Guardar cambios';
-            document.getElementById('cancel-btn').style.display = 'inline-block';
-            document.getElementById('form-title').textContent   = 'Editando empleado';
+            document.getElementById('submit-btn').textContent     = 'Guardar cambios';
+            document.getElementById('workerFormTitle').textContent = 'Editando: ' + this.dataset.name;
             document.getElementById('edit-badge').classList.remove('d-none');
-            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            document.getElementById('pwd-hint').textContent        = '(dejar vacío = no cambiar)';
+            headerBar.style.borderTopColor = 'var(--color-warning)';
+            offcanvas.show();
         });
     });
 
-    document.getElementById('cancel-btn').addEventListener('click', function () {
-        var form = document.getElementById('worker-form');
-        form.reset();
-        form.querySelector('[name="cleaner_id"]').value = '';
-        form.querySelector('[name="active"]').checked = true;
-        document.getElementById('submit-btn').textContent  = 'Añadir empleado';
-        document.getElementById('form-title').textContent  = 'Añadir empleado';
-        document.getElementById('edit-badge').classList.add('d-none');
-        this.style.display = 'none';
-    });
+    offcanvasEl.addEventListener('hidden.bs.offcanvas', resetForm);
 
     document.querySelectorAll('.delete-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
@@ -297,9 +321,7 @@
                     body: JSON.stringify({ cleaner_id: cleanerId, active: active }),
                 });
                 if (res.ok) {
-                    this.style.outline = '2px solid var(--color-success)';
-                    var self = this;
-                    setTimeout(function () { self.style.outline = ''; }, 800);
+                    showToast('Estado actualizado', 'success');
                     // Keep edit button data-active in sync
                     var editBtn = row.querySelector('.edit-cleaner');
                     if (editBtn) editBtn.dataset.active = active ? '1' : '';
@@ -310,15 +332,11 @@
                     }
                 } else {
                     this.checked = !active;
-                    this.style.outline = '2px solid var(--color-danger)';
-                    var self = this;
-                    setTimeout(function () { self.style.outline = ''; }, 1200);
+                    showToast('Error al actualizar', 'error');
                 }
             } catch (e) {
                 this.checked = !active;
-                this.style.outline = '2px solid var(--color-danger)';
-                var self = this;
-                setTimeout(function () { self.style.outline = ''; }, 1200);
+                showToast('Error al actualizar', 'error');
             }
         });
     });
@@ -349,17 +367,21 @@
                     btn.innerHTML = dotsHtml;
 
                     if (res.ok) {
-                        btn.style.outline = '2px solid var(--color-success)';
-                        setTimeout(function () { btn.style.outline = ''; }, 800);
+                        showToast('Estado actualizado', 'success');
                     } else {
-                        btn.style.outline = '2px solid var(--color-danger)';
-                        setTimeout(function () { btn.style.outline = ''; }, 1200);
+                        showToast('Error al actualizar', 'error');
                     }
                 } catch (e) {
-                    btn.style.outline = '2px solid var(--color-danger)';
-                    setTimeout(function () { btn.style.outline = ''; }, 1200);
+                    showToast('Error al actualizar', 'error');
                 }
             });
+        });
+    });
+    // Client-side table search
+    document.getElementById('table-search').addEventListener('input', function() {
+        var term = this.value.toLowerCase();
+        document.querySelectorAll('tbody tr').forEach(function(row) {
+            row.style.display = row.textContent.toLowerCase().includes(term) ? '' : 'none';
         });
     });
 })();
