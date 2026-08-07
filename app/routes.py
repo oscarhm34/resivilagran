@@ -395,7 +395,7 @@ def add_edit_cleaner():
     is_admin = bool(request.form.get('is_admin'))
     active = bool(request.form.get('active'))
     role = request.form.get('role', 'atenciones').strip()
-    if role not in ('limpieza', 'atenciones', 'gestion'):
+    if role not in ('limpieza', 'atenciones', 'mixto', 'gestion'):
         role = 'atenciones'
 
     group_ids = request.form.getlist('group_ids')
@@ -3472,6 +3472,30 @@ def submit_training(pill_id: int):
     })
 
 
+@app.cli.command('auto-assign-roles')
+def auto_assign_roles():
+    """Assign worker roles (limpieza/atenciones/mixto) based on historical data."""
+    workers = Cleaner.query.filter_by(active=True).all()
+    stats = {'limpieza': 0, 'atenciones': 0, 'mixto': 0, 'sin_actividad': 0}
+    for w in workers:
+        cleanings = CleaningRecord.query.filter_by(cleaner_id=w.id).count()
+        cares = CareRecord.query.filter_by(worker_id=w.id).count()
+        if cleanings > 0 and cares > 0:
+            w.role = 'mixto'
+            stats['mixto'] += 1
+        elif cleanings > 0:
+            w.role = 'limpieza'
+            stats['limpieza'] += 1
+        elif cares > 0:
+            w.role = 'atenciones'
+            stats['atenciones'] += 1
+        else:
+            stats['sin_actividad'] += 1
+        print(f'  {w.name:<30} limp={cleanings:<6} aten={cares:<6} -> {w.role}')
+    db.session.commit()
+    print(f'\nResultado: {stats}')
+
+
 # ── TURNOS / CUADRANTES ─────────────────────────────────────────────────────
 
 @app.cli.command('seed-shift-types')
@@ -3506,7 +3530,7 @@ def cuadrantes():
 
     # Workers: exclude 'gestion' role, filter by group and role
     role_filter = request.args.get('role', '', type=str)
-    query = Cleaner.query.filter(Cleaner.active == True, Cleaner.role != 'gestion')
+    query = Cleaner.query.filter(Cleaner.active == True, Cleaner.role.in_(['limpieza', 'atenciones', 'mixto']))
     if group_id:
         query = query.filter(Cleaner.groups.any(ResidentGroup.id == int(group_id)))
     if role_filter:
@@ -4585,7 +4609,7 @@ def admin_cleaning_analytics():
 @app.route('/admin/cleaning-config')
 @admin_required
 def admin_cleaning_config():
-    workers = Cleaner.query.filter_by(active=True, role='limpieza').order_by(Cleaner.name).all()
+    workers = Cleaner.query.filter(Cleaner.active == True, Cleaner.role.in_(['limpieza', 'mixto'])).order_by(Cleaner.name).all()
     floors = Floor.query.order_by(Floor.name).all()
     room_types = RoomType.query.all()
     assignments = CleaningZoneAssignment.query.all()

@@ -2900,7 +2900,7 @@ $('train-result-back').addEventListener('click', () => show('screen-home'));
 
 // ── Cleaning Route ───────────────────────────────────────────────────────
 async function loadRoute() {
-    if (S.workerRole !== 'limpieza') {
+    if (S.workerRole !== 'limpieza' && S.workerRole !== 'mixto') {
         var wrap = $('route-btn-wrap');
         if (wrap) wrap.style.display = 'none';
         return;

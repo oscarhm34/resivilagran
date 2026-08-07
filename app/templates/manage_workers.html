@@ -80,6 +80,7 @@
                     <select id="role" name="role" class="form-select">
                         <option value="atenciones">Atenciones (auxiliar/cuidador)</option>
                         <option value="limpieza">Limpieza</option>
+                        <option value="mixto">Mixto (limpieza + atenciones)</option>
                         <option value="gestion">Gestión (no aparece en cuadrantes)</option>
                     </select>
                 </div>
@@ -155,6 +156,8 @@
                         <td>
                             {% if cleaner.role == 'limpieza' %}
                             <span class="status-badge status-info">Limpieza</span>
+                            {% elif cleaner.role == 'mixto' %}
+                            <span class="status-badge" style="color:#6f42c1;background:#e8d5f5">Mixto</span>
                             {% elif cleaner.role == 'gestion' %}
                             <span class="status-badge status-warning">Gestión</span>
                             {% else %}
