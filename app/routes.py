@@ -4421,14 +4421,28 @@ def worker_cleaning_route():
             'status': 'no_shift', 'message': 'No tienes turno asignado hoy.',
         }})
 
-    # Get worker's assigned floors (or all if none assigned)
+    # Determine rooms: manual zone assignment OR auto-detect from history
     zone_assignments = CleaningZoneAssignment.query.filter_by(cleaner_id=worker.id).all()
     assigned_floor_ids = {za.floor_id for za in zone_assignments}
 
     if assigned_floor_ids:
+        # Manual assignment exists: use it
         rooms = Room.query.filter(Room.floor_id.in_(assigned_floor_ids)).all()
     else:
-        rooms = Room.query.all()
+        # Auto-detect from historical data: which rooms has this worker cleaned?
+        cutoff_auto = datetime.now() - timedelta(days=90)
+        worker_room_ids = {r[0] for r in db.session.query(CleaningRecord.room_id).filter(
+            CleaningRecord.cleaner_id == worker.id,
+            CleaningRecord.end_time.isnot(None),
+            CleaningRecord.start_time >= cutoff_auto,
+        ).distinct().all()}
+
+        if worker_room_ids:
+            # Show rooms this worker usually cleans
+            rooms = Room.query.filter(Room.id.in_(worker_room_ids)).all()
+        else:
+            # No history: show all rooms
+            rooms = Room.query.all()
 
     # Get today's completed cleanings
     today_start = datetime.combine(date.today(), datetime.min.time())
