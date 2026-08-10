@@ -8,12 +8,12 @@
         <h1 class="h3 mb-0">Residentes</h1>
         <div class="d-flex align-items-center gap-2">
             <span class="badge bg-secondary">{{ residents|length }} residente{{ 's' if residents|length != 1 }}</span>
-            <select class="form-select form-select-sm" style="width:auto" onchange="window.location.href='{{ url_for('manage_residents') }}?estado='+this.value">
+            <select class="form-select form-select-sm" style="width:auto" onchange="window.location.href='{{ url_for('residents.manage_residents') }}?estado='+this.value">
                 <option value="altas" {{ 'selected' if estado_filtro == 'altas' }}>Ver altas</option>
                 <option value="bajas" {{ 'selected' if estado_filtro == 'bajas' }}>Ver bajas</option>
                 <option value="todos" {{ 'selected' if estado_filtro == 'todos' }}>Ver todos</option>
             </select>
-            <a href="{{ url_for('manage_care_types') }}" class="btn btn-sm btn-outline-secondary">Tipos de atención</a>
+            <a href="{{ url_for('care.manage_care_types') }}" class="btn btn-sm btn-outline-secondary">Tipos de atención</a>
             <button type="button" class="btn btn-primary btn-sm" id="add-resident-btn" onclick="openResidentForm()">
                 <i class="bi bi-plus-lg me-1"></i>Añadir residente
             </button>
@@ -28,7 +28,7 @@
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
         </div>
         <div class="offcanvas-body">
-            <form id="resident-form" method="POST" action="{{ url_for('add_edit_resident') }}" enctype="multipart/form-data" class="needs-validation" novalidate>
+            <form id="resident-form" method="POST" action="{{ url_for('residents.add_edit_resident') }}" enctype="multipart/form-data" class="needs-validation" novalidate>
                 <input type="hidden" name="resident_id" value="">
 
                 <div class="mb-3">
@@ -235,7 +235,7 @@
                         </td>
                         <td class="text-end" style="white-space:nowrap">
                             <div class="d-inline-flex gap-1 align-items-center">
-                                <a href="{{ url_for('resident_detail', resident_id=r.id) }}"
+                                <a href="{{ url_for('residents.resident_detail', resident_id=r.id) }}"
                                    class="btn btn-sm btn-outline-info" title="Ver ficha" aria-label="Ver ficha de {{ r.name }}"><i class="bi bi-file-text"></i></a>
                                 <button type="button"
                                         class="btn btn-sm btn-outline-secondary edit-btn"
@@ -253,7 +253,7 @@
                                 <button type="button"
                                         class="btn btn-sm btn-outline-danger delete-btn"
                                         data-name="{{ r.name }}"
-                                        data-action="{{ url_for('delete_resident', id=r.id) }}"
+                                        data-action="{{ url_for('residents.delete_resident', id=r.id) }}"
                                         aria-label="Eliminar a {{ r.name }}" title="Eliminar"><i class="bi bi-trash"></i></button>
                             </div>
                         </td>
@@ -296,7 +296,7 @@
 <script>
 var RESIDENT_DOCS = {
 {% for r in residents %}
-{{ r.id }}: [{% for d in r.documents %}{ id: {{ d.id }}, name: "{{ d.original_filename | e }}", type: "{{ d.doc_type or 'Otros' }}", desc: "{{ d.description or '' | e }}", date: "{{ d.uploaded_at.strftime('%d/%m/%Y') if d.uploaded_at else '' }}", url: "{{ url_for('nfc.serve_upload', filename=d.file_path) }}", deleteUrl: "{{ url_for('delete_resident_document', doc_id=d.id) }}" },{% endfor %}],
+{{ r.id }}: [{% for d in r.documents %}{ id: {{ d.id }}, name: "{{ d.original_filename | e }}", type: "{{ d.doc_type or 'Otros' }}", desc: "{{ d.description or '' | e }}", date: "{{ d.uploaded_at.strftime('%d/%m/%Y') if d.uploaded_at else '' }}", url: "{{ url_for('nfc.serve_upload', filename=d.file_path) }}", deleteUrl: "{{ url_for('residents.delete_resident_document', doc_id=d.id) }}" },{% endfor %}],
 {% endfor %}
 };
 </script>

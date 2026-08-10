@@ -124,7 +124,7 @@
     <!-- Accesos rápidos -->
     <div class="row g-3">
         <div class="col-6 col-lg-3">
-            <a href="{{ url_for('manage_workers') }}" class="text-decoration-none">
+            <a href="{{ url_for('admin_bp.manage_workers') }}" class="text-decoration-none">
                 <div class="card h-100 text-center p-3 home-card">
                     <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-people"></i></div>
                     <h2 class="h6 mb-1">Empleados</h2>
@@ -133,7 +133,7 @@
             </a>
         </div>
         <div class="col-6 col-lg-3">
-            <a href="{{ url_for('manage_residents') }}" class="text-decoration-none">
+            <a href="{{ url_for('residents.manage_residents') }}" class="text-decoration-none">
                 <div class="card h-100 text-center p-3 home-card">
                     <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-person-heart"></i></div>
                     <h2 class="h6 mb-1">Residentes</h2>
@@ -142,7 +142,7 @@
             </a>
         </div>
         <div class="col-6 col-lg-3">
-            <a href="{{ url_for('manage_cleaning_zones') }}" class="text-decoration-none">
+            <a href="{{ url_for('admin_bp.manage_cleaning_zones') }}" class="text-decoration-none">
                 <div class="card h-100 text-center p-3 home-card">
                     <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-building"></i></div>
                     <h2 class="h6 mb-1">Zonas de Limpieza</h2>
@@ -151,7 +151,7 @@
             </a>
         </div>
         <div class="col-6 col-lg-3">
-            <a href="{{ url_for('registros_limpieza') }}" class="text-decoration-none">
+            <a href="{{ url_for('admin_bp.registros_limpieza') }}" class="text-decoration-none">
                 <div class="card h-100 text-center p-3 home-card">
                     <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-droplet"></i></div>
                     <h2 class="h6 mb-1">Limpiezas</h2>
@@ -160,7 +160,7 @@
             </a>
         </div>
         <div class="col-6 col-lg-3">
-            <a href="{{ url_for('registros_atencion') }}" class="text-decoration-none">
+            <a href="{{ url_for('residents.registros_atencion') }}" class="text-decoration-none">
                 <div class="card h-100 text-center p-3 home-card">
                     <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-heart-pulse"></i></div>
                     <h2 class="h6 mb-1">Atenciones</h2>
@@ -169,7 +169,7 @@
             </a>
         </div>
         <div class="col-6 col-lg-3">
-            <a href="{{ url_for('ultima_limpieza') }}" class="text-decoration-none">
+            <a href="{{ url_for('admin_bp.ultima_limpieza') }}" class="text-decoration-none">
                 <div class="card h-100 text-center p-3 home-card">
                     <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-clock-history"></i></div>
                     <h2 class="h6 mb-1">Última Limpieza</h2>

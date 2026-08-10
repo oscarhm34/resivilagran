@@ -7,8 +7,8 @@
     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
         <h1 class="h3 mb-0">Zonas de Limpieza</h1>
         <div class="d-flex align-items-center gap-2">
-            <a href="{{ url_for('manage_floors') }}" class="btn btn-sm btn-outline-secondary">Plantas</a>
-            <a href="{{ url_for('manage_room_types') }}" class="btn btn-sm btn-outline-secondary">Tipos de espacio</a>
+            <a href="{{ url_for('admin_bp.manage_floors') }}" class="btn btn-sm btn-outline-secondary">Plantas</a>
+            <a href="{{ url_for('admin_bp.manage_room_types') }}" class="btn btn-sm btn-outline-secondary">Tipos de espacio</a>
             <button type="button" class="btn btn-primary btn-sm" onclick="openZonesForm()">
                 <i class="bi bi-plus-lg me-1"></i>Añadir espacio
             </button>
@@ -23,7 +23,7 @@
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
         </div>
         <div class="offcanvas-body">
-            <form id="room-form" method="post" action="{{ url_for('add_edit_room') }}" class="needs-validation" novalidate>
+            <form id="room-form" method="post" action="{{ url_for('admin_bp.add_edit_room') }}" class="needs-validation" novalidate>
                 <input type="hidden" name="room_id" id="room_id_hidden" value="">
 
                 <div class="mb-3">
@@ -134,7 +134,7 @@
                             <button type="button"
                                     class="btn btn-sm btn-outline-danger delete-btn"
                                     data-name="{{ room.number }} — {{ room.description }}"
-                                    data-action="{{ url_for('delete_room', id=room.id) }}"
+                                    data-action="{{ url_for('admin_bp.delete_room', id=room.id) }}"
                                     aria-label="Eliminar habitación {{ room.number }}">Eliminar</button>
                         </td>
                     </tr>
@@ -152,9 +152,9 @@
             <p class="text-body-secondary mb-0">
                 Aún no hay espacios registrados.
                 {% if not room_types %}
-                    <a href="{{ url_for('manage_room_types') }}">Crea al menos un tipo de espacio</a>.
+                    <a href="{{ url_for('admin_bp.manage_room_types') }}">Crea al menos un tipo de espacio</a>.
                 {% elif not floors %}
-                    <a href="{{ url_for('manage_floors') }}">Crea al menos una planta</a>.
+                    <a href="{{ url_for('admin_bp.manage_floors') }}">Crea al menos una planta</a>.
                 {% else %}
                     Usa el botón de arriba.
                 {% endif %}

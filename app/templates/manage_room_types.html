@@ -6,7 +6,7 @@
 
     <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb bg-transparent p-0 mb-0" style="font-size:.875rem">
-            <li class="breadcrumb-item"><a href="{{ url_for('manage_cleaning_zones') }}">Zonas de Limpieza</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('admin_bp.manage_cleaning_zones') }}">Zonas de Limpieza</a></li>
             <li class="breadcrumb-item active" aria-current="page">Tipos de Espacio</li>
         </ol>
     </nav>
@@ -29,7 +29,7 @@
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
         </div>
         <div class="offcanvas-body">
-            <form id="room-type-form" method="POST" action="{{ url_for('add_edit_room_type') }}" class="needs-validation" novalidate>
+            <form id="room-type-form" method="POST" action="{{ url_for('admin_bp.add_edit_room_type') }}" class="needs-validation" novalidate>
                 <input type="hidden" name="room_type_id" id="room_type_id_hidden" value="">
                 <div class="mb-3">
                     <label for="type-name" class="form-label">
@@ -70,7 +70,7 @@
                             <button type="button"
                                     class="btn btn-sm btn-outline-danger delete-btn"
                                     data-name="{{ room_type.name }}"
-                                    data-action="{{ url_for('delete_room_type', id=room_type.id) }}"
+                                    data-action="{{ url_for('admin_bp.delete_room_type', id=room_type.id) }}"
                                     aria-label="Eliminar tipo {{ room_type.name }}">Eliminar</button>
                         </td>
                     </tr>
@@ -86,7 +86,7 @@
     </div>
 
     <div class="mt-3">
-        <a href="{{ url_for('manage_cleaning_zones') }}" class="btn btn-outline-secondary btn-sm">&larr; Volver</a>
+        <a href="{{ url_for('admin_bp.manage_cleaning_zones') }}" class="btn btn-outline-secondary btn-sm">&larr; Volver</a>
     </div>
 </div>
 

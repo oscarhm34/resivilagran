@@ -25,7 +25,7 @@
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
         </div>
         <div class="offcanvas-body">
-            <form id="grp-form" method="POST" action="{{ url_for('add_edit_group') }}" class="needs-validation" novalidate>
+            <form id="grp-form" method="POST" action="{{ url_for('residents.add_edit_group') }}" class="needs-validation" novalidate>
                 <input type="hidden" name="group_id" value="">
                 <div class="mb-3">
                     <label for="name" class="form-label">Nombre <span class="text-danger" aria-hidden="true">*</span></label>
@@ -64,14 +64,14 @@
                             <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:{{ g.color }};vertical-align:middle"></span>
                         </td>
                         <td>
-                            <a href="{{ url_for('group_detail', id=g.id) }}" style="font-weight:600;text-decoration:none;color:var(--color-text)">
+                            <a href="{{ url_for('residents.group_detail', id=g.id) }}" style="font-weight:600;text-decoration:none;color:var(--color-text)">
                                 {{ g.name }}
                             </a>
                         </td>
                         <td>{{ g.residents|length }}</td>
                         <td>{{ g.workers|length }}</td>
                         <td class="text-end">
-                            <a href="{{ url_for('group_detail', id=g.id) }}"
+                            <a href="{{ url_for('residents.group_detail', id=g.id) }}"
                                class="btn btn-sm btn-outline-primary me-1"
                                aria-label="Ver grupo {{ g.name }}">Ver</a>
                             <button type="button"
@@ -81,7 +81,7 @@
                             <button type="button"
                                     class="btn btn-sm btn-outline-danger delete-btn"
                                     data-name="{{ g.name }}"
-                                    data-action="{{ url_for('delete_group', id=g.id) }}"
+                                    data-action="{{ url_for('residents.delete_group', id=g.id) }}"
                                     aria-label="Eliminar grupo {{ g.name }}">Eliminar</button>
                         </td>
                     </tr>

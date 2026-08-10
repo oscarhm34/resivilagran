@@ -17,7 +17,7 @@
     <div class="card mb-4">
         <div class="card-header">Filtros</div>
         <div class="card-body">
-            <form method="GET" action="{{ url_for('registros_atencion') }}">
+            <form method="GET" action="{{ url_for('residents.registros_atencion') }}">
                 <div class="row g-3">
                     <div class="col-sm-6 col-md-3">
                         <label for="start_date" class="form-label">Fecha inicio</label>
@@ -57,8 +57,8 @@
                 </div>
                 <div class="d-flex flex-wrap gap-2 mt-3">
                     <button type="submit" class="btn btn-primary">Aplicar filtros</button>
-                    <a href="{{ url_for('registros_atencion') }}" class="btn btn-outline-secondary">Limpiar</a>
-                    <a href="{{ url_for('exportar_atenciones_excel',
+                    <a href="{{ url_for('residents.registros_atencion') }}" class="btn btn-outline-secondary">Limpiar</a>
+                    <a href="{{ url_for('residents.exportar_atenciones_excel',
                                        worker_id=filters.worker_id,
                                        resident_id=filters.resident_id,
                                        care_type_id=filters.care_type_id,
@@ -112,12 +112,12 @@
                             <span class="status-badge status-muted">{{ record.duration }}</span>
                             {% else %}
                             <span class="status-badge status-info">En curso</span>
-                            <form method="post" action="{{ url_for('admin_close_session', mode='care', record_id=record.id) }}" style="display:inline" data-confirm="¿Cerrar esta sesión de atención?">
+                            <form method="post" action="{{ url_for('admin_bp.admin_close_session', mode='care', record_id=record.id) }}" style="display:inline" data-confirm="¿Cerrar esta sesión de atención?">
                                 <button type="submit" class="btn btn-sm btn-outline-danger ms-1">Cerrar</button>
                             </form>
                             {% endif %}
                             {% if current_user.is_admin %}
-                            <form method="post" action="{{ url_for('delete_care_record', record_id=record.id) }}" style="display:inline" data-confirm="¿Eliminar este registro de atención?">
+                            <form method="post" action="{{ url_for('residents.delete_care_record', record_id=record.id) }}" style="display:inline" data-confirm="¿Eliminar este registro de atención?">
                                 <button type="submit" class="btn btn-sm btn-outline-danger ms-1"><i class="bi bi-trash"></i></button>
                             </form>
                             {% endif %}
@@ -144,14 +144,14 @@
         <nav aria-label="Paginación">
             <ul class="pagination pagination-sm mb-0 flex-wrap">
                 <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for('registros_atencion', page=pagination.prev_num,
+                    <a class="page-link" href="{{ url_for('residents.registros_atencion', page=pagination.prev_num,
                         worker_id=filters.worker_id, resident_id=filters.resident_id,
                         care_type_id=filters.care_type_id, start_date=filters.start_date, end_date=filters.end_date) }}">&laquo;</a>
                 </li>
                 {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
                 {% if page_num %}
                 <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
-                    <a class="page-link" href="{{ url_for('registros_atencion', page=page_num,
+                    <a class="page-link" href="{{ url_for('residents.registros_atencion', page=page_num,
                         worker_id=filters.worker_id, resident_id=filters.resident_id,
                         care_type_id=filters.care_type_id, start_date=filters.start_date, end_date=filters.end_date) }}">{{ page_num }}</a>
                 </li>
@@ -160,7 +160,7 @@
                 {% endif %}
                 {% endfor %}
                 <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for('registros_atencion', page=pagination.next_num,
+                    <a class="page-link" href="{{ url_for('residents.registros_atencion', page=pagination.next_num,
                         worker_id=filters.worker_id, resident_id=filters.resident_id,
                         care_type_id=filters.care_type_id, start_date=filters.start_date, end_date=filters.end_date) }}">&raquo;</a>
                 </li>

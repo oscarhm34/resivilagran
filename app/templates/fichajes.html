@@ -17,7 +17,7 @@
     <div class="card mb-4">
         <div class="card-header">Filtros</div>
         <div class="card-body">
-            <form method="GET" action="{{ url_for('fichajes_trabajador') }}">
+            <form method="GET" action="{{ url_for('residents.fichajes_trabajador') }}">
                 <div class="row g-3">
                     <div class="col-sm-6 col-md-4">
                         <label for="worker_id" class="form-label">Trabajador</label>
@@ -39,9 +39,9 @@
                     </div>
                     <div class="col-sm-12 col-md-4 d-flex align-items-end gap-2 flex-wrap">
                         <button type="submit" class="btn btn-primary">Aplicar filtros</button>
-                        <a href="{{ url_for('fichajes_trabajador') }}" class="btn btn-outline-secondary">Limpiar</a>
+                        <a href="{{ url_for('residents.fichajes_trabajador') }}" class="btn btn-outline-secondary">Limpiar</a>
                         {% if records %}
-                        <a href="{{ url_for('exportar_fichajes',
+                        <a href="{{ url_for('residents.exportar_fichajes',
                                             worker_id=filters.worker_id,
                                             month=filters.month) }}"
                            class="btn btn-outline-success">

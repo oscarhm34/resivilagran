@@ -67,7 +67,7 @@ def _save_base64_photo(b64_data: str, subfolder: str, cleaner_id: int) -> str:
 def login():
     """Endpoint de autenticación para la app Android – devuelve JWT."""
     if request.method == 'GET':
-        return redirect(url_for('admin_login'))
+        return redirect(url_for('admin_bp.admin_login'))
 
     username = request.form.get('username') or (request.json or {}).get('username')
     password = request.form.get('password') or (request.json or {}).get('password')

@@ -5,7 +5,7 @@
 <div class="py-4">
 
     <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
-        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">&larr; Inicio</a>
+        <a href="{{ url_for('admin_bp.index') }}" class="btn btn-outline-secondary btn-sm">&larr; Inicio</a>
         <h1 class="h3 mb-0">Checklist de Limpieza</h1>
         <span class="badge bg-secondary ms-auto">{{ items|length }} item{{ 's' if items|length != 1 }}</span>
         <button type="button" class="btn btn-primary btn-sm" onclick="openChecklistForm()">
@@ -26,7 +26,7 @@
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
         </div>
         <div class="offcanvas-body">
-            <form id="chk-form" method="POST" action="{{ url_for('add_edit_checklist_item') }}" class="needs-validation" novalidate>
+            <form id="chk-form" method="POST" action="{{ url_for('care.add_edit_checklist_item') }}" class="needs-validation" novalidate>
                 <input type="hidden" name="item_id" value="">
                 <div class="mb-3">
                     <label for="text" class="form-label">Texto <span class="text-danger" aria-hidden="true">*</span></label>
@@ -75,7 +75,7 @@
                                     data-sort="{{ item.sort_order }}">Editar</button>
                             <button type="button" class="btn btn-sm btn-outline-danger delete-btn"
                                     data-name="{{ item.text }}"
-                                    data-action="{{ url_for('delete_checklist_item', id=item.id) }}">Eliminar</button>
+                                    data-action="{{ url_for('care.delete_checklist_item', id=item.id) }}">Eliminar</button>
                         </td>
                     </tr>
                     {% endfor %}

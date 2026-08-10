@@ -26,7 +26,7 @@
         <h1 class="h3 mb-0">Empleados</h1>
         <div class="d-flex align-items-center gap-2">
             <span class="badge bg-secondary">{{ cleaners|length }} empleado{{ 's' if cleaners|length != 1 }}</span>
-            <select class="form-select form-select-sm" style="width:auto" onchange="window.location.href='{{ url_for('manage_workers') }}?estado='+this.value">
+            <select class="form-select form-select-sm" style="width:auto" onchange="window.location.href='{{ url_for('admin_bp.manage_workers') }}?estado='+this.value">
                 <option value="altas" {{ 'selected' if estado_filtro == 'altas' }}>Ver altas</option>
                 <option value="bajas" {{ 'selected' if estado_filtro == 'bajas' }}>Ver bajas</option>
                 <option value="todos" {{ 'selected' if estado_filtro == 'todos' }}>Ver todos</option>
@@ -45,7 +45,7 @@
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
         </div>
         <div class="offcanvas-body">
-            <form id="worker-form" method="POST" action="{{ url_for('add_edit_cleaner') }}" class="needs-validation" novalidate>
+            <form id="worker-form" method="POST" action="{{ url_for('admin_bp.add_edit_cleaner') }}" class="needs-validation" novalidate>
                 <input type="hidden" name="cleaner_id" value="">
 
                 <div class="mb-3">
@@ -219,7 +219,7 @@
                             <button type="button"
                                     class="btn btn-sm btn-outline-danger delete-btn"
                                     data-name="{{ cleaner.name }}"
-                                    data-action="{{ url_for('delete_cleaner', id=cleaner.id) }}"
+                                    data-action="{{ url_for('admin_bp.delete_cleaner', id=cleaner.id) }}"
                                     aria-label="Eliminar a {{ cleaner.name }}">Eliminar</button>
                         </td>
                     </tr>

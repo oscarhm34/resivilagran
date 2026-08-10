@@ -140,7 +140,7 @@
             {% endif %}
             {% endwith %}
 
-            <form method="POST" action="{{ url_for('admin_login') }}" novalidate>
+            <form method="POST" action="{{ url_for('admin_bp.admin_login') }}" novalidate>
                 <div class="mb-3">
                     <label for="username" class="form-label">Usuario</label>
                     <input type="text" id="username" name="username"

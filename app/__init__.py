@@ -18,7 +18,7 @@ jwt = JWTManager(app)
 limiter = Limiter(get_remote_address, app=app, default_limits=[], storage_uri="memory://")
 
 login_manager = LoginManager(app)
-login_manager.login_view = 'admin_login'
+login_manager.login_view = 'admin_bp.admin_login'
 login_manager.login_message = 'Debes iniciar sesión para acceder a esta página.'
 login_manager.login_message_category = 'warning'
 
@@ -37,12 +37,18 @@ from .blueprints.documents import bp as documents_bp  # noqa: E402
 from .blueprints.chat import bp as chat_bp  # noqa: E402
 from .blueprints.shifts import bp as shifts_bp  # noqa: E402
 from .blueprints.cleaning import bp as cleaning_bp  # noqa: E402
+from .blueprints.residents import bp as residents_bp  # noqa: E402
+from .blueprints.admin import bp as admin_bp  # noqa: E402
+from .blueprints.care import bp as care_bp  # noqa: E402
 app.register_blueprint(nfc_bp)
 app.register_blueprint(training_bp)
 app.register_blueprint(documents_bp)
 app.register_blueprint(chat_bp)
 app.register_blueprint(shifts_bp)
 app.register_blueprint(cleaning_bp)
+app.register_blueprint(residents_bp)
+app.register_blueprint(admin_bp)
+app.register_blueprint(care_bp)
 
 
 @app.errorhandler(404)

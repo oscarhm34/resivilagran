@@ -4,8 +4,8 @@
 {% block breadcrumbs %}
 <nav aria-label="Navegación" class="mt-3 mb-2 no-print">
     <ol class="breadcrumb mb-0" style="font-size:.85rem">
-        <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Inicio</a></li>
-        <li class="breadcrumb-item"><a href="{{ url_for('manage_groups') }}">Grupos</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('admin_bp.index') }}">Inicio</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('residents.manage_groups') }}">Grupos</a></li>
         <li class="breadcrumb-item active" aria-current="page">{{ group.name }}</li>
     </ol>
 </nav>
@@ -65,7 +65,7 @@
         {% else %}
         <div class="card-body">
             <p class="text-body-secondary mb-0">No hay residentes asignados a este grupo.
-                <a href="{{ url_for('manage_residents') }}">Gestionar residentes</a>
+                <a href="{{ url_for('residents.manage_residents') }}">Gestionar residentes</a>
             </p>
         </div>
         {% endif %}
@@ -152,7 +152,7 @@
         {% else %}
         <div class="card-body">
             <p class="text-body-secondary mb-0">No hay trabajadores asignados a este grupo.
-                <a href="{{ url_for('manage_workers') }}">Gestionar empleados</a>
+                <a href="{{ url_for('admin_bp.manage_workers') }}">Gestionar empleados</a>
             </p>
         </div>
         {% endif %}
