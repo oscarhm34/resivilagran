@@ -31,6 +31,8 @@ def load_user(user_id: str) -> Cleaner | None:
 
 
 from . import routes, models  # noqa: E402, F401
+from .blueprints.training import bp as training_bp  # noqa: E402
+app.register_blueprint(training_bp)
 
 
 @app.errorhandler(404)
@@ -42,6 +44,7 @@ def not_found(e: Exception) -> tuple:
 
 @app.errorhandler(500)
 def server_error(e: Exception) -> tuple:
+    db.session.rollback()
     if request.is_json or request.path.startswith('/api/'):
         return jsonify({'error': 'Error interno del servidor'}), 500
     return render_template('500.html'), 500

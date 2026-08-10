@@ -31,7 +31,7 @@
                 <td style="font-weight:600">{{ pill.title }}</td>
                 <td>{{ pill.questions|length }}</td>
                 <td>
-                    <a href="{{ url_for('training_results', pill_id=pill.id) }}"
+                    <a href="{{ url_for('training.training_results', pill_id=pill.id) }}"
                        style="text-decoration:none">
                         {{ completed }} / {{ total_workers }}
                     </a>
@@ -52,13 +52,13 @@
                 <td class="text-end">
                     <button class="btn btn-sm btn-outline-secondary me-1"
                             onclick="editPill({{ pill.id }})">Editar</button>
-                    <form method="post" action="{{ url_for('toggle_training', pill_id=pill.id) }}"
+                    <form method="post" action="{{ url_for('training.toggle_training', pill_id=pill.id) }}"
                           class="d-inline">
                         <button class="btn btn-sm btn-outline-{{ 'warning' if pill.active else 'success' }}">
                             {{ 'Desactivar' if pill.active else 'Activar' }}
                         </button>
                     </form>
-                    <form method="post" action="{{ url_for('delete_training', pill_id=pill.id) }}"
+                    <form method="post" action="{{ url_for('training.delete_training', pill_id=pill.id) }}"
                           class="d-inline" data-confirm="¿Eliminar esta píldora y todos sus resultados?">
                         <button class="btn btn-sm btn-outline-danger">Eliminar</button>
                     </form>
@@ -76,7 +76,7 @@
 <div class="modal fade" id="pillModal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content" style="border-radius:var(--radius-lg);border:1px solid var(--color-border)">
-            <form id="pillForm" method="post" action="{{ url_for('create_training') }}">
+            <form id="pillForm" method="post" action="{{ url_for('training.create_training') }}">
                 <div class="modal-header" style="border-color:var(--color-border)!important">
                     <h5 class="modal-title" id="pillModalTitle">Nueva píldora formativa</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
