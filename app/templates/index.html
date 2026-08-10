@@ -3,8 +3,20 @@
 
 {% block content %}
 <div class="py-4">
-    <h1 class="h3 mb-1">Bienvenido, {{ current_user.name }}</h1>
-    <p class="mb-4" style="color:var(--color-text-secondary)">Panel de gestión de la residencia &mdash; La Vila Gran</p>
+    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+        <div>
+            <h1 class="h3 mb-1">Bienvenido, {{ current_user.name }}</h1>
+            <p class="mb-0" style="color:var(--color-text-secondary)">Panel de gestion &mdash; La Vila Gran</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('cleaning.admin_cleaning_plan') }}" class="btn btn-success btn-sm">
+                <i class="bi bi-map me-1"></i>Plan de limpieza
+            </a>
+            <a href="{{ url_for('nfc.worker') }}" class="btn btn-primary btn-sm" target="_blank">
+                <i class="bi bi-phone me-1"></i>App Trabajadores
+            </a>
+        </div>
+    </div>
 
     {% if stale_closed %}
     <div class="alert alert-warning mb-3" style="font-size:.9rem">
@@ -12,95 +24,11 @@
     </div>
     {% endif %}
 
-    <!-- Resumen de la residencia -->
-    <p class="mb-2" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--color-text-secondary)"><i class="bi bi-building"></i> Resumen de la residencia</p>
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-lg-4">
-            <div class="stat-card">
-                <div class="stat-value" style="color:var(--color-success)">{{ total_residents_active | default(0) }}</div>
-                <div class="stat-label">Residentes activos</div>
-            </div>
-        </div>
-        <div class="col-6 col-lg-4">
-            <div class="stat-card">
-                <div class="stat-value">{{ total_workers_active | default(0) }}</div>
-                <div class="stat-label">Empleados activos</div>
-            </div>
-        </div>
-        <div class="col-6 col-lg-4">
-            <div class="stat-card">
-                {% set _wst = workers_with_sessions_today | default(0) %}
-                <div class="stat-value" style="color:{% if _wst > 0 %}var(--color-success){% else %}var(--color-text-secondary){% endif %}">
-                    {{ _wst }}
-                </div>
-                <div class="stat-label">Trabajadores hoy</div>
-                {% if _wst > 0 %}
-                <div class="stat-trend trend-up">&#9679; Con actividad</div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-
-    <!-- Estadísticas rápidas — Limpiezas -->
-    <p class="mb-2" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--color-text-secondary)"><i class="bi bi-droplet"></i> Limpiezas</p>
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-lg-4">
-            <div class="stat-card">
-                <div class="stat-value">{{ limpiezas_hoy | default(0) }}</div>
-                <div class="stat-label">Iniciadas hoy</div>
-            </div>
-        </div>
-        <div class="col-6 col-lg-4">
-            <div class="stat-card">
-                {% set _en_curso = en_curso | default(0) %}
-                <div class="stat-value" style="color:{% if _en_curso > 0 %}var(--color-success){% else %}var(--color-text-secondary){% endif %}">
-                    {{ _en_curso }}
-                </div>
-                <div class="stat-label">En curso ahora</div>
-                {% if _en_curso > 0 %}
-                <div class="stat-trend trend-up">&#9679; Activas</div>
-                {% endif %}
-            </div>
-        </div>
-        <div class="col-6 col-lg-4">
-            <div class="stat-card">
-                {% set _sin_limpiar = habitaciones_sin_limpiar | default(0) %}
-                <div class="stat-value" style="color:{% if _sin_limpiar > 0 %}var(--color-danger){% else %}var(--color-success){% endif %}">
-                    {{ _sin_limpiar }}
-                </div>
-                <div class="stat-label">Sin limpiar hoy</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Estadísticas rápidas — Atenciones -->
-    <p class="mb-2" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--color-text-secondary)"><i class="bi bi-heart-pulse"></i> Atenciones a residentes</p>
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-lg-4">
-            <div class="stat-card">
-                <div class="stat-value" style="color:var(--color-success)">{{ atenciones_hoy | default(0) }}</div>
-                <div class="stat-label">Iniciadas hoy</div>
-            </div>
-        </div>
-        <div class="col-6 col-lg-4">
-            <div class="stat-card">
-                {% set _atc = atenciones_en_curso | default(0) %}
-                <div class="stat-value" style="color:{% if _atc > 0 %}var(--color-success){% else %}var(--color-text-secondary){% endif %}">
-                    {{ _atc }}
-                </div>
-                <div class="stat-label">En curso ahora</div>
-                {% if _atc > 0 %}
-                <div class="stat-trend trend-up">&#9679; Activas</div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-
-    <!-- Alertas de constantes vitales -->
+    {# ── Alertas vitales ─────────────────────────────────────────── #}
     {% if alertas_vitales %}
     <div class="alert mb-4 p-0" style="border:2px solid #dc3545;border-radius:var(--radius-lg);overflow:hidden">
         <div style="background:#dc3545;color:#fff;padding:10px 16px;font-weight:700;font-size:.85rem">
-            &#9888; {{ alertas_vitales|length }} alerta{{ 's' if alertas_vitales|length != 1 }} de constantes vitales hoy
+            <i class="bi bi-heart-pulse"></i> {{ alertas_vitales|length }} alerta{{ 's' if alertas_vitales|length != 1 }} de constantes vitales hoy
         </div>
         <div style="padding:0">
             <table class="table table-sm mb-0">
@@ -121,68 +49,91 @@
     </div>
     {% endif %}
 
-    <!-- Accesos rápidos -->
+    {# ── KPIs principales ────────────────────────────────────────── #}
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--color-primary)">{{ limpiezas_hoy | default(0) }}</div>
+                <div class="stat-label">Limpiezas hoy</div>
+                {% if en_curso > 0 %}
+                <div class="stat-trend trend-up"><i class="bi bi-circle-fill" style="font-size:.4rem;vertical-align:middle"></i> {{ en_curso }} en curso</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--color-success)">{{ atenciones_hoy | default(0) }}</div>
+                <div class="stat-label">Atenciones hoy</div>
+                {% if atenciones_en_curso > 0 %}
+                <div class="stat-trend trend-up"><i class="bi bi-circle-fill" style="font-size:.4rem;vertical-align:middle"></i> {{ atenciones_en_curso }} en curso</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="stat-card">
+                {% set _sin = habitaciones_sin_limpiar | default(0) %}
+                <div class="stat-value" style="color:{% if _sin > 0 %}var(--color-danger){% else %}var(--color-success){% endif %}">{{ _sin }}</div>
+                <div class="stat-label">Sin limpiar</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="stat-card">
+                <div class="stat-value">{{ workers_on_shift | default(0) }}</div>
+                <div class="stat-label">De turno hoy</div>
+                {% if shift_summary %}
+                <div class="stat-trend" style="color:var(--color-text-secondary)">
+                    {% for k, v in shift_summary.items() %}{{ k }}:{{ v }}{% if not loop.last %} {% endif %}{% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="stat-card">
+                <div class="stat-value" style="color:{% if critical_incidents > 0 %}var(--color-danger){% elif open_incidents > 0 %}var(--color-warning){% else %}var(--color-success){% endif %}">{{ open_incidents | default(0) }}</div>
+                <div class="stat-label">Incidencias abiertas</div>
+                {% if critical_incidents > 0 %}
+                <div class="stat-trend" style="color:var(--color-danger)"><i class="bi bi-exclamation-triangle" style="font-size:.7rem"></i> {{ critical_incidents }} critica{{ 's' if critical_incidents != 1 }}</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="stat-card">
+                <div class="stat-value" style="color:var(--color-text-secondary)">{{ total_residents_active | default(0) }}</div>
+                <div class="stat-label">Residentes</div>
+                <div class="stat-trend" style="color:var(--color-text-secondary)">{{ total_workers_active | default(0) }} empleados</div>
+            </div>
+        </div>
+    </div>
+
+    {# ── Avisos rapidos ──────────────────────────────────────────── #}
+    {% if pending_signatures > 0 or unread_notifs > 0 %}
+    <div class="row g-3 mb-4">
+        {% if unread_notifs > 0 %}
+        <div class="col-auto">
+            <a href="{{ url_for('notifications.admin_notifications') }}" class="btn btn-outline-warning btn-sm">
+                <i class="bi bi-bell me-1"></i>{{ unread_notifs }} notificacion{{ 'es' if unread_notifs != 1 }} sin leer
+            </a>
+        </div>
+        {% endif %}
+        {% if pending_signatures > 0 %}
+        <div class="col-auto">
+            <a href="{{ url_for('documents.admin_documents') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-pen me-1"></i>{{ pending_signatures }} firma{{ 's' if pending_signatures != 1 }} pendiente{{ 's' if pending_signatures != 1 }}
+            </a>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {# ── Accesos rapidos ─────────────────────────────────────────── #}
+    <p class="mb-2" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--color-text-secondary)">Accesos rapidos</p>
     <div class="row g-3">
-        <div class="col-6 col-lg-3">
-            <a href="{{ url_for('admin_bp.manage_workers') }}" class="text-decoration-none">
-                <div class="card h-100 text-center p-3 home-card">
-                    <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-people"></i></div>
-                    <h2 class="h6 mb-1">Empleados</h2>
-                    <p class="small mb-0" style="color:var(--color-text-secondary)">Gestiona empleados y permisos</p>
-                </div>
-            </a>
-        </div>
-        <div class="col-6 col-lg-3">
-            <a href="{{ url_for('residents.manage_residents') }}" class="text-decoration-none">
-                <div class="card h-100 text-center p-3 home-card">
-                    <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-person-heart"></i></div>
-                    <h2 class="h6 mb-1">Residentes</h2>
-                    <p class="small mb-0" style="color:var(--color-text-secondary)">Gestiona residentes y pulseras NFC</p>
-                </div>
-            </a>
-        </div>
-        <div class="col-6 col-lg-3">
-            <a href="{{ url_for('admin_bp.manage_cleaning_zones') }}" class="text-decoration-none">
-                <div class="card h-100 text-center p-3 home-card">
-                    <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-building"></i></div>
-                    <h2 class="h6 mb-1">Zonas de Limpieza</h2>
-                    <p class="small mb-0" style="color:var(--color-text-secondary)">Habitaciones, plantas y tipos</p>
-                </div>
-            </a>
-        </div>
-        <div class="col-6 col-lg-3">
-            <a href="{{ url_for('admin_bp.registros_limpieza') }}" class="text-decoration-none">
-                <div class="card h-100 text-center p-3 home-card">
-                    <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-droplet"></i></div>
-                    <h2 class="h6 mb-1">Limpiezas</h2>
-                    <p class="small mb-0" style="color:var(--color-text-secondary)">Historial con filtros y exportación</p>
-                </div>
-            </a>
-        </div>
-        <div class="col-6 col-lg-3">
-            <a href="{{ url_for('residents.registros_atencion') }}" class="text-decoration-none">
-                <div class="card h-100 text-center p-3 home-card">
-                    <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-heart-pulse"></i></div>
-                    <h2 class="h6 mb-1">Atenciones</h2>
-                    <p class="small mb-0" style="color:var(--color-text-secondary)">Historial de atenciones a residentes</p>
-                </div>
-            </a>
-        </div>
-        <div class="col-6 col-lg-3">
-            <a href="{{ url_for('admin_bp.ultima_limpieza') }}" class="text-decoration-none">
-                <div class="card h-100 text-center p-3 home-card">
-                    <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-clock-history"></i></div>
-                    <h2 class="h6 mb-1">Última Limpieza</h2>
-                    <p class="small mb-0" style="color:var(--color-text-secondary)">Estado actual de cada habitación</p>
-                </div>
-            </a>
-        </div>
         <div class="col-6 col-lg-3">
             <a href="{{ url_for('cleaning.admin_cleaning_plan') }}" class="text-decoration-none">
                 <div class="card h-100 text-center p-3 home-card" style="border-color:var(--color-success)">
                     <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-map" style="color:var(--color-success)"></i></div>
                     <h2 class="h6 mb-1" style="color:var(--color-success)">Plan de Limpieza</h2>
-                    <p class="small mb-0" style="color:var(--color-text-secondary)">Rutas de hoy, progreso y cobertura</p>
+                    <p class="small mb-0" style="color:var(--color-text-secondary)">Rutas de hoy y progreso</p>
                 </div>
             </a>
         </div>
@@ -191,16 +142,61 @@
                 <div class="card h-100 text-center p-3 home-card">
                     <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-calendar3"></i></div>
                     <h2 class="h6 mb-1">Cuadrantes</h2>
-                    <p class="small mb-0" style="color:var(--color-text-secondary)">Turnos y planificación mensual</p>
+                    <p class="small mb-0" style="color:var(--color-text-secondary)">Turnos y planificacion</p>
                 </div>
             </a>
         </div>
         <div class="col-6 col-lg-3">
-            <a href="{{ url_for('nfc.worker') }}" class="text-decoration-none" target="_blank">
-                <div class="card h-100 text-center p-3 home-card" style="border-color:var(--color-primary)">
-                    <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-phone"></i></div>
-                    <h2 class="h6 mb-1" style="color:var(--color-primary)">App Trabajadores</h2>
-                    <p class="small mb-0" style="color:var(--color-text-secondary)">Abrir WebApp de limpiezas y atenciones</p>
+            <a href="{{ url_for('admin_bp.admin_performance') }}" class="text-decoration-none">
+                <div class="card h-100 text-center p-3 home-card">
+                    <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-speedometer"></i></div>
+                    <h2 class="h6 mb-1">Rendimiento</h2>
+                    <p class="small mb-0" style="color:var(--color-text-secondary)">KPIs y productividad</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-lg-3">
+            <a href="{{ url_for('incidents.admin_incidents') }}" class="text-decoration-none">
+                <div class="card h-100 text-center p-3 home-card{% if critical_incidents > 0 %}" style="border-color:var(--color-danger){% endif %}">
+                    <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-exclamation-triangle{% if critical_incidents > 0 %}" style="color:var(--color-danger){% endif %}"></i></div>
+                    <h2 class="h6 mb-1{% if critical_incidents > 0 %}" style="color:var(--color-danger){% endif %}">Incidencias</h2>
+                    <p class="small mb-0" style="color:var(--color-text-secondary)">Reportes y seguimiento</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-lg-3">
+            <a href="{{ url_for('residents.manage_residents') }}" class="text-decoration-none">
+                <div class="card h-100 text-center p-3 home-card">
+                    <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-person-heart"></i></div>
+                    <h2 class="h6 mb-1">Residentes</h2>
+                    <p class="small mb-0" style="color:var(--color-text-secondary)">Gestion y documentos</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-lg-3">
+            <a href="{{ url_for('admin_bp.manage_workers') }}" class="text-decoration-none">
+                <div class="card h-100 text-center p-3 home-card">
+                    <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-people"></i></div>
+                    <h2 class="h6 mb-1">Empleados</h2>
+                    <p class="small mb-0" style="color:var(--color-text-secondary)">Roles y permisos</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-lg-3">
+            <a href="{{ url_for('residents.registros_atencion') }}" class="text-decoration-none">
+                <div class="card h-100 text-center p-3 home-card">
+                    <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-heart-pulse"></i></div>
+                    <h2 class="h6 mb-1">Atenciones</h2>
+                    <p class="small mb-0" style="color:var(--color-text-secondary)">Historial y exportacion</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-lg-3">
+            <a href="{{ url_for('admin_bp.registros_limpieza') }}" class="text-decoration-none">
+                <div class="card h-100 text-center p-3 home-card">
+                    <div class="home-card-icon mb-2" aria-hidden="true"><i class="bi bi-droplet"></i></div>
+                    <h2 class="h6 mb-1">Limpiezas</h2>
+                    <p class="small mb-0" style="color:var(--color-text-secondary)">Registros y filtros</p>
                 </div>
             </a>
         </div>
@@ -212,28 +208,25 @@
         background: var(--color-surface);
         border: 1px solid var(--color-border);
         border-radius: var(--radius-lg);
-        padding: 1.25rem 1.5rem;
+        padding: 1rem 1.25rem;
         box-shadow: var(--shadow-sm);
-        transition: box-shadow .15s, transform .15s;
         height: 100%;
     }
-    .stat-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
     .stat-value {
         font-family: 'Outfit', sans-serif;
-        font-size: 2.25rem;
+        font-size: 2rem;
         font-weight: 700;
         line-height: 1;
-        color: var(--color-primary);
     }
     .stat-label {
-        font-size: .75rem;
+        font-size: .7rem;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: .05em;
         color: var(--color-text-secondary);
-        margin-top: .35rem;
+        margin-top: .3rem;
     }
-    .stat-trend { font-size: .78rem; margin-top: .5rem; }
+    .stat-trend { font-size: .75rem; margin-top: .35rem; }
     .trend-up   { color: var(--color-success); }
 
     .home-card {
@@ -246,6 +239,6 @@
         transform: translateY(-2px);
         border-color: var(--color-primary) !important;
     }
-    .home-card-icon { font-size: 2rem; line-height: 1; }
+    .home-card-icon { font-size: 1.8rem; line-height: 1; }
 </style>
 {% endblock %}

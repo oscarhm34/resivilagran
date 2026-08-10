@@ -145,6 +145,45 @@ def index():
                 'time': r.recorded_at.strftime('%H:%M'),
             })
 
+    # Open incidents
+    from ..models import Incident, ShiftAssignment, ShiftType, LegalDocument, DocumentSignature, Notification
+    open_incidents = Incident.query.filter(Incident.status.in_(['open', 'in_progress'])).count()
+    critical_incidents = Incident.query.filter(
+        Incident.status.in_(['open', 'in_progress']),
+        Incident.severity.in_(['critical', 'high']),
+    ).count()
+
+    # Workers on shift today
+    from ..models import Absence
+    shifts_today = ShiftAssignment.query.options(
+        joinedload(ShiftAssignment.cleaner), joinedload(ShiftAssignment.shift_type),
+    ).filter(
+        ShiftAssignment.date == today,
+        ShiftAssignment.shift_type_id.isnot(None),
+    ).all()
+    absent_ids = {a.cleaner_id for a in Absence.query.filter(
+        Absence.start_date <= today, Absence.end_date >= today,
+    ).all()}
+    workers_on_shift = [s for s in shifts_today if s.cleaner_id not in absent_ids]
+    shift_summary = {}
+    for s in workers_on_shift:
+        name = s.shift_type.short_name if s.shift_type else '?'
+        shift_summary[name] = shift_summary.get(name, 0) + 1
+
+    # Pending documents
+    total_active_docs = LegalDocument.query.filter_by(active=True).count()
+    total_signatures_needed = total_active_docs * total_workers_active if total_active_docs else 0
+    total_signatures_done = DocumentSignature.query.count()
+    pending_signatures = max(0, total_signatures_needed - total_signatures_done)
+
+    # Unread notifications
+    from datetime import date as date_type
+    week_ago = datetime.now() - timedelta(days=7)
+    unread_notifs = Notification.query.filter(
+        Notification.read == False,
+        Notification.created_at >= week_ago,
+    ).count()
+
     return render_template(
         'index.html',
         limpiezas_hoy=limpiezas_hoy,
@@ -157,6 +196,12 @@ def index():
         total_residents_active=total_residents_active,
         total_workers_active=total_workers_active,
         workers_with_sessions_today=workers_with_sessions_today,
+        open_incidents=open_incidents,
+        critical_incidents=critical_incidents,
+        workers_on_shift=len(workers_on_shift),
+        shift_summary=shift_summary,
+        pending_signatures=pending_signatures,
+        unread_notifs=unread_notifs,
     )
 
 
