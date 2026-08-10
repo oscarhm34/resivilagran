@@ -91,7 +91,11 @@
                     <tr>
                         <td><strong>{{ record.resident.name if record.resident else '—' }}</strong></td>
                         <td class="hide-mobile">
-                            {% if record.care_type %}
+                            {% if record.care_types %}
+                            {% for ct in record.care_types %}
+                            <span class="status-badge status-info">{{ ct.name }}</span>
+                            {% endfor %}
+                            {% elif record.care_type %}
                             <span class="status-badge status-info">{{ record.care_type.name }}</span>
                             {% else %}—{% endif %}
                             {% for reading in record.vital_sign_readings %}

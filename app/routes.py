@@ -2542,6 +2542,7 @@ def registros_atencion():
         joinedload(CareRecord.resident),
         joinedload(CareRecord.worker),
         joinedload(CareRecord.care_type),
+        joinedload(CareRecord.care_types),
         joinedload(CareRecord.vital_sign_readings).joinedload(VitalSignReading.vital_sign_type),
     )
 
