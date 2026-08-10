@@ -514,3 +514,23 @@ class Incident(db.Model):
                                backref=db.backref('reported_incidents', lazy=True))
     resident = db.relationship('Resident', backref=db.backref('incidents', lazy=True))
     resolver = db.relationship('Cleaner', foreign_keys=[resolved_by])
+
+
+# ── NOTIFICACIONES ──────────────────────────────────────────────────────────
+
+class Notification(db.Model):
+    __tablename__ = 'notification'
+    id = db.Column(db.Integer, primary_key=True)
+    type = db.Column(db.String(30), nullable=False)  # vital_alert, incident, document_pending, stale_session, coverage_gap
+    title = db.Column(db.String(200), nullable=False)
+    message = db.Column(db.Text, nullable=True)
+    severity = db.Column(db.String(20), default='info')  # critical, warning, info
+    link = db.Column(db.String(500), nullable=True)
+    read = db.Column(db.Boolean, default=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, index=True)
+    # Optional references
+    resident_id = db.Column(db.Integer, db.ForeignKey('resident.id'), nullable=True)
+    worker_id = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
+
+    resident = db.relationship('Resident')
+    worker = db.relationship('Cleaner')

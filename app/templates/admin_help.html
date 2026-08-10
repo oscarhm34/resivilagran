@@ -35,10 +35,11 @@
                         <li><a href="#turnos">9. Cuadrantes de turnos</a></li>
                         <li><a href="#rutas">10. Rutas de limpieza</a></li>
                         <li><a href="#incidencias">11. Incidencias</a></li>
-                        <li><a href="#registros">12. Registros y exportacion</a></li>
-                        <li><a href="#rendimiento">13. Rendimiento</a></li>
-                        <li><a href="#config">14. Configuracion</a></li>
-                        <li><a href="#changelog">15. Registro de cambios</a></li>
+                        <li><a href="#notificaciones">12. Notificaciones</a></li>
+                        <li><a href="#registros">13. Registros y exportacion</a></li>
+                        <li><a href="#rendimiento">14. Rendimiento</a></li>
+                        <li><a href="#config">15. Configuracion</a></li>
+                        <li><a href="#changelog">16. Registro de cambios</a></li>
                     </ul>
                 </div>
             </div>
@@ -489,9 +490,36 @@
         </div>
     </div>
 
-    <!-- 12. Registros y exportacion -->
+    <!-- 12. Notificaciones -->
+    <div class="card mb-4" id="notificaciones">
+        <div class="card-header">12. Notificaciones</div>
+        <div class="card-body">
+            <p>El sistema de notificaciones alerta al admin sobre eventos importantes mediante un <strong>icono de campana</strong> (<i class="bi bi-bell"></i>) en la barra de navegacion.</p>
+
+            <h6 class="mt-3">Tipos de notificacion</h6>
+            <ul>
+                <li><strong>Alerta vital (critica):</strong> constantes vitales de un residente fuera de rango (tension alta, glucemia baja, etc.).</li>
+                <li><strong>Incidencia (aviso):</strong> incidentes con severidad critica o alta reportados.</li>
+                <li><strong>Documentos pendientes (info):</strong> hay documentos legales sin firmar por trabajadores.</li>
+                <li><strong>Sesion estancada (aviso):</strong> sesiones de limpieza o atencion llevan mas de 24 horas abiertas.</li>
+                <li><strong>Falta de cobertura (info):</strong> turnos de manana no tienen suficientes trabajadores segun los requisitos configurados.</li>
+            </ul>
+
+            <h6 class="mt-3">Como funciona</h6>
+            <ul>
+                <li>Las notificaciones se generan automaticamente cada vez que el admin visita el <strong>dashboard principal</strong>.</li>
+                <li>La <strong>campana</strong> muestra un <strong>badge rojo con el numero</strong> de notificaciones no leidas.</li>
+                <li>Se actualiza automaticamente cada 60 segundos sin recargar la pagina.</li>
+                <li>Clic en la campana para ver la lista completa con filtros por tipo, severidad y estado.</li>
+                <li>Se pueden marcar como leidas individualmente o todas a la vez.</li>
+                <li>Las notificaciones no se duplican: si ya existe una alerta similar en las ultimas 24h, no se crea otra.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 13. Registros y exportacion -->
     <div class="card mb-4" id="registros">
-        <div class="card-header">12. Registros, analiticas y exportacion</div>
+        <div class="card-header">13. Registros, analiticas y exportacion</div>
         <div class="card-body">
             <h6>Registros</h6>
             <ul>
@@ -526,9 +554,9 @@
         </div>
     </div>
 
-    <!-- 13. Rendimiento -->
+    <!-- 14. Rendimiento -->
     <div class="card mb-4" id="rendimiento">
-        <div class="card-header">13. Rendimiento</div>
+        <div class="card-header">14. Rendimiento</div>
         <div class="card-body">
             <p>Desde <strong>Analiticas &rarr; Rendimiento</strong> se accede al dashboard de metricas de rendimiento del equipo.</p>
 
@@ -570,9 +598,9 @@
         </div>
     </div>
 
-    <!-- 14. Configuracion -->
+    <!-- 15. Configuracion -->
     <div class="card mb-4" id="config">
-        <div class="card-header">14. Configuracion</div>
+        <div class="card-header">15. Configuracion</div>
         <div class="card-body">
             <p>Desde <strong><i class="bi bi-gear"></i> Config</strong> en el menu, el administrador puede activar o desactivar opciones:</p>
             <ul>
@@ -583,9 +611,9 @@
         </div>
     </div>
 
-    <!-- 15. Registro de cambios -->
+    <!-- 16. Registro de cambios -->
     <div class="card mb-4" id="changelog">
-        <div class="card-header">15. Registro de cambios recientes</div>
+        <div class="card-header">16. Registro de cambios recientes</div>
         <div class="card-body">
 
             <h6>Agosto 2026</h6>
@@ -594,6 +622,7 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>10/08</td><td><strong>Centro de Notificaciones:</strong> campana en la barra de navegacion con badge de notificaciones no leidas. Se generan automaticamente alertas de: constantes vitales fuera de rango, incidencias criticas, documentos pendientes de firma, sesiones estancadas y falta de cobertura de turnos. Filtrable por tipo, severidad y estado.</td></tr>
                     <tr><td>10/08</td><td><strong>Modulo de Incidencias:</strong> nuevo sistema para registrar y hacer seguimiento de incidentes (caidas, accidentes, quejas, problemas de calidad). Tipos configurables, flujo de estados (abierta &rarr; en curso &rarr; resuelta &rarr; cerrada), severidades, y opcion para que los trabajadores reporten desde el movil (configurable).</td></tr>
                     <tr><td>10/08</td><td><strong>Dashboard de Rendimiento:</strong> nueva pagina en Analiticas &rarr; Rendimiento con KPIs: SLA de limpieza (% habitaciones al dia), checklist completado, productividad por trabajador (horas trabajadas vs turno), tiempo real vs objetivo por tipo de habitacion, y lista de habitaciones mas atrasadas.</td></tr>
                     <tr><td>10/08</td><td><strong>Tipo de atencion en registros:</strong> los registros de atencion ahora muestran correctamente los tipos de atencion realizados (antes aparecia "—").</td></tr>

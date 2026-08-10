@@ -79,6 +79,9 @@ def index():
     if stale_count:
         db.session.commit()
 
+    from .notifications import _generate_notifications
+    _generate_notifications()
+
     today = datetime.now().date()
     tomorrow = today + timedelta(days=1)
     hoy_inicio = datetime.combine(today, datetime.min.time())

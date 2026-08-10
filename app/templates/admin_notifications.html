@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}Notificaciones{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap">
+        <h1 class="h3 mb-0">Notificaciones</h1>
+        <div class="d-flex align-items-center gap-2 mt-1 mt-md-0">
+            {% if pagination %}
+            <span class="small" style="color:var(--color-text-secondary)">
+                {{ pagination.total }} notificaci{{ 'ones' if pagination.total != 1 else 'on' }} en total
+            </span>
+            {% endif %}
+            <button class="btn btn-outline-primary btn-sm" id="btn-mark-all-read">
+                <i class="bi bi-check2-all me-1"></i>Marcar todo como leido
+            </button>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-3">
+        <div class="card-body py-2">
+            <form method="GET" action="{{ url_for('notifications.admin_notifications') }}" class="row g-2 align-items-end">
+                <div class="col-auto">
+                    <label class="form-label mb-0 small">Tipo</label>
+                    <select name="type" class="form-select form-select-sm" style="min-width:160px">
+                        <option value="">Todos</option>
+                        <option value="vital_alert" {% if filters.type == 'vital_alert' %}selected{% endif %}>Alerta vital</option>
+                        <option value="incident" {% if filters.type == 'incident' %}selected{% endif %}>Incidencia</option>
+                        <option value="document_pending" {% if filters.type == 'document_pending' %}selected{% endif %}>Documento pendiente</option>
+                        <option value="stale_session" {% if filters.type == 'stale_session' %}selected{% endif %}>Sesion estancada</option>
+                        <option value="coverage_gap" {% if filters.type == 'coverage_gap' %}selected{% endif %}>Falta cobertura</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label mb-0 small">Severidad</label>
+                    <select name="severity" class="form-select form-select-sm" style="min-width:120px">
+                        <option value="">Todas</option>
+                        <option value="critical" {% if filters.severity == 'critical' %}selected{% endif %}>Critica</option>
+                        <option value="warning" {% if filters.severity == 'warning' %}selected{% endif %}>Aviso</option>
+                        <option value="info" {% if filters.severity == 'info' %}selected{% endif %}>Info</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label mb-0 small">Estado</label>
+                    <select name="status" class="form-select form-select-sm" style="min-width:120px">
+                        <option value="">Todos</option>
+                        <option value="unread" {% if filters.status == 'unread' %}selected{% endif %}>No leida</option>
+                        <option value="read" {% if filters.status == 'read' %}selected{% endif %}>Leida</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-sm btn-outline-primary">Filtrar</button>
+                    <a href="{{ url_for('notifications.admin_notifications') }}" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla -->
+    {% if notifications %}
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th style="width:40px"></th>
+                        <th>Titulo</th>
+                        <th class="hide-mobile">Mensaje</th>
+                        <th>Fecha</th>
+                        <th>Estado</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set type_icons = {'vital_alert': 'bi-heart-pulse-fill', 'incident': 'bi-exclamation-triangle-fill', 'document_pending': 'bi-file-earmark-text', 'stale_session': 'bi-clock-history', 'coverage_gap': 'bi-people-fill'} %}
+                    {% set sev_colors = {'critical': '#cf222e', 'warning': '#fd7e14', 'info': '#0069d9'} %}
+                    {% set sev_labels = {'critical': 'Critica', 'warning': 'Aviso', 'info': 'Info'} %}
+                    {% for n in notifications %}
+                    <tr id="notif-row-{{ n.id }}" style="{% if not n.read %}font-weight:600;border-left:3px solid {{ sev_colors.get(n.severity, '#0069d9') }}{% endif %}">
+                        <td class="text-center">
+                            <i class="bi {{ type_icons.get(n.type, 'bi-bell') }}" style="color:{{ sev_colors.get(n.severity, '#0069d9') }};font-size:1.1rem" title="{{ n.type }}"></i>
+                        </td>
+                        <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                            {% if n.link %}<a href="{{ n.link }}" style="color:inherit;text-decoration:none">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}
+                        </td>
+                        <td class="hide-mobile" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--color-text-secondary)">{{ n.message or '—' }}</td>
+                        <td style="white-space:nowrap">{{ n.created_at.strftime('%d/%m/%Y %H:%M') if n.created_at else '—' }}</td>
+                        <td>
+                            {% if n.read %}
+                            <span class="status-badge" style="color:#656d76;background:#656d7620">Leida</span>
+                            {% else %}
+                            <span class="status-badge" style="color:{{ sev_colors.get(n.severity, '#0069d9') }};background:{{ sev_colors.get(n.severity, '#0069d9') }}20">
+                                {{ sev_labels.get(n.severity, 'Info') }}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end" style="white-space:nowrap">
+                            {% if not n.read %}
+                            <button class="btn btn-sm btn-outline-secondary btn-mark-read" data-id="{{ n.id }}">Marcar como leida</button>
+                            {% else %}
+                            <span class="small" style="color:var(--color-text-secondary)">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Paginacion -->
+    {% if pagination and pagination.pages > 1 %}
+    <div class="d-flex align-items-center justify-content-between flex-wrap mt-3">
+        <p class="small mb-2" style="color:var(--color-text-secondary)">
+            Pagina <strong>{{ pagination.page }}</strong> de <strong>{{ pagination.pages }}</strong>
+        </p>
+        <nav aria-label="Paginacion">
+            <ul class="pagination pagination-sm mb-0 flex-wrap">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('notifications.admin_notifications', page=pagination.prev_num,
+                        type=filters.type, severity=filters.severity, status=filters.status) }}">&laquo;</a>
+                </li>
+                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                {% if page_num %}
+                <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('notifications.admin_notifications', page=page_num,
+                        type=filters.type, severity=filters.severity, status=filters.status) }}">{{ page_num }}</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><a class="page-link">&hellip;</a></li>
+                {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('notifications.admin_notifications', page=pagination.next_num,
+                        type=filters.type, severity=filters.severity, status=filters.status) }}">&raquo;</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="alert alert-info" role="status">No hay notificaciones.</div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    'use strict';
+
+    // Mark single notification as read
+    document.querySelectorAll('.btn-mark-read').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var id = btn.dataset.id;
+            fetch('/admin/notifications/' + id + '/read', { method: 'POST' })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.ok) {
+                        var row = document.getElementById('notif-row-' + id);
+                        row.style.fontWeight = 'normal';
+                        row.style.borderLeft = '';
+                        btn.replaceWith(document.createTextNode('—'));
+                        // Update status cell
+                        var cells = row.querySelectorAll('td');
+                        cells[4].innerHTML = '<span class="status-badge" style="color:#656d76;background:#656d7620">Leida</span>';
+                        if (typeof showToast === 'function') showToast('Notificacion marcada como leida', 'success');
+                    }
+                })
+                .catch(function() {
+                    if (typeof showToast === 'function') showToast('Error al marcar notificacion', 'error');
+                });
+        });
+    });
+
+    // Mark all as read
+    document.getElementById('btn-mark-all-read').addEventListener('click', function() {
+        fetch('/admin/notifications/read-all', { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.ok) {
+                    window.location.reload();
+                }
+            })
+            .catch(function() {
+                if (typeof showToast === 'function') showToast('Error al marcar notificaciones', 'error');
+            });
+    });
+})();
+</script>
+{% endblock %}

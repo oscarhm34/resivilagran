@@ -327,6 +327,12 @@
 
                 <ul class="navbar-nav ms-auto align-items-center gap-2">
                     {% if current_user.is_authenticated %}
+                    <li class="nav-item position-relative">
+                        <a class="nav-link" href="{{ url_for('notifications.admin_notifications') }}" title="Notificaciones">
+                            <i class="bi bi-bell" aria-hidden="true"></i>
+                            <span id="notif-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:.6rem;display:none">0</span>
+                        </a>
+                    </li>
                     <li class="nav-item">
                         <span class="navbar-text small" style="color:var(--color-text-secondary)">
                             <strong style="color:var(--color-text)">{{ current_user.name }}</strong>
@@ -466,6 +472,27 @@
             form.classList.add('was-validated');
         });
     });
+
+    /* ── Notification badge polling ── */
+    (function() {
+        var badge = document.getElementById('notif-badge');
+        if (!badge) return;
+        function checkNotifs() {
+            fetch('/api/notifications/unread-count')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.count > 0) {
+                        badge.textContent = data.count > 99 ? '99+' : data.count;
+                        badge.style.display = '';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                })
+                .catch(function() {});
+        }
+        checkNotifs();
+        setInterval(checkNotifs, 60000);
+    })();
     </script>
 
     {% block scripts %}{% endblock %}
