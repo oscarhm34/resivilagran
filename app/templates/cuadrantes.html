@@ -245,7 +245,7 @@
         <div class="d-flex align-items-center gap-2 flex-wrap">
             {# Month navigation #}
             <div class="btn-group btn-group-sm no-print" role="group" aria-label="Navegación mensual">
-                <a href="{{ url_for('cuadrantes', year=prev_year, month=prev_month, group_id=group_id) }}"
+                <a href="{{ url_for('shifts.cuadrantes', year=prev_year, month=prev_month, group_id=group_id) }}"
                    class="btn btn-outline-secondary" title="Mes anterior">
                     <i class="bi bi-chevron-left"></i>
                 </a>
@@ -253,7 +253,7 @@
                     {% set month_names = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'] %}
                     {{ month_names[month - 1] }} {{ year }}
                 </span>
-                <a href="{{ url_for('cuadrantes', year=next_year, month=next_month, group_id=group_id) }}"
+                <a href="{{ url_for('shifts.cuadrantes', year=next_year, month=next_month, group_id=group_id) }}"
                    class="btn btn-outline-secondary" title="Mes siguiente">
                     <i class="bi bi-chevron-right"></i>
                 </a>
@@ -262,7 +262,7 @@
             {# Group filter #}
             {% if groups %}
             <select class="form-select form-select-sm no-print" style="width:auto"
-                    onchange="window.location.href='{{ url_for('cuadrantes', year=year, month=month) }}&group_id='+this.value">
+                    onchange="window.location.href='{{ url_for('shifts.cuadrantes', year=year, month=month) }}&group_id='+this.value">
                 <option value="">Todos los grupos</option>
                 {% for g in groups %}
                 <option value="{{ g.id }}" {{ 'selected' if group_id == g.id }}>{{ g.name }}</option>
@@ -272,7 +272,7 @@
 
             {# Role filter #}
             <select class="form-select form-select-sm no-print" style="width:auto"
-                    onchange="window.location.href='{{ url_for('cuadrantes', year=year, month=month, group_id=group_id) }}&role='+this.value">
+                    onchange="window.location.href='{{ url_for('shifts.cuadrantes', year=year, month=month, group_id=group_id) }}&role='+this.value">
                 <option value="">Todos los roles</option>
                 <option value="atenciones" {{ 'selected' if role_filter == 'atenciones' }}>Atenciones</option>
                 <option value="limpieza" {{ 'selected' if role_filter == 'limpieza' }}>Limpieza</option>
@@ -280,21 +280,21 @@
             </select>
 
             {# Export / config links #}
-            <a href="{{ url_for('cuadrantes_export', year=year, month=month, group_id=group_id) }}"
+            <a href="{{ url_for('shifts.cuadrantes_export', year=year, month=month, group_id=group_id) }}"
                class="btn btn-outline-secondary btn-sm no-print" title="Exportar a Excel">
                 <i class="bi bi-file-earmark-spreadsheet me-1"></i>Exportar Excel
             </a>
-            <a href="{{ url_for('manage_shift_types') }}"
+            <a href="{{ url_for('shifts.manage_shift_types') }}"
                class="btn btn-outline-secondary btn-sm no-print" title="Gestionar tipos de turno">
                 <i class="bi bi-palette me-1"></i>Tipos de turno
             </a>
-            <a href="{{ url_for('manage_patterns') }}" class="btn btn-outline-secondary btn-sm no-print">
+            <a href="{{ url_for('shifts.manage_patterns') }}" class="btn btn-outline-secondary btn-sm no-print">
                 <i class="bi bi-arrow-repeat me-1"></i>Patrones
             </a>
-            <a href="{{ url_for('manage_absences') }}" class="btn btn-outline-secondary btn-sm no-print">
+            <a href="{{ url_for('shifts.manage_absences') }}" class="btn btn-outline-secondary btn-sm no-print">
                 <i class="bi bi-calendar-x me-1"></i>Ausencias
             </a>
-            <a href="{{ url_for('coverage_settings') }}" class="btn btn-outline-secondary btn-sm no-print">
+            <a href="{{ url_for('shifts.coverage_settings') }}" class="btn btn-outline-secondary btn-sm no-print">
                 <i class="bi bi-sliders me-1"></i>Cobertura
             </a>
             <button type="button" class="btn btn-outline-primary btn-sm no-print" id="btn-bulk-assign" title="Asignar patrón a varios trabajadores">
@@ -454,7 +454,7 @@
                     <option value="{{ p.id }}">{{ p.name }} ({{ p.cycle_days }} días)</option>
                     {% endfor %}
                 </select>
-                <small class="text-body-secondary">Gestiona patrones desde <a href="{{ url_for('manage_patterns') }}">Patrones</a></small>
+                <small class="text-body-secondary">Gestiona patrones desde <a href="{{ url_for('shifts.manage_patterns') }}">Patrones</a></small>
             </div>
             <div class="mb-3">
                 <label class="form-label">Fecha inicio del ciclo</label>
@@ -504,7 +504,7 @@
                 {% endfor %}
             </select>
             {% if not patterns %}
-            <small class="text-danger">No hay patrones creados. <a href="{{ url_for('manage_patterns') }}">Crear uno primero</a>.</small>
+            <small class="text-danger">No hay patrones creados. <a href="{{ url_for('shifts.manage_patterns') }}">Crear uno primero</a>.</small>
             {% endif %}
         </div>
 

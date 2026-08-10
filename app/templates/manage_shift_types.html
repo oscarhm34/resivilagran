@@ -6,7 +6,7 @@
 
     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
         <div class="d-flex align-items-center gap-2">
-            <a href="{{ url_for('cuadrantes') }}" class="btn btn-outline-secondary btn-sm" title="Volver a cuadrantes">
+            <a href="{{ url_for('shifts.cuadrantes') }}" class="btn btn-outline-secondary btn-sm" title="Volver a cuadrantes">
                 <i class="bi bi-arrow-left"></i>
             </a>
             <h1 class="h3 mb-0">Tipos de Turno</h1>
@@ -25,7 +25,7 @@
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
         </div>
         <div class="offcanvas-body">
-            <form id="shift-type-form" method="POST" action="{{ url_for('add_edit_shift_type') }}" class="needs-validation" novalidate>
+            <form id="shift-type-form" method="POST" action="{{ url_for('shifts.add_edit_shift_type') }}" class="needs-validation" novalidate>
                 <input type="hidden" name="shift_type_id" value="">
 
                 <div class="mb-3">
@@ -141,7 +141,7 @@
                                     aria-label="Editar {{ st.name }}">
                                 <i class="bi bi-pencil"></i>
                             </button>
-                            <form method="POST" action="{{ url_for('delete_shift_type', id=st.id) }}"
+                            <form method="POST" action="{{ url_for('shifts.delete_shift_type', id=st.id) }}"
                                   class="d-inline" data-confirm="¿Seguro que quieres eliminar el tipo de turno «{{ st.name }}»?">
                                 <button type="submit" class="btn btn-sm btn-outline-danger"
                                         aria-label="Eliminar {{ st.name }}">

@@ -5,7 +5,7 @@
 {% block content %}
 <div class="d-flex align-items-center justify-content-between mb-4">
     <div class="d-flex align-items-center gap-3">
-        <a href="{{ url_for('cuadrantes') }}" class="btn btn-outline-secondary btn-sm">
+        <a href="{{ url_for('shifts.cuadrantes') }}" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Turnos
         </a>
         <h1 class="h4 mb-0">Configuraci&oacute;n de Rutas de Limpieza</h1>
@@ -25,7 +25,7 @@
             Asigna plantas/zonas a cada trabajador de limpieza. Si no se asigna ninguna, el trabajador ver&aacute; todas las habitaciones.
         </p>
 
-        <form method="POST" action="{{ url_for('save_cleaning_assignments') }}">
+        <form method="POST" action="{{ url_for('cleaning.save_cleaning_assignments') }}">
             <div class="row g-3 align-items-end mb-3">
                 <div class="col-md-4">
                     <label for="worker-select" class="form-label">Trabajador</label>
@@ -96,7 +96,7 @@
             Define el tiempo esperado de limpieza por tipo. Se usa como referencia cuando no hay datos hist&oacute;ricos.
         </p>
 
-        <form method="POST" action="{{ url_for('save_cleaning_targets') }}">
+        <form method="POST" action="{{ url_for('cleaning.save_cleaning_targets') }}">
             <div class="table-responsive">
                 <table class="table mb-3">
                     <thead>

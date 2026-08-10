@@ -8,7 +8,7 @@
     <div>
         <h1 class="h3 mb-1"><i class="bi bi-clipboard2-check me-2" aria-hidden="true"></i>Plan de limpieza</h1>
         <div class="d-flex align-items-center gap-2">
-            <a href="{{ url_for('admin_cleaning_plan', date=prev_date) }}"
+            <a href="{{ url_for('cleaning.admin_cleaning_plan', date=prev_date) }}"
                class="btn btn-outline-secondary btn-sm" title="Día anterior">
                 <i class="bi bi-chevron-left"></i>
             </a>
@@ -16,7 +16,7 @@
                 {{ plan_date.strftime('%A %d de %B de %Y') | capitalize }}
                 {% if is_today %}<span class="badge bg-primary ms-1">Hoy</span>{% endif %}
             </span>
-            <a href="{{ url_for('admin_cleaning_plan', date=next_date) }}"
+            <a href="{{ url_for('cleaning.admin_cleaning_plan', date=next_date) }}"
                class="btn btn-outline-secondary btn-sm" title="Día siguiente">
                 <i class="bi bi-chevron-right"></i>
             </a>
@@ -24,11 +24,11 @@
     </div>
     <div class="d-flex gap-2">
         {% if not is_today %}
-        <a href="{{ url_for('admin_cleaning_plan') }}" class="btn btn-outline-primary btn-sm">
+        <a href="{{ url_for('cleaning.admin_cleaning_plan') }}" class="btn btn-outline-primary btn-sm">
             <i class="bi bi-calendar-event me-1"></i>Hoy
         </a>
         {% endif %}
-        <a href="{{ url_for('admin_cleaning_analytics') }}" class="btn btn-outline-secondary btn-sm">
+        <a href="{{ url_for('cleaning.admin_cleaning_analytics') }}" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-speedometer2 me-1"></i>Análisis
         </a>
     </div>

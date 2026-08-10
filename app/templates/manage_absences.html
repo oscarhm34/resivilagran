@@ -6,7 +6,7 @@
 
     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
         <div class="d-flex align-items-center gap-2">
-            <a href="{{ url_for('cuadrantes') }}" class="btn btn-outline-secondary btn-sm" title="Volver a cuadrantes">
+            <a href="{{ url_for('shifts.cuadrantes') }}" class="btn btn-outline-secondary btn-sm" title="Volver a cuadrantes">
                 <i class="bi bi-arrow-left"></i>
             </a>
             <h1 class="h3 mb-0">Ausencias</h1>
@@ -25,7 +25,7 @@
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
         </div>
         <div class="offcanvas-body">
-            <form id="absence-form" method="POST" action="{{ url_for('add_edit_absence') }}" class="needs-validation" novalidate>
+            <form id="absence-form" method="POST" action="{{ url_for('shifts.add_edit_absence') }}" class="needs-validation" novalidate>
                 <input type="hidden" name="absence_id" value="">
 
                 <div class="mb-3">
@@ -126,7 +126,7 @@
                                     aria-label="Editar ausencia de {{ a.cleaner.name }}">
                                 <i class="bi bi-pencil"></i>
                             </button>
-                            <form method="POST" action="{{ url_for('delete_absence', id=a.id) }}"
+                            <form method="POST" action="{{ url_for('shifts.delete_absence', id=a.id) }}"
                                   class="d-inline" data-confirm="¿Seguro que quieres eliminar esta ausencia de «{{ a.cleaner.name }}»?">
                                 <button type="submit" class="btn btn-sm btn-outline-danger"
                                         aria-label="Eliminar ausencia de {{ a.cleaner.name }}">
