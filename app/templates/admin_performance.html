@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block title %}Rendimiento{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+        <h1 class="h3 mb-0"><i class="bi bi-speedometer me-2"></i>Rendimiento</h1>
+        <div class="btn-group btn-group-sm">
+            <a href="?days=7" class="btn {% if days == 7 %}btn-primary{% else %}btn-outline-secondary{% endif %}">7 dias</a>
+            <a href="?days=14" class="btn {% if days == 14 %}btn-primary{% else %}btn-outline-secondary{% endif %}">14 dias</a>
+            <a href="?days=30" class="btn {% if days == 30 %}btn-primary{% else %}btn-outline-secondary{% endif %}">30 dias</a>
+            <a href="?days=90" class="btn {% if days == 90 %}btn-primary{% else %}btn-outline-secondary{% endif %}">90 dias</a>
+        </div>
+    </div>
+
+    {# ── KPI Cards ────────────────────────────────────────────────── #}
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card text-center p-3">
+                <div style="font-family:'Outfit';font-size:2.2rem;font-weight:700;color:{% if sla_pct >= 80 %}var(--color-success){% elif sla_pct >= 60 %}var(--color-warning){% else %}var(--color-danger){% endif %}">{{ sla_pct }}%</div>
+                <div class="small text-body-secondary">SLA Limpieza</div>
+                <div style="font-size:.7rem;color:var(--color-text-secondary)">{{ sla_on_time }} al dia / {{ sla_overdue }} atrasadas</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center p-3">
+                <div style="font-family:'Outfit';font-size:2.2rem;font-weight:700;color:{% if checklist_pct >= 80 %}var(--color-success){% elif checklist_pct >= 50 %}var(--color-warning){% else %}var(--color-danger){% endif %}">{{ checklist_pct }}%</div>
+                <div class="small text-body-secondary">Checklist completo</div>
+                <div style="font-size:.7rem;color:var(--color-text-secondary)">{{ checklist_complete }}/{{ checklist_total }} limpiezas</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center p-3">
+                <div style="font-family:'Outfit';font-size:2.2rem;font-weight:700;color:var(--color-primary)">{{ total_cleanings }}</div>
+                <div class="small text-body-secondary">Limpiezas</div>
+                <div style="font-size:.7rem;color:var(--color-text-secondary)">en {{ days }} dias</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center p-3">
+                <div style="font-family:'Outfit';font-size:2.2rem;font-weight:700;color:var(--color-success)">{{ total_cares }}</div>
+                <div class="small text-body-secondary">Atenciones</div>
+                <div style="font-size:.7rem;color:var(--color-text-secondary)">en {{ days }} dias</div>
+            </div>
+        </div>
+    </div>
+
+    {# ── Activity chart ───────────────────────────────────────────── #}
+    <div class="card mb-4">
+        <div class="card-header">Actividad diaria</div>
+        <div class="card-body">
+            <canvas id="chart-daily" height="180"></canvas>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        {# ── Worker productivity table ────────────────────────────── #}
+        <div class="col-lg-7">
+            <div class="card h-100">
+                <div class="card-header">Productividad por trabajador</div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0 align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Trabajador/a</th>
+                                    <th class="text-center hide-mobile">Limp.</th>
+                                    <th class="text-center hide-mobile">Aten.</th>
+                                    <th class="text-center">Total</th>
+                                    <th class="text-center">Horas</th>
+                                    <th class="text-center hide-mobile">Turno</th>
+                                    <th style="min-width:100px">Productividad</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for w in worker_table %}
+                                <tr>
+                                    <td class="fw-semibold">{{ w.name }}</td>
+                                    <td class="text-center hide-mobile">{{ w.cleaning_count }}</td>
+                                    <td class="text-center hide-mobile">{{ w.care_count }}</td>
+                                    <td class="text-center"><strong>{{ w.total_tasks }}</strong></td>
+                                    <td class="text-center">{{ w.work_hours }}h</td>
+                                    <td class="text-center hide-mobile">{{ w.shift_hours }}h</td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div style="flex:1;background:#e9ecef;border-radius:4px;height:8px">
+                                                <div style="width:{{ w.productivity }}%;height:100%;border-radius:4px;background:{% if w.productivity >= 70 %}var(--color-success){% elif w.productivity >= 40 %}var(--color-warning){% else %}var(--color-danger){% endif %}"></div>
+                                            </div>
+                                            <small style="width:35px;text-align:right">{{ w.productivity }}%</small>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# ── Room type performance ────────────────────────────────── #}
+        <div class="col-lg-5">
+            <div class="card h-100">
+                <div class="card-header">Tiempo real vs objetivo por tipo</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Tipo</th>
+                                <th class="text-end">Real</th>
+                                <th class="text-end">Obj.</th>
+                                <th class="text-end">Var.</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for rt in room_type_perf %}
+                            <tr>
+                                <td>{{ rt.name }} <small class="text-body-secondary">({{ rt.count }})</small></td>
+                                <td class="text-end">{{ rt.avg_minutes }}'</td>
+                                <td class="text-end text-body-secondary">{{ rt.target }}'</td>
+                                <td class="text-end">
+                                    {% if rt.variance > 15 %}
+                                    <span style="color:var(--color-danger)">+{{ rt.variance }}%</span>
+                                    {% elif rt.variance < -15 %}
+                                    <span style="color:var(--color-success)">{{ rt.variance }}%</span>
+                                    {% else %}
+                                    <span style="color:var(--color-text-secondary)">{{ rt.variance }}%</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% if not room_type_perf %}
+                            <tr><td colspan="4" class="text-center text-body-secondary py-3">Sin datos suficientes</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ── Overdue rooms ────────────────────────────────────────────── #}
+    {% if overdue_rooms %}
+    <div class="card mb-4">
+        <div class="card-header" style="background:#fff5f5">
+            <i class="bi bi-exclamation-triangle me-1" style="color:var(--color-danger)"></i>
+            Habitaciones mas atrasadas ({{ sla_overdue }} total)
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Habitacion</th>
+                        <th class="hide-mobile">Planta</th>
+                        <th class="hide-mobile">Tipo</th>
+                        <th class="text-end">Dias sin limpiar</th>
+                        <th class="text-end">Frec. esperada</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in overdue_rooms %}
+                    <tr style="background:{% if r.urgency >= 3 %}#ffeaea{% elif r.urgency >= 2 %}#fff5f5{% else %}transparent{% endif %}">
+                        <td class="fw-semibold">{{ r.number }}</td>
+                        <td class="hide-mobile">{{ r.floor }}</td>
+                        <td class="hide-mobile">{{ r.type }}</td>
+                        <td class="text-end">{{ r.days_since or '?' }}d</td>
+                        <td class="text-end text-body-secondary">cada {{ r.frequency }}d</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+    var cleanData = JSON.parse('{{ clean_per_day | safe }}');
+    var careData = JSON.parse('{{ care_per_day | safe }}');
+    var allDates = new Set([...Object.keys(cleanData), ...Object.keys(careData)]);
+    var labels = Array.from(allDates).sort();
+    var cleanValues = labels.map(function(d) { return cleanData[d] || 0; });
+    var careValues = labels.map(function(d) { return careData[d] || 0; });
+    var shortLabels = labels.map(function(d) { var p = d.split('-'); return p[2] + '/' + p[1]; });
+
+    new Chart(document.getElementById('chart-daily'), {
+        type: 'bar',
+        data: {
+            labels: shortLabels,
+            datasets: [
+                { label: 'Limpiezas', data: cleanValues, backgroundColor: 'rgba(13,110,253,.6)', borderRadius: 3 },
+                { label: 'Atenciones', data: careValues, backgroundColor: 'rgba(25,135,84,.6)', borderRadius: 3 },
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } },
+            scales: {
+                x: { grid: { display: false } },
+                y: { beginAtZero: true, ticks: { precision: 0 } }
+            }
+        }
+    });
+})();
+</script>
+{% endblock %}

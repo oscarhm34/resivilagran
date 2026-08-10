@@ -14,8 +14,11 @@ import json
 from .. import db, limiter
 from ..models import (Cleaner, Room, CleaningRecord, Floor, RoomType, Resident,
                       CareType, CareRecord, ResidentGroup,
-                      VitalSignType, VitalSignReading)
-from ..utils import admin_required, _format_duration
+                      VitalSignType, VitalSignReading,
+                      ShiftAssignment, ChecklistItem,
+                      CleaningTargetTime)
+from ..utils import (admin_required, _format_duration,
+                     _compute_cleaning_stats, _calculate_room_urgency)
 
 bp = Blueprint('admin_bp', __name__)
 
@@ -713,4 +716,210 @@ def admin_analytics():
         abnormal_vitals=abnormal_vitals[:20],
         care_per_day=json.dumps(dict(care_per_day)),
         clean_per_day=json.dumps(dict(clean_per_day)),
+    )
+
+
+@bp.route('/admin/performance')
+@admin_required
+def admin_performance():
+    """Performance metrics dashboard: SLAs, checklist completion, worker productivity."""
+    from collections import defaultdict, Counter
+    from datetime import date
+
+    days = request.args.get('days', 30, type=int)
+    if days not in (7, 14, 30, 90):
+        days = 30
+    desde = datetime.now() - timedelta(days=days)
+
+    # ── 1. Cleaning records in period ────────────────────────────────────────
+    cleaning_records = CleaningRecord.query.options(
+        joinedload(CleaningRecord.cleaner),
+        joinedload(CleaningRecord.room).joinedload(Room.room_type),
+    ).filter(
+        CleaningRecord.start_time >= desde,
+        CleaningRecord.end_time.isnot(None),
+    ).all()
+
+    # ── 2. SLA: % rooms cleaned within expected frequency ────────────────────
+    stats = _compute_cleaning_stats(days)
+    avg_per_room = stats['avg_per_room']
+
+    # Current room urgency status
+    all_rooms = Room.query.options(joinedload(Room.room_type), joinedload(Room.floor)).all()
+    occupied = {r.room_number for r in Resident.query.filter_by(active=True).all() if r.room_number}
+
+    cutoff_freq = datetime.now() - timedelta(days=90)
+    freq_records = CleaningRecord.query.filter(
+        CleaningRecord.end_time.isnot(None), CleaningRecord.start_time >= cutoff_freq,
+    ).all()
+    room_clean_count = {}
+    room_last_cleaned = {}
+    for rec in freq_records:
+        room_clean_count[rec.room_id] = room_clean_count.get(rec.room_id, 0) + 1
+        if rec.room_id not in room_last_cleaned or rec.start_time > room_last_cleaned[rec.room_id]:
+            room_last_cleaned[rec.room_id] = rec.start_time
+
+    now = datetime.now()
+    sla_on_time = 0
+    sla_overdue = 0
+    overdue_rooms = []
+    for room in all_rooms:
+        is_res = room.room_type and 'residen' in room.room_type.name.lower()
+        is_occ = room.number in occupied
+        urgency, days_since, freq = _calculate_room_urgency(
+            room.id, room_clean_count, room_last_cleaned, now, is_res, is_occ)
+        if urgency < 1:
+            sla_on_time += 1
+        else:
+            sla_overdue += 1
+            if urgency >= 1.5:
+                overdue_rooms.append({
+                    'number': room.number,
+                    'floor': room.floor.name if room.floor else '',
+                    'type': room.room_type.name if room.room_type else '',
+                    'days_since': days_since,
+                    'frequency': round(freq, 1),
+                    'urgency': round(urgency, 2),
+                })
+    sla_total = sla_on_time + sla_overdue
+    sla_pct = round(sla_on_time / sla_total * 100) if sla_total > 0 else 100
+    overdue_rooms.sort(key=lambda x: -x['urgency'])
+
+    # ── 3. Checklist completion rate ─────────────────────────────────────────
+    checklist_total = 0
+    checklist_complete = 0
+    checklist_partial = 0
+    for rec in cleaning_records:
+        if rec.checklist_json:
+            try:
+                items = json.loads(rec.checklist_json)
+                if items:
+                    checklist_total += 1
+                    checked = sum(1 for i in items if i.get('checked'))
+                    if checked == len(items):
+                        checklist_complete += 1
+                    elif checked > 0:
+                        checklist_partial += 1
+            except (json.JSONDecodeError, TypeError):
+                pass
+    checklist_pct = round(checklist_complete / checklist_total * 100) if checklist_total > 0 else 0
+    checklist_with_data_pct = round(checklist_total / len(cleaning_records) * 100) if cleaning_records else 0
+
+    # ── 4. Worker productivity ───────────────────────────────────────────────
+    worker_metrics = defaultdict(lambda: {
+        'cleaning_count': 0, 'care_count': 0,
+        'cleaning_minutes': 0, 'care_minutes': 0,
+        'shift_minutes': 0, 'days_worked': set(),
+    })
+
+    for rec in cleaning_records:
+        if rec.cleaner:
+            m = worker_metrics[rec.cleaner.name]
+            m['cleaning_count'] += 1
+            dur = rec.calculate_duration()
+            if dur:
+                m['cleaning_minutes'] += dur / 60
+            m['days_worked'].add(rec.start_time.date())
+
+    care_records = CareRecord.query.options(
+        joinedload(CareRecord.worker),
+    ).filter(
+        CareRecord.start_time >= desde,
+        CareRecord.end_time.isnot(None),
+    ).all()
+
+    for rec in care_records:
+        if rec.worker:
+            m = worker_metrics[rec.worker.name]
+            m['care_count'] += 1
+            dur = rec.calculate_duration()
+            if dur:
+                m['care_minutes'] += dur / 60
+            m['days_worked'].add(rec.start_time.date())
+
+    # Get shift data for productivity ratio
+    shift_assignments = ShiftAssignment.query.options(
+        joinedload(ShiftAssignment.cleaner),
+        joinedload(ShiftAssignment.shift_type),
+    ).filter(
+        ShiftAssignment.date >= desde.date(),
+        ShiftAssignment.shift_type_id.isnot(None),
+    ).all()
+
+    for sa in shift_assignments:
+        if sa.cleaner and sa.shift_type:
+            m = worker_metrics[sa.cleaner.name]
+            st = sa.shift_type
+            start_dt = datetime.combine(sa.date, st.start_time)
+            end_dt = datetime.combine(sa.date, st.end_time)
+            if end_dt <= start_dt:
+                end_dt += timedelta(days=1)
+            shift_mins = ((end_dt - start_dt).total_seconds() / 60) - (st.breaks_minutes or 0)
+            m['shift_minutes'] += shift_mins
+
+    worker_table = []
+    for name, m in worker_metrics.items():
+        total_work = m['cleaning_minutes'] + m['care_minutes']
+        productivity = round(total_work / m['shift_minutes'] * 100) if m['shift_minutes'] > 0 else 0
+        avg_per_day = round(total_work / len(m['days_worked'])) if m['days_worked'] else 0
+        worker_table.append({
+            'name': name,
+            'cleaning_count': m['cleaning_count'],
+            'care_count': m['care_count'],
+            'total_tasks': m['cleaning_count'] + m['care_count'],
+            'work_hours': round(total_work / 60, 1),
+            'shift_hours': round(m['shift_minutes'] / 60, 1),
+            'productivity': min(productivity, 100),
+            'days_worked': len(m['days_worked']),
+            'avg_min_per_day': avg_per_day,
+        })
+    worker_table.sort(key=lambda x: -x['total_tasks'])
+
+    # ── 5. Daily trends ──────────────────────────────────────────────────────
+    clean_per_day = Counter()
+    care_per_day = Counter()
+    for rec in cleaning_records:
+        clean_per_day[rec.start_time.strftime('%Y-%m-%d')] += 1
+    for rec in care_records:
+        care_per_day[rec.start_time.strftime('%Y-%m-%d')] += 1
+
+    # ── 6. Average cleaning time vs target ───────────────────────────────────
+    targets = {t.room_type_id: t.target_minutes for t in CleaningTargetTime.query.all()}
+    type_stats = defaultdict(lambda: {'times': [], 'target': None, 'name': ''})
+    for rec in cleaning_records:
+        if rec.room and rec.room.room_type:
+            dur = rec.calculate_duration()
+            if dur and 60 < dur < 7200:
+                rt = rec.room.room_type
+                ts = type_stats[rt.id]
+                ts['times'].append(dur / 60)
+                ts['target'] = targets.get(rt.id)
+                ts['name'] = rt.name
+
+    room_type_perf = []
+    for rt_id, ts in type_stats.items():
+        avg = round(sum(ts['times']) / len(ts['times']), 1)
+        target = ts['target'] or 15
+        variance = round((avg - target) / target * 100)
+        room_type_perf.append({
+            'name': ts['name'],
+            'avg_minutes': avg,
+            'target': target,
+            'count': len(ts['times']),
+            'variance': variance,
+        })
+    room_type_perf.sort(key=lambda x: -abs(x['variance']))
+
+    return render_template('admin_performance.html',
+        days=days,
+        sla_pct=sla_pct, sla_on_time=sla_on_time, sla_overdue=sla_overdue,
+        overdue_rooms=overdue_rooms[:15],
+        checklist_pct=checklist_pct, checklist_total=checklist_total,
+        checklist_complete=checklist_complete, checklist_partial=checklist_partial,
+        checklist_with_data_pct=checklist_with_data_pct,
+        total_cleanings=len(cleaning_records), total_cares=len(care_records),
+        worker_table=worker_table,
+        room_type_perf=room_type_perf,
+        clean_per_day=json.dumps(dict(clean_per_day)),
+        care_per_day=json.dumps(dict(care_per_day)),
     )
