@@ -34,9 +34,11 @@
                         <li><a href="#empleados">8. Empleados, roles y grupos</a></li>
                         <li><a href="#turnos">9. Cuadrantes de turnos</a></li>
                         <li><a href="#rutas">10. Rutas de limpieza</a></li>
-                        <li><a href="#registros">11. Registros y exportacion</a></li>
-                        <li><a href="#config">12. Configuracion</a></li>
-                        <li><a href="#changelog">13. Registro de cambios</a></li>
+                        <li><a href="#incidencias">11. Incidencias</a></li>
+                        <li><a href="#registros">12. Registros y exportacion</a></li>
+                        <li><a href="#rendimiento">13. Rendimiento</a></li>
+                        <li><a href="#config">14. Configuracion</a></li>
+                        <li><a href="#changelog">15. Registro de cambios</a></li>
                     </ul>
                 </div>
             </div>
@@ -437,9 +439,59 @@
         </div>
     </div>
 
-    <!-- 11. Registros y exportacion -->
+    <!-- 11. Incidencias -->
+    <div class="card mb-4" id="incidencias">
+        <div class="card-header">11. Incidencias</div>
+        <div class="card-body">
+            <p>El modulo de <strong>Incidencias</strong> (<i class="bi bi-exclamation-triangle"></i>) permite registrar y hacer seguimiento de cualquier tipo de incidente en la residencia.</p>
+
+            <h6 class="mt-3">Tipos de incidencia</h6>
+            <ul>
+                <li>Desde <strong>Incidencias &rarr; Tipos de incidencia</strong> se configuran las categorias disponibles.</li>
+                <li>Cada tipo tiene: nombre, icono, color, nivel de severidad (critica, alta, media, baja) y estado activo/inactivo.</li>
+                <li>Ejemplos: Caida, Accidente, Queja, Problema tecnico, Conducta, Problema de calidad.</li>
+            </ul>
+
+            <h6 class="mt-3">Reportar incidencias (admin)</h6>
+            <ul>
+                <li>Desde <strong>Incidencias &rarr; Reportes de incidencias</strong> se ven todas las incidencias con filtros por tipo, severidad, estado y rango de fechas.</li>
+                <li>Boton <strong>"Nueva incidencia"</strong> para crear: tipo, titulo, descripcion, residente (opcional), ubicacion, severidad y fecha/hora de ocurrencia.</li>
+                <li>Se puede editar cualquier incidencia antes de resolverla.</li>
+            </ul>
+
+            <h6 class="mt-3">Reportar desde el movil (trabajadores)</h6>
+            <ul>
+                <li>Si esta activado en <strong>Configuracion</strong>, los trabajadores pueden reportar incidencias directamente desde la webapp del movil.</li>
+                <li>Esta funcion se activa/desactiva con el toggle <strong>"Permitir a los trabajadores reportar incidencias"</strong>.</li>
+            </ul>
+
+            <h6 class="mt-3">Flujo de seguimiento</h6>
+            <ul>
+                <li>Cada incidencia tiene un <strong>estado</strong> que indica su progreso:
+                    <ul>
+                        <li><span style="color:#cf222e;font-weight:600">Abierta:</span> recien reportada, pendiente de accion.</li>
+                        <li><span style="color:#0069d9;font-weight:600">En curso:</span> se esta trabajando en ella.</li>
+                        <li><span style="color:#1a7f37;font-weight:600">Resuelta:</span> se ha solucionado (con notas de resolucion).</li>
+                        <li><span style="color:#656d76;font-weight:600">Cerrada:</span> caso finalizado.</li>
+                    </ul>
+                </li>
+                <li>Al <strong>resolver</strong> una incidencia, se piden notas de resolucion y se registra quien la resolvio y cuando.</li>
+                <li>Las incidencias con severidad <strong>critica</strong> o <strong>alta</strong> se destacan visualmente en la lista.</li>
+            </ul>
+
+            <h6 class="mt-3">Badges de severidad</h6>
+            <ul>
+                <li><span style="background:#ffddd9;color:#cf222e;padding:2px 8px;border-radius:4px;font-size:.8rem">Critica</span> Requiere atencion inmediata.</li>
+                <li><span style="background:#fff3cd;color:#fd7e14;padding:2px 8px;border-radius:4px;font-size:.8rem">Alta</span> Importante, resolver pronto.</li>
+                <li><span style="background:#fff8e6;color:#bf8700;padding:2px 8px;border-radius:4px;font-size:.8rem">Media</span> Atencion normal.</li>
+                <li><span style="background:#f0f0f0;color:#656d76;padding:2px 8px;border-radius:4px;font-size:.8rem">Baja</span> Informativa, no urgente.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 12. Registros y exportacion -->
     <div class="card mb-4" id="registros">
-        <div class="card-header">11. Registros, analiticas y exportacion</div>
+        <div class="card-header">12. Registros, analiticas y exportacion</div>
         <div class="card-body">
             <h6>Registros</h6>
             <ul>
@@ -474,21 +526,66 @@
         </div>
     </div>
 
-    <!-- 12. Configuracion -->
+    <!-- 13. Rendimiento -->
+    <div class="card mb-4" id="rendimiento">
+        <div class="card-header">13. Rendimiento</div>
+        <div class="card-body">
+            <p>Desde <strong>Analiticas &rarr; Rendimiento</strong> se accede al dashboard de metricas de rendimiento del equipo.</p>
+
+            <h6 class="mt-3">KPIs principales</h6>
+            <ul>
+                <li><strong>SLA Limpieza:</strong> porcentaje de habitaciones limpiadas dentro de su frecuencia esperada. Verde (&ge;80%), amarillo (&ge;60%) o rojo (&lt;60%).</li>
+                <li><strong>Checklist completo:</strong> porcentaje de limpiezas donde el trabajador completo el 100% del checklist.</li>
+                <li><strong>Total limpiezas / atenciones:</strong> contadores del periodo seleccionado.</li>
+            </ul>
+
+            <h6 class="mt-3">Productividad por trabajador</h6>
+            <ul>
+                <li>Tabla con cada trabajador mostrando: limpiezas, atenciones, total tareas, horas trabajadas, horas de turno y <strong>productividad (%)</strong>.</li>
+                <li>La productividad compara las horas registradas trabajando vs las horas asignadas en el cuadrante de turnos.</li>
+                <li>Barra de progreso visual: verde (&ge;70%), amarillo (&ge;40%) o rojo (&lt;40%).</li>
+            </ul>
+
+            <h6 class="mt-3">Tiempo real vs objetivo por tipo de habitacion</h6>
+            <ul>
+                <li>Compara el tiempo medio real de limpieza con el <strong>tiempo objetivo</strong> configurado en Rutas y asignaciones.</li>
+                <li>Muestra la <strong>varianza</strong>: positiva (tarda mas de lo esperado) o negativa (mas rapido).</li>
+            </ul>
+
+            <h6 class="mt-3">Habitaciones mas atrasadas</h6>
+            <ul>
+                <li>Lista de habitaciones con mayor retraso de limpieza, ordenadas por urgencia.</li>
+                <li>Muestra dias sin limpiar y frecuencia esperada.</li>
+            </ul>
+
+            <h6 class="mt-3">Grafico de actividad diaria</h6>
+            <ul>
+                <li>Barras de limpiezas y atenciones por dia del periodo, para detectar tendencias.</li>
+            </ul>
+
+            <h6 class="mt-3">Filtros de periodo</h6>
+            <ul>
+                <li>Seleccionable: 7, 14, 30 o 90 dias.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 14. Configuracion -->
     <div class="card mb-4" id="config">
-        <div class="card-header">12. Configuracion</div>
+        <div class="card-header">14. Configuracion</div>
         <div class="card-body">
             <p>Desde <strong><i class="bi bi-gear"></i> Config</strong> en el menu, el administrador puede activar o desactivar opciones:</p>
             <ul>
                 <li><strong>Solo NFC para iniciar/cerrar sesiones:</strong> Si esta activado, los trabajadores solo pueden iniciar y cerrar sesiones escaneando el tag NFC. Si esta desactivado, tambien pueden seleccionar desde las listas.</li>
                 <li><strong>Permitir atenciones grupales:</strong> Si esta activado, los trabajadores pueden seleccionar varios residentes a la vez. Si esta desactivado, solo atencion individual.</li>
+                <li><strong>Permitir a los trabajadores reportar incidencias:</strong> Si esta activado, los trabajadores ven un boton en la webapp para reportar incidentes. Si esta desactivado, solo el admin puede crear incidencias.</li>
             </ul>
         </div>
     </div>
 
-    <!-- 13. Registro de cambios -->
+    <!-- 15. Registro de cambios -->
     <div class="card mb-4" id="changelog">
-        <div class="card-header">13. Registro de cambios recientes</div>
+        <div class="card-header">15. Registro de cambios recientes</div>
         <div class="card-body">
 
             <h6>Agosto 2026</h6>
@@ -497,6 +594,13 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>10/08</td><td><strong>Modulo de Incidencias:</strong> nuevo sistema para registrar y hacer seguimiento de incidentes (caidas, accidentes, quejas, problemas de calidad). Tipos configurables, flujo de estados (abierta &rarr; en curso &rarr; resuelta &rarr; cerrada), severidades, y opcion para que los trabajadores reporten desde el movil (configurable).</td></tr>
+                    <tr><td>10/08</td><td><strong>Dashboard de Rendimiento:</strong> nueva pagina en Analiticas &rarr; Rendimiento con KPIs: SLA de limpieza (% habitaciones al dia), checklist completado, productividad por trabajador (horas trabajadas vs turno), tiempo real vs objetivo por tipo de habitacion, y lista de habitaciones mas atrasadas.</td></tr>
+                    <tr><td>10/08</td><td><strong>Tipo de atencion en registros:</strong> los registros de atencion ahora muestran correctamente los tipos de atencion realizados (antes aparecia "—").</td></tr>
+                    <tr><td>10/08</td><td><strong>Zona horaria corregida:</strong> los registros ahora se guardan con hora local de Espana (Europe/Madrid) en lugar de UTC.</td></tr>
+                    <tr><td>10/08</td><td><strong>Refactor a blueprints:</strong> el codigo del servidor se ha reorganizado en 9 modulos independientes para mejor mantenibilidad. Sin cambios visibles para el usuario.</td></tr>
+                    <tr><td>10/08</td><td><strong>Mejoras de seguridad:</strong> modo debug desactivado en produccion, claves de sesion persistentes, contenedor Docker ejecutado como usuario no-root, indices de base de datos para mejor rendimiento.</td></tr>
+                    <tr><td>10/08</td><td><strong>Jornada completa de limpieza:</strong> los trabajadores de limpieza ahora tienen su jornada completa cubierta con habitaciones, rellenando con extras si sus zonas asignadas no cubren el turno.</td></tr>
                     <tr><td>07/08</td><td><strong>Modulo de Cuadrantes de Turnos:</strong> cuadricula mensual para planificar turnos (M/T/N) de todos los trabajadores, con click-to-assign, copiar semana, resumen de cobertura y exportacion a Excel.</td></tr>
                     <tr><td>07/08</td><td><strong>Gestion de tipos de turno:</strong> crear, editar y desactivar turnos personalizados con horarios y colores.</td></tr>
                     <tr><td>07/08</td><td><strong>API de turnos del trabajador:</strong> endpoint para que los trabajadores consulten su horario desde la webapp.</td></tr>
