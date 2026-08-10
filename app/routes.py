@@ -288,11 +288,8 @@ def start_cleaning():
         }), 200
 
     # Check single session restriction
-    if AppSetting.get('single_session', 'false') == 'true':
-        any_active = CleaningRecord.query.filter_by(cleaner_id=cleaner_id, end_time=None).first() or \
-                     CareRecord.query.filter_by(worker_id=cleaner_id, end_time=None).first()
-        if any_active:
-            return jsonify({'error': 'Ya tienes una sesión activa. Finalízala antes de iniciar otra.'}), 409
+    if _check_single_session_conflict(cleaner_id):
+        return jsonify({'error': 'Ya tienes una sesión activa. Finalízala antes de iniciar otra.'}), 409
 
     new_record = CleaningRecord(cleaner_id=cleaner_id, room_id=room.id, start_time=datetime.now())
     db.session.add(new_record)
@@ -1433,12 +1430,7 @@ def nfc_scan():
 
     # Dry run: just look up the resident and return info (for group scan)
     if dry_run and mode == 'care':
-        resident = Resident.query.filter_by(nfc_code=nfc_code, active=True).first()
-        if not resident and nfc_code.isdigit():
-            resident = Resident.query.filter(
-                Resident.nfc_code.in_([nfc_code.zfill(4), nfc_code.zfill(5)]),
-                Resident.active == True,
-            ).first()
+        _, resident = _resolve_nfc_code(nfc_code)
         if not resident:
             return jsonify({'error': f'Residente con código "{nfc_code}" no encontrado'}), 404
         return jsonify({
@@ -1452,14 +1444,7 @@ def nfc_scan():
 
     # Auto-detección de modo si no viene explícito
     if not mode:
-        room = Room.query.filter_by(number=nfc_code).first()
-        resident = Resident.query.filter_by(nfc_code=nfc_code, active=True).first()
-        # Si no encuentra y el código es numérico, probar con ceros a la izquierda
-        if not room and not resident and nfc_code.isdigit():
-            padded4 = nfc_code.zfill(4)
-            padded5 = nfc_code.zfill(5)
-            room = Room.query.filter(Room.number.in_([padded4, padded5])).first()
-            resident = Resident.query.filter(Resident.nfc_code.in_([padded4, padded5]), Resident.active == True).first()
+        room, resident = _resolve_nfc_code(nfc_code)
         if room and resident:
             return jsonify({
                 'action': 'select_mode',
@@ -1474,9 +1459,7 @@ def nfc_scan():
             return jsonify({'error': f'Código NFC "{nfc_code}" no reconocido', 'code': 'NFC_NOT_FOUND'}), 404
 
     if mode == 'cleaning':
-        room = Room.query.filter_by(number=nfc_code).first()
-        if not room and nfc_code.isdigit():
-            room = Room.query.filter(Room.number.in_([nfc_code.zfill(4), nfc_code.zfill(5)])).first()
+        room, _ = _resolve_nfc_code(nfc_code)
         if not room:
             return jsonify({'error': f'Habitación "{nfc_code}" no encontrada', 'code': 'ROOM_NOT_FOUND'}), 404
 
@@ -1497,11 +1480,8 @@ def nfc_scan():
             }), 200
 
         # Check single session restriction
-        if AppSetting.get('single_session', 'false') == 'true':
-            any_active = CleaningRecord.query.filter_by(cleaner_id=worker_id, end_time=None).first() or \
-                         CareRecord.query.filter_by(worker_id=worker_id, end_time=None).first()
-            if any_active:
-                return jsonify({'error': 'Ya tienes una sesión activa. Finalízala antes de iniciar otra.'}), 409
+        if _check_single_session_conflict(worker_id):
+            return jsonify({'error': 'Ya tienes una sesión activa. Finalízala antes de iniciar otra.'}), 409
 
         record = CleaningRecord(cleaner_id=worker_id, room_id=room.id, start_time=now)
         db.session.add(record)
@@ -1516,9 +1496,7 @@ def nfc_scan():
         }), 200
 
     if mode == 'care':
-        resident = Resident.query.filter_by(nfc_code=nfc_code, active=True).first()
-        if not resident and nfc_code.isdigit():
-            resident = Resident.query.filter(Resident.nfc_code.in_([nfc_code.zfill(4), nfc_code.zfill(5)]), Resident.active == True).first()
+        _, resident = _resolve_nfc_code(nfc_code)
         if not resident:
             return jsonify({'error': f'Residente con código "{nfc_code}" no encontrado', 'code': 'RESIDENT_NOT_FOUND'}), 404
 
@@ -1538,11 +1516,8 @@ def nfc_scan():
             }), 200
 
         # Check single session restriction
-        if AppSetting.get('single_session', 'false') == 'true':
-            any_active = CleaningRecord.query.filter_by(cleaner_id=worker_id, end_time=None).first() or \
-                         CareRecord.query.filter_by(worker_id=worker_id, end_time=None).first()
-            if any_active:
-                return jsonify({'error': 'Ya tienes una sesión activa. Finalízala antes de iniciar otra.'}), 409
+        if _check_single_session_conflict(worker_id):
+            return jsonify({'error': 'Ya tienes una sesión activa. Finalízala antes de iniciar otra.'}), 409
 
         # Start session immediately without care type
         record = CareRecord(
@@ -4420,6 +4395,28 @@ def _today_range(target_date=None):
     """Return (start_datetime, end_datetime) for a given date (default today)."""
     d = target_date or date.today()
     return datetime.combine(d, datetime.min.time()), datetime.combine(d + timedelta(days=1), datetime.min.time())
+
+
+def _resolve_nfc_code(nfc_code):
+    """Resolve NFC code to (Room, Resident) trying padded variants.
+    Returns (room_or_None, resident_or_None)."""
+    room = Room.query.filter_by(number=nfc_code).first()
+    resident = Resident.query.filter_by(nfc_code=nfc_code, active=True).first()
+    if not room and not resident and nfc_code.isdigit():
+        padded = [nfc_code.zfill(4), nfc_code.zfill(5)]
+        room = Room.query.filter(Room.number.in_(padded)).first()
+        resident = Resident.query.filter(Resident.nfc_code.in_(padded), Resident.active == True).first()
+    return room, resident
+
+
+def _check_single_session_conflict(worker_id):
+    """Return True if single_session is enabled and worker has an active session."""
+    if AppSetting.get('single_session', 'false') != 'true':
+        return False
+    return bool(
+        CleaningRecord.query.filter_by(cleaner_id=worker_id, end_time=None).first() or
+        CareRecord.query.filter_by(worker_id=worker_id, end_time=None).first()
+    )
 
 
 @app.route('/api/worker/cleaning-route')
