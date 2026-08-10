@@ -32,7 +32,11 @@ def load_user(user_id: str) -> Cleaner | None:
 
 from . import routes, models  # noqa: E402, F401
 from .blueprints.training import bp as training_bp  # noqa: E402
+from .blueprints.documents import bp as documents_bp  # noqa: E402
+from .blueprints.chat import bp as chat_bp  # noqa: E402
 app.register_blueprint(training_bp)
+app.register_blueprint(documents_bp)
+app.register_blueprint(chat_bp)
 
 
 @app.errorhandler(404)

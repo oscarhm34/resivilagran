@@ -287,7 +287,7 @@
                             <i class="bi bi-mortarboard me-1" aria-hidden="true"></i>Formación
                         </a>
                         <ul class="dropdown-menu shadow-sm" style="border-color:var(--color-border);border-radius:var(--radius-md)">
-                            <li><a class="dropdown-item" href="{{ url_for('admin_documents') }}"><i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Documentos legales</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('documents.admin_documents') }}"><i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Documentos legales</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('training.admin_training') }}"><i class="bi bi-play-circle me-1" aria-hidden="true"></i>Píldoras formativas</a></li>
                         </ul>
                     </li>
@@ -491,7 +491,7 @@
         var input = document.getElementById('chat-input');
         var sendBtn = document.getElementById('chat-send');
         var micBtn = document.getElementById('chat-mic');
-        var chatUrl = '{{ url_for("admin_chat") }}';
+        var chatUrl = '{{ url_for("chat.admin_chat") }}';
 
         function addMsg(text, cls) {
             var d = document.createElement('div');

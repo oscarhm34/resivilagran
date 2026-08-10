@@ -28,7 +28,7 @@
                 <td style="font-weight:600">{{ doc.title }}</td>
                 <td><span class="text-body-secondary">{{ doc.doc_type or '—' }}</span></td>
                 <td>
-                    <a href="{{ url_for('document_signatures', doc_id=doc.id) }}"
+                    <a href="{{ url_for('documents.document_signatures', doc_id=doc.id) }}"
                        style="text-decoration:none">
                         {{ doc.signatures|length }} / {{ workers|length }}
                     </a>
@@ -45,14 +45,14 @@
                     <button class="btn btn-sm btn-outline-secondary me-1"
                             onclick="editDoc({{ doc.id }}, {{ doc.title|tojson }}, {{ doc.content|tojson }}, {{ (doc.doc_type or '')|tojson }})">Editar</button>
                     {% endif %}
-                    <form method="post" action="{{ url_for('toggle_document', doc_id=doc.id) }}"
+                    <form method="post" action="{{ url_for('documents.toggle_document', doc_id=doc.id) }}"
                           class="d-inline">
                         <button class="btn btn-sm btn-outline-{{ 'warning' if doc.active else 'success' }}">
                             {{ 'Desactivar' if doc.active else 'Activar' }}
                         </button>
                     </form>
                     {% if not doc.signatures %}
-                    <form method="post" action="{{ url_for('delete_document', doc_id=doc.id) }}"
+                    <form method="post" action="{{ url_for('documents.delete_document', doc_id=doc.id) }}"
                           class="d-inline" data-confirm="¿Eliminar este documento?">
                         <button class="btn btn-sm btn-outline-danger">Eliminar</button>
                     </form>
@@ -71,7 +71,7 @@
 <div class="modal fade" id="docModal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content" style="border-radius:var(--radius-lg);border:1px solid var(--color-border)">
-            <form id="docForm" method="post" action="{{ url_for('create_document') }}">
+            <form id="docForm" method="post" action="{{ url_for('documents.create_document') }}">
                 <div class="modal-header" style="border-color:var(--color-border)!important">
                     <h5 class="modal-title" id="docModalTitle">Nuevo documento</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
