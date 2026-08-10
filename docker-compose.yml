@@ -7,5 +7,7 @@ services:
       - ./instance:/app/instance
       - ./uploads:/app/uploads
     env_file: .env
+    environment:
+      - TZ=Europe/Madrid
     restart: unless-stopped
     mem_limit: 512m
