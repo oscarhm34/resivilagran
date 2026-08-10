@@ -1065,7 +1065,7 @@ def worker_active_sessions():
 
     sessions: list[dict] = []
 
-    for c in CleaningRecord.query.filter_by(cleaner_id=worker_id, end_time=None).all():
+    for c in CleaningRecord.query.options(joinedload(CleaningRecord.room)).filter_by(cleaner_id=worker_id, end_time=None).all():
         room = c.room
         sessions.append({
             'type': 'cleaning',
@@ -1075,7 +1075,10 @@ def worker_active_sessions():
             'subject_sub': room.description or '' if room else '',
         })
 
-    care_records = CareRecord.query.filter_by(worker_id=worker_id, end_time=None).all()
+    care_records = CareRecord.query.options(
+        joinedload(CareRecord.resident), joinedload(CareRecord.care_types),
+        joinedload(CareRecord.care_type),
+    ).filter_by(worker_id=worker_id, end_time=None).all()
 
     # Group by start_time (truncated to second) to detect group care sessions
     from collections import defaultdict
@@ -2058,13 +2061,11 @@ def assign_residents_to_group(id: int):
         return jsonify({'error': 'Grupo no encontrado'}), 404
     data = request.json or {}
     resident_ids = data.get('resident_ids', [])
-    count = 0
-    for rid in resident_ids:
-        r = db.session.get(Resident, int(rid))
-        if r:
-            r.group_id = group.id
-            count += 1
+    residents = Resident.query.filter(Resident.id.in_([int(rid) for rid in resident_ids])).all()
+    for r in residents:
+        r.group_id = group.id
     db.session.commit()
+    count = len(residents)
     return jsonify({'ok': True, 'count': count}), 200
 
 
