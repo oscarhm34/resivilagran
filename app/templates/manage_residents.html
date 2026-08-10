@@ -96,6 +96,65 @@
                               placeholder="Información importante para el personal de atención…" style="resize:vertical"></textarea>
                 </div>
 
+                <!-- Perfil médico -->
+                <hr class="my-3">
+                <h6 class="fw-bold text-body-secondary mb-3"><i class="bi bi-heart-pulse me-1"></i>Perfil médico</h6>
+
+                <div class="mb-3">
+                    <label for="diagnoses" class="form-label">Diagnósticos</label>
+                    <textarea id="diagnoses" name="diagnoses" class="form-control" rows="2" placeholder="Diagnósticos del residente…" style="resize:vertical"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label for="allergies" class="form-label">Alergias</label>
+                    <textarea id="allergies" name="allergies" class="form-control" rows="2" placeholder="Alergias conocidas…" style="resize:vertical"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label for="current_medication" class="form-label">Medicación actual</label>
+                    <textarea id="current_medication" name="current_medication" class="form-control" rows="2" placeholder="Medicación que toma actualmente…" style="resize:vertical"></textarea>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label for="blood_type" class="form-label">Grupo sanguíneo</label>
+                        <select id="blood_type" name="blood_type" class="form-select">
+                            <option value="">—</option>
+                            <option value="A+">A+</option>
+                            <option value="A-">A-</option>
+                            <option value="B+">B+</option>
+                            <option value="B-">B-</option>
+                            <option value="AB+">AB+</option>
+                            <option value="AB-">AB-</option>
+                            <option value="O+">O+</option>
+                            <option value="O-">O-</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label for="dependency_level" class="form-label">Nivel de dependencia</label>
+                        <select id="dependency_level" name="dependency_level" class="form-select">
+                            <option value="">—</option>
+                            <option value="autonomous">Autónomo</option>
+                            <option value="mild">Leve</option>
+                            <option value="moderate">Moderado</option>
+                            <option value="severe">Severo</option>
+                            <option value="total">Total</option>
+                        </select>
+                    </div>
+                </div>
+                <h6 class="fw-bold text-body-secondary mb-2"><i class="bi bi-telephone me-1"></i>Contacto de emergencia</h6>
+                <div class="mb-3">
+                    <label for="emergency_contact_name" class="form-label">Nombre</label>
+                    <input type="text" id="emergency_contact_name" name="emergency_contact_name" class="form-control" placeholder="Nombre del contacto">
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label for="emergency_contact_phone" class="form-label">Teléfono</label>
+                        <input type="tel" id="emergency_contact_phone" name="emergency_contact_phone" class="form-control" placeholder="Ej: 600 123 456">
+                    </div>
+                    <div class="col-6">
+                        <label for="emergency_contact_relation" class="form-label">Relación</label>
+                        <input type="text" id="emergency_contact_relation" name="emergency_contact_relation" class="form-control" placeholder="Ej: Hijo/a, Cónyuge">
+                    </div>
+                </div>
+
                 <div class="d-grid gap-2">
                     <button type="submit" class="btn btn-primary" id="submit-btn">Añadir residente</button>
                 </div>
@@ -248,6 +307,14 @@
                                         data-notes="{{ r.notes or '' }}"
                                         data-photo="{{ r.photo_path or '' }}"
                                         data-info="{{ r.relevant_info or '' }}"
+                                        data-diagnoses="{{ r.diagnoses or '' }}"
+                                        data-allergies="{{ r.allergies or '' }}"
+                                        data-medication="{{ r.current_medication or '' }}"
+                                        data-bloodtype="{{ r.blood_type or '' }}"
+                                        data-dependency="{{ r.dependency_level or '' }}"
+                                        data-ecname="{{ r.emergency_contact_name or '' }}"
+                                        data-ecphone="{{ r.emergency_contact_phone or '' }}"
+                                        data-ecrelation="{{ r.emergency_contact_relation or '' }}"
                                         data-docs='{{ r.documents | map(attribute="id") | list | tojson }}'
                                         aria-label="Editar a {{ r.name }}" title="Editar"><i class="bi bi-pencil"></i></button>
                                 <button type="button"
@@ -362,6 +429,14 @@ var RESIDENT_DOCS = {
         form.querySelector('[name="active"]').checked    = true;
         setGroup('');
         form.querySelector('[name="relevant_info"]').value = '';
+        form.querySelector('[name="diagnoses"]').value = '';
+        form.querySelector('[name="allergies"]').value = '';
+        form.querySelector('[name="current_medication"]').value = '';
+        form.querySelector('[name="blood_type"]').value = '';
+        form.querySelector('[name="dependency_level"]').value = '';
+        form.querySelector('[name="emergency_contact_name"]').value = '';
+        form.querySelector('[name="emergency_contact_phone"]').value = '';
+        form.querySelector('[name="emergency_contact_relation"]').value = '';
         photoPreview.style.display = 'none';
         photoImg.src = '';
         removePhotoInput.value = '';
@@ -390,6 +465,14 @@ var RESIDENT_DOCS = {
             setGroup(this.dataset.group);
             form.querySelector('[name="notes"]').value       = this.dataset.notes;
             form.querySelector('[name="relevant_info"]').value = this.dataset.info;
+            form.querySelector('[name="diagnoses"]').value = this.dataset.diagnoses;
+            form.querySelector('[name="allergies"]').value = this.dataset.allergies;
+            form.querySelector('[name="current_medication"]').value = this.dataset.medication;
+            form.querySelector('[name="blood_type"]').value = this.dataset.bloodtype;
+            form.querySelector('[name="dependency_level"]').value = this.dataset.dependency;
+            form.querySelector('[name="emergency_contact_name"]').value = this.dataset.ecname;
+            form.querySelector('[name="emergency_contact_phone"]').value = this.dataset.ecphone;
+            form.querySelector('[name="emergency_contact_relation"]').value = this.dataset.ecrelation;
             // Foto
             removePhotoInput.value = '';
             document.getElementById('photo').value = '';

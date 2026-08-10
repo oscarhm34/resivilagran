@@ -110,6 +110,18 @@
                 <li><strong>Notas:</strong> Observaciones internas.</li>
             </ul>
 
+            <h6 class="mt-3">Perfil medico</h6>
+            <ul>
+                <li>Al editar un residente, aparece la seccion <strong>"Perfil medico"</strong> con campos para:</li>
+                <li><strong>Diagnosticos:</strong> Patologias y diagnosticos relevantes.</li>
+                <li><strong>Alergias:</strong> Alergias conocidas (alimentarias, medicamentosas, ambientales). Se destacan en rojo en la ficha.</li>
+                <li><strong>Medicacion actual:</strong> Medicamentos que toma el residente.</li>
+                <li><strong>Grupo sanguineo:</strong> A+, A-, B+, B-, AB+, AB-, O+, O-.</li>
+                <li><strong>Nivel de dependencia:</strong> Autonomo, Leve, Moderado, Severo, Total. Se muestra con badge de color.</li>
+                <li><strong>Contacto de emergencia:</strong> Nombre, telefono (clicar para llamar) y relacion (ej: Hijo/a, Conyuge).</li>
+                <li>Los trabajadores ven las alergias y nivel de dependencia en la webapp al consultar informacion del residente.</li>
+            </ul>
+
             <h6 class="mt-3">Documentos del residente</h6>
             <ul>
                 <li>Al editar un residente, aparece la seccion <strong>"Documentos"</strong> donde se pueden subir archivos (PIAs, informes medicos, pautas farmacologicas, etc.).</li>
@@ -623,6 +635,7 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>10/08</td><td><strong>Perfil medico del residente:</strong> nuevos campos en la ficha: diagnosticos, alergias (destacadas en rojo), medicacion actual, grupo sanguineo, nivel de dependencia (con badge de color), y contacto de emergencia (nombre, telefono clicable, relacion). Visible en la ficha de detalle y en la webapp del trabajador.</td></tr>
                     <tr><td>10/08</td><td><strong>Observaciones del trabajador:</strong> al finalizar una atencion o limpieza, el trabajador puede anadir notas opcionales (ej: "residente dormido", "grifo gotea"). Las notas se muestran en los registros de atenciones y limpiezas del admin.</td></tr>
                     <tr><td>10/08</td><td><strong>Centro de Notificaciones:</strong> campana en la barra de navegacion con badge de notificaciones no leidas. Se generan automaticamente alertas de: constantes vitales fuera de rango, incidencias criticas, documentos pendientes de firma, sesiones estancadas y falta de cobertura de turnos. Filtrable por tipo, severidad y estado.</td></tr>
                     <tr><td>10/08</td><td><strong>Modulo de Incidencias:</strong> nuevo sistema para registrar y hacer seguimiento de incidentes (caidas, accidentes, quejas, problemas de calidad). Tipos configurables, flujo de estados (abierta &rarr; en curso &rarr; resuelta &rarr; cerrada), severidades, y opcion para que los trabajadores reporten desde el movil (configurable).</td></tr>

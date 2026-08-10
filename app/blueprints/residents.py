@@ -167,6 +167,14 @@ def add_edit_resident():
                 r.relevant_info = relevant_info or None
                 r.active = active
                 r.group_id = group_id
+                r.diagnoses = request.form.get('diagnoses', '').strip() or None
+                r.allergies = request.form.get('allergies', '').strip() or None
+                r.current_medication = request.form.get('current_medication', '').strip() or None
+                r.blood_type = request.form.get('blood_type', '').strip() or None
+                r.dependency_level = request.form.get('dependency_level', '').strip() or None
+                r.emergency_contact_name = request.form.get('emergency_contact_name', '').strip() or None
+                r.emergency_contact_phone = request.form.get('emergency_contact_phone', '').strip() or None
+                r.emergency_contact_relation = request.form.get('emergency_contact_relation', '').strip() or None
                 # Foto
                 photo_file = request.files.get('photo')
                 if photo_file and photo_file.filename and _allowed_file(photo_file.filename, ALLOWED_IMAGE_EXTENSIONS):
@@ -195,6 +203,14 @@ def add_edit_resident():
                 relevant_info=relevant_info or None,
                 active=active,
                 group_id=group_id,
+                diagnoses=request.form.get('diagnoses', '').strip() or None,
+                allergies=request.form.get('allergies', '').strip() or None,
+                current_medication=request.form.get('current_medication', '').strip() or None,
+                blood_type=request.form.get('blood_type', '').strip() or None,
+                dependency_level=request.form.get('dependency_level', '').strip() or None,
+                emergency_contact_name=request.form.get('emergency_contact_name', '').strip() or None,
+                emergency_contact_phone=request.form.get('emergency_contact_phone', '').strip() or None,
+                emergency_contact_relation=request.form.get('emergency_contact_relation', '').strip() or None,
             )
             db.session.add(r)
             db.session.flush()  # obtener r.id para el nombre del archivo

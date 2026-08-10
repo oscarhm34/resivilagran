@@ -91,6 +91,82 @@
         </div>
     </div>
 
+    <!-- Perfil médico -->
+    {% set has_medical = resident.diagnoses or resident.allergies or resident.current_medication or resident.blood_type or resident.dependency_level or resident.emergency_contact_name %}
+    {% if has_medical %}
+    <div class="card mb-4">
+        <div class="card-header"><strong><i class="bi bi-heart-pulse me-1"></i>Perfil médico</strong></div>
+        <div class="card-body">
+            <div class="row g-4">
+                {% if resident.diagnoses or resident.allergies or resident.current_medication %}
+                <div class="col-md-6">
+                    {% if resident.diagnoses %}
+                    <div class="mb-3">
+                        <div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Diagnósticos</div>
+                        <div style="font-size:.9rem">{{ resident.diagnoses }}</div>
+                    </div>
+                    {% endif %}
+                    {% if resident.allergies %}
+                    <div class="mb-3">
+                        <div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Alergias</div>
+                        <div class="p-2" style="background:#fff3cd;border-left:3px solid #ffc107;border-radius:4px;font-size:.9rem;color:#856404">
+                            <i class="bi bi-exclamation-triangle me-1"></i>{{ resident.allergies }}
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if resident.current_medication %}
+                    <div class="mb-3">
+                        <div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Medicación actual</div>
+                        <div style="font-size:.9rem">{{ resident.current_medication }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                <div class="col-md-6">
+                    {% if resident.blood_type or resident.dependency_level %}
+                    <div class="d-flex gap-4 mb-3 flex-wrap">
+                        {% if resident.blood_type %}
+                        <div>
+                            <div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Grupo sanguíneo</div>
+                            <span class="badge bg-danger" style="font-size:.9rem">{{ resident.blood_type }}</span>
+                        </div>
+                        {% endif %}
+                        {% if resident.dependency_level %}
+                        <div>
+                            <div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Nivel de dependencia</div>
+                            {% set dep_map = {'autonomous': ('Autónomo', 'success'), 'mild': ('Leve', 'primary'), 'moderate': ('Moderado', 'warning'), 'severe': ('Severo', 'orange'), 'total': ('Total', 'danger')} %}
+                            {% set dep_label, dep_color = dep_map.get(resident.dependency_level, (resident.dependency_level, 'secondary')) %}
+                            {% if dep_color == 'orange' %}
+                            <span class="badge" style="background:#fd7e14;font-size:.9rem">{{ dep_label }}</span>
+                            {% else %}
+                            <span class="badge bg-{{ dep_color }}" style="font-size:.9rem">{{ dep_label }}</span>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% if resident.emergency_contact_name %}
+                    <div>
+                        <div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">
+                            <i class="bi bi-telephone me-1"></i>Contacto de emergencia
+                        </div>
+                        <div style="font-size:.9rem">
+                            <strong>{{ resident.emergency_contact_name }}</strong>
+                            {% if resident.emergency_contact_relation %}
+                            <span class="text-body-secondary">({{ resident.emergency_contact_relation }})</span>
+                            {% endif %}
+                            {% if resident.emergency_contact_phone %}
+                            <br><a href="tel:{{ resident.emergency_contact_phone }}"><i class="bi bi-telephone-fill me-1"></i>{{ resident.emergency_contact_phone }}</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Tabs -->
     <ul class="nav nav-tabs mb-3 no-print" role="tablist">
         <li class="nav-item" role="presentation">

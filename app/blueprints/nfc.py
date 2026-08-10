@@ -454,6 +454,8 @@ def api_resident_info(resident_id):
         'photo_url': f'/api/uploads/{r.photo_path}' if r.photo_path else None,
         'group_name': r.group.name if r.group else None,
         'group_color': r.group.color if r.group else None,
+        'allergies': r.allergies or '',
+        'dependency_level': r.dependency_level or '',
     }), 200
 
 

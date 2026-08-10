@@ -114,6 +114,15 @@ class Resident(db.Model):
     group_id = db.Column(db.Integer, db.ForeignKey('resident_group.id'), nullable=True)
     photo_path = db.Column(db.String(255), nullable=True)
     relevant_info = db.Column(db.Text, nullable=True)
+    # Medical profile
+    diagnoses = db.Column(db.Text, nullable=True)
+    allergies = db.Column(db.Text, nullable=True)
+    current_medication = db.Column(db.Text, nullable=True)
+    blood_type = db.Column(db.String(10), nullable=True)
+    dependency_level = db.Column(db.String(20), nullable=True)  # autonomous, mild, moderate, severe, total
+    emergency_contact_name = db.Column(db.String(100), nullable=True)
+    emergency_contact_phone = db.Column(db.String(30), nullable=True)
+    emergency_contact_relation = db.Column(db.String(50), nullable=True)
 
     group = db.relationship('ResidentGroup', back_populates='residents')
     care_records = db.relationship('CareRecord', back_populates='resident', lazy=True)
