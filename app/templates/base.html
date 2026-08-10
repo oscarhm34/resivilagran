@@ -282,28 +282,21 @@
                         </ul>
                     </li>
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {% if request.endpoint in ('documents.admin_documents','documents.document_signatures','training.admin_training','training.training_results') %}active{% endif %}"
+                        <a class="nav-link dropdown-toggle {% if request.endpoint in ('documents.admin_documents','documents.document_signatures','training.admin_training','training.training_results','incidents.admin_incidents','incidents.admin_incident_types') %}active{% endif %}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-mortarboard me-1" aria-hidden="true"></i>Formación
+                            <i class="bi bi-folder me-1" aria-hidden="true"></i>Gestión
                         </a>
                         <ul class="dropdown-menu shadow-sm" style="border-color:var(--color-border);border-radius:var(--radius-md)">
                             <li><a class="dropdown-item" href="{{ url_for('documents.admin_documents') }}"><i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Documentos legales</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('training.admin_training') }}"><i class="bi bi-play-circle me-1" aria-hidden="true"></i>Píldoras formativas</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('incidents.admin_incidents') }}"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Incidencias</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('incidents.admin_incident_types') }}"><i class="bi bi-tags me-1" aria-hidden="true"></i>Tipos de incidencia</a></li>
                         </ul>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint in ('shifts.cuadrantes','shifts.manage_shift_types') %}active{% endif %}"
                            href="{{ url_for('shifts.cuadrantes') }}"><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Turnos</a>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {% if request.endpoint in ('incidents.admin_incidents','incidents.admin_incident_types') %}active{% endif %}"
-                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Incidencias
-                        </a>
-                        <ul class="dropdown-menu shadow-sm" style="border-color:var(--color-border);border-radius:var(--radius-md)">
-                            <li><a class="dropdown-item" href="{{ url_for('incidents.admin_incidents') }}"><i class="bi bi-list-ul me-1" aria-hidden="true"></i>Reportes de incidencias</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('incidents.admin_incident_types') }}"><i class="bi bi-tags me-1" aria-hidden="true"></i>Tipos de incidencia</a></li>
-                        </ul>
                     </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {% if request.endpoint in ('admin_bp.admin_analytics','admin_bp.admin_performance') %}active{% endif %}"
