@@ -1036,6 +1036,8 @@ def api_care_types():
 @admin_required
 def debug_record():
     """Diagnóstico: comprueba un registro por ID. Solo admin. /api/debug/record?id=X&mode=cleaning"""
+    if os.getenv('FLASK_DEBUG') != '1':
+        abort(404)
     record_id = request.args.get('id', type=int)
     mode = request.args.get('mode', 'cleaning')
     if not record_id:
@@ -4385,6 +4387,41 @@ def _compute_cleaning_stats(days_back: int = 90) -> dict:
     }
 
 
+def _calculate_room_urgency(room_id, room_clean_count, room_last_cleaned, now,
+                            is_resident_room=False, is_occupied=True):
+    """Calculate cleaning urgency ratio for a room.
+    Returns (urgency, days_since, expected_freq_days)."""
+    count = room_clean_count.get(room_id, 0)
+    last = room_last_cleaned.get(room_id)
+    expected_freq_days = (90 / count) if count > 0 else 7
+    if is_resident_room and not is_occupied:
+        expected_freq_days *= 3
+    if last:
+        days_since = (now - last).days
+        urgency = days_since / expected_freq_days if expected_freq_days > 0 else 0
+    else:
+        days_since = None
+        urgency = 10  # never cleaned = highest urgency
+    return urgency, days_since, expected_freq_days
+
+
+def _urgency_priority(urgency, cleaned_today=False):
+    """Return priority string from urgency ratio."""
+    if cleaned_today:
+        return 'done'
+    if urgency >= 2:
+        return 'urgent'
+    if urgency >= 1:
+        return 'due'
+    return 'ok'
+
+
+def _today_range(target_date=None):
+    """Return (start_datetime, end_datetime) for a given date (default today)."""
+    d = target_date or date.today()
+    return datetime.combine(d, datetime.min.time()), datetime.combine(d + timedelta(days=1), datetime.min.time())
+
+
 @app.route('/api/worker/cleaning-route')
 @jwt_required()
 def worker_cleaning_route():
@@ -4488,39 +4525,19 @@ def worker_cleaning_route():
         is_resident_room = room.room_type and 'residen' in room.room_type.name.lower()
         is_occupied = room.number in occupied_room_numbers
 
-        # Calculate urgency: how overdue is this room?
-        count = room_clean_count.get(room.id, 0)
-        last = room_last_cleaned.get(room.id)
-        if count > 0:
-            expected_freq_days = 90 / count  # how often it's usually cleaned
-        else:
-            expected_freq_days = 7  # default: weekly
-
-        # Empty resident rooms need less frequent cleaning (3x less urgent)
-        if is_resident_room and not is_occupied:
-            expected_freq_days *= 3
-
-        if last:
-            days_since = (now - last).days
-            # Urgency ratio: >1 means overdue, >2 means very overdue
-            urgency = days_since / expected_freq_days if expected_freq_days > 0 else 0
-        else:
-            days_since = None
-            urgency = 10  # never cleaned = highest urgency
+        urgency, days_since, expected_freq_days = _calculate_room_urgency(
+            room.id, room_clean_count, room_last_cleaned, now, is_resident_room, is_occupied)
+        priority = _urgency_priority(urgency, cleaned)
 
         # Priority label
         empty_tag = ' (vacía)' if is_resident_room and not is_occupied else ''
         if cleaned:
-            priority = 'done'
             priority_label = 'Limpiada hoy'
         elif urgency >= 2:
-            priority = 'urgent'
             priority_label = f'Atrasada ({days_since}d sin limpiar, se limpia cada {expected_freq_days:.0f}d){empty_tag}'
         elif urgency >= 1:
-            priority = 'due'
             priority_label = f'Toca hoy ({days_since}d sin limpiar){empty_tag}'
         else:
-            priority = 'ok'
             remaining_days = expected_freq_days - (days_since or 0)
             priority_label = f'Faltan {remaining_days:.0f}d{empty_tag}'
 
@@ -4591,14 +4608,10 @@ def worker_cleaning_route():
             if room.id in today_cleaned:
                 continue
             est = avg_per_room.get(room.id, targets.get(room.room_type_id, 15))
-            count = room_clean_count.get(room.id, 0)
-            last = room_last_cleaned.get(room.id)
-            freq = (90 / count) if count > 0 else 7
             is_res = room.room_type and 'residen' in room.room_type.name.lower()
-            if is_res and room.number not in occupied_room_numbers:
-                freq *= 3
-            days_since = (now - last).days if last else None
-            urg = (days_since / freq) if (last and freq > 0) else (10 if count == 0 else 0)
+            is_occ = room.number in occupied_room_numbers
+            urg, days_since, freq = _calculate_room_urgency(
+                room.id, room_clean_count, room_last_cleaned, now, is_res, is_occ)
             in_other_zone = room.id in other_zone_room_ids
             extra_candidates.append((room, est, urg, days_since, freq, in_other_zone))
 
@@ -4609,7 +4622,7 @@ def worker_cleaning_route():
             if spare_minutes <= 0:
                 break
             floor = room.floor
-            priority = 'urgent' if urg >= 2 else ('due' if urg >= 1 else 'ok')
+            priority = _urgency_priority(urg)
             empty_tag = ''
             is_res = room.room_type and 'residen' in room.room_type.name.lower()
             if is_res and room.number not in occupied_room_numbers:
@@ -4761,23 +4774,11 @@ def admin_cleaning_plan():
         # Build room list with urgency
         rooms_plan = []
         for room in worker_rooms:
-            count = room_clean_count.get(room.id, 0)
-            last = room_last_cleaned.get(room.id)
-            freq = (90 / count) if count > 0 else 7
             is_resident = room.room_type and 'residen' in room.room_type.name.lower()
-            if is_resident and room.number not in occupied:
-                freq *= 3
-            days_since = (now - last).days if last else None
-            urgency = (days_since / freq) if (last and freq > 0) else 10
-
-            if room.id in completed_room_ids:
-                priority = 'done'
-            elif urgency >= 2:
-                priority = 'urgent'
-            elif urgency >= 1:
-                priority = 'due'
-            else:
-                priority = 'ok'
+            is_occ = room.number in occupied
+            urgency, days_since, freq = _calculate_room_urgency(
+                room.id, room_clean_count, room_last_cleaned, now, is_resident, is_occ)
+            priority = _urgency_priority(urgency, room.id in completed_room_ids)
 
             est = avg_per_room.get(room.id, targets_map.get(room.room_type_id, 15))
             rooms_plan.append({
@@ -4813,14 +4814,10 @@ def admin_cleaning_plan():
                 if room.id in today_cleaned_ids_all or room.id in globally_assigned_extra:
                     continue
                 est = avg_per_room.get(room.id, targets_map.get(room.room_type_id, 15))
-                count = room_clean_count.get(room.id, 0)
-                last = room_last_cleaned.get(room.id)
-                freq = (90 / count) if count > 0 else 7
                 is_res = room.room_type and 'residen' in room.room_type.name.lower()
-                if is_res and room.number not in occupied:
-                    freq *= 3
-                days_since = (now - last).days if last else None
-                urg = (days_since / freq) if (last and freq > 0) else (10 if count == 0 else 0)
+                is_occ = room.number in occupied
+                urg, days_since, freq = _calculate_room_urgency(
+                    room.id, room_clean_count, room_last_cleaned, now, is_res, is_occ)
                 extra_candidates.append((room, est, urg, days_since, freq))
 
             extra_candidates.sort(key=lambda x: -x[2])  # most urgent first
@@ -4828,12 +4825,7 @@ def admin_cleaning_plan():
             for room, est, urg, days_since, freq in extra_candidates:
                 if spare <= 0:
                     break
-                if urg >= 2:
-                    prio = 'urgent'
-                elif urg >= 1:
-                    prio = 'due'
-                else:
-                    prio = 'ok'
+                prio = _urgency_priority(urg)
                 rooms_plan.append({
                     'room': room, 'priority': prio, 'urgency': urg,
                     'days_since': days_since, 'frequency': round(freq, 1),
@@ -4875,19 +4867,15 @@ def admin_cleaning_plan():
     for room in all_rooms:
         if room.id in covered_room_ids or room.id in today_cleaned_ids:
             continue
-        count = room_clean_count.get(room.id, 0)
-        last = room_last_cleaned.get(room.id)
-        freq = (90 / count) if count > 0 else 7
         is_resident = room.room_type and 'residen' in room.room_type.name.lower()
-        if is_resident and room.number not in occupied:
-            freq *= 3
-        days_since = (now - last).days if last else None
-        urgency = (days_since / freq) if (last and freq > 0) else (10 if count == 0 else 0)
+        is_occ = room.number in occupied
+        urgency, days_since, freq = _calculate_room_urgency(
+            room.id, room_clean_count, room_last_cleaned, now, is_resident, is_occ)
         if urgency >= 1:
             uncovered.append({
                 'room': room, 'days_since': days_since, 'frequency': round(freq, 1),
                 'urgency': round(urgency, 2),
-                'priority': 'urgent' if urgency >= 2 else 'due',
+                'priority': _urgency_priority(urgency),
             })
     uncovered.sort(key=lambda x: -x['urgency'])
 

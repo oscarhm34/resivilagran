@@ -41,9 +41,9 @@ class Cleaner(UserMixin, db.Model):
 
 class CleaningRecord(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    cleaner_id = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=False)
-    room_id = db.Column(db.Integer, nullable=False)
-    start_time = db.Column(db.DateTime, nullable=True)
+    cleaner_id = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=False, index=True)
+    room_id = db.Column(db.Integer, nullable=False, index=True)
+    start_time = db.Column(db.DateTime, nullable=True, index=True)
     end_time = db.Column(db.DateTime, nullable=True)
     checklist_json = db.Column(db.Text, nullable=True)
 
@@ -174,10 +174,10 @@ class VitalSignReading(db.Model):
 class CareRecord(db.Model):
     __tablename__ = 'care_record'
     id = db.Column(db.Integer, primary_key=True)
-    worker_id = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=False)
-    resident_id = db.Column(db.Integer, db.ForeignKey('resident.id'), nullable=False)
+    worker_id = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=False, index=True)
+    resident_id = db.Column(db.Integer, db.ForeignKey('resident.id'), nullable=False, index=True)
     care_type_id = db.Column(db.Integer, db.ForeignKey('care_type.id'), nullable=True)
-    start_time = db.Column(db.DateTime, nullable=False)
+    start_time = db.Column(db.DateTime, nullable=False, index=True)
     end_time = db.Column(db.DateTime, nullable=True)
     notes = db.Column(db.Text, nullable=True)
 
@@ -341,7 +341,7 @@ class ShiftAssignment(db.Model):
     __tablename__ = 'shift_assignment'
     id = db.Column(db.Integer, primary_key=True)
     cleaner_id = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=False)
-    date = db.Column(db.Date, nullable=False)
+    date = db.Column(db.Date, nullable=False, index=True)
     shift_type_id = db.Column(db.Integer, db.ForeignKey('shift_type.id'), nullable=True)
     is_override = db.Column(db.Boolean, default=False)
     source = db.Column(db.String(20), default='manual')
@@ -429,8 +429,8 @@ class Absence(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     cleaner_id = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=False)
     absence_type_id = db.Column(db.Integer, db.ForeignKey('absence_type.id'), nullable=False)
-    start_date = db.Column(db.Date, nullable=False)
-    end_date = db.Column(db.Date, nullable=False)
+    start_date = db.Column(db.Date, nullable=False, index=True)
+    end_date = db.Column(db.Date, nullable=False, index=True)
     notes = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
     created_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
