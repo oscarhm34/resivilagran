@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block title %}Tipos de incidencia{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+        <a href="{{ url_for('incidents.admin_incidents') }}" class="btn btn-outline-secondary btn-sm">&larr; Incidencias</a>
+        <h1 class="h3 mb-0">Tipos de incidencia</h1>
+        <span class="badge bg-secondary ms-auto">{{ incident_types|length }} tipo{{ 's' if incident_types|length != 1 }}</span>
+        <button type="button" class="btn btn-primary btn-sm" onclick="openTypeForm()">
+            <i class="bi bi-plus-lg me-1"></i>Añadir tipo
+        </button>
+    </div>
+
+    <!-- Offcanvas formulario -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="typeFormPanel" aria-labelledby="typeFormTitle" style="width:min(480px,90vw)">
+        <div class="offcanvas-header" id="type-header-bar" style="border-bottom:1px solid var(--color-border);border-top:3px solid var(--color-primary)">
+            <h5 class="offcanvas-title" id="typeFormTitle">Nuevo tipo</h5>
+            <span id="edit-badge" class="badge bg-warning text-dark d-none ms-2">Editando</span>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+        </div>
+        <div class="offcanvas-body">
+            <form id="type-form" method="POST" action="{{ url_for('incidents.add_edit_incident_type') }}" class="needs-validation" novalidate>
+                <input type="hidden" name="type_id" value="">
+                <div class="mb-3">
+                    <label for="it-name" class="form-label">Nombre <span class="text-danger">*</span></label>
+                    <input type="text" id="it-name" name="name" class="form-control" required placeholder="ej. Caída, Agresión...">
+                    <div class="invalid-feedback">El nombre es obligatorio.</div>
+                </div>
+                <div class="mb-3">
+                    <label for="it-severity" class="form-label">Severidad por defecto</label>
+                    <select id="it-severity" name="severity" class="form-select">
+                        <option value="low">Baja</option>
+                        <option value="medium" selected>Media</option>
+                        <option value="high">Alta</option>
+                        <option value="critical">Crítica</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="it-icon" class="form-label">Icono (Bootstrap Icons)</label>
+                    <input type="text" id="it-icon" name="icon" class="form-control" placeholder="ej. bi-bandaid">
+                </div>
+                <div class="mb-3">
+                    <label for="it-color" class="form-label">Color</label>
+                    <input type="color" id="it-color" name="color" class="form-control form-control-color" value="#6c757d">
+                </div>
+                <div class="mb-3">
+                    <label for="it-sort" class="form-label">Orden</label>
+                    <input type="number" id="it-sort" name="sort_order" class="form-control" value="0" min="0">
+                </div>
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary" id="type-submit-btn">Añadir tipo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla -->
+    {% if incident_types %}
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Orden</th>
+                        <th>Nombre</th>
+                        <th>Severidad</th>
+                        <th>Color</th>
+                        <th>Estado</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set sev_labels = {'critical': 'Crítica', 'high': 'Alta', 'medium': 'Media', 'low': 'Baja'} %}
+                    {% for t in incident_types %}
+                    <tr>
+                        <td>{{ t.sort_order }}</td>
+                        <td style="font-weight:600">
+                            {% if t.icon %}<i class="bi {{ t.icon }} me-1"></i>{% endif %}
+                            {{ t.name }}
+                        </td>
+                        <td>{{ sev_labels.get(t.severity, t.severity) }}</td>
+                        <td>
+                            <span class="d-inline-block rounded-circle" style="width:20px;height:20px;background:{{ t.color or '#6c757d' }};vertical-align:middle"></span>
+                            <small class="text-body-secondary ms-1">{{ t.color or '—' }}</small>
+                        </td>
+                        <td>
+                            <label class="form-check m-0 d-flex align-items-center gap-1" style="cursor:pointer">
+                                <input type="checkbox" class="form-check-input toggle-active m-0"
+                                       data-id="{{ t.id }}" {% if t.active %}checked{% endif %} style="cursor:pointer">
+                                <span style="font-size:.85rem">{{ 'Activo' if t.active else 'Inactivo' }}</span>
+                            </label>
+                        </td>
+                        <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-outline-secondary edit-btn me-1"
+                                    data-id="{{ t.id }}" data-name="{{ t.name }}"
+                                    data-severity="{{ t.severity }}" data-icon="{{ t.icon or '' }}"
+                                    data-color="{{ t.color or '#6c757d' }}" data-sort="{{ t.sort_order }}">Editar</button>
+                            <button type="button" class="btn btn-sm btn-outline-danger delete-btn"
+                                    data-name="{{ t.name }}"
+                                    data-action="{{ url_for('incidents.delete_incident_type', id=t.id) }}">Eliminar</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info" role="status">No hay tipos de incidencia. Añade el primero arriba.</div>
+    {% endif %}
+</div>
+
+<!-- Modal eliminación -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-modal="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:var(--radius-lg);border:1px solid var(--color-border)">
+            <div class="modal-header"><h5 class="modal-title">Confirmar eliminación</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">¿Eliminar <strong id="delete-name"></strong>?</div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form id="delete-form" method="post" action="" class="m-0"><button type="submit" class="btn btn-danger">Eliminar</button></form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    'use strict';
+
+    var offcanvasEl = document.getElementById('typeFormPanel');
+    var offcanvas = new bootstrap.Offcanvas(offcanvasEl);
+    var headerBar = document.getElementById('type-header-bar');
+
+    function resetForm() {
+        var form = document.getElementById('type-form');
+        form.reset();
+        form.classList.remove('was-validated');
+        form.querySelector('[name="type_id"]').value = '';
+        document.getElementById('type-submit-btn').textContent = 'Añadir tipo';
+        document.getElementById('typeFormTitle').textContent = 'Nuevo tipo';
+        document.getElementById('edit-badge').classList.add('d-none');
+        headerBar.style.borderTopColor = 'var(--color-primary)';
+        document.getElementById('it-color').value = '#6c757d';
+    }
+
+    window.openTypeForm = function () {
+        resetForm();
+        offcanvas.show();
+    };
+
+    offcanvasEl.addEventListener('hidden.bs.offcanvas', resetForm);
+
+    document.querySelectorAll('.edit-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var form = document.getElementById('type-form');
+            form.classList.remove('was-validated');
+            form.querySelector('[name="type_id"]').value = this.dataset.id;
+            document.getElementById('it-name').value = this.dataset.name;
+            document.getElementById('it-severity').value = this.dataset.severity;
+            document.getElementById('it-icon').value = this.dataset.icon;
+            document.getElementById('it-color').value = this.dataset.color;
+            document.getElementById('it-sort').value = this.dataset.sort;
+            document.getElementById('type-submit-btn').textContent = 'Guardar cambios';
+            document.getElementById('typeFormTitle').textContent = 'Editando: ' + this.dataset.name;
+            document.getElementById('edit-badge').classList.remove('d-none');
+            headerBar.style.borderTopColor = 'var(--color-warning)';
+            offcanvas.show();
+        });
+    });
+
+    document.querySelectorAll('.delete-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.getElementById('delete-name').textContent = this.dataset.name;
+            document.getElementById('delete-form').action = this.dataset.action;
+            new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        });
+    });
+
+    document.querySelectorAll('.toggle-active').forEach(function (cb) {
+        cb.addEventListener('change', async function () {
+            await fetch('{{ url_for("incidents.toggle_incident_type_active") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: parseInt(this.dataset.id), active: this.checked }),
+            });
+        });
+    });
+})();
+</script>
+{% endblock %}

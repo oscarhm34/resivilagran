@@ -1168,12 +1168,14 @@ def admin_settings():
         AppSetting.set('allow_group_care', 'true' if request.form.get('allow_group_care') else 'false')
         AppSetting.set('nfc_only', 'true' if request.form.get('nfc_only') else 'false')
         AppSetting.set('single_session', 'true' if request.form.get('single_session') else 'false')
+        AppSetting.set('allow_worker_incidents', 'true' if request.form.get('allow_worker_incidents') else 'false')
         flash('Configuración guardada.', 'success')
         return redirect(url_for('nfc.admin_settings'))
     return render_template('admin_settings.html',
         allow_group_care=AppSetting.get('allow_group_care', 'true') == 'true',
         nfc_only=AppSetting.get('nfc_only', 'true') == 'true',
         single_session=AppSetting.get('single_session', 'false') == 'true',
+        allow_worker_incidents=AppSetting.get('allow_worker_incidents', 'false') == 'true',
     )
 
 
@@ -1184,4 +1186,5 @@ def api_config():
         'allow_group_care': AppSetting.get('allow_group_care', 'true') == 'true',
         'nfc_only': AppSetting.get('nfc_only', 'true') == 'true',
         'single_session': AppSetting.get('single_session', 'false') == 'true',
+        'allow_worker_incidents': AppSetting.get('allow_worker_incidents', 'false') == 'true',
     }), 200

@@ -477,3 +477,40 @@ class CleaningTargetTime(db.Model):
     target_minutes = db.Column(db.Float, nullable=False, default=15)
 
     room_type = db.relationship('RoomType')
+
+
+# ── INCIDENTES ───────────────────────────────────────────────────────────────
+
+class IncidentType(db.Model):
+    __tablename__ = 'incident_type'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    icon = db.Column(db.String(50), nullable=True)
+    color = db.Column(db.String(20), nullable=True)
+    severity = db.Column(db.String(20), nullable=False, default='medium')
+    active = db.Column(db.Boolean, default=True)
+    sort_order = db.Column(db.Integer, default=0)
+
+
+class Incident(db.Model):
+    __tablename__ = 'incident'
+    id = db.Column(db.Integer, primary_key=True)
+    incident_type_id = db.Column(db.Integer, db.ForeignKey('incident_type.id'), nullable=True, index=True)
+    reported_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=False, index=True)
+    resident_id = db.Column(db.Integer, db.ForeignKey('resident.id'), nullable=True, index=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    location = db.Column(db.String(100), nullable=True)
+    severity = db.Column(db.String(20), nullable=False, default='medium')
+    status = db.Column(db.String(20), nullable=False, default='open')
+    occurred_at = db.Column(db.DateTime, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    resolved_at = db.Column(db.DateTime, nullable=True)
+    resolved_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
+    resolution_notes = db.Column(db.Text, nullable=True)
+
+    incident_type = db.relationship('IncidentType', backref=db.backref('incidents', lazy=True))
+    reporter = db.relationship('Cleaner', foreign_keys=[reported_by],
+                               backref=db.backref('reported_incidents', lazy=True))
+    resident = db.relationship('Resident', backref=db.backref('incidents', lazy=True))
+    resolver = db.relationship('Cleaner', foreign_keys=[resolved_by])

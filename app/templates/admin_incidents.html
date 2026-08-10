@@ -1,0 +1,319 @@
+{% extends "base.html" %}
+{% block title %}Incidencias{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap">
+        <h1 class="h3 mb-0">Incidencias</h1>
+        <div class="d-flex align-items-center gap-2 mt-1 mt-md-0">
+            {% if pagination %}
+            <span class="small" style="color:var(--color-text-secondary)">
+                {{ pagination.total }} registro{{ 's' if pagination.total != 1 }} en total
+            </span>
+            {% endif %}
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#incidentModal"
+                    onclick="resetIncidentForm()">
+                <i class="bi bi-plus-lg me-1"></i>Nueva incidencia
+            </button>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-3">
+        <div class="card-body py-2">
+            <form method="GET" action="{{ url_for('incidents.admin_incidents') }}" class="row g-2 align-items-end">
+                <div class="col-auto">
+                    <label class="form-label mb-0 small">Tipo</label>
+                    <select name="incident_type_id" class="form-select form-select-sm" style="min-width:140px">
+                        <option value="">Todos</option>
+                        {% for t in incident_types %}
+                        <option value="{{ t.id }}" {% if filters.incident_type_id|string == t.id|string %}selected{% endif %}>{{ t.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label mb-0 small">Severidad</label>
+                    <select name="severity" class="form-select form-select-sm" style="min-width:120px">
+                        <option value="">Todas</option>
+                        <option value="critical" {% if filters.severity == 'critical' %}selected{% endif %}>Crítica</option>
+                        <option value="high" {% if filters.severity == 'high' %}selected{% endif %}>Alta</option>
+                        <option value="medium" {% if filters.severity == 'medium' %}selected{% endif %}>Media</option>
+                        <option value="low" {% if filters.severity == 'low' %}selected{% endif %}>Baja</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label mb-0 small">Estado</label>
+                    <select name="status" class="form-select form-select-sm" style="min-width:120px">
+                        <option value="">Todos</option>
+                        <option value="open" {% if filters.status == 'open' %}selected{% endif %}>Abierta</option>
+                        <option value="in_progress" {% if filters.status == 'in_progress' %}selected{% endif %}>En curso</option>
+                        <option value="resolved" {% if filters.status == 'resolved' %}selected{% endif %}>Resuelta</option>
+                        <option value="closed" {% if filters.status == 'closed' %}selected{% endif %}>Cerrada</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label mb-0 small">Desde</label>
+                    <input type="date" name="start_date" class="form-control form-control-sm" value="{{ filters.start_date }}">
+                </div>
+                <div class="col-auto">
+                    <label class="form-label mb-0 small">Hasta</label>
+                    <input type="date" name="end_date" class="form-control form-control-sm" value="{{ filters.end_date }}">
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-sm btn-outline-primary">Filtrar</button>
+                    <a href="{{ url_for('incidents.admin_incidents') }}" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla -->
+    {% if incidents %}
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Tipo</th>
+                        <th>Severidad</th>
+                        <th>Título</th>
+                        <th class="hide-mobile">Residente</th>
+                        <th class="hide-mobile">Reportado por</th>
+                        <th>Estado</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for inc in incidents %}
+                    <tr>
+                        <td style="white-space:nowrap">{{ inc.occurred_at.strftime('%d/%m/%Y %H:%M') if inc.occurred_at else '—' }}</td>
+                        <td>
+                            {% if inc.incident_type %}
+                            <span class="badge" style="background:{{ inc.incident_type.color or '#6c757d' }};color:#fff">{{ inc.incident_type.name }}</span>
+                            {% else %}
+                            <span class="text-body-secondary">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% set sev_colors = {'critical': '#cf222e', 'high': '#fd7e14', 'medium': '#bf8700', 'low': '#656d76'} %}
+                            {% set sev_labels = {'critical': 'Crítica', 'high': 'Alta', 'medium': 'Media', 'low': 'Baja'} %}
+                            <span class="status-badge" style="color:{{ sev_colors.get(inc.severity, '#656d76') }};background:{{ sev_colors.get(inc.severity, '#656d76') }}20">
+                                {{ sev_labels.get(inc.severity, inc.severity) }}
+                            </span>
+                        </td>
+                        <td style="font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ inc.title }}</td>
+                        <td class="hide-mobile">{{ inc.resident.name if inc.resident else '—' }}</td>
+                        <td class="hide-mobile">{{ inc.reporter.name if inc.reporter else '—' }}</td>
+                        <td>
+                            {% set st_colors = {'open': '#cf222e', 'in_progress': '#0069d9', 'resolved': '#1a7f37', 'closed': '#656d76'} %}
+                            {% set st_labels = {'open': 'Abierta', 'in_progress': 'En curso', 'resolved': 'Resuelta', 'closed': 'Cerrada'} %}
+                            <span class="status-badge" style="color:{{ st_colors.get(inc.status, '#656d76') }};background:{{ st_colors.get(inc.status, '#656d76') }}20">
+                                {{ st_labels.get(inc.status, inc.status) }}
+                            </span>
+                        </td>
+                        <td class="text-end" style="white-space:nowrap">
+                            <button class="btn btn-sm btn-outline-secondary me-1"
+                                    onclick="editIncident({{ inc.id }}, {{ inc.title|tojson }}, {{ (inc.description or '')|tojson }}, {{ (inc.incident_type_id or '')|tojson }}, {{ (inc.resident_id or '')|tojson }}, {{ (inc.location or '')|tojson }}, {{ inc.severity|tojson }}, '{{ inc.occurred_at.strftime('%Y-%m-%dT%H:%M') if inc.occurred_at else '' }}')">Editar</button>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">Estado</button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    {% for st_key, st_label in [('open','Abierta'),('in_progress','En curso'),('closed','Cerrada')] %}
+                                    {% if inc.status != st_key %}
+                                    <li>
+                                        <form method="post" action="{{ url_for('incidents.update_incident_status', id=inc.id) }}" class="d-inline">
+                                            <input type="hidden" name="status" value="{{ st_key }}">
+                                            <button type="submit" class="dropdown-item">{{ st_label }}</button>
+                                        </form>
+                                    </li>
+                                    {% endif %}
+                                    {% endfor %}
+                                    {% if inc.status != 'resolved' %}
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><button class="dropdown-item" onclick="openResolveModal({{ inc.id }})">Resolver...</button></li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                            <form method="post" action="{{ url_for('incidents.delete_incident', id=inc.id) }}"
+                                  class="d-inline" data-confirm="¿Eliminar esta incidencia?">
+                                <button class="btn btn-sm btn-outline-danger ms-1">Eliminar</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Paginación -->
+    {% if pagination and pagination.pages > 1 %}
+    <div class="d-flex align-items-center justify-content-between flex-wrap mt-3">
+        <p class="small mb-2" style="color:var(--color-text-secondary)">
+            Página <strong>{{ pagination.page }}</strong> de <strong>{{ pagination.pages }}</strong>
+        </p>
+        <nav aria-label="Paginación">
+            <ul class="pagination pagination-sm mb-0 flex-wrap">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('incidents.admin_incidents', page=pagination.prev_num,
+                        incident_type_id=filters.incident_type_id, severity=filters.severity,
+                        status=filters.status, start_date=filters.start_date, end_date=filters.end_date) }}">&laquo;</a>
+                </li>
+                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                {% if page_num %}
+                <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('incidents.admin_incidents', page=page_num,
+                        incident_type_id=filters.incident_type_id, severity=filters.severity,
+                        status=filters.status, start_date=filters.start_date, end_date=filters.end_date) }}">{{ page_num }}</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><a class="page-link">&hellip;</a></li>
+                {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('incidents.admin_incidents', page=pagination.next_num,
+                        incident_type_id=filters.incident_type_id, severity=filters.severity,
+                        status=filters.status, start_date=filters.start_date, end_date=filters.end_date) }}">&raquo;</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="alert alert-info" role="status">No hay incidencias registradas.</div>
+    {% endif %}
+</div>
+
+<!-- Modal crear/editar incidencia -->
+<div class="modal fade" id="incidentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content" style="border-radius:var(--radius-lg);border:1px solid var(--color-border)">
+            <form id="incidentForm" method="post" action="{{ url_for('incidents.create_incident') }}">
+                <div class="modal-header" style="border-color:var(--color-border)!important">
+                    <h5 class="modal-title" id="incidentModalTitle">Nueva incidencia</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label">Título <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="title" id="inc-title" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Severidad</label>
+                            <select class="form-select" name="severity" id="inc-severity">
+                                <option value="low">Baja</option>
+                                <option value="medium" selected>Media</option>
+                                <option value="high">Alta</option>
+                                <option value="critical">Crítica</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Tipo de incidencia</label>
+                            <select class="form-select" name="incident_type_id" id="inc-type">
+                                <option value="">Sin tipo</option>
+                                {% for t in incident_types %}
+                                <option value="{{ t.id }}">{{ t.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Residente (opcional)</label>
+                            <select class="form-select" name="resident_id" id="inc-resident">
+                                <option value="">Ninguno</option>
+                                {% for r in residents %}
+                                <option value="{{ r.id }}">{{ r.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Ubicación</label>
+                            <input type="text" class="form-control" name="location" id="inc-location" placeholder="ej. Habitación 204, Comedor...">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Fecha/hora del suceso</label>
+                            <input type="datetime-local" class="form-control" name="occurred_at" id="inc-occurred">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Descripción</label>
+                            <textarea class="form-control" name="description" id="inc-description" rows="4"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-color:var(--color-border)!important">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="inc-submit-btn">Crear incidencia</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal resolver incidencia -->
+<div class="modal fade" id="resolveModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:var(--radius-lg);border:1px solid var(--color-border)">
+            <form id="resolveForm" method="post" action="">
+                <input type="hidden" name="status" value="resolved">
+                <div class="modal-header" style="border-color:var(--color-border)!important">
+                    <h5 class="modal-title">Resolver incidencia</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label">Notas de resolución</label>
+                    <textarea class="form-control" name="resolution_notes" rows="4" placeholder="Describe cómo se resolvió la incidencia..."></textarea>
+                </div>
+                <div class="modal-footer" style="border-color:var(--color-border)!important">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success">Marcar como resuelta</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    'use strict';
+
+    window.resetIncidentForm = function () {
+        var form = document.getElementById('incidentForm');
+        form.action = '{{ url_for("incidents.create_incident") }}';
+        document.getElementById('incidentModalTitle').textContent = 'Nueva incidencia';
+        document.getElementById('inc-submit-btn').textContent = 'Crear incidencia';
+        document.getElementById('inc-title').value = '';
+        document.getElementById('inc-description').value = '';
+        document.getElementById('inc-type').value = '';
+        document.getElementById('inc-resident').value = '';
+        document.getElementById('inc-location').value = '';
+        document.getElementById('inc-severity').value = 'medium';
+        document.getElementById('inc-occurred').value = '';
+    };
+
+    window.editIncident = function (id, title, description, typeId, residentId, location, severity, occurredAt) {
+        var form = document.getElementById('incidentForm');
+        form.action = '/admin/incidents/' + id + '/edit';
+        document.getElementById('incidentModalTitle').textContent = 'Editar incidencia';
+        document.getElementById('inc-submit-btn').textContent = 'Guardar cambios';
+        document.getElementById('inc-title').value = title;
+        document.getElementById('inc-description').value = description;
+        document.getElementById('inc-type').value = typeId || '';
+        document.getElementById('inc-resident').value = residentId || '';
+        document.getElementById('inc-location').value = location;
+        document.getElementById('inc-severity').value = severity;
+        document.getElementById('inc-occurred').value = occurredAt;
+        new bootstrap.Modal(document.getElementById('incidentModal')).show();
+    };
+
+    window.openResolveModal = function (id) {
+        document.getElementById('resolveForm').action = '/admin/incidents/' + id + '/update-status';
+        new bootstrap.Modal(document.getElementById('resolveModal')).show();
+    };
+})();
+</script>
+{% endblock %}

@@ -296,6 +296,16 @@
                            href="{{ url_for('shifts.cuadrantes') }}"><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Turnos</a>
                     </li>
                     <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if request.endpoint in ('incidents.admin_incidents','incidents.admin_incident_types') %}active{% endif %}"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Incidencias
+                        </a>
+                        <ul class="dropdown-menu shadow-sm" style="border-color:var(--color-border);border-radius:var(--radius-md)">
+                            <li><a class="dropdown-item" href="{{ url_for('incidents.admin_incidents') }}"><i class="bi bi-list-ul me-1" aria-hidden="true"></i>Reportes de incidencias</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('incidents.admin_incident_types') }}"><i class="bi bi-tags me-1" aria-hidden="true"></i>Tipos de incidencia</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {% if request.endpoint in ('admin_bp.admin_analytics','admin_bp.admin_performance') %}active{% endif %}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-bar-chart-line me-1" aria-hidden="true"></i>Analíticas
