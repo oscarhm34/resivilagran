@@ -79,8 +79,12 @@ def index():
     if stale_count:
         db.session.commit()
 
-    from .notifications import _generate_notifications
-    _generate_notifications()
+    try:
+        from .notifications import _generate_notifications
+        _generate_notifications()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning('Error generating notifications: %s', e)
 
     today = datetime.now().date()
     tomorrow = today + timedelta(days=1)
