@@ -162,7 +162,7 @@
 
     window.resetPillForm = function () {
         qIdx = 0;
-        document.getElementById('pillForm').action = '{{ url_for("create_training") }}';
+        document.getElementById('pillForm').action = '{{ url_for("training.create_training") }}';
         document.getElementById('pillModalTitle').textContent = 'Nueva píldora formativa';
         document.getElementById('pill-submit-btn').textContent = 'Crear píldora';
         document.getElementById('pill-title').value = '';

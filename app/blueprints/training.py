@@ -188,7 +188,7 @@ def get_training(pill_id: int):
 @bp.route('/api/worker/training/<int:pill_id>/start', methods=['POST'])
 @jwt_required()
 def start_training(pill_id: int):
-    from ..routes import _save_base64_photo
+    from .nfc import _save_base64_photo
     data = request.json or {}
     worker_id = data.get('worker_id')
     if worker_id and not _verify_worker_id(worker_id):

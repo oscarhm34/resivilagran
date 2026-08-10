@@ -188,7 +188,7 @@
                         <td>
                             <div class="d-flex align-items-center gap-2">
                                 {% if r.photo_path %}
-                                <img src="{{ url_for('serve_upload', filename=r.photo_path) }}" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover">
+                                <img src="{{ url_for('nfc.serve_upload', filename=r.photo_path) }}" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover">
                                 {% endif %}
                                 <strong>{{ r.name }}</strong>
                             </div>
@@ -296,7 +296,7 @@
 <script>
 var RESIDENT_DOCS = {
 {% for r in residents %}
-{{ r.id }}: [{% for d in r.documents %}{ id: {{ d.id }}, name: "{{ d.original_filename | e }}", type: "{{ d.doc_type or 'Otros' }}", desc: "{{ d.description or '' | e }}", date: "{{ d.uploaded_at.strftime('%d/%m/%Y') if d.uploaded_at else '' }}", url: "{{ url_for('serve_upload', filename=d.file_path) }}", deleteUrl: "{{ url_for('delete_resident_document', doc_id=d.id) }}" },{% endfor %}],
+{{ r.id }}: [{% for d in r.documents %}{ id: {{ d.id }}, name: "{{ d.original_filename | e }}", type: "{{ d.doc_type or 'Otros' }}", desc: "{{ d.description or '' | e }}", date: "{{ d.uploaded_at.strftime('%d/%m/%Y') if d.uploaded_at else '' }}", url: "{{ url_for('nfc.serve_upload', filename=d.file_path) }}", deleteUrl: "{{ url_for('delete_resident_document', doc_id=d.id) }}" },{% endfor %}],
 {% endfor %}
 };
 </script>

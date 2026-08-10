@@ -44,7 +44,7 @@
                                 <button type="button" class="btn btn-outline-secondary icon-pick-custom p-1"
                                         data-icon-path="{{ icon_path }}"
                                         style="width:42px;height:42px;display:flex;align-items:center;justify-content:center">
-                                    <img src="{{ url_for('serve_upload', filename=icon_path) }}" style="width:28px;height:28px;object-fit:contain">
+                                    <img src="{{ url_for('nfc.serve_upload', filename=icon_path) }}" style="width:28px;height:28px;object-fit:contain">
                                 </button>
                                 {% endfor %}
                             </div>
@@ -105,7 +105,7 @@
                     <tr>
                         <td style="font-size:1.4rem">
                             {% if ct.icon_path %}
-                            <img src="{{ url_for('serve_upload', filename=ct.icon_path) }}" style="width:32px;height:32px;object-fit:contain">
+                            <img src="{{ url_for('nfc.serve_upload', filename=ct.icon_path) }}" style="width:32px;height:32px;object-fit:contain">
                             {% else %}{{ ct.icon or '❤️' }}{% endif %}
                         </td>
                         <td><strong>{{ ct.name }}</strong></td>
@@ -168,7 +168,7 @@
                     <tr style="background:var(--bs-tertiary-bg, #f8f9fa)">
                         <td style="font-size:1.2rem;padding-left:2.5rem">
                             {% if child.icon_path %}
-                            <img src="{{ url_for('serve_upload', filename=child.icon_path) }}" style="width:24px;height:24px;object-fit:contain">
+                            <img src="{{ url_for('nfc.serve_upload', filename=child.icon_path) }}" style="width:24px;height:24px;object-fit:contain">
                             {% else %}{{ child.icon or '·' }}{% endif %}
                         </td>
                         <td style="padding-left:2.5rem">↳ {{ child.name }}</td>

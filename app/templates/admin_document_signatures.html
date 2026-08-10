@@ -40,8 +40,8 @@
                 <td class="text-body-secondary" style="font-size:.85rem">{{ sig.ip_address or '—' }}</td>
                 <td>
                     {% if sig.selfie_path %}
-                    <a href="{{ url_for('serve_upload', filename=sig.selfie_path) }}" target="_blank">
-                        <img src="{{ url_for('serve_upload', filename=sig.selfie_path) }}"
+                    <a href="{{ url_for('nfc.serve_upload', filename=sig.selfie_path) }}" target="_blank">
+                        <img src="{{ url_for('nfc.serve_upload', filename=sig.selfie_path) }}"
                              alt="Selfie" style="width:48px;height:48px;object-fit:cover;border-radius:8px">
                     </a>
                     {% else %}

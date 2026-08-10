@@ -136,7 +136,7 @@ def get_document(doc_id: int):
 @bp.route('/api/worker/document/<int:doc_id>/sign', methods=['POST'])
 @jwt_required()
 def sign_document(doc_id: int):
-    from ..routes import _save_base64_photo
+    from .nfc import _save_base64_photo
     data = request.json or {}
     worker_id = data.get('worker_id')
     if worker_id and not _verify_worker_id(worker_id):

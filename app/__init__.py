@@ -31,11 +31,13 @@ def load_user(user_id: str) -> Cleaner | None:
 
 
 from . import routes, models  # noqa: E402, F401
+from .blueprints.nfc import bp as nfc_bp  # noqa: E402
 from .blueprints.training import bp as training_bp  # noqa: E402
 from .blueprints.documents import bp as documents_bp  # noqa: E402
 from .blueprints.chat import bp as chat_bp  # noqa: E402
 from .blueprints.shifts import bp as shifts_bp  # noqa: E402
 from .blueprints.cleaning import bp as cleaning_bp  # noqa: E402
+app.register_blueprint(nfc_bp)
 app.register_blueprint(training_bp)
 app.register_blueprint(documents_bp)
 app.register_blueprint(chat_bp)

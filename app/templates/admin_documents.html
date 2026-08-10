@@ -121,7 +121,7 @@
     });
 
     window.resetDocForm = function () {
-        document.getElementById('docForm').action = '{{ url_for("create_document") }}';
+        document.getElementById('docForm').action = '{{ url_for("documents.create_document") }}';
         document.getElementById('docModalTitle').textContent = 'Nuevo documento';
         document.getElementById('doc-submit-btn').textContent = 'Crear documento';
         document.getElementById('doc-title').value = '';

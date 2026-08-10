@@ -256,7 +256,7 @@
                         </ul>
                     </li>
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {% if request.endpoint in ('manage_cleaning_zones','manage_checklist','manage_floors','manage_room_types','admin_cleaning_analytics','admin_cleaning_config','admin_cleaning_plan') %}active{% endif %}"
+                        <a class="nav-link dropdown-toggle {% if request.endpoint in ('manage_cleaning_zones','manage_checklist','manage_floors','manage_room_types','cleaning.admin_cleaning_analytics','cleaning.admin_cleaning_config','cleaning.admin_cleaning_plan') %}active{% endif %}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-building me-1" aria-hidden="true"></i>Espacios
                         </a>
@@ -282,7 +282,7 @@
                         </ul>
                     </li>
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {% if request.endpoint in ('admin_documents','document_signatures','admin_training','training_results') %}active{% endif %}"
+                        <a class="nav-link dropdown-toggle {% if request.endpoint in ('documents.admin_documents','documents.document_signatures','training.admin_training','training.training_results') %}active{% endif %}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-mortarboard me-1" aria-hidden="true"></i>Formación
                         </a>
@@ -292,7 +292,7 @@
                         </ul>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint in ('cuadrantes','manage_shift_types') %}active{% endif %}"
+                        <a class="nav-link {% if request.endpoint in ('shifts.cuadrantes','shifts.manage_shift_types') %}active{% endif %}"
                            href="{{ url_for('shifts.cuadrantes') }}"><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Turnos</a>
                     </li>
                     <li class="nav-item">
@@ -304,8 +304,8 @@
                            href="{{ url_for('admin_help') }}" title="Ayuda"><i class="bi bi-question-circle" aria-hidden="true"></i></a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'admin_settings' %}active{% endif %}"
-                           href="{{ url_for('admin_settings') }}" title="Configuración"><i class="bi bi-gear" aria-hidden="true"></i></a>
+                        <a class="nav-link {% if request.endpoint == 'nfc.admin_settings' %}active{% endif %}"
+                           href="{{ url_for('nfc.admin_settings') }}" title="Configuración"><i class="bi bi-gear" aria-hidden="true"></i></a>
                     </li>
                 </ul>
 
@@ -325,7 +325,7 @@
                     </li>
                     {% endif %}
                     <li class="nav-item">
-                        <a href="{{ url_for('worker') }}"
+                        <a href="{{ url_for('nfc.worker') }}"
                            class="nav-apk-link" title="Abrir WebApp de trabajadores" target="_blank" rel="noopener noreferrer">
                             <img src="{{ url_for('static', filename='frame.png') }}" alt="">
                             <span class="d-none d-lg-inline">App Trabajadores</span>
