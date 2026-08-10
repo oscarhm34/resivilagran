@@ -650,7 +650,7 @@
             }
         });
 
-        fetch('{{ url_for("cuadrantes_bulk_assign") }}', {
+        fetch('{{ url_for("shifts.cuadrantes_bulk_assign") }}', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ assignments: assignments })
@@ -729,7 +729,7 @@
     });
 
     function assignShift(workerId, date, shiftTypeId, cell) {
-        fetch('{{ url_for("cuadrantes_assign") }}', {
+        fetch('{{ url_for("shifts.cuadrantes_assign") }}', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
