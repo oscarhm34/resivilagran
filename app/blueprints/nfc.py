@@ -902,6 +902,9 @@ def finalize_group_care():
         if not rec:
             continue
         rec.end_time = now
+        notes = mapping.get('notes', '').strip()
+        if notes:
+            rec.notes = notes
         for ct_id in mapping.get('care_type_ids', []):
             ct = db.session.get(CareType, ct_id)
             if ct:
@@ -946,6 +949,9 @@ def finalize_care():
         return jsonify({'error': 'Registro no válido'}), 400
 
     record.end_time = datetime.now()
+    worker_notes = data.get('notes', '').strip()
+    if worker_notes:
+        record.notes = worker_notes
     for ct_id in care_type_ids:
         ct = db.session.get(CareType, ct_id)
         if ct:
@@ -1016,6 +1022,9 @@ def finalize_cleaning():
 
     record.end_time = datetime.now()
     record.checklist_json = _json.dumps(checklist, ensure_ascii=False)
+    worker_notes = data.get('notes', '').strip()
+    if worker_notes:
+        record.notes = worker_notes
     ok, err = _safe_commit()
     if not ok:
         return jsonify({'error': err}), 500

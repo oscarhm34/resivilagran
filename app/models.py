@@ -46,6 +46,7 @@ class CleaningRecord(db.Model):
     start_time = db.Column(db.DateTime, nullable=True, index=True)
     end_time = db.Column(db.DateTime, nullable=True)
     checklist_json = db.Column(db.Text, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
 
     room = db.relationship('Room', primaryjoin='CleaningRecord.room_id == foreign(Room.id)', uselist=False)
     cleaner = db.relationship('Cleaner', backref=db.backref('cleaning_records', lazy=True))

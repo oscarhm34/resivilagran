@@ -565,6 +565,10 @@
             <div style="font-size:13px;font-weight:600;color:var(--text-2);text-align:center;margin-bottom:10px">Introduce las constantes vitales (opcional):</div>
             <div id="ct-vital-fields" style="display:flex;flex-direction:column;gap:10px"></div>
         </div>
+        <div style="padding:8px 0">
+            <label for="care-notes" style="font-size:12px;font-weight:600;color:var(--text-2);display:block;margin-bottom:4px">Observaciones (opcional)</label>
+            <textarea id="care-notes" rows="2" placeholder="Ej: residente dormido, incidencia menor..." style="width:100%;border:1px solid var(--border);border-radius:10px;padding:10px;font-size:14px;resize:none;font-family:inherit"></textarea>
+        </div>
         <div class="ct-footer" id="ct-footer" style="border-top:1px solid var(--border);padding-top:16px;margin-top:12px">
             <button class="btn-cam primary" id="ct-confirm" style="width:100%;padding:14px;border-radius:14px;border:none;background:var(--green);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:'Outfit',system-ui,sans-serif">Confirmar y finalizar</button>
         </div>
@@ -582,6 +586,10 @@
             <div class="ct-prompt">Verifica antes de finalizar</div>
         </div>
         <div id="checklist-items" style="flex:1;overflow-y:auto"></div>
+        <div style="padding:8px 0">
+            <label for="cleaning-notes" style="font-size:12px;font-weight:600;color:var(--text-2);display:block;margin-bottom:4px">Observaciones (opcional)</label>
+            <textarea id="cleaning-notes" rows="2" placeholder="Ej: falta producto, grifo gotea..." style="width:100%;border:1px solid var(--border);border-radius:10px;padding:10px;font-size:14px;resize:none;font-family:inherit"></textarea>
+        </div>
         <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:12px;text-align:center">
             <button id="checklist-confirm" style="width:100%;padding:14px;border-radius:14px;border:none;background:var(--blue);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:'Outfit',system-ui,sans-serif">Confirmar y finalizar</button>
         </div>
@@ -2035,6 +2043,7 @@ function showCareTypesEnd(data) {
     $('ct-confirm').style.display = '';
     $('ct-vital-signs').style.display = 'none';
     $('ct-vital-fields').innerHTML = '';
+    if ($('care-notes')) $('care-notes').value = '';
 
     const photoEl = $('ct-resident-photo');
 
@@ -2311,11 +2320,13 @@ async function finalizeCare() {
     confirmBtn.disabled = true;
     confirmBtn.textContent = 'Finalizando…';
 
+    const careNotes = ($('care-notes') || {}).value || '';
     const { ok, data } = await api('/api/nfc/finalize-care', 'POST', {
         record_id: S.pendingEndRecordId,
         worker_id: parseInt(S.workerId),
         care_type_ids: selected,
         vital_signs: vitalSigns,
+        notes: careNotes,
     });
 
     confirmBtn.disabled = false;
@@ -2359,6 +2370,7 @@ $('ct-cancel').addEventListener('click', () => {
 function showChecklist(data) {
     S.pendingChecklistRecordId = data.record_id;
     $('checklist-room').textContent = data.subject;
+    if ($('cleaning-notes')) $('cleaning-notes').value = '';
     const container = $('checklist-items');
     container.innerHTML = data.items.map(item => `
         <div class="chk-item" data-id="${item.id}" data-text="${item.text}">
@@ -2382,10 +2394,12 @@ $('checklist-confirm').addEventListener('click', async () => {
         text: el.dataset.text,
         checked: el.classList.contains('checked'),
     }));
+    const cleaningNotes = ($('cleaning-notes') || {}).value || '';
     const { ok, data } = await api('/api/nfc/finalize-cleaning', 'POST', {
         record_id: S.pendingChecklistRecordId,
         worker_id: parseInt(S.workerId),
         checklist: items,
+        notes: cleaningNotes,
     });
     if (!ok) { toast(data.error || 'Error al finalizar'); return; }
     S.sessions = S.sessions.filter(s => s.record_id !== S.pendingChecklistRecordId);
