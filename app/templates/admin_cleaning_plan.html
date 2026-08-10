@@ -178,7 +178,7 @@
                             <span class="text-muted">{{ ns.pending_n }}</span>
                             {% endif %}
                         </td>
-                        <td class="fw-semibold">{{ r.room.number }}{% if r.room.description %} <small class="text-muted fw-normal">{{ r.room.description }}</small>{% endif %}</td>
+                        <td class="fw-semibold">{{ r.room.number }}{% if r.get('extra') %} <span class="badge" style="background:#e8f0fe;color:#1a73e8;font-size:.65rem">Extra</span>{% endif %}{% if r.room.description %} <small class="text-muted fw-normal">{{ r.room.description }}</small>{% endif %}</td>
                         <td class="hide-mobile">{{ r.room.floor.name }}</td>
                         <td class="hide-mobile">{{ r.room.room_type.name if r.room.room_type else '-' }}</td>
                         <td>~{{ r.estimated_min }}&thinsp;min</td>
