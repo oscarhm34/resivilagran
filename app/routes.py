@@ -33,7 +33,7 @@ def _allowed_file(filename: str, allowed: set) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed
 from datetime import datetime, timedelta, date, time as dt_time
 from sqlalchemy.orm import joinedload, subqueryload
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 import pandas as pd
 from io import BytesIO
 import time
@@ -52,6 +52,40 @@ def _verify_worker_id(worker_id):
     if not worker or worker.id != worker_id:
         return None
     return worker_id
+
+
+def _safe_commit(error_msg='Error al guardar en la base de datos'):
+    """Commit with rollback on failure. Returns (success, error_message)."""
+    try:
+        db.session.commit()
+        return True, None
+    except IntegrityError as e:
+        db.session.rollback()
+        app.logger.warning('IntegrityError: %s', e)
+        return False, 'Conflicto de datos: registro duplicado o referencia inválida.'
+    except OperationalError as e:
+        db.session.rollback()
+        app.logger.error('OperationalError: %s', e)
+        return False, 'Error de base de datos. Inténtalo de nuevo.'
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        app.logger.error('SQLAlchemyError: %s', e)
+        return False, error_msg
+
+
+@app.errorhandler(500)
+def handle_500(e):
+    db.session.rollback()
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Error interno del servidor'}), 500
+    flash('Ha ocurrido un error inesperado. Inténtalo de nuevo.', 'error')
+    return redirect(request.referrer or url_for('index'))
+
+
+@app.teardown_appcontext
+def shutdown_session(exception=None):
+    if exception:
+        db.session.rollback()
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
@@ -282,7 +316,9 @@ def start_cleaning():
 
     if active_cleaning:
         active_cleaning.end_time = datetime.now()
-        db.session.commit()
+        ok, err = _safe_commit()
+        if not ok:
+            return jsonify({'error': err}), 500
         return jsonify({
             'message': f'Limpieza {active_cleaning.id} finalizada en habitación {room_number}.'
         }), 200
@@ -293,7 +329,9 @@ def start_cleaning():
 
     new_record = CleaningRecord(cleaner_id=cleaner_id, room_id=room.id, start_time=datetime.now())
     db.session.add(new_record)
-    db.session.commit()
+    ok, err = _safe_commit()
+    if not ok:
+        return jsonify({'error': err}), 500
     return jsonify({
         'message': f'Limpieza {new_record.id} iniciada en habitación {room_number}.',
         'record_id': new_record.id,
@@ -311,7 +349,9 @@ def end_cleaning():
     if not record or record.end_time:
         return jsonify({'error': 'Registro no válido o limpieza ya finalizada.'}), 400
     record.end_time = datetime.now()
-    db.session.commit()
+    ok, err = _safe_commit()
+    if not ok:
+        return jsonify({'error': err}), 500
     return jsonify({'message': 'Limpieza finalizada.', 'duration': record.calculate_duration()}), 200
 
 
@@ -1471,7 +1511,9 @@ def nfc_scan():
         ).first()
         if active_this:
             active_this.end_time = now
-            db.session.commit()
+            ok, err = _safe_commit()
+            if not ok:
+                return jsonify({'error': err}), 500
             return jsonify({
                 'action': 'ended',
                 'type': 'cleaning',
@@ -1488,7 +1530,9 @@ def nfc_scan():
 
         record = CleaningRecord(cleaner_id=worker_id, room_id=room.id, start_time=now)
         db.session.add(record)
-        db.session.commit()
+        ok, err = _safe_commit()
+        if not ok:
+            return jsonify({'error': err}), 500
         return jsonify({
             'action': 'started',
             'type': 'cleaning',
@@ -1529,7 +1573,9 @@ def nfc_scan():
             start_time=now,
         )
         db.session.add(record)
-        db.session.commit()
+        ok, err = _safe_commit()
+        if not ok:
+            return jsonify({'error': err}), 500
         return jsonify({
             'action': 'started',
             'type': 'care',
@@ -1570,7 +1616,9 @@ def end_session():
             }), 200
 
         record.end_time = datetime.now()
-        db.session.commit()
+        ok, err = _safe_commit()
+        if not ok:
+            return jsonify({'error': err}), 500
         room = record.room
         return jsonify({
             'action': 'ended',
@@ -1641,7 +1689,9 @@ def start_group_care():
             'start_time': now.isoformat(),
         })
 
-    db.session.commit()
+    ok, err = _safe_commit()
+    if not ok:
+        return jsonify({'error': err}), 500
     return jsonify({
         'action': 'group_started',
         'group_key': now.replace(microsecond=0).isoformat(),
@@ -1689,7 +1739,9 @@ def finalize_group_care():
         if rec.resident:
             names.append(rec.resident.name)
 
-    db.session.commit()
+    ok, err = _safe_commit()
+    if not ok:
+        return jsonify({'error': err}), 500
 
     first = records[0]
     if len(names) > 3:
@@ -1747,7 +1799,9 @@ def finalize_care():
             continue
         db.session.add(VitalSignReading(care_record_id=record.id, vital_sign_type_id=vst_id, value=val))
 
-    db.session.commit()
+    ok, err = _safe_commit()
+    if not ok:
+        return jsonify({'error': err}), 500
 
     # Check for vital sign alerts
     vital_alerts = []
@@ -1792,7 +1846,9 @@ def finalize_cleaning():
 
     record.end_time = datetime.now()
     record.checklist_json = _json.dumps(checklist, ensure_ascii=False)
-    db.session.commit()
+    ok, err = _safe_commit()
+    if not ok:
+        return jsonify({'error': err}), 500
     room = record.room
     return jsonify({
         'action': 'ended',
@@ -1835,7 +1891,9 @@ def cancel_session():
         for c in CareRecord.query.filter_by(worker_id=worker_id, end_time=None).all():
             db.session.delete(c)
 
-    db.session.commit()
+    ok, err = _safe_commit()
+    if not ok:
+        return jsonify({'error': err}), 500
     return jsonify({'message': 'Sesión cancelada'}), 200
 
 
@@ -1865,10 +1923,14 @@ def _save_resident_photo(file_storage, resident_id: int) -> str:
     folder = os.path.join(app.config['UPLOAD_FOLDER'], 'residents')
     os.makedirs(folder, exist_ok=True)
     file_storage.seek(0)
-    img = Image.open(file_storage)
-    img = img.convert('RGB')
-    img.thumbnail((800, 800))
-    img.save(os.path.join(folder, filename), 'JPEG', quality=85, optimize=True)
+    try:
+        img = Image.open(file_storage)
+        img = img.convert('RGB')
+        img.thumbnail((800, 800))
+        img.save(os.path.join(folder, filename), 'JPEG', quality=85, optimize=True)
+    except (OSError, IOError) as e:
+        app.logger.error('Error saving resident photo: %s', e)
+        raise ValueError('No se pudo guardar la foto. Formato no válido o disco lleno.')
     return f'residents/{filename}'
 
 
@@ -2020,7 +2082,12 @@ def upload_resident_document(resident_id: int):
     filename = f'{ts}_{safe_name}'
     folder = os.path.join(app.config['UPLOAD_FOLDER'], 'resident_docs', f'res_{resident_id}')
     os.makedirs(folder, exist_ok=True)
-    doc_file.save(os.path.join(folder, filename))
+    try:
+        doc_file.save(os.path.join(folder, filename))
+    except (OSError, IOError) as e:
+        app.logger.error('Error saving document: %s', e)
+        flash('Error al guardar el archivo. Inténtalo de nuevo.', 'error')
+        return redirect(url_for('manage_residents'))
     rel_path = f'resident_docs/res_{resident_id}/{filename}'
 
     doc = ResidentDocument(
@@ -2045,8 +2112,11 @@ def delete_resident_document(doc_id: int):
         return redirect(url_for('manage_residents'))
     # Delete file
     full_path = os.path.join(app.config['UPLOAD_FOLDER'], doc.file_path)
-    if os.path.exists(full_path):
-        os.remove(full_path)
+    try:
+        if os.path.exists(full_path):
+            os.remove(full_path)
+    except OSError as e:
+        app.logger.warning('Could not delete file %s: %s', full_path, e)
     db.session.delete(doc)
     db.session.commit()
     flash('Documento eliminado.', 'success')
@@ -2717,16 +2787,23 @@ def _save_base64_photo(b64_data: str, subfolder: str, cleaner_id: int) -> str:
     from io import BytesIO
     if ',' in b64_data:
         b64_data = b64_data.split(',', 1)[1]
-    img_bytes = base64.b64decode(b64_data)
-    img = Image.open(BytesIO(img_bytes))
-    img = img.convert('RGB')
-    img.thumbnail((800, 800))
-    ts = datetime.utcnow().strftime('%Y%m%d%H%M%S')
-    filename = f'{cleaner_id}_{ts}.jpg'
-    folder = os.path.join(app.config['UPLOAD_FOLDER'], subfolder)
-    os.makedirs(folder, exist_ok=True)
-    filepath = os.path.join(folder, filename)
-    img.save(filepath, 'JPEG', quality=85, optimize=True)
+    try:
+        img_bytes = base64.b64decode(b64_data)
+    except Exception:
+        raise ValueError('Imagen base64 no válida.')
+    try:
+        img = Image.open(BytesIO(img_bytes))
+        img = img.convert('RGB')
+        img.thumbnail((800, 800))
+        ts = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+        filename = f'{cleaner_id}_{ts}.jpg'
+        folder = os.path.join(app.config['UPLOAD_FOLDER'], subfolder)
+        os.makedirs(folder, exist_ok=True)
+        filepath = os.path.join(folder, filename)
+        img.save(filepath, 'JPEG', quality=85, optimize=True)
+    except (OSError, IOError) as e:
+        app.logger.error('Error saving photo: %s', e)
+        raise ValueError('No se pudo guardar la foto.')
     return f'{subfolder}/{filename}'
 
 
