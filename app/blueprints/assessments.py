@@ -10,7 +10,8 @@ from sqlalchemy.orm import joinedload
 
 from .. import db
 from ..models import (
-    Resident, Cleaner, AssessmentRecord, WeightRecord, MealIntakeRecord, Notification,
+    Resident, Cleaner, AssessmentRecord, MealIntakeRecord, Notification,
+    VitalSignReading, VitalSignType, CareRecord,
 )
 from ..utils import admin_required
 
@@ -247,73 +248,60 @@ def assessment_norton():
     )
 
 
-# ── Weight tracking ──────────────────────────────────────────────────────────
+# ── Weight loss detection (uses existing VitalSignReading for "Peso") ─────────
 
-@bp.route('/admin/resident/<int:resident_id>/weight', methods=['POST'])
-@admin_required
-def record_weight(resident_id: int):
+def check_weight_loss_from_vitals(resident_id: int, current_weight: float):
+    """Check for significant weight loss using vital sign readings named 'Peso'."""
     resident = db.session.get(Resident, resident_id)
     if not resident:
-        return jsonify({'error': 'Residente no encontrado'}), 404
-
-    weight = request.form.get('weight_kg', type=float)
-    if not weight or weight <= 0:
-        flash('Peso no valido.', 'danger')
-        return redirect(url_for('residents.resident_detail', resident_id=resident_id))
-
-    record = WeightRecord(
-        resident_id=resident_id, weight_kg=weight,
-        recorded_by=current_user.id,
-        notes=request.form.get('notes', '').strip() or None,
-    )
-    db.session.add(record)
-
-    # Check for significant weight loss
-    _check_weight_loss(resident_id, weight, resident.name)
-
-    db.session.commit()
-    flash(f'Peso registrado: {weight} kg', 'success')
-    return redirect(url_for('residents.resident_detail', resident_id=resident_id))
-
-
-def _check_weight_loss(resident_id: int, current_weight: float, resident_name: str):
-    """Generate notification if significant weight loss detected."""
+        return
+    resident_name = resident.name
     now = datetime.now()
+
+    # Find all weight readings for this resident via VitalSignType named like 'peso'
+    weight_readings = db.session.query(VitalSignReading.value, CareRecord.start_time).join(
+        CareRecord, VitalSignReading.care_record_id == CareRecord.id
+    ).join(
+        VitalSignType, VitalSignReading.vital_sign_type_id == VitalSignType.id
+    ).filter(
+        CareRecord.resident_id == resident_id,
+        VitalSignType.name.ilike('%peso%'),
+        CareRecord.start_time.isnot(None),
+    ).order_by(CareRecord.start_time.asc()).all()
+
+    if len(weight_readings) < 2:
+        return
 
     # Check 30-day loss (>5%)
     cutoff_30 = now - timedelta(days=30)
-    prev_30 = WeightRecord.query.filter(
-        WeightRecord.resident_id == resident_id,
-        WeightRecord.recorded_at >= cutoff_30,
-    ).order_by(WeightRecord.recorded_at.asc()).first()
-
-    if prev_30 and prev_30.weight_kg > 0:
-        loss_pct = ((prev_30.weight_kg - current_weight) / prev_30.weight_kg) * 100
+    readings_30 = [r for r in weight_readings if r.start_time >= cutoff_30]
+    if readings_30 and readings_30[0].value > 0:
+        first_val = readings_30[0].value
+        loss_pct = ((first_val - current_weight) / first_val) * 100
         if loss_pct >= 5:
-            db.session.add(Notification(
-                type='weight_alert',
-                title=f'Perdida de peso: {resident_name} ha perdido {loss_pct:.1f}% en 30 dias ({prev_30.weight_kg:.1f} → {current_weight:.1f} kg)',
-                severity='warning', resident_id=resident_id,
-                link=f'/admin/resident/{resident_id}',
-            ))
+            title = f'Perdida de peso: {resident_name} ha perdido {loss_pct:.1f}% en 30 dias ({first_val:.1f} -> {current_weight:.1f} kg)'
+            from .notifications import _notif_exists
+            if not _notif_exists('weight_alert', title, hours=48):
+                db.session.add(Notification(
+                    type='weight_alert', title=title, severity='warning',
+                    resident_id=resident_id, link=f'/admin/resident/{resident_id}',
+                ))
             return
 
     # Check 180-day loss (>10%)
     cutoff_180 = now - timedelta(days=180)
-    prev_180 = WeightRecord.query.filter(
-        WeightRecord.resident_id == resident_id,
-        WeightRecord.recorded_at >= cutoff_180,
-    ).order_by(WeightRecord.recorded_at.asc()).first()
-
-    if prev_180 and prev_180.weight_kg > 0:
-        loss_pct = ((prev_180.weight_kg - current_weight) / prev_180.weight_kg) * 100
+    readings_180 = [r for r in weight_readings if r.start_time >= cutoff_180]
+    if readings_180 and readings_180[0].value > 0:
+        first_val = readings_180[0].value
+        loss_pct = ((first_val - current_weight) / first_val) * 100
         if loss_pct >= 10:
-            db.session.add(Notification(
-                type='weight_alert',
-                title=f'Perdida de peso grave: {resident_name} ha perdido {loss_pct:.1f}% en 6 meses ({prev_180.weight_kg:.1f} → {current_weight:.1f} kg)',
-                severity='critical', resident_id=resident_id,
-                link=f'/admin/resident/{resident_id}',
-            ))
+            title = f'Perdida de peso grave: {resident_name} ha perdido {loss_pct:.1f}% en 6 meses ({first_val:.1f} -> {current_weight:.1f} kg)'
+            from .notifications import _notif_exists
+            if not _notif_exists('weight_alert', title, hours=48):
+                db.session.add(Notification(
+                    type='weight_alert', title=title, severity='critical',
+                    resident_id=resident_id, link=f'/admin/resident/{resident_id}',
+                ))
 
 
 # ── Meal intake (admin) ──────────────────────────────────────────────────────
@@ -409,38 +397,6 @@ def today_meals(resident_id: int):
     return jsonify({'date': today.isoformat(), 'meals': meals})
 
 
-# ── Weight (worker API) ──────────────────────────────────────────────────────
-
-@bp.route('/api/resident/<int:resident_id>/weight', methods=['POST'])
-@jwt_required()
-def record_weight_worker(resident_id: int):
-    identity = get_jwt_identity()
-    worker = Cleaner.query.filter_by(username=identity).first()
-    if not worker:
-        return jsonify({'error': 'No autorizado'}), 403
-
-    data = request.get_json()
-    weight = data.get('weight_kg', type=float) if isinstance(data.get('weight_kg'), (int, float)) else None
-    try:
-        weight = float(data.get('weight_kg'))
-    except (TypeError, ValueError):
-        return jsonify({'error': 'Peso no valido'}), 400
-
-    if weight <= 0:
-        return jsonify({'error': 'Peso no valido'}), 400
-
-    resident = db.session.get(Resident, resident_id)
-    if not resident:
-        return jsonify({'error': 'Residente no encontrado'}), 404
-
-    db.session.add(WeightRecord(
-        resident_id=resident_id, weight_kg=weight, recorded_by=worker.id,
-    ))
-    _check_weight_loss(resident_id, weight, resident.name)
-    db.session.commit()
-    return jsonify({'ok': True, 'weight_kg': weight})
-
-
 # ── Assessment history data for resident detail ──────────────────────────────
 
 def get_resident_assessment_data(resident_id: int) -> dict:
@@ -451,10 +407,6 @@ def get_resident_assessment_data(resident_id: int) -> dict:
 
     barthel_records = [a for a in assessments if a.scale_type == 'barthel']
     norton_records = [a for a in assessments if a.scale_type == 'norton']
-
-    weights = WeightRecord.query.filter_by(
-        resident_id=resident_id,
-    ).order_by(WeightRecord.recorded_at.desc()).limit(50).all()
 
     today = date.today()
     today_meals = MealIntakeRecord.query.filter_by(
@@ -472,7 +424,6 @@ def get_resident_assessment_data(resident_id: int) -> dict:
     return {
         'barthel_records': barthel_records,
         'norton_records': norton_records,
-        'weights': weights,
         'today_meals': today_meals_map,
         'week_meals': week_meals,
         'meal_types': MEAL_TYPES,

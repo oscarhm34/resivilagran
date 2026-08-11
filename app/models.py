@@ -527,20 +527,6 @@ class AssessmentRecord(db.Model):
     assessor = db.relationship('Cleaner', foreign_keys=[assessed_by])
 
 
-class WeightRecord(db.Model):
-    """Weight tracking for a resident with change alerts."""
-    __tablename__ = 'weight_record'
-    id = db.Column(db.Integer, primary_key=True)
-    resident_id = db.Column(db.Integer, db.ForeignKey('resident.id'), nullable=False, index=True)
-    weight_kg = db.Column(db.Float, nullable=False)
-    recorded_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
-    recorded_at = db.Column(db.DateTime, default=datetime.now, index=True)
-    notes = db.Column(db.Text, nullable=True)
-
-    resident = db.relationship('Resident', backref=db.backref('weight_records', lazy=True))
-    recorder = db.relationship('Cleaner', foreign_keys=[recorded_by])
-
-
 class MealIntakeRecord(db.Model):
     """Meal intake and fluid tracking per resident per meal."""
     __tablename__ = 'meal_intake_record'

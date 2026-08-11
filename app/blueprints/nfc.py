@@ -1002,6 +1002,10 @@ def finalize_care():
         if vst.max_value is not None and val > vst.max_value:
             continue
         db.session.add(VitalSignReading(care_record_id=record.id, vital_sign_type_id=vst_id, value=val))
+        # Check weight loss if this is a weight reading
+        if 'peso' in vst.name.lower():
+            from .assessments import check_weight_loss_from_vitals
+            check_weight_loss_from_vitals(record.resident_id, val)
 
     # Generate notification if worker added notes
     if worker_notes:
