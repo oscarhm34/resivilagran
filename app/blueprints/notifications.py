@@ -138,7 +138,7 @@ def _generate_notifications() -> int:
         room_desc = f'Hab. {rec.room.number}' if rec.room else 'Habitación'
         mins = int((now - rec.start_time).total_seconds() / 60)
         title = f"Limpieza en {room_desc} lleva {mins} min abierta"
-        if not _notif_exists('stale_session_worker', title, hours=4):
+        if not _notif_exists('stale_session_worker', title, hours=0.25):
             db.session.add(Notification(
                 type='stale_session_worker', title=title, severity='warning',
                 worker_id=rec.cleaner_id, link='/worker',
@@ -153,7 +153,7 @@ def _generate_notifications() -> int:
         resident_name = rec.resident.name if rec.resident else 'Residente'
         mins = int((now - rec.start_time).total_seconds() / 60)
         title = f"Atención con {resident_name} lleva {mins} min abierta"
-        if not _notif_exists('stale_session_worker', title, hours=4):
+        if not _notif_exists('stale_session_worker', title, hours=0.25):
             db.session.add(Notification(
                 type='stale_session_worker', title=title, severity='warning',
                 worker_id=rec.worker_id, link='/worker',
