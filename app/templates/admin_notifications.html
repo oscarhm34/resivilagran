@@ -68,8 +68,7 @@
                 <thead>
                     <tr>
                         <th style="width:40px"></th>
-                        <th>Titulo</th>
-                        <th class="hide-mobile">Mensaje</th>
+                        <th colspan="2">Notificacion</th>
                         <th>Fecha</th>
                         <th>Estado</th>
                         <th class="text-end">Acciones</th>
@@ -80,16 +79,20 @@
                     {% set sev_colors = {'critical': '#cf222e', 'warning': '#fd7e14', 'info': '#0069d9'} %}
                     {% set sev_labels = {'critical': 'Critica', 'warning': 'Aviso', 'info': 'Info'} %}
                     {% for n in notifications %}
-                    <tr id="notif-row-{{ n.id }}" style="{% if not n.read %}font-weight:600;border-left:3px solid {{ sev_colors.get(n.severity, '#0069d9') }}{% endif %}">
-                        <td class="text-center">
+                    <tr id="notif-row-{{ n.id }}" class="notif-row{% if n.message %} notif-expandable{% endif %}" style="{% if not n.read %}font-weight:600;border-left:3px solid {{ sev_colors.get(n.severity, '#0069d9') }}{% endif %}cursor:pointer" data-id="{{ n.id }}">
+                        <td class="text-center" style="vertical-align:top;padding-top:12px">
                             <i class="bi {{ type_icons.get(n.type, 'bi-bell') }}" style="color:{{ sev_colors.get(n.severity, '#0069d9') }};font-size:1.1rem" title="{{ n.type }}"></i>
                         </td>
-                        <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-                            {% if n.link %}<a href="{{ n.link }}" style="color:inherit;text-decoration:none">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}
+                        <td colspan="2">
+                            <div>
+                                {% if n.link %}<a href="{{ n.link }}" style="color:inherit;text-decoration:none">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}
+                            </div>
+                            {% if n.message %}
+                            <div class="notif-message" id="msg-{{ n.id }}" style="display:none;margin-top:6px;padding:8px 12px;background:var(--color-bg);border-radius:8px;font-weight:400;font-size:.82rem;color:var(--color-text-secondary);white-space:pre-wrap;line-height:1.5">{{ n.message }}</div>
+                            {% endif %}
                         </td>
-                        <td class="hide-mobile" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--color-text-secondary)">{{ n.message or '—' }}</td>
-                        <td style="white-space:nowrap">{{ n.created_at.strftime('%d/%m/%Y %H:%M') if n.created_at else '—' }}</td>
-                        <td>
+                        <td style="white-space:nowrap;vertical-align:top;padding-top:12px">{{ n.created_at.strftime('%d/%m/%Y %H:%M') if n.created_at else '—' }}</td>
+                        <td style="vertical-align:top;padding-top:12px">
                             {% if n.read %}
                             <span class="status-badge" style="color:#656d76;background:#656d7620">Leida</span>
                             {% else %}
@@ -98,7 +101,7 @@
                             </span>
                             {% endif %}
                         </td>
-                        <td class="text-end" style="white-space:nowrap">
+                        <td class="text-end" style="white-space:nowrap;vertical-align:top;padding-top:12px">
                             {% if not n.read %}
                             <button class="btn btn-sm btn-outline-secondary btn-mark-read" data-id="{{ n.id }}">Marcar como leida</button>
                             {% else %}
@@ -154,9 +157,19 @@
 (function () {
     'use strict';
 
+    // Expand/collapse notification message on row click
+    document.querySelectorAll('.notif-expandable').forEach(function(row) {
+        row.addEventListener('click', function(e) {
+            if (e.target.closest('a') || e.target.closest('button')) return;
+            var msg = document.getElementById('msg-' + row.dataset.id);
+            if (msg) msg.style.display = msg.style.display === 'none' ? 'block' : 'none';
+        });
+    });
+
     // Mark single notification as read
     document.querySelectorAll('.btn-mark-read').forEach(function(btn) {
-        btn.addEventListener('click', function() {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
             var id = btn.dataset.id;
             fetch('/admin/notifications/' + id + '/read', { method: 'POST' })
                 .then(function(r) { return r.json(); })
