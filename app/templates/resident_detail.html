@@ -24,151 +24,142 @@
 <div class="py-4">
 
     <div class="mb-3 d-flex align-items-center justify-content-between no-print">
-        <a href="{{ url_for('residents.manage_residents') }}?edit={{ resident.id }}" class="btn btn-sm btn-outline-primary">
-            <i class="bi bi-pencil me-1"></i>Editar residente
-        </a>
+        <button type="button" class="btn btn-sm btn-outline-primary" id="btn-toggle-edit">
+            <i class="bi bi-pencil me-1"></i>Editar
+        </button>
         <div class="d-flex gap-2">
             <a href="{{ url_for('residents.export_resident_care_excel', resident_id=resident.id) }}" class="btn btn-sm btn-outline-success">↓ Exportar Excel</a>
             <button onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir</button>
         </div>
     </div>
 
-    <!-- Ficha del residente -->
-    <div class="card mb-4">
-        <div class="card-header"><strong>Ficha del residente</strong></div>
-        <div class="card-body">
-            <div class="d-flex align-items-start gap-4 flex-wrap">
-                {% if resident.photo_path %}
-                <img src="{{ url_for('nfc.serve_upload', filename=resident.photo_path) }}" alt=""
-                     style="width:100px;height:100px;border-radius:50%;object-fit:cover;border:2px solid var(--color-border)">
-                {% else %}
-                <div style="width:100px;height:100px;border-radius:50%;background:var(--color-primary-lt);display:flex;align-items:center;justify-content:center;font-size:2.5rem;border:2px solid var(--color-border)"><i class="bi bi-person-circle"></i></div>
-                {% endif %}
-                <div style="flex:1;min-width:250px">
-                    <h2 class="h4 mb-2">{{ resident.name }}</h2>
-                    <table class="table table-sm table-borderless mb-0" style="max-width:500px">
-                        <tbody>
-                            <tr>
-                                <td style="width:140px;color:var(--color-text-secondary);font-weight:600">Habitación</td>
-                                <td>{{ resident.room_number or '—' }}</td>
-                            </tr>
-                            <tr>
-                                <td style="color:var(--color-text-secondary);font-weight:600">Código NFC</td>
-                                <td>
-                                    <code style="color:var(--color-primary);background:var(--color-primary-lt);padding:1px 7px;border-radius:4px;font-size:.85rem">
-                                        {{ resident.nfc_code }}
-                                    </code>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td style="color:var(--color-text-secondary);font-weight:600">Grupo</td>
-                                <td>
-                                    {% if resident.group %}
-                                    <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{{ resident.group.color }};vertical-align:middle"></span>
-                                    {{ resident.group.name }}
-                                    {% else %}Sin grupo{% endif %}
-                                </td>
-                            </tr>
-                            <tr>
-                                <td style="color:var(--color-text-secondary);font-weight:600">Estado</td>
-                                <td>
-                                    <span class="badge {{ 'bg-success' if resident.active else 'bg-secondary' }}">{{ 'Activo' if resident.active else 'Inactivo' }}</span>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+    <!-- Ficha del residente — VIEW mode -->
+    <div id="resident-view">
+        <div class="card mb-4">
+            <div class="card-header"><strong>Ficha del residente</strong></div>
+            <div class="card-body">
+                <div class="d-flex align-items-start gap-4 flex-wrap">
+                    {% if resident.photo_path %}
+                    <img src="{{ url_for('nfc.serve_upload', filename=resident.photo_path) }}" alt=""
+                         style="width:100px;height:100px;border-radius:50%;object-fit:cover;border:2px solid var(--color-border)">
+                    {% else %}
+                    <div style="width:100px;height:100px;border-radius:50%;background:var(--color-primary-lt);display:flex;align-items:center;justify-content:center;font-size:2.5rem;border:2px solid var(--color-border)"><i class="bi bi-person-circle"></i></div>
+                    {% endif %}
+                    <div style="flex:1;min-width:250px">
+                        <h2 class="h4 mb-2">{{ resident.name }}</h2>
+                        <table class="table table-sm table-borderless mb-0" style="max-width:500px">
+                            <tbody>
+                                <tr><td style="width:140px;color:var(--color-text-secondary);font-weight:600">Habitacion</td><td>{{ resident.room_number or '—' }}</td></tr>
+                                <tr><td style="color:var(--color-text-secondary);font-weight:600">Codigo NFC</td><td><code style="color:var(--color-primary);background:var(--color-primary-lt);padding:1px 7px;border-radius:4px;font-size:.85rem">{{ resident.nfc_code }}</code></td></tr>
+                                <tr><td style="color:var(--color-text-secondary);font-weight:600">Grupo</td><td>{% if resident.group %}<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{{ resident.group.color }};vertical-align:middle"></span> {{ resident.group.name }}{% else %}Sin grupo{% endif %}</td></tr>
+                                <tr><td style="color:var(--color-text-secondary);font-weight:600">Estado</td><td><span class="badge {{ 'bg-success' if resident.active else 'bg-secondary' }}">{{ 'Activo' if resident.active else 'Inactivo' }}</span></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
+                {% if resident.relevant_info %}
+                <div class="mt-3 p-3" style="background:var(--color-warning-lt, #fff3cd);border-radius:8px;font-size:.9rem"><strong>Info relevante:</strong> {{ resident.relevant_info }}</div>
+                {% endif %}
+                {% if resident.notes %}
+                <div class="mt-3 p-3" style="background:var(--bs-tertiary-bg, #f8f9fa);border-radius:8px;font-size:.9rem"><strong>Notas:</strong> {{ resident.notes }}</div>
+                {% endif %}
             </div>
-
-            {% if resident.relevant_info %}
-            <div class="mt-3 p-3" style="background:var(--color-warning-lt, #fff3cd);border-radius:8px;font-size:.9rem">
-                <strong>Info relevante:</strong> {{ resident.relevant_info }}
-            </div>
-            {% endif %}
-
-            {% if resident.notes %}
-            <div class="mt-3 p-3" style="background:var(--bs-tertiary-bg, #f8f9fa);border-radius:8px;font-size:.9rem">
-                <strong>Notas:</strong> {{ resident.notes }}
-            </div>
-            {% endif %}
         </div>
-    </div>
 
-    <!-- Perfil médico -->
-    {% set has_medical = resident.diagnoses or resident.allergies or resident.current_medication or resident.blood_type or resident.dependency_level or resident.emergency_contact_name %}
-    {% if has_medical %}
-    <div class="card mb-4">
-        <div class="card-header"><strong><i class="bi bi-heart-pulse me-1"></i>Perfil médico</strong></div>
-        <div class="card-body">
-            <div class="row g-4">
-                {% if resident.diagnoses or resident.allergies or resident.current_medication %}
-                <div class="col-md-6">
-                    {% if resident.diagnoses %}
-                    <div class="mb-3">
-                        <div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Diagnósticos</div>
-                        <div style="font-size:.9rem">{{ resident.diagnoses }}</div>
+        {% set has_medical = resident.diagnoses or resident.allergies or resident.current_medication or resident.blood_type or resident.dependency_level or resident.emergency_contact_name %}
+        {% if has_medical %}
+        <div class="card mb-4">
+            <div class="card-header"><strong><i class="bi bi-heart-pulse me-1"></i>Perfil medico</strong></div>
+            <div class="card-body">
+                <div class="row g-4">
+                    {% if resident.diagnoses or resident.allergies or resident.current_medication %}
+                    <div class="col-md-6">
+                        {% if resident.diagnoses %}<div class="mb-3"><div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Diagnosticos</div><div style="font-size:.9rem">{{ resident.diagnoses }}</div></div>{% endif %}
+                        {% if resident.allergies %}<div class="mb-3"><div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Alergias</div><div class="p-2" style="background:#fff3cd;border-left:3px solid #ffc107;border-radius:4px;font-size:.9rem;color:#856404"><i class="bi bi-exclamation-triangle me-1"></i>{{ resident.allergies }}</div></div>{% endif %}
+                        {% if resident.current_medication %}<div class="mb-3"><div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Medicacion actual</div><div style="font-size:.9rem">{{ resident.current_medication }}</div></div>{% endif %}
                     </div>
                     {% endif %}
-                    {% if resident.allergies %}
-                    <div class="mb-3">
-                        <div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Alergias</div>
-                        <div class="p-2" style="background:#fff3cd;border-left:3px solid #ffc107;border-radius:4px;font-size:.9rem;color:#856404">
-                            <i class="bi bi-exclamation-triangle me-1"></i>{{ resident.allergies }}
-                        </div>
-                    </div>
-                    {% endif %}
-                    {% if resident.current_medication %}
-                    <div class="mb-3">
-                        <div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Medicación actual</div>
-                        <div style="font-size:.9rem">{{ resident.current_medication }}</div>
-                    </div>
-                    {% endif %}
-                </div>
-                {% endif %}
-                <div class="col-md-6">
-                    {% if resident.blood_type or resident.dependency_level %}
-                    <div class="d-flex gap-4 mb-3 flex-wrap">
-                        {% if resident.blood_type %}
-                        <div>
-                            <div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Grupo sanguíneo</div>
-                            <span class="badge bg-danger" style="font-size:.9rem">{{ resident.blood_type }}</span>
-                        </div>
-                        {% endif %}
-                        {% if resident.dependency_level %}
-                        <div>
-                            <div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Nivel de dependencia</div>
-                            {% set dep_map = {'autonomous': ('Autónomo', 'success'), 'mild': ('Leve', 'primary'), 'moderate': ('Moderado', 'warning'), 'severe': ('Severo', 'orange'), 'total': ('Total', 'danger')} %}
+                    <div class="col-md-6">
+                        {% if resident.blood_type or resident.dependency_level %}
+                        <div class="d-flex gap-4 mb-3 flex-wrap">
+                            {% if resident.blood_type %}<div><div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Grupo sanguineo</div><span class="badge bg-danger" style="font-size:.9rem">{{ resident.blood_type }}</span></div>{% endif %}
+                            {% if resident.dependency_level %}
+                            <div><div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Nivel de dependencia</div>
+                            {% set dep_map = {'autonomous': ('Autonomo', 'success'), 'mild': ('Leve', 'primary'), 'moderate': ('Moderado', 'warning'), 'severe': ('Severo', 'orange'), 'total': ('Total', 'danger')} %}
                             {% set dep_label, dep_color = dep_map.get(resident.dependency_level, (resident.dependency_level, 'secondary')) %}
-                            {% if dep_color == 'orange' %}
-                            <span class="badge" style="background:#fd7e14;font-size:.9rem">{{ dep_label }}</span>
-                            {% else %}
-                            <span class="badge bg-{{ dep_color }}" style="font-size:.9rem">{{ dep_label }}</span>
+                            <span class="badge {% if dep_color == 'orange' %}{% else %}bg-{{ dep_color }}{% endif %}" {% if dep_color == 'orange' %}style="background:#fd7e14;font-size:.9rem"{% else %}style="font-size:.9rem"{% endif %}>{{ dep_label }}</span></div>
                             {% endif %}
                         </div>
                         {% endif %}
+                        {% if resident.emergency_contact_name %}
+                        <div><div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px"><i class="bi bi-telephone me-1"></i>Contacto de emergencia</div><div style="font-size:.9rem"><strong>{{ resident.emergency_contact_name }}</strong>{% if resident.emergency_contact_relation %} <span class="text-body-secondary">({{ resident.emergency_contact_relation }})</span>{% endif %}{% if resident.emergency_contact_phone %}<br><a href="tel:{{ resident.emergency_contact_phone }}"><i class="bi bi-telephone-fill me-1"></i>{{ resident.emergency_contact_phone }}</a>{% endif %}</div></div>
+                        {% endif %}
                     </div>
-                    {% endif %}
-                    {% if resident.emergency_contact_name %}
-                    <div>
-                        <div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">
-                            <i class="bi bi-telephone me-1"></i>Contacto de emergencia
-                        </div>
-                        <div style="font-size:.9rem">
-                            <strong>{{ resident.emergency_contact_name }}</strong>
-                            {% if resident.emergency_contact_relation %}
-                            <span class="text-body-secondary">({{ resident.emergency_contact_relation }})</span>
-                            {% endif %}
-                            {% if resident.emergency_contact_phone %}
-                            <br><a href="tel:{{ resident.emergency_contact_phone }}"><i class="bi bi-telephone-fill me-1"></i>{{ resident.emergency_contact_phone }}</a>
-                            {% endif %}
-                        </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Ficha del residente — EDIT mode -->
+    <div id="resident-edit" style="display:none">
+        <div class="card mb-4" style="border-color:var(--color-primary)">
+            <div class="card-header d-flex align-items-center justify-content-between" style="background:rgba(13,110,253,.04)">
+                <strong><i class="bi bi-pencil me-1"></i>Editant residente</strong>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-cancel-edit">Cancelar</button>
+                    <button type="button" class="btn btn-sm btn-primary" id="btn-save-edit"><i class="bi bi-check-lg me-1"></i>Guardar</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4"><label class="form-label fw-semibold">Nom</label><input type="text" class="form-control form-control-sm" id="ed-name" value="{{ resident.name }}"></div>
+                    <div class="col-md-2"><label class="form-label fw-semibold">Habitacio</label><input type="text" class="form-control form-control-sm" id="ed-room" value="{{ resident.room_number or '' }}"></div>
+                    <div class="col-md-3"><label class="form-label fw-semibold">Codi NFC</label><input type="text" class="form-control form-control-sm" id="ed-nfc" value="{{ resident.nfc_code }}"></div>
+                    <div class="col-md-3"><label class="form-label fw-semibold">Grup</label>
+                        <select class="form-select form-select-sm" id="ed-group">
+                            <option value="">Sin grupo</option>
+                            {% for g in groups %}<option value="{{ g.id }}" {% if resident.group_id == g.id %}selected{% endif %}>{{ g.name }}</option>{% endfor %}
+                        </select>
                     </div>
-                    {% endif %}
+                    <div class="col-12"><label class="form-label fw-semibold">Info rellevant</label><textarea class="form-control form-control-sm" id="ed-info" rows="2">{{ resident.relevant_info or '' }}</textarea></div>
+                    <div class="col-12"><label class="form-label fw-semibold">Notes</label><textarea class="form-control form-control-sm" id="ed-notes" rows="2">{{ resident.notes or '' }}</textarea></div>
+                </div>
+
+                <hr class="my-3">
+                <h6><i class="bi bi-heart-pulse me-1"></i>Perfil medic</h6>
+                <div class="row g-3">
+                    <div class="col-md-6"><label class="form-label fw-semibold">Diagnostics</label><textarea class="form-control form-control-sm" id="ed-diagnoses" rows="2">{{ resident.diagnoses or '' }}</textarea></div>
+                    <div class="col-md-6"><label class="form-label fw-semibold">Alergies</label><textarea class="form-control form-control-sm" id="ed-allergies" rows="2">{{ resident.allergies or '' }}</textarea></div>
+                    <div class="col-md-6"><label class="form-label fw-semibold">Medicacio actual</label><textarea class="form-control form-control-sm" id="ed-medication" rows="2">{{ resident.current_medication or '' }}</textarea></div>
+                    <div class="col-md-2"><label class="form-label fw-semibold">Grup sanguini</label>
+                        <select class="form-select form-select-sm" id="ed-blood">
+                            <option value="">—</option>
+                            {% for bt in ['A+','A-','B+','B-','AB+','AB-','O+','O-'] %}<option value="{{ bt }}" {% if resident.blood_type == bt %}selected{% endif %}>{{ bt }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2"><label class="form-label fw-semibold">Dependencia</label>
+                        <select class="form-select form-select-sm" id="ed-dependency">
+                            <option value="">—</option>
+                            <option value="autonomous" {% if resident.dependency_level == 'autonomous' %}selected{% endif %}>Autonom</option>
+                            <option value="mild" {% if resident.dependency_level == 'mild' %}selected{% endif %}>Lleu</option>
+                            <option value="moderate" {% if resident.dependency_level == 'moderate' %}selected{% endif %}>Moderada</option>
+                            <option value="severe" {% if resident.dependency_level == 'severe' %}selected{% endif %}>Severa</option>
+                            <option value="total" {% if resident.dependency_level == 'total' %}selected{% endif %}>Total</option>
+                        </select>
+                    </div>
+                </div>
+
+                <hr class="my-3">
+                <h6><i class="bi bi-telephone me-1"></i>Contacte d'emergencia</h6>
+                <div class="row g-3">
+                    <div class="col-md-4"><label class="form-label fw-semibold">Nom</label><input type="text" class="form-control form-control-sm" id="ed-ecname" value="{{ resident.emergency_contact_name or '' }}"></div>
+                    <div class="col-md-4"><label class="form-label fw-semibold">Telefon</label><input type="text" class="form-control form-control-sm" id="ed-ecphone" value="{{ resident.emergency_contact_phone or '' }}"></div>
+                    <div class="col-md-4"><label class="form-label fw-semibold">Relacio</label><input type="text" class="form-control form-control-sm" id="ed-ecrelation" value="{{ resident.emergency_contact_relation or '' }}"></div>
                 </div>
             </div>
         </div>
     </div>
-    {% endif %}
 
     <!-- Tabs -->
     <ul class="nav nav-tabs mb-3 no-print" role="tablist">
@@ -908,6 +899,58 @@ vitalData.forEach((chart, i) => {
         var text = content.innerText || content.textContent;
         navigator.clipboard.writeText(text).then(function() {
             if (typeof showToast === 'function') showToast('Texto copiado al portapapeles', 'success');
+        });
+    });
+
+    // Inline edit toggle
+    var viewEl = document.getElementById('resident-view');
+    var editEl = document.getElementById('resident-edit');
+    var editBtn = document.getElementById('btn-toggle-edit');
+
+    editBtn.addEventListener('click', function() {
+        viewEl.style.display = 'none';
+        editEl.style.display = 'block';
+        editBtn.style.display = 'none';
+    });
+    document.getElementById('btn-cancel-edit').addEventListener('click', function() {
+        viewEl.style.display = '';
+        editEl.style.display = 'none';
+        editBtn.style.display = '';
+    });
+    document.getElementById('btn-save-edit').addEventListener('click', function() {
+        var btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Guardant...';
+        fetch('/api/resident/{{ resident.id }}/update', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                name: document.getElementById('ed-name').value,
+                room_number: document.getElementById('ed-room').value,
+                nfc_code: document.getElementById('ed-nfc').value,
+                group_id: document.getElementById('ed-group').value,
+                relevant_info: document.getElementById('ed-info').value,
+                notes: document.getElementById('ed-notes').value,
+                diagnoses: document.getElementById('ed-diagnoses').value,
+                allergies: document.getElementById('ed-allergies').value,
+                current_medication: document.getElementById('ed-medication').value,
+                blood_type: document.getElementById('ed-blood').value,
+                dependency_level: document.getElementById('ed-dependency').value,
+                emergency_contact_name: document.getElementById('ed-ecname').value,
+                emergency_contact_phone: document.getElementById('ed-ecphone').value,
+                emergency_contact_relation: document.getElementById('ed-ecrelation').value,
+            })
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            if (data.ok) {
+                window.location.reload();
+            } else {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Guardar';
+                if (typeof showToast === 'function') showToast(data.error || 'Error', 'error');
+            }
+        }).catch(function() {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Guardar';
         });
     });
 

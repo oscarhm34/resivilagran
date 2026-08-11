@@ -228,6 +228,53 @@ def add_edit_resident():
     return redirect(url_for('residents.manage_residents'))
 
 
+@bp.route('/api/resident/<int:resident_id>/update', methods=['POST'])
+@admin_required
+def update_resident_inline(resident_id: int):
+    """Update resident fields via AJAX from detail page."""
+    r = db.session.get(Resident, resident_id)
+    if not r:
+        return jsonify({'error': 'No encontrado'}), 404
+
+    data = request.get_json()
+    if 'name' in data:
+        r.name = data['name'].strip()
+    if 'room_number' in data:
+        r.room_number = data['room_number'].strip() or None
+    if 'nfc_code' in data:
+        r.nfc_code = data['nfc_code'].strip()
+    if 'group_id' in data:
+        r.group_id = int(data['group_id']) if data['group_id'] else None
+    if 'notes' in data:
+        r.notes = data['notes'].strip() or None
+    if 'relevant_info' in data:
+        r.relevant_info = data['relevant_info'].strip() or None
+    if 'diagnoses' in data:
+        r.diagnoses = data['diagnoses'].strip() or None
+    if 'allergies' in data:
+        r.allergies = data['allergies'].strip() or None
+    if 'current_medication' in data:
+        r.current_medication = data['current_medication'].strip() or None
+    if 'blood_type' in data:
+        r.blood_type = data['blood_type'].strip() or None
+    if 'dependency_level' in data:
+        r.dependency_level = data['dependency_level'].strip() or None
+    if 'emergency_contact_name' in data:
+        r.emergency_contact_name = data['emergency_contact_name'].strip() or None
+    if 'emergency_contact_phone' in data:
+        r.emergency_contact_phone = data['emergency_contact_phone'].strip() or None
+    if 'emergency_contact_relation' in data:
+        r.emergency_contact_relation = data['emergency_contact_relation'].strip() or None
+
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({'error': 'El codi NFC ja esta en us'}), 400
+
+    return jsonify({'ok': True})
+
+
 @bp.route('/residents/delete/<int:id>', methods=['POST'])
 @admin_required
 def delete_resident(id: int):
@@ -685,6 +732,9 @@ def resident_detail(resident_id: int):
     # Assessment data (Barthel, Norton)
     assess_data = get_resident_assessment_data(resident_id)
 
+    # Groups for edit form
+    groups = ResidentGroup.query.order_by(ResidentGroup.name).all()
+
     # Medication data
     prescriptions = MedicationPrescription.query.filter_by(
         resident_id=resident_id,
@@ -701,6 +751,7 @@ def resident_detail(resident_id: int):
         heatmap_data=heatmap_data,
         prescriptions=prescriptions,
         route_labels=ROUTE_LABELS,
+        groups=groups,
         **assess_data,
     )
 
