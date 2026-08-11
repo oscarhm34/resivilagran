@@ -6,10 +6,13 @@ from flask_login import current_user, login_required
 from datetime import datetime, timedelta, date
 
 from .. import db
+from flask_jwt_extended import jwt_required, get_jwt_identity
+
 from ..models import (Notification, VitalSignReading, VitalSignType,
                       CareRecord, CleaningRecord, Resident, Cleaner,
                       Incident, LegalDocument, DocumentSignature,
-                      ShiftAssignment, ShiftCoverageRequirement, ShiftType)
+                      ShiftAssignment, ShiftCoverageRequirement, ShiftType,
+                      AppSetting)
 from ..utils import admin_required
 
 bp = Blueprint('notifications', __name__)
@@ -123,6 +126,40 @@ def _generate_notifications() -> int:
             ))
             created += 1
 
+    # 4b. stale_session_worker — per-worker notifications for sessions exceeding threshold
+    max_minutes = int(AppSetting.get('session_max_minutes', '120'))
+    stale_threshold = now - timedelta(minutes=max_minutes)
+
+    stale_worker_cleanings = CleaningRecord.query.filter(
+        CleaningRecord.end_time.is_(None),
+        CleaningRecord.start_time < stale_threshold,
+    ).all()
+    for rec in stale_worker_cleanings:
+        room_desc = f'Hab. {rec.room.number}' if rec.room else 'Habitación'
+        mins = int((now - rec.start_time).total_seconds() / 60)
+        title = f"Limpieza en {room_desc} lleva {mins} min abierta"
+        if not _notif_exists('stale_session_worker', title, hours=4):
+            db.session.add(Notification(
+                type='stale_session_worker', title=title, severity='warning',
+                worker_id=rec.cleaner_id, link='/worker',
+            ))
+            created += 1
+
+    stale_worker_cares = CareRecord.query.filter(
+        CareRecord.end_time.is_(None),
+        CareRecord.start_time < stale_threshold,
+    ).all()
+    for rec in stale_worker_cares:
+        resident_name = rec.resident.name if rec.resident else 'Residente'
+        mins = int((now - rec.start_time).total_seconds() / 60)
+        title = f"Atención con {resident_name} lleva {mins} min abierta"
+        if not _notif_exists('stale_session_worker', title, hours=4):
+            db.session.add(Notification(
+                type='stale_session_worker', title=title, severity='warning',
+                worker_id=rec.worker_id, link='/worker',
+            ))
+            created += 1
+
     # 5. coverage_gap — tomorrow's shift coverage
     tomorrow = now.date() + timedelta(days=1)
     requirements = ShiftCoverageRequirement.query.all()
@@ -229,3 +266,54 @@ def mark_all_read():
 def generate():
     count = _generate_notifications()
     return jsonify({'ok': True, 'created': count})
+
+
+# ── Worker notification endpoints ─────────────────────────────────────────
+
+@bp.route('/api/worker/notifications')
+@jwt_required()
+def worker_notifications():
+    """Return unread notifications for the authenticated worker."""
+    identity = get_jwt_identity()
+    worker = Cleaner.query.filter_by(username=identity).first()
+    if not worker:
+        return jsonify({'count': 0, 'notifications': []}), 200
+
+    try:
+        _generate_notifications()
+    except Exception:
+        pass
+
+    cutoff = datetime.now() - timedelta(days=2)
+    notifs = Notification.query.filter(
+        Notification.worker_id == worker.id,
+        Notification.read == False,  # noqa: E712
+        Notification.created_at >= cutoff,
+    ).order_by(Notification.created_at.desc()).limit(10).all()
+
+    return jsonify({
+        'count': len(notifs),
+        'notifications': [{
+            'id': n.id,
+            'type': n.type,
+            'title': n.title,
+            'severity': n.severity,
+            'created_at': n.created_at.isoformat(),
+        } for n in notifs],
+    }), 200
+
+
+@bp.route('/api/worker/notifications/<int:nid>/read', methods=['POST'])
+@jwt_required()
+def worker_mark_read(nid: int):
+    """Mark a worker notification as read."""
+    identity = get_jwt_identity()
+    worker = Cleaner.query.filter_by(username=identity).first()
+    if not worker:
+        return jsonify({'error': 'No autorizado'}), 403
+    notif = Notification.query.get_or_404(nid)
+    if notif.worker_id != worker.id:
+        return jsonify({'error': 'No autorizado'}), 403
+    notif.read = True
+    db.session.commit()
+    return jsonify({'ok': True})

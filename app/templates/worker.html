@@ -88,6 +88,18 @@
         .btn-asc-cancel { padding:10px 14px; min-height:44px; border-radius:20px; border:1.5px solid var(--border); background:none; font-size:12px; color:var(--text-2); cursor:pointer; font-family:inherit; transition:border-color .15s, color .15s; }
         .btn-asc-cancel:hover { border-color:var(--danger); color:var(--danger); }
 
+        .asc.stale { border-color:var(--danger) !important; animation:stale-pulse 2s ease-in-out infinite; }
+        .asc.stale .asc-timer { color:var(--danger) !important; }
+        .asc.stale .asc-subject { color:var(--danger) !important; }
+        .stale-warning { background:#fff3e0; color:#e65100; border-radius:10px; padding:6px 10px; font-size:11px; font-weight:600; margin-top:4px; text-align:center; }
+        @keyframes stale-pulse {
+            0%,100% { box-shadow:0 0 0 0 rgba(207,34,46,.3); }
+            50%     { box-shadow:0 0 12px 4px rgba(207,34,46,.25); }
+        }
+
+        .worker-toast { position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:9999; background:#e65100; color:#fff; padding:12px 20px; border-radius:14px; font-size:13px; font-weight:600; box-shadow:0 4px 16px rgba(0,0,0,.2); opacity:0; transition:opacity .3s; pointer-events:none; max-width:90vw; text-align:center; }
+        .worker-toast.show { opacity:1; pointer-events:auto; }
+
         /* ── Mode cards ── */
         .mode-cards { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:24px; }
         .mode-card { border-radius:18px; padding:22px 14px; border:2px solid transparent; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:10px; transition:transform .15s,border-color .15s; user-select:none; -webkit-user-select:none; background:none; font-family:inherit; width:100%; }
@@ -363,6 +375,7 @@
     </style>
 </head>
 <body>
+<div id="worker-toast" class="worker-toast"></div>
 <div id="app">
 
     <!-- ══ LOGIN ══ -->
@@ -939,17 +952,23 @@ function elapsed(iso) { return (Date.now() - new Date(iso).getTime()) / 1000; }
 function startGlobalTimer() {
     clearInterval(S.timerInt);
     S.timerInt = setInterval(() => {
+        const maxSec = (S.sessionMaxMinutes || 120) * 60;
         const seenGroups = new Set();
         S.sessions.forEach(sess => {
+            const elSec = elapsed(sess.start_time);
             if (sess.group_key) {
                 if (!seenGroups.has(sess.group_key)) {
                     seenGroups.add(sess.group_key);
                     const el = $(`timer-group-${sess.group_key}`);
-                    if (el) el.textContent = fmt(elapsed(sess.start_time));
+                    if (el) el.textContent = fmt(elSec);
+                    const card = $(`asc-group-${sess.group_key}`);
+                    if (card && elSec >= maxSec) card.classList.add('stale');
                 }
             } else {
                 const el = $(`timer-${sess.record_id}`);
-                if (el) el.textContent = fmt(elapsed(sess.start_time));
+                if (el) el.textContent = fmt(elSec);
+                const card = $(`asc-${sess.record_id}`);
+                if (card && elSec >= maxSec) card.classList.add('stale');
             }
         });
     }, 1000);
@@ -987,6 +1006,7 @@ $('login-form').addEventListener('submit', async e => {
 
 function doLogout() {
     clearInterval(S.timerInt);
+    clearInterval(notifPollInt);
     stopNfc();
     S.token = S.workerId = S.workerName = null;
     S.sessions = [];
@@ -1009,6 +1029,7 @@ document.addEventListener('visibilitychange', () => {
 async function loadConfig() {
     const { ok, data } = await api('/api/config');
     if (ok && data) S.config = data;
+    S.sessionMaxMinutes = (S.config.session_max_minutes || 120);
     // Apply config: group care toggles
     const groupDisplay = S.config.allow_group_care ? '' : 'none';
     $('mygroup-multiselect-toggle').style.display = groupDisplay;
@@ -1021,6 +1042,30 @@ async function initHome() {
     $('chat-fab').style.display = '';
     await Promise.all([loadConfig(), loadActiveSessions(), loadHistory(), loadCareTypes(), loadMyGroups(), loadPendingItems(), loadRoute()]);
     startGlobalTimer();
+    startNotifPolling();
+}
+
+// ── Worker notification polling ──────────────────────────────────────────
+let notifPollInt = null;
+function startNotifPolling() {
+    clearInterval(notifPollInt);
+    checkWorkerNotifs();
+    notifPollInt = setInterval(checkWorkerNotifs, 5 * 60 * 1000);
+}
+async function checkWorkerNotifs() {
+    if (!S.token) return;
+    const { ok, data } = await api('/api/worker/notifications');
+    if (!ok || !data || !data.notifications) return;
+    for (const n of data.notifications) {
+        showWorkerToast(n.title);
+        api(`/api/worker/notifications/${n.id}/read`, 'POST');
+    }
+}
+function showWorkerToast(msg) {
+    const t = $('worker-toast');
+    t.textContent = '⚠ ' + msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 6000);
 }
 
 async function refreshAll() {
@@ -1085,6 +1130,12 @@ function renderActiveSessions() {
             ? names.slice(0, 3).join(', ') + ` (+${names.length - 3})`
             : names.join(', ');
         const recordIds = members.map(m => m.record_id).join(',');
+        const groupStale = members.some(m => m.stale);
+        const groupStaleClass = groupStale ? ' stale' : '';
+        const groupElapsed = groupStale ? members[0].elapsed_minutes : 0;
+        const groupStaleHtml = groupStale
+            ? `<div class="stale-warning">⚠ Abierta hace ${groupElapsed} min</div>`
+            : '';
 
         // Photos
         let photosHtml = '<div class="asc-photos">';
@@ -1102,11 +1153,12 @@ function renderActiveSessions() {
         photosHtml += '</div>';
 
         html += `
-        <div class="asc care" id="asc-group-${gk}">
+        <div class="asc care${groupStaleClass}" id="asc-group-${gk}">
             ${photosHtml}
             <div class="asc-info">
                 <div class="asc-subject" style="white-space:normal;line-height:1.3">${displayName}</div>
                 <div class="asc-sub">Atención grupal · ${members.length} residentes</div>
+                ${groupStaleHtml}
             </div>
             <div class="asc-right">
                 <div class="asc-timer" id="timer-group-${gk}">${timeStr}</div>
@@ -1130,12 +1182,17 @@ function renderActiveSessions() {
         const iconHtml = (isCare && sess.photo_url)
             ? `<div class="asc-icon care" style="padding:0;overflow:hidden"><img data-auth-src="${sess.photo_url}" style="width:100%;height:100%;border-radius:12px;object-fit:cover" alt=""></div>`
             : `<div class="asc-icon">${isCare ? '🤲' : '🧹'}</div>`;
+        const staleClass = sess.stale ? ' stale' : '';
+        const staleHtml = sess.stale
+            ? `<div class="stale-warning">⚠ Abierta hace ${sess.elapsed_minutes} min</div>`
+            : '';
         html += `
-        <div class="asc ${sess.type}" id="asc-${sess.record_id}">
+        <div class="asc ${sess.type}${staleClass}" id="asc-${sess.record_id}">
             ${iconHtml}
             <div class="asc-info">
                 <div class="asc-subject">${sess.subject}</div>
                 <div class="asc-sub">${subLabel}</div>
+                ${staleHtml}
             </div>
             <div class="asc-right">
                 <div class="asc-timer" id="timer-${sess.record_id}">${timeStr}</div>

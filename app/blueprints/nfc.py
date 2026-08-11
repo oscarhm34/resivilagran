@@ -317,6 +317,15 @@ def worker_active_sessions():
                 'resident_id': r.id if r else None,
             })
 
+    # Flag stale sessions that exceed the configured threshold
+    max_minutes = int(AppSetting.get('session_max_minutes', '120'))
+    now = datetime.now()
+    for sess in sessions:
+        elapsed_min = (now - datetime.fromisoformat(sess['start_time'])).total_seconds() / 60
+        if elapsed_min >= max_minutes:
+            sess['stale'] = True
+            sess['elapsed_minutes'] = round(elapsed_min)
+
     return jsonify(sessions), 200
 
 
@@ -1180,6 +1189,12 @@ def admin_settings():
         AppSetting.set('nfc_only', 'true' if request.form.get('nfc_only') else 'false')
         AppSetting.set('single_session', 'true' if request.form.get('single_session') else 'false')
         AppSetting.set('allow_worker_incidents', 'true' if request.form.get('allow_worker_incidents') else 'false')
+        session_max = request.form.get('session_max_minutes', '120')
+        try:
+            session_max = str(max(15, min(1440, int(session_max))))
+        except (ValueError, TypeError):
+            session_max = '120'
+        AppSetting.set('session_max_minutes', session_max)
         flash('Configuración guardada.', 'success')
         return redirect(url_for('nfc.admin_settings'))
     return render_template('admin_settings.html',
@@ -1187,6 +1202,7 @@ def admin_settings():
         nfc_only=AppSetting.get('nfc_only', 'true') == 'true',
         single_session=AppSetting.get('single_session', 'false') == 'true',
         allow_worker_incidents=AppSetting.get('allow_worker_incidents', 'false') == 'true',
+        session_max_minutes=int(AppSetting.get('session_max_minutes', '120')),
     )
 
 
@@ -1198,4 +1214,5 @@ def api_config():
         'nfc_only': AppSetting.get('nfc_only', 'true') == 'true',
         'single_session': AppSetting.get('single_session', 'false') == 'true',
         'allow_worker_incidents': AppSetting.get('allow_worker_incidents', 'false') == 'true',
+        'session_max_minutes': int(AppSetting.get('session_max_minutes', '120')),
     }), 200

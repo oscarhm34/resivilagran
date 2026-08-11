@@ -47,6 +47,18 @@
                     </label>
                 </div>
 
+                <hr class="my-3">
+
+                <div class="mb-0">
+                    <label for="session_max_minutes" class="form-label">
+                        <strong>Tiempo maximo de sesion (minutos)</strong>
+                        <br><small class="text-body-secondary">Si una sesion de limpieza o atencion supera este tiempo sin cerrarse, el trabajador recibira un aviso visual en la app. Valor por defecto: 120 minutos (2 horas).</small>
+                    </label>
+                    <input type="number" class="form-control" id="session_max_minutes"
+                           name="session_max_minutes" value="{{ session_max_minutes }}"
+                           min="15" max="1440" style="max-width:120px">
+                </div>
+
             </div>
         </div>
 
