@@ -548,6 +548,155 @@ def ai_summary(resident_id: int):
     return jsonify(report)
 
 
+# ── Global AI report ─────────────────────────────────────────────────────────
+
+GLOBAL_REPORT_SYSTEM = """Eres un asistente de direccion de la residencia de ancianos La Vila Gran.
+Genera informes ejecutivos estructurados en HTML sobre el estado general de la residencia.
+Escribe siempre en espanol. Tono profesional y conciso.
+No inventes datos — solo comenta lo que aparece en los datos.
+
+FORMATO: Devuelve SOLO el contenido HTML (sin <html>, <head> ni <body>).
+Secciones con h3:
+- Resumen ejecutivo (estado general de la residencia en un parrafo)
+- Actividad asistencial (atenciones por tipo, frecuencia, trabajadores mas activos)
+- Estado de los residentes (residentes que requieren mas atencion, cambios funcionales)
+- Constantes vitales destacables (alertas, tendencias)
+- Incidencias (resumen de incidencias del periodo)
+- Limpieza y mantenimiento (cobertura, habitaciones pendientes)
+- Observaciones del personal (notas relevantes agrupadas por tematica)
+- Recomendaciones (acciones sugeridas para la direccion)
+
+Usa <strong>, <ul>/<li>, <table> cuando sea apropiado. No uses emojis.
+Si una seccion no tiene datos, omitela."""
+
+@bp.route('/api/global-ai-report', methods=['POST'])
+@admin_required
+def global_ai_report():
+    """Generate AI report for the entire residence."""
+    data = request.get_json() or {}
+    period = data.get('period', 'week')
+    days_map = {'today': 1, 'week': 7, 'month': 30}
+    days = days_map.get(period, 7)
+    cutoff = datetime.now() - timedelta(days=days)
+
+    # Gather global data
+    lines = []
+
+    # Active residents and workers
+    residents = Resident.query.filter_by(active=True).all()
+    workers = Cleaner.query.filter_by(active=True).all()
+    lines.append(f"RESIDENCIA LA VILA GRAN — {len(residents)} residentes activos, {len(workers)} trabajadores activos")
+
+    # Care records summary
+    care_records = CareRecord.query.filter(
+        CareRecord.start_time >= cutoff, CareRecord.end_time.isnot(None),
+    ).all()
+    lines.append(f"\nATENCIONES: {len(care_records)} en los ultimos {days} dias")
+
+    # Group by care type
+    type_counts = {}
+    worker_counts = {}
+    resident_counts = {}
+    notes_list = []
+    for cr in care_records:
+        for ct in cr.care_types:
+            type_counts[ct.name] = type_counts.get(ct.name, 0) + 1
+        if cr.worker:
+            worker_counts[cr.worker.name] = worker_counts.get(cr.worker.name, 0) + 1
+        if cr.resident:
+            resident_counts[cr.resident.name] = resident_counts.get(cr.resident.name, 0) + 1
+        if cr.notes:
+            r_name = cr.resident.name if cr.resident else '?'
+            lines_note = f"  {cr.start_time.strftime('%d/%m')}: {r_name} — {cr.notes}"
+            notes_list.append(lines_note)
+
+    if type_counts:
+        lines.append("Por tipo: " + ', '.join(f"{k}: {v}" for k, v in sorted(type_counts.items(), key=lambda x: -x[1])[:10]))
+    if worker_counts:
+        lines.append("Por trabajador: " + ', '.join(f"{k}: {v}" for k, v in sorted(worker_counts.items(), key=lambda x: -x[1])[:10]))
+    if resident_counts:
+        top_residents = sorted(resident_counts.items(), key=lambda x: -x[1])[:10]
+        lines.append("Residentes con mas atenciones: " + ', '.join(f"{k}: {v}" for k, v in top_residents))
+
+    # Vital signs
+    vital_readings = db.session.query(VitalSignReading).join(CareRecord).filter(
+        CareRecord.start_time >= cutoff,
+    ).all()
+    vital_summary = {}
+    for r in vital_readings:
+        vst = r.vital_sign_type
+        if not vst:
+            continue
+        key = vst.name
+        if key not in vital_summary:
+            vital_summary[key] = {'values': [], 'unit': vst.unit, 'min': vst.min_value, 'max': vst.max_value}
+        vital_summary[key]['values'].append(r.value)
+
+    if vital_summary:
+        lines.append(f"\nCONSTANTES VITALES ({len(vital_readings)} lecturas):")
+        for name, info in vital_summary.items():
+            vals = info['values']
+            avg = sum(vals) / len(vals)
+            out_of_range = sum(1 for v in vals if (info['min'] is not None and v < info['min']) or (info['max'] is not None and v > info['max']))
+            lines.append(f"  {name}: media {avg:.1f} {info['unit']}, {len(vals)} lecturas, {out_of_range} fuera de rango")
+
+    # Assessments
+    assessments = AssessmentRecord.query.filter(AssessmentRecord.assessed_at >= cutoff).all()
+    if assessments:
+        lines.append(f"\nVALORACIONES ({len(assessments)}):")
+        for a in assessments:
+            r_name = a.resident.name if a.resident else '?'
+            lines.append(f"  {a.assessed_at.strftime('%d/%m')} - {r_name}: {a.scale_type.capitalize()} {a.score} ({a.interpretation})")
+
+    # Incidents
+    incidents = Incident.query.filter(Incident.created_at >= cutoff).all()
+    if incidents:
+        lines.append(f"\nINCIDENCIAS ({len(incidents)}):")
+        for inc in incidents:
+            r_name = inc.resident.name if inc.resident else '—'
+            lines.append(f"  {inc.created_at.strftime('%d/%m')} - {inc.title} (sev: {inc.severity}, estado: {inc.status}, residente: {r_name})")
+
+    # Cleaning
+    cleanings = CleaningRecord.query.filter(
+        CleaningRecord.start_time >= cutoff, CleaningRecord.end_time.isnot(None),
+    ).all()
+    lines.append(f"\nLIMPIEZAS: {len(cleanings)} en los ultimos {days} dias")
+    for cl in cleanings:
+        if cl.notes:
+            room_num = cl.room.number if cl.room else '?'
+            notes_list.append(f"  {cl.start_time.strftime('%d/%m')}: Hab. {room_num} (limpieza) — {cl.notes}")
+
+    # Worker notes
+    if notes_list:
+        lines.append(f"\nNOTAS DEL PERSONAL ({len(notes_list)}):")
+        for n in notes_list[:30]:
+            lines.append(n)
+
+    context_text = '\n'.join(lines)
+    period_label = {'today': 'de hoy', 'week': 'de la ultima semana', 'month': 'del ultimo mes'}
+    prompt = f"Genera un informe ejecutivo {period_label.get(period, 'reciente')} de la residencia.\n\n{context_text}"
+
+    try:
+        html = _call_claude(GLOBAL_REPORT_SYSTEM, prompt)
+        html = html.strip()
+        if html.startswith('```'):
+            html = html.split('\n', 1)[1] if '\n' in html else html[3:]
+        if html.endswith('```'):
+            html = html.rsplit('```', 1)[0]
+        html = html.strip()
+    except Exception as e:
+        return jsonify({'error': f'Error al generar informe: {str(e)}'}), 500
+
+    period_titles = {'today': 'Informe del dia', 'week': 'Informe semanal', 'month': 'Informe mensual'}
+    return jsonify({
+        'html': html,
+        'period': period,
+        'title': period_titles.get(period, 'Informe'),
+        'generated_at': datetime.now().strftime('%d/%m/%Y %H:%M'),
+        'generated_by': current_user.name if current_user else '',
+    })
+
+
 # ── Assessment history data for resident detail ──────────────────────────────
 
 def get_resident_assessment_data(resident_id: int) -> dict:

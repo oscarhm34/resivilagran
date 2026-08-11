@@ -8,6 +8,11 @@
             <h1 class="h3 mb-1">Bienvenido, {{ current_user.name }}</h1>
             <p class="mb-0" style="color:var(--color-text-secondary)">Panel de gestion &mdash; La Vila Gran</p>
         </div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-primary btn-sm" id="btn-global-report" data-bs-toggle="modal" data-bs-target="#globalReportModal">
+                <i class="bi bi-stars me-1"></i>Informe IA
+            </button>
+        </div>
     </div>
 
     {% if stale_closed %}
@@ -232,5 +237,112 @@
         border-color: var(--color-primary) !important;
     }
     .home-card-icon { font-size: 1.8rem; line-height: 1; }
+    .gr-content { font-size:.88rem; line-height:1.7; }
+    .gr-content h3 { font-size:1rem; font-weight:700; color:var(--color-primary); margin-top:20px; margin-bottom:8px; border-bottom:1px solid #eee; padding-bottom:4px; }
+    .gr-content ul { padding-left:20px; }
+    .gr-content li { margin-bottom:4px; }
+    @media print {
+        body * { visibility: hidden !important; }
+        #gr-print-area, #gr-print-area * { visibility: visible !important; }
+        #gr-print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 30px; }
+        .gr-print-header, .gr-print-footer { display: block !important; }
+        .no-print { display: none !important; }
+    }
 </style>
+
+<!-- Modal Informe Global IA -->
+<div class="modal fade" id="globalReportModal" tabindex="-1" aria-labelledby="grModalLabel">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content" style="border-radius:var(--radius-lg)">
+            <div class="modal-header">
+                <h5 class="modal-title" id="grModalLabel"><i class="bi bi-stars me-2" style="color:var(--color-primary)"></i>Informe IA de la residencia</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex gap-2 align-items-center mb-3">
+                    <select id="gr-period" class="form-select form-select-sm" style="width:auto">
+                        <option value="today">Hoy</option>
+                        <option value="week" selected>Ultima semana</option>
+                        <option value="month">Ultimo mes</option>
+                    </select>
+                    <button type="button" class="btn btn-primary btn-sm" id="btn-gr-generate">
+                        <i class="bi bi-stars me-1"></i>Generar informe
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm no-print" id="btn-gr-print" style="display:none">
+                        <i class="bi bi-printer me-1"></i>Imprimir / PDF
+                    </button>
+                </div>
+                <div id="gr-print-area">
+                    <div class="gr-print-header" style="display:none">
+                        <div style="border-bottom:2px solid #333;padding-bottom:12px;margin-bottom:16px">
+                            <div style="font-size:18px;font-weight:700">Centre Medic La Vila Gran</div>
+                            <div style="font-size:12px;color:#666">Informe general de la residencia generado por IA</div>
+                        </div>
+                        <table style="width:100%;font-size:13px;margin-bottom:16px">
+                            <tr>
+                                <td><strong>Periodo:</strong> <span id="gr-rpt-period"></span></td>
+                                <td><strong>Fecha:</strong> <span id="gr-rpt-date"></span></td>
+                            </tr>
+                            <tr><td colspan="2"><strong>Generado por:</strong> <span id="gr-rpt-by"></span></td></tr>
+                        </table>
+                    </div>
+                    <div id="gr-content" class="gr-content">
+                        <div class="text-center text-muted py-5">Selecciona un periodo y pulsa "Generar informe"</div>
+                    </div>
+                    <div class="gr-print-footer" style="display:none">
+                        <div style="border-top:1px solid #ccc;padding-top:8px;margin-top:24px;font-size:11px;color:#999;text-align:center">
+                            Informe generado automaticamente por IA. No sustituye la valoracion del profesional sanitario.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block scripts_extra %}
+<script>
+(function(){
+    document.getElementById('btn-gr-generate').addEventListener('click', function() {
+        var btn = this;
+        var period = document.getElementById('gr-period').value;
+        var content = document.getElementById('gr-content');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generando...';
+        content.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm me-2"></div>Analizando datos de la residencia...</div>';
+        document.getElementById('btn-gr-print').style.display = 'none';
+
+        fetch('/api/global-ai-report', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({period: period})
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar informe';
+            if (data.html) {
+                content.innerHTML = data.html;
+                document.getElementById('btn-gr-print').style.display = '';
+                document.getElementById('gr-rpt-period').textContent = data.title;
+                document.getElementById('gr-rpt-date').textContent = data.generated_at;
+                document.getElementById('gr-rpt-by').textContent = data.generated_by;
+            } else {
+                content.innerHTML = '<div class="alert alert-warning">' + (data.error || 'Error') + '</div>';
+            }
+        }).catch(function() {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar informe';
+            content.innerHTML = '<div class="alert alert-danger">Error de conexion</div>';
+        });
+    });
+
+    document.getElementById('btn-gr-print').addEventListener('click', function() {
+        document.querySelectorAll('.gr-print-header, .gr-print-footer').forEach(function(el) { el.style.display = 'block'; });
+        window.print();
+        setTimeout(function() {
+            document.querySelectorAll('.gr-print-header, .gr-print-footer').forEach(function(el) { el.style.display = 'none'; });
+        }, 500);
+    });
+})();
+</script>
+{% endblock %}
 {% endblock %}
