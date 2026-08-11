@@ -187,6 +187,9 @@
         <!-- Tab Resumen -->
         <div class="tab-pane fade show active" id="tab-resumen" role="tabpanel">
 
+            <!-- Risk badges -->
+            <div id="risk-badges" class="d-flex flex-wrap gap-2 mb-3" style="display:none!important"></div>
+
             <!-- Informe IA -->
             <div class="card mb-4" style="border-color:var(--color-primary);border-style:dashed">
                 <div class="card-header d-flex align-items-center justify-content-between" style="background:rgba(13,110,253,.04)">
@@ -845,6 +848,30 @@ vitalData.forEach((chart, i) => {
             if (typeof showToast === 'function') showToast('Texto copiado al portapapeles', 'success');
         });
     });
+
+    // Risk badges
+    fetch('/api/resident/{{ resident.id }}/risk-profile')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.risks) return;
+            var container = document.getElementById('risk-badges');
+            var colorMap = {high: '#dc3545', medium: '#fd7e14', low: '#198754'};
+            var levelMap = {high: 'Alt', medium: 'Mig', low: 'Baix'};
+            var iconMap = {caidas: 'bi-exclamation-triangle', upp: 'bi-bandaid', funcional: 'bi-arrow-down-circle', nutricional: 'bi-cup-hot'};
+            var hasVisible = false;
+            Object.keys(data.risks).forEach(function(key) {
+                var level = data.risks[key];
+                var label = data.labels[key] || key;
+                var color = colorMap[level];
+                var badge = document.createElement('span');
+                badge.className = 'badge d-flex align-items-center gap-1';
+                badge.style.cssText = 'background:' + color + '20;color:' + color + ';font-size:.78rem;padding:6px 12px;border-radius:20px';
+                badge.innerHTML = '<i class="bi ' + (iconMap[key] || 'bi-shield') + '"></i> ' + label + ': ' + levelMap[level];
+                container.appendChild(badge);
+                if (level !== 'low') hasVisible = true;
+            });
+            if (hasVisible) container.style.cssText = 'display:flex!important';
+        });
 
     // Inspection reports
     document.querySelectorAll('.btn-insp-report').forEach(function(btn) {

@@ -837,6 +837,334 @@ def global_ai_report():
     })
 
 
+# ── Shift Handover Report ─────────────────────────────────────────────────────
+
+HANDOVER_SYSTEM = """Eres un asistente de la residencia de ancianos La Vila Gran.
+Genera un informe de traspaso de turno en HTML estructurado para el equipo entrante.
+El informe debe ser claro, conciso y orientado a la accion.
+Escribe en espanol. No inventes datos.
+
+FORMATO: Solo contenido HTML (sin <html>/<body>).
+Secciones con h3:
+- Resumen del turno (que ha pasado, cuantos trabajadores, atenciones y limpiezas)
+- Atenciones destacadas (las que tienen notas o constantes fuera de rango)
+- Incidencias (nuevas o abiertas)
+- Alertas y avisos (constantes vitales fuera de rango, sesiones sin cerrar)
+- Pendiente para el siguiente turno (que queda por hacer)
+- Observaciones del personal (notas agrupadas por tematica)
+
+Usa <strong>, <ul>/<li>. No uses emojis. Se breve y directo."""
+
+@bp.route('/api/shift-handover-report', methods=['POST'])
+@admin_required
+def shift_handover_report():
+    """Generate AI shift handover summary."""
+    from ..models import ShiftType, ShiftAssignment, Absence
+
+    data = request.get_json() or {}
+    hours = data.get('hours', 8)
+    now = datetime.now()
+    cutoff = now - timedelta(hours=hours)
+    today = now.date()
+
+    lines = []
+
+    # Workers on shift today
+    shifts = ShiftAssignment.query.options(
+        joinedload(ShiftAssignment.cleaner), joinedload(ShiftAssignment.shift_type),
+    ).filter(ShiftAssignment.date == today, ShiftAssignment.shift_type_id.isnot(None)).all()
+    absent_ids = {a.cleaner_id for a in Absence.query.filter(
+        Absence.start_date <= today, Absence.end_date >= today).all()}
+    on_shift = [s for s in shifts if s.cleaner_id not in absent_ids]
+    shift_names = set(s.shift_type.short_name for s in on_shift if s.shift_type)
+    lines.append(f"TRASPASO DE TURNO — {now.strftime('%d/%m/%Y %H:%M')}")
+    lines.append(f"Trabajadores en turno hoy: {len(on_shift)} ({', '.join(shift_names)})")
+
+    # Care records in last N hours
+    care_records = CareRecord.query.options(
+        joinedload(CareRecord.worker), joinedload(CareRecord.resident),
+        joinedload(CareRecord.care_types),
+        joinedload(CareRecord.vital_sign_readings).joinedload(VitalSignReading.vital_sign_type),
+    ).filter(CareRecord.start_time >= cutoff).order_by(CareRecord.start_time.desc()).all()
+
+    lines.append(f"\nATENCIONES ULTIMAS {hours}H: {len(care_records)}")
+    worker_care = {}
+    notes_list = []
+    vital_alerts = []
+    for cr in care_records:
+        w_name = cr.worker.name if cr.worker else '?'
+        worker_care[w_name] = worker_care.get(w_name, 0) + 1
+        types = ', '.join(ct.name for ct in cr.care_types) if cr.care_types else '?'
+        r_name = cr.resident.name if cr.resident else '?'
+        dur = cr.calculate_duration()
+        dur_str = f" ({round(dur/60)}min)" if dur else ''
+        lines.append(f"  {cr.start_time.strftime('%H:%M')} - {r_name}: {types} por {w_name}{dur_str}")
+        if cr.notes:
+            notes_list.append(f"  {cr.start_time.strftime('%H:%M')} {r_name} ({w_name}): {cr.notes}")
+        for reading in cr.vital_sign_readings:
+            vst = reading.vital_sign_type
+            if vst and ((vst.min_value and reading.value < vst.min_value) or (vst.max_value and reading.value > vst.max_value)):
+                vital_alerts.append(f"  {r_name}: {vst.name} = {reading.value} {vst.unit} (rango: {vst.min_value}-{vst.max_value})")
+
+    if worker_care:
+        lines.append("Por trabajador: " + ', '.join(f"{k}: {v}" for k, v in sorted(worker_care.items(), key=lambda x: -x[1])))
+
+    # Cleaning in last N hours
+    cleanings = CleaningRecord.query.filter(
+        CleaningRecord.start_time >= cutoff, CleaningRecord.end_time.isnot(None),
+    ).all()
+    lines.append(f"\nLIMPIEZAS ULTIMAS {hours}H: {len(cleanings)}")
+    for cl in cleanings:
+        if cl.notes:
+            room_num = cl.room.number if cl.room else '?'
+            notes_list.append(f"  {cl.start_time.strftime('%H:%M')} Hab.{room_num} (limpieza): {cl.notes}")
+
+    # Open sessions (not closed)
+    open_care = CareRecord.query.filter(CareRecord.end_time.is_(None)).count()
+    open_clean = CleaningRecord.query.filter(CleaningRecord.end_time.is_(None)).count()
+    if open_care or open_clean:
+        lines.append(f"\nSESIONES ABIERTAS: {open_care} atenciones, {open_clean} limpiezas")
+
+    # Recent incidents
+    incidents = Incident.query.filter(Incident.created_at >= cutoff).order_by(Incident.created_at.desc()).all()
+    open_incidents = Incident.query.filter(Incident.status.in_(['open', 'in_progress'])).all()
+    if incidents or open_incidents:
+        lines.append(f"\nINCIDENCIAS: {len(incidents)} nuevas, {len(open_incidents)} abiertas")
+        for inc in incidents:
+            r_name = inc.resident.name if inc.resident else '—'
+            lines.append(f"  {inc.created_at.strftime('%H:%M')} - {inc.title} (sev: {inc.severity}, residente: {r_name})")
+        for inc in open_incidents:
+            if inc not in incidents:
+                lines.append(f"  ABIERTA: {inc.title} (desde {inc.created_at.strftime('%d/%m')})")
+
+    if vital_alerts:
+        lines.append(f"\nALERTAS CONSTANTES VITALES:")
+        for va in vital_alerts:
+            lines.append(va)
+
+    if notes_list:
+        lines.append(f"\nNOTAS DEL PERSONAL:")
+        for n in notes_list[:20]:
+            lines.append(n)
+
+    context = '\n'.join(lines)
+    prompt = f"Genera un informe de traspaso de turno basado en estos datos:\n\n{context}"
+
+    try:
+        html = _call_claude(HANDOVER_SYSTEM, prompt)
+        html = html.strip()
+        if html.startswith('```'):
+            html = html.split('\n', 1)[1] if '\n' in html else html[3:]
+        if html.endswith('```'):
+            html = html.rsplit('```', 1)[0]
+        html = html.strip()
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    return jsonify({
+        'html': html,
+        'title': f'Traspaso de turno — {now.strftime("%d/%m/%Y %H:%M")}',
+        'generated_at': now.strftime('%d/%m/%Y %H:%M'),
+        'generated_by': current_user.name if current_user else '',
+    })
+
+
+# ── Compliance Audit ─────────────────────────────────────────────────────────
+
+@bp.route('/admin/compliance-audit')
+@admin_required
+def compliance_audit():
+    """Show compliance audit dashboard with rule-based checks."""
+    from ..models import (ShiftAssignment, ShiftCoverageRequirement,
+                          LegalDocument, DocumentSignature)
+    from .assessments import _call_claude
+    import json as _json2
+
+    now = datetime.now()
+    findings = []
+
+    # 1. Residents without recent Barthel/Norton (>6 months)
+    cutoff_6m = now - timedelta(days=180)
+    residents = Resident.query.filter_by(active=True).all()
+    for r in residents:
+        latest_b = AssessmentRecord.query.filter_by(resident_id=r.id, scale_type='barthel').order_by(AssessmentRecord.assessed_at.desc()).first()
+        latest_n = AssessmentRecord.query.filter_by(resident_id=r.id, scale_type='norton').order_by(AssessmentRecord.assessed_at.desc()).first()
+        if not latest_b or latest_b.assessed_at < cutoff_6m:
+            days = (now - latest_b.assessed_at).days if latest_b else None
+            findings.append({'category': 'valoraciones', 'severity': 'warning',
+                'text': f'{r.name}: sin Barthel en {"mas de " + str(days) + " dias" if days else "nunca valorado"}',
+                'link': f'/admin/resident/{r.id}'})
+        if not latest_n or latest_n.assessed_at < cutoff_6m:
+            days = (now - latest_n.assessed_at).days if latest_n else None
+            findings.append({'category': 'valoraciones', 'severity': 'warning',
+                'text': f'{r.name}: sin Norton en {"mas de " + str(days) + " dias" if days else "nunca valorado"}',
+                'link': f'/admin/resident/{r.id}'})
+
+    # 2. Norton ≤12 (high risk UPP)
+    high_risk_norton = AssessmentRecord.query.filter(
+        AssessmentRecord.scale_type == 'norton', AssessmentRecord.score <= 12,
+    ).order_by(AssessmentRecord.assessed_at.desc()).all()
+    seen_residents = set()
+    for a in high_risk_norton:
+        if a.resident_id in seen_residents:
+            continue
+        seen_residents.add(a.resident_id)
+        r = a.resident
+        if r and r.active:
+            findings.append({'category': 'clinico', 'severity': 'critical',
+                'text': f'{r.name}: Norton {a.score}/20 — riesgo {"muy alto" if a.score <= 9 else "alto"} de UPP',
+                'link': f'/admin/resident/{a.resident_id}'})
+
+    # 3. Residents without care in >3 days
+    cutoff_3d = now - timedelta(days=3)
+    for r in residents:
+        last_care = CareRecord.query.filter(
+            CareRecord.resident_id == r.id, CareRecord.end_time.isnot(None),
+        ).order_by(CareRecord.start_time.desc()).first()
+        if not last_care or last_care.start_time < cutoff_3d:
+            days = (now - last_care.start_time).days if last_care else None
+            findings.append({'category': 'atenciones', 'severity': 'warning',
+                'text': f'{r.name}: sin atencion registrada en {str(days) + " dias" if days else "nunca"}',
+                'link': f'/admin/resident/{r.id}'})
+
+    # 4. Unsigned legal documents
+    total_workers = Cleaner.query.filter_by(active=True).count()
+    active_docs = LegalDocument.query.filter_by(active=True).all()
+    for doc in active_docs:
+        signed = DocumentSignature.query.filter_by(document_id=doc.id).count()
+        pending = total_workers - signed
+        if pending > 0:
+            findings.append({'category': 'documentos', 'severity': 'info',
+                'text': f'Documento "{doc.title}": {pending} trabajadores sin firmar',
+                'link': '/admin/documents'})
+
+    # 5. Open incidents >7 days
+    cutoff_7d = now - timedelta(days=7)
+    old_incidents = Incident.query.filter(
+        Incident.status.in_(['open', 'in_progress']), Incident.created_at < cutoff_7d,
+    ).all()
+    for inc in old_incidents:
+        days = (now - inc.created_at).days
+        findings.append({'category': 'incidencias', 'severity': 'warning',
+            'text': f'Incidencia "{inc.title}" abierta hace {days} dias (sev: {inc.severity})',
+            'link': '/admin/incidents'})
+
+    # 6. Incomplete training
+    from ..models import TrainingPill, TrainingCompletion
+    pills = TrainingPill.query.filter_by(active=True).all()
+    workers = Cleaner.query.filter_by(active=True).all()
+    for pill in pills:
+        completed_ids = {tc.cleaner_id for tc in TrainingCompletion.query.filter_by(
+            training_pill_id=pill.id, passed=True).all()}
+        pending = [w for w in workers if w.id not in completed_ids]
+        if len(pending) > 0:
+            findings.append({'category': 'formacion', 'severity': 'info',
+                'text': f'Formacion "{pill.title}": {len(pending)} trabajadores pendientes',
+                'link': '/admin/training'})
+
+    # Group by category
+    categories = {}
+    for f in findings:
+        cat = f['category']
+        categories.setdefault(cat, []).append(f)
+
+    cat_labels = {'valoraciones': 'Valoraciones clinicas', 'clinico': 'Riesgos clinicos',
+                  'atenciones': 'Atenciones', 'documentos': 'Documentos legales',
+                  'incidencias': 'Incidencias', 'formacion': 'Formacion'}
+    cat_icons = {'valoraciones': 'bi-clipboard2-pulse', 'clinico': 'bi-heart-pulse',
+                 'atenciones': 'bi-person-heart', 'documentos': 'bi-file-earmark-text',
+                 'incidencias': 'bi-exclamation-triangle', 'formacion': 'bi-mortarboard'}
+
+    return render_template('admin_compliance_audit.html',
+        findings=findings, categories=categories,
+        cat_labels=cat_labels, cat_icons=cat_icons,
+        total_findings=len(findings),
+        critical_count=sum(1 for f in findings if f['severity'] == 'critical'),
+        warning_count=sum(1 for f in findings if f['severity'] == 'warning'),
+    )
+
+
+# ── Risk Profile per Resident ────────────────────────────────────────────────
+
+@bp.route('/api/resident/<int:resident_id>/risk-profile')
+@admin_required
+def risk_profile(resident_id: int):
+    """Calculate risk badges for a resident based on data analysis."""
+    resident = db.session.get(Resident, resident_id)
+    if not resident:
+        return jsonify({'error': 'No encontrado'}), 404
+
+    now = datetime.now()
+    risks = {}
+
+    # Fall risk: Norton + recent fall incidents + notes
+    latest_norton = AssessmentRecord.query.filter_by(
+        resident_id=resident_id, scale_type='norton',
+    ).order_by(AssessmentRecord.assessed_at.desc()).first()
+
+    cutoff_90d = now - timedelta(days=90)
+    fall_incidents = Incident.query.filter(
+        Incident.resident_id == resident_id,
+        Incident.created_at >= cutoff_90d,
+    ).all()
+    fall_count = sum(1 for i in fall_incidents if 'ca' in (i.title or '').lower() or 'caida' in (i.title or '').lower())
+
+    norton_score = latest_norton.score if latest_norton else None
+    if norton_score and norton_score <= 9:
+        risks['caidas'] = 'high'
+    elif norton_score and norton_score <= 12 or fall_count >= 2:
+        risks['caidas'] = 'medium'
+    elif fall_count >= 1:
+        risks['caidas'] = 'medium'
+    else:
+        risks['caidas'] = 'low'
+
+    # UPP risk: Norton
+    if norton_score and norton_score <= 9:
+        risks['upp'] = 'high'
+    elif norton_score and norton_score <= 14:
+        risks['upp'] = 'medium'
+    else:
+        risks['upp'] = 'low'
+
+    # Functional decline: Barthel trend
+    barthel_records = AssessmentRecord.query.filter_by(
+        resident_id=resident_id, scale_type='barthel',
+    ).order_by(AssessmentRecord.assessed_at.desc()).limit(3).all()
+    if len(barthel_records) >= 2 and barthel_records[0].score < barthel_records[1].score - 10:
+        risks['funcional'] = 'high'
+    elif len(barthel_records) >= 2 and barthel_records[0].score < barthel_records[1].score:
+        risks['funcional'] = 'medium'
+    else:
+        risks['funcional'] = 'low'
+
+    # Nutritional risk: weight trend via vitals
+    weight_readings = db.session.query(VitalSignReading.value, CareRecord.start_time).join(
+        CareRecord, VitalSignReading.care_record_id == CareRecord.id
+    ).join(VitalSignType, VitalSignReading.vital_sign_type_id == VitalSignType.id).filter(
+        CareRecord.resident_id == resident_id, VitalSignType.name.ilike('%peso%'),
+    ).order_by(CareRecord.start_time.desc()).limit(5).all()
+
+    if len(weight_readings) >= 2:
+        latest_w = weight_readings[0].value
+        oldest_w = weight_readings[-1].value
+        if oldest_w > 0:
+            loss_pct = ((oldest_w - latest_w) / oldest_w) * 100
+            if loss_pct >= 10:
+                risks['nutricional'] = 'high'
+            elif loss_pct >= 5:
+                risks['nutricional'] = 'medium'
+            else:
+                risks['nutricional'] = 'low'
+        else:
+            risks['nutricional'] = 'low'
+    else:
+        risks['nutricional'] = 'low'
+
+    risk_labels = {'caidas': 'Caidas', 'upp': 'UPP', 'funcional': 'Deterioro funcional', 'nutricional': 'Nutricional'}
+    return jsonify({'risks': risks, 'labels': risk_labels})
+
+
 # ── Assessment history data for resident detail ──────────────────────────────
 
 def get_resident_assessment_data(resident_id: int) -> dict:

@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Auditoria de compliment{% endblock %}
+
+{% block content %}
+<div class="py-3">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+        <h1 class="h3 mb-0"><i class="bi bi-shield-check me-2"></i>Auditoria de compliment</h1>
+        <span class="text-muted" style="font-size:.85rem">Ultima revision: {{ now().strftime('%d/%m/%Y %H:%M') if now else '' }}</span>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-4">
+            <div class="card h-100">
+                <div class="card-body text-center py-3">
+                    <div style="font-size:2rem;font-weight:800;color:var(--color-text)">{{ total_findings }}</div>
+                    <div class="text-muted" style="font-size:.82rem">Troballes totals</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="card h-100" {% if critical_count %}style="border-color:var(--color-danger)"{% endif %}>
+                <div class="card-body text-center py-3">
+                    <div style="font-size:2rem;font-weight:800;color:{% if critical_count %}var(--color-danger){% else %}var(--color-text-secondary){% endif %}">{{ critical_count }}</div>
+                    <div class="text-muted" style="font-size:.82rem">Critiques</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="card h-100">
+                <div class="card-body text-center py-3">
+                    <div style="font-size:2rem;font-weight:800;color:{% if warning_count %}var(--color-warning){% else %}var(--color-text-secondary){% endif %}">{{ warning_count }}</div>
+                    <div class="text-muted" style="font-size:.82rem">Avisos</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if not findings %}
+    <div class="alert alert-success">
+        <i class="bi bi-check-circle me-1"></i>No s'han trobat problemes de compliment. Tot al dia!
+    </div>
+    {% endif %}
+
+    <!-- Findings by category -->
+    {% for cat_key, cat_findings in categories.items() %}
+    <div class="card mb-3">
+        <div class="card-header d-flex align-items-center gap-2">
+            <i class="bi {{ cat_icons.get(cat_key, 'bi-flag') }}"></i>
+            <strong>{{ cat_labels.get(cat_key, cat_key) }}</strong>
+            <span class="badge bg-secondary ms-auto">{{ cat_findings|length }}</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="list-group list-group-flush">
+                {% for f in cat_findings %}
+                {% set sev_colors = {'critical': '#dc3545', 'warning': '#fd7e14', 'info': '#0069d9'} %}
+                {% set sev_icons = {'critical': 'bi-exclamation-circle-fill', 'warning': 'bi-exclamation-triangle-fill', 'info': 'bi-info-circle-fill'} %}
+                <a href="{{ f.link }}" class="list-group-item list-group-item-action d-flex align-items-center gap-2" style="font-size:.85rem;border-left:3px solid {{ sev_colors.get(f.severity, '#6c757d') }}">
+                    <i class="bi {{ sev_icons.get(f.severity, 'bi-info-circle') }}" style="color:{{ sev_colors.get(f.severity, '#6c757d') }}"></i>
+                    {{ f.text }}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

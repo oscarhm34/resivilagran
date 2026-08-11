@@ -12,6 +12,9 @@
             <button type="button" class="btn btn-outline-primary btn-sm" id="btn-global-report" data-bs-toggle="modal" data-bs-target="#globalReportModal">
                 <i class="bi bi-stars me-1"></i>Informe IA
             </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-handover" data-bs-toggle="modal" data-bs-target="#handoverModal">
+                <i class="bi bi-arrow-repeat me-1"></i>Traspaso de turno
+            </button>
         </div>
     </div>
 
@@ -300,9 +303,92 @@
     </div>
 </div>
 
+<!-- Modal Traspaso de Turno -->
+<div class="modal fade" id="handoverModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content" style="border-radius:var(--radius-lg)">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-arrow-repeat me-2"></i>Traspaso de turno</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex gap-2 align-items-center mb-3">
+                    <select id="ho-hours" class="form-select form-select-sm" style="width:auto">
+                        <option value="8" selected>Ultimas 8 horas</option>
+                        <option value="12">Ultimas 12 horas</option>
+                        <option value="24">Ultimas 24 horas</option>
+                    </select>
+                    <button type="button" class="btn btn-primary btn-sm" id="btn-ho-generate">
+                        <i class="bi bi-stars me-1"></i>Generar resum
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm no-print" id="btn-ho-print" style="display:none">
+                        <i class="bi bi-printer me-1"></i>Imprimir
+                    </button>
+                </div>
+                <div id="ho-print-area">
+                    <div class="ho-print-header" style="display:none">
+                        <div style="border-bottom:2px solid #333;padding-bottom:12px;margin-bottom:16px">
+                            <div style="font-size:18px;font-weight:700">Centre Medic La Vila Gran</div>
+                            <div style="font-size:12px;color:#666" id="ho-title">Traspaso de turno</div>
+                        </div>
+                    </div>
+                    <div id="ho-content" class="gr-content">
+                        <div class="text-center text-muted py-5">Pulsa "Generar resum" per crear l'informe de traspas</div>
+                    </div>
+                    <div class="ho-print-footer" style="display:none">
+                        <div style="border-top:1px solid #ccc;padding-top:8px;margin-top:24px;font-size:11px;color:#999;text-align:center">
+                            Informe generat automaticament per IA.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% block scripts_extra %}
 <script>
 (function(){
+    // Handover report
+    document.getElementById('btn-ho-generate').addEventListener('click', function() {
+        var btn = this;
+        var hours = parseInt(document.getElementById('ho-hours').value);
+        var content = document.getElementById('ho-content');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generant...';
+        content.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm me-2"></div>Analitzant dades del torn...</div>';
+        document.getElementById('btn-ho-print').style.display = 'none';
+
+        fetch('/api/shift-handover-report', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({hours: hours})
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar resum';
+            if (data.html) {
+                content.innerHTML = data.html;
+                document.getElementById('btn-ho-print').style.display = '';
+                document.getElementById('ho-title').textContent = data.title;
+            } else {
+                content.innerHTML = '<div class="alert alert-warning">' + (data.error || 'Error') + '</div>';
+            }
+        }).catch(function() {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar resum';
+            content.innerHTML = '<div class="alert alert-danger">Error de connexio</div>';
+        });
+    });
+
+    document.getElementById('btn-ho-print').addEventListener('click', function() {
+        document.querySelectorAll('.ho-print-header, .ho-print-footer').forEach(function(el) { el.style.display = 'block'; });
+        window.print();
+        setTimeout(function() {
+            document.querySelectorAll('.ho-print-header, .ho-print-footer').forEach(function(el) { el.style.display = 'none'; });
+        }, 500);
+    });
+
+    // Global report
     document.getElementById('btn-gr-generate').addEventListener('click', function() {
         var btn = this;
         var period = document.getElementById('gr-period').value;
