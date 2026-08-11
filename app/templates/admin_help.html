@@ -40,6 +40,8 @@
                         <li><a href="#rendimiento">14. Rendimiento</a></li>
                         <li><a href="#valoraciones">15. Valoraciones clinicas</a></li>
                         <li><a href="#medicacion">16. Medicacion</a></li>
+                        <li><a href="#activitats">16b. Activitats</a></li>
+                        <li><a href="#kpis">16c. KPIs de qualitat</a></li>
                         <li><a href="#ia">17. Inteligencia artificial (IA)</a></li>
                         <li><a href="#config">18. Configuracion</a></li>
                         <li><a href="#changelog">19. Registro de cambios</a></li>
@@ -730,6 +732,65 @@
         </div>
     </div>
 
+    <!-- 16b. Activitats -->
+    <div class="card mb-4" id="activitats">
+        <div class="card-header">16b. Calendari d'activitats</div>
+        <div class="card-body">
+            <p>El modulo de <strong>Activitats</strong> (<i class="bi bi-calendar-event"></i>) permet planificar i registrar activitats per als residents (tallers, gimnasia, sortides, etc.).</p>
+
+            <h6 class="mt-3">Vista setmanal</h6>
+            <ul>
+                <li>Accesible des de <strong>Personas &rarr; Activitats</strong>.</li>
+                <li>Vista de <strong>7 dies</strong> (dilluns a diumenge) amb les activitats programades per cada dia.</li>
+                <li>Cada activitat mostra l'hora, el titol i el nombre de participants.</li>
+                <li>Navegacio entre setmanes amb les fletxes.</li>
+                <li>Boto <strong>"+"</strong> a cada dia per crear una activitat rapida per aquell dia.</li>
+            </ul>
+
+            <h6 class="mt-3">Crear/editar activitat</h6>
+            <ul>
+                <li>Boto <strong>"Nova activitat"</strong> o clic sobre una activitat existent.</li>
+                <li>Camps: titol, categoria, data, hora inici/fi, ubicacio, descripcio.</li>
+                <li>Categories amb colors: <strong>Estimulacio cognitiva</strong> (lila), <strong>Activitat fisica</strong> (vermell), <strong>Social</strong> (blau), <strong>Taller creatiu</strong> (taronja), <strong>Musica/cant</strong> (rosa), <strong>Relaxacio</strong> (verd), <strong>Sortida</strong> (groc), <strong>General</strong> (gris).</li>
+            </ul>
+
+            <h6 class="mt-3">Registre de participacio</h6>
+            <ul>
+                <li>Per cada activitat es pot registrar quins residents hi han participat.</li>
+                <li>Nivells de participacio: <strong>Ha participat</strong>, <strong>Passiu/observador</strong>, <strong>Ha refusat</strong>, <strong>Absent</strong>.</li>
+                <li>Notes opcionals per participant.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 16c. KPIs de qualitat -->
+    <div class="card mb-4" id="kpis">
+        <div class="card-header">16c. KPIs de qualitat assistencial</div>
+        <div class="card-body">
+            <p>Dashboard d'indicadors de qualitat per a inspeccions i seguiment intern, accessible des de <strong>Analitiques &rarr; KPIs de qualitat</strong>.</p>
+
+            <h6 class="mt-3">Indicadors</h6>
+            <ul>
+                <li><strong>Taxa de caigudes:</strong> nombre de caigudes per 1000 dies-resident. Objectiu: &lt;5.</li>
+                <li><strong>Residents amb risc UPP:</strong> percentatge de residents amb Norton &le;12. Objectiu: &lt;15%.</li>
+                <li><strong>Perdua de pes no planificada:</strong> percentatge de residents amb perdua &ge;5% en el periode. Objectiu: &lt;5%.</li>
+                <li><strong>Refus/omissio medicacio:</strong> percentatge de preses refusades o omeses. Objectiu: &lt;5%.</li>
+                <li><strong>Compliment valoracions:</strong> percentatge de residents amb Barthel + Norton en els ultims 6 mesos. Objectiu: &ge;90%.</li>
+                <li><strong>Compliment formatiu:</strong> percentatge de formacio completada pels treballadors. Objectiu: &ge;80%.</li>
+                <li><strong>Temps resolucio incidencies:</strong> dies promig per resoldre una incidencia. Objectiu: &lt;7 dies.</li>
+                <li><strong>Ocupacio:</strong> percentatge d'habitacions ocupades. Objectiu: &ge;85%.</li>
+            </ul>
+
+            <h6 class="mt-3">Semafors</h6>
+            <ul>
+                <li><span style="color:#198754;font-weight:600">Verd:</span> dins de l'objectiu.</li>
+                <li><span style="color:#fd7e14;font-weight:600">Taronja:</span> prop del limit.</li>
+                <li><span style="color:#dc3545;font-weight:600">Vermell:</span> fora de l'objectiu, requereix accio.</li>
+                <li>Filtre per periode: 7, 14, 30 o 90 dies.</li>
+            </ul>
+        </div>
+    </div>
+
     <!-- 17. Inteligencia artificial -->
     <div class="card mb-4" id="ia">
         <div class="card-header">17. Inteligencia artificial (IA)</div>
@@ -838,6 +899,10 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>11/08</td><td><strong>Calendari d'activitats:</strong> nova pagina amb vista setmanal per planificar activitats (tallers, gimnasia, sortides). Categories amb colors, horaris, ubicacio. Registre de participacio per resident amb nivell d'engagement.</td></tr>
+                    <tr><td>11/08</td><td><strong>KPIs de qualitat assistencial:</strong> dashboard amb 8 indicadors per inspeccions: taxa caigudes, risc UPP, perdua pes, refus medicacio, compliment valoracions, compliment formatiu, resolucio incidencies, ocupacio. Semafors amb objectius.</td></tr>
+                    <tr><td>11/08</td><td><strong>Classificacio intel·ligent de notes:</strong> les notes dels treballadors es classifiquen automaticament per IA (urgent, clinica, conductual, logistica). Les urgents generen notificacio amb severitat warning.</td></tr>
+                    <tr><td>11/08</td><td><strong>Suggeriments IA per quadrants:</strong> boto "IA" als quadrants que analitza gaps de cobertura, distribucio d'hores i patrons d'absentisme i dona suggeriments.</td></tr>
                     <tr><td>11/08</td><td><strong>Modul de medicacio:</strong> gestio completa de pautes farmacologiques per resident (medicament, dosi, via, frequencia, horaris). Dashboard diari amb control de preses pendents/administrades per resident, amb boto d'un clic per marcar. Registre d'administracio amb estat (donat, refusat, omes). Alertes automatiques si un medicament es refusat o omes. API per a la webapp del treballador.</td></tr>
                     <tr><td>11/08</td><td><strong>Traspaso de turno IA:</strong> boto al dashboard que genera un informe IA de les ultimes 8/12/24 hores amb atencions, incidencies, alertes vitals, notes del personal i pendents pel torn seguent. Imprimible.</td></tr>
                     <tr><td>11/08</td><td><strong>Auditoria de compliment:</strong> nova pagina (Analitiques &rarr; Auditoria) amb comprovacions automatiques: valoracions pendents, risc UPP, residents sense atencio, documents sense signar, formacio pendent, incidencies antigues obertes.</td></tr>
