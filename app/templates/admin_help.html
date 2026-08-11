@@ -86,8 +86,9 @@
             <ul>
                 <li><strong>Atencion:</strong> Al finalizar, el trabajador selecciona los tipos de atencion realizados (multi-seleccion). Si algun tipo tiene campos de constantes vitales, aparecen los campos para introducir los valores.</li>
                 <li><strong>Limpieza:</strong> Al finalizar, el trabajador completa un checklist de tareas realizadas.</li>
-                <li><strong>Observaciones:</strong> En ambos casos, el trabajador puede anadir una <strong>nota opcional</strong> (ej: "residente dormido", "falta producto", "grifo gotea"). Las notas se muestran en los registros del admin.</li>
+                <li><strong>Observaciones:</strong> En ambos casos, el trabajador puede anadir una <strong>nota opcional</strong> (ej: "residente dormido", "falta producto", "grifo gotea"). Las notas se muestran en los registros del admin y generan una <strong>notificacion automatica</strong> para que el admin lo vea sin tener que revisar los registros.</li>
                 <li><strong>Alertas:</strong> Si se introducen constantes vitales fuera del rango normal, aparece un aviso rojo inmediato en la pantalla del trabajador.</li>
+                <li><strong>Aviso de sesion abierta:</strong> Si una sesion lleva demasiado tiempo abierta (configurable, por defecto 2h), la card se pone <strong>roja con animacion pulsante</strong> y aparece un toast de aviso para recordar al trabajador que la cierre.</li>
             </ul>
 
             <h6 class="mt-3">Voz</h6>
@@ -354,6 +355,14 @@
                 <li>Las alertas se muestran en un panel con detalle (trabajador, fecha, problema) y las celdas afectadas se marcan en rojo en la cuadricula.</li>
             </ul>
 
+            <h6 class="mt-3">Generar mes con datos existentes</h6>
+            <ul>
+                <li>Si el cuadrante ya tiene turnos asignados, al pulsar <strong>"Generar mes"</strong> aparece un dialogo con dos opciones:</li>
+                <li><strong>Conservar existentes y rellenar huecos:</strong> mantiene todos los turnos actuales (manuales y auto-generados) y solo genera los que faltan. Ideal si ya tienes un operario configurado a mano y quieres rellenar el resto.</li>
+                <li><strong>Regenerar todo:</strong> borra los turnos auto-generados, recalcula desde cero y conserva solo los cambios manuales (override).</li>
+                <li>Si el cuadrante esta vacio, genera directamente sin preguntar.</li>
+            </ul>
+
             <h6 class="mt-3">Copiar semana</h6>
             <ul>
                 <li>Botones encima de la cuadricula para <strong>copiar la semana anterior</strong> a la siguiente. Util para replicar patrones rapidamente sin usar rotaciones.</li>
@@ -437,6 +446,19 @@
                 <li>Compara cuantos dias han pasado desde la ultima limpieza con la frecuencia habitual.</li>
                 <li>Si han pasado mas del doble de la frecuencia: <strong>urgente</strong>. Si han pasado mas que la frecuencia: <strong>toca hoy</strong>. Si no: <strong>al dia</strong>.</li>
                 <li>Calcula el <strong>tiempo estimado</strong> de cada habitacion basandose en la media real de los ultimos 90 dias.</li>
+            </ul>
+
+            <h6 class="mt-3">Editor de plan de limpieza (drag &amp; drop)</h6>
+            <ul>
+                <li>Desde el plan de limpieza del dia, boton <strong>"Editar plan"</strong> para acceder al editor visual.</li>
+                <li><strong>Columna "Sin asignar":</strong> pool con todas las habitaciones no asignadas, filtrable por planta.</li>
+                <li><strong>Columna por trabajador:</strong> muestra las habitaciones asignadas, turno, tiempo estimado total vs jornada.</li>
+                <li><strong>Drag &amp; drop:</strong> arrastrar habitaciones entre el pool y las columnas de trabajadores, o entre trabajadores.</li>
+                <li><strong>Boton "Auto" por trabajador:</strong> genera automaticamente el plan de ese trabajador (basado en sus zonas asignadas, urgencia y tiempo de jornada), sin afectar a los demas.</li>
+                <li><strong>Boton "Guardar plan":</strong> persiste las asignaciones para la fecha seleccionada.</li>
+                <li>El plan guardado se usa tanto en la vista admin como en la ruta que ve el trabajador en la webapp.</li>
+                <li>Si no hay plan guardado, el sistema calcula la ruta dinamicamente como antes.</li>
+                <li>Funciona para cualquier fecha (hoy o futuras).</li>
             </ul>
 
             <h6 class="mt-3">Configuracion (admin)</h6>
@@ -621,7 +643,9 @@
             <ul>
                 <li><strong>Solo NFC para iniciar/cerrar sesiones:</strong> Si esta activado, los trabajadores solo pueden iniciar y cerrar sesiones escaneando el tag NFC. Si esta desactivado, tambien pueden seleccionar desde las listas.</li>
                 <li><strong>Permitir atenciones grupales:</strong> Si esta activado, los trabajadores pueden seleccionar varios residentes a la vez. Si esta desactivado, solo atencion individual.</li>
+                <li><strong>Limitar a una sola sesion activa:</strong> Si esta activado, los trabajadores no pueden iniciar una nueva sesion si ya tienen una en curso. Deben finalizarla antes.</li>
                 <li><strong>Permitir a los trabajadores reportar incidencias:</strong> Si esta activado, los trabajadores ven un boton en la webapp para reportar incidentes. Si esta desactivado, solo el admin puede crear incidencias.</li>
+                <li><strong>Tiempo maximo de sesion (minutos):</strong> Si una sesion de limpieza o atencion supera este tiempo sin cerrarse, el trabajador recibe un aviso visual (card roja pulsante + toast). Valor por defecto: 120 minutos (2 horas). Rango: 15-1440 minutos.</li>
             </ul>
         </div>
     </div>
