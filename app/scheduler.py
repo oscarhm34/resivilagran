@@ -68,23 +68,29 @@ class SmartScheduler:
         }
 
     def generate(self, preserve_overrides: bool = True, fill_gaps: bool = True,
+                 keep_all_existing: bool = False,
                  created_by_id: int | None = None) -> dict:
-        self._load_existing(preserve_overrides)
+        self._load_existing(preserve_overrides, keep_all_existing)
         self._phase1_apply_patterns()
         self._phase2_remove_invalid()
         if fill_gaps:
             gaps = self._phase3_calculate_gaps()
             self._phase4_fill_gaps(gaps)
-        self._persist(created_by_id)
+        self._persist(created_by_id, keep_all_existing)
         return self._phase5_report()
 
-    def _load_existing(self, preserve_overrides: bool):
+    def _load_existing(self, preserve_overrides: bool, keep_all_existing: bool = False):
         existing = ShiftAssignment.query.filter(
             ShiftAssignment.date >= self.first_day,
             ShiftAssignment.date <= self.last_day,
         ).all()
         for a in existing:
-            if a.is_override and preserve_overrides:
+            if keep_all_existing:
+                # Keep ALL existing assignments (manual and auto-generated)
+                self.schedule[(a.cleaner_id, a.date)] = a.shift_type_id
+                self.overrides.add((a.cleaner_id, a.date))
+                self.stats['overrides_preserved'] += 1
+            elif a.is_override and preserve_overrides:
                 self.schedule[(a.cleaner_id, a.date)] = a.shift_type_id
                 self.overrides.add((a.cleaner_id, a.date))
                 self.stats['overrides_preserved'] += 1
@@ -180,13 +186,14 @@ class SmartScheduler:
                 else:
                     self.stats['gaps_remaining'] += 1
 
-    def _persist(self, created_by_id: int | None):
-        # Delete non-override assignments for this month
-        ShiftAssignment.query.filter(
-            ShiftAssignment.date >= self.first_day,
-            ShiftAssignment.date <= self.last_day,
-            ShiftAssignment.is_override == False,
-        ).delete()
+    def _persist(self, created_by_id: int | None, keep_all_existing: bool = False):
+        if not keep_all_existing:
+            # Delete non-override assignments for this month
+            ShiftAssignment.query.filter(
+                ShiftAssignment.date >= self.first_day,
+                ShiftAssignment.date <= self.last_day,
+                ShiftAssignment.is_override == False,
+            ).delete()
 
         for (wid, d), st_id in self.schedule.items():
             if (wid, d) in self.overrides:

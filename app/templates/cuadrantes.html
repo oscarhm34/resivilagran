@@ -550,6 +550,36 @@
     <button type="button" class="sp-btn sp-libre" data-stid="" title="Libre (sin turno)">&times;</button>
 </div>
 
+<!-- Modal de elección para generar mes -->
+<div class="modal fade" id="generateChoiceModal" tabindex="-1" aria-labelledby="generateChoiceLabel" aria-modal="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:var(--radius-lg);border:1px solid var(--color-border)">
+            <div class="modal-header" style="border-color:var(--color-border)">
+                <h5 class="modal-title" id="generateChoiceLabel">El cuadrante ya tiene datos</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3">Ya existen turnos asignados en este mes. ¿Como quieres generar?</p>
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-outline-primary text-start" id="btn-gen-keep">
+                        <i class="bi bi-shield-check me-2"></i>
+                        <strong>Conservar existentes y rellenar huecos</strong>
+                        <br><small class="text-body-secondary">Mantiene todos los turnos actuales y solo genera los que faltan.</small>
+                    </button>
+                    <button type="button" class="btn btn-outline-warning text-start" id="btn-gen-regen">
+                        <i class="bi bi-arrow-repeat me-2"></i>
+                        <strong>Regenerar todo</strong>
+                        <br><small class="text-body-secondary">Borra los turnos auto-generados y vuelve a calcular desde cero. Los cambios manuales se conservan.</small>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer" style="border-color:var(--color-border)">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -992,52 +1022,66 @@
     });
 
     /* ── Generate month from patterns ─────────────────────── */
-    document.getElementById('btn-generate').addEventListener('click', function() {
-        var msg = '¿Generar turnos del mes?\n\nOpciones:\n' +
-            '• Aplicar patrones de rotación\n' +
-            '• Saltar días con ausencia\n' +
-            '• Eliminar asignaciones que violen normativa laboral\n' +
-            '• Rellenar gaps de cobertura automáticamente\n' +
-            '• Preservar cambios manuales previos\n';
-        showConfirm(msg, function() {
-            var btn = document.getElementById('btn-generate');
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generando...';
-            fetch('/cuadrantes/generate', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({year: YEAR, month: MONTH, preserve_overrides: true, fill_gaps: true})
-            }).then(function(r) { return r.json(); }).then(function(data) {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-magic me-1"></i>Generar mes';
-                if (data.ok) {
-                    var msg = 'Generación completada:\n\n' +
-                        '• ' + data.generated_from_patterns + ' turnos desde patrones\n' +
-                        '• ' + data.absences_skipped + ' días de ausencia saltados\n' +
-                        '• ' + data.overrides_preserved + ' cambios manuales preservados\n' +
-                        '• ' + data.invalid_removed + ' asignaciones inválidas eliminadas\n' +
-                        '• ' + data.gaps_filled + ' gaps de cobertura rellenados\n';
-                    if (data.gaps_remaining > 0) {
-                        msg += '• ⚠ ' + data.gaps_remaining + ' gaps sin cubrir\n';
-                    }
-                    if (data.fairness) {
-                        msg += '\nDistribución:\n' +
-                            '• Turnos totales: mín ' + data.fairness.total_shifts.min + ', máx ' + data.fairness.total_shifts.max + ', media ' + data.fairness.total_shifts.avg + '\n' +
-                            '• Fines de semana: mín ' + data.fairness.weekend_shifts.min + ', máx ' + data.fairness.weekend_shifts.max + '\n';
-                    }
-                    showToast('Cuadrante generado correctamente', 'success');
-                    // Show results in a modal-like alert, then reload
-                    alert(msg);
-                    location.reload();
-                } else {
-                    showToast(data.error || 'Error al generar', 'error');
+    function doGenerate(keepAllExisting) {
+        var btn = document.getElementById('btn-generate');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generando...';
+        fetch('/cuadrantes/generate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({year: YEAR, month: MONTH, preserve_overrides: true, fill_gaps: true, keep_all_existing: keepAllExisting})
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-magic me-1"></i>Generar mes';
+            if (data.ok) {
+                var msg = 'Generación completada:\n\n' +
+                    '• ' + data.generated_from_patterns + ' turnos desde patrones\n' +
+                    '• ' + data.absences_skipped + ' días de ausencia saltados\n' +
+                    '• ' + data.overrides_preserved + ' asignaciones existentes conservadas\n' +
+                    '• ' + data.invalid_removed + ' asignaciones inválidas eliminadas\n' +
+                    '• ' + data.gaps_filled + ' gaps de cobertura rellenados\n';
+                if (data.gaps_remaining > 0) {
+                    msg += '• ⚠ ' + data.gaps_remaining + ' gaps sin cubrir\n';
                 }
-            }).catch(function() {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-magic me-1"></i>Generar mes';
-                showToast('Error de conexión', 'error');
-            });
+                if (data.fairness) {
+                    msg += '\nDistribución:\n' +
+                        '• Turnos totales: mín ' + data.fairness.total_shifts.min + ', máx ' + data.fairness.total_shifts.max + ', media ' + data.fairness.total_shifts.avg + '\n' +
+                        '• Fines de semana: mín ' + data.fairness.weekend_shifts.min + ', máx ' + data.fairness.weekend_shifts.max + '\n';
+                }
+                showToast('Cuadrante generado correctamente', 'success');
+                alert(msg);
+                location.reload();
+            } else {
+                showToast(data.error || 'Error al generar', 'error');
+            }
+        }).catch(function() {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-magic me-1"></i>Generar mes';
+            showToast('Error de conexión', 'error');
         });
+    }
+
+    document.getElementById('btn-generate').addEventListener('click', function() {
+        var hasExisting = document.querySelectorAll('.shift-cell[data-shift-id]').length > 0;
+        if (hasExisting) {
+            // Show choice modal
+            var choiceModal = document.getElementById('generateChoiceModal');
+            var bsModal = new bootstrap.Modal(choiceModal);
+            bsModal.show();
+        } else {
+            showConfirm('¿Generar turnos del mes desde los patrones de rotación?', function() {
+                doGenerate(false);
+            });
+        }
+    });
+
+    document.getElementById('btn-gen-keep').addEventListener('click', function() {
+        bootstrap.Modal.getInstance(document.getElementById('generateChoiceModal')).hide();
+        doGenerate(true);
+    });
+    document.getElementById('btn-gen-regen').addEventListener('click', function() {
+        bootstrap.Modal.getInstance(document.getElementById('generateChoiceModal')).hide();
+        doGenerate(false);
     });
 
     /* ── Clear month ──────────────────────────────────────── */

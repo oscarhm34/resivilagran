@@ -495,11 +495,13 @@ def cuadrantes_generate():
     month = data.get('month')
     preserve_overrides = data.get('preserve_overrides', True)
     fill_gaps = data.get('fill_gaps', True)
+    keep_all_existing = data.get('keep_all_existing', False)
 
     scheduler = SmartScheduler(year, month)
     result = scheduler.generate(
         preserve_overrides=preserve_overrides,
         fill_gaps=fill_gaps,
+        keep_all_existing=keep_all_existing,
         created_by_id=current_user.id,
     )
     return jsonify(result)
