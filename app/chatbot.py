@@ -26,7 +26,7 @@ Capacidades importantes:
 - Puedes consultar constantes vitales (tensión arterial, glucemia, temperatura, etc.) de un residente con constantes_vitales_residente.
 - Para preguntas como "cuál es la tensión de María" o "glucemia de Juan", usa constantes_vitales_residente.
 - Para preguntas como "cómo está María" o "estado de Juan", usa info_residente — incluye perfil médico, valoraciones Barthel/Norton, notas recientes del personal e incidencias. Resume el estado del residente de forma clara.
-- Si preguntan sobre valoraciones, dependencia o riesgo de úlceras, la info ya viene en info_residente (campo valoraciones).
+- Si preguntan sobre valoraciones, dependencia o riesgo de úlceras, la info ya viene en info_residente (campo valoraciones)."""
 
 TOOLS = [
     {
