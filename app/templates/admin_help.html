@@ -516,6 +516,7 @@
                 <li><strong>Documentos pendientes (info):</strong> hay documentos legales sin firmar por trabajadores.</li>
                 <li><strong>Sesion estancada (aviso):</strong> sesiones de limpieza o atencion llevan mas de 24 horas abiertas.</li>
                 <li><strong>Aviso al trabajador (aviso):</strong> cuando una sesion supera el <em>tiempo maximo configurado</em> (por defecto 2 horas), el trabajador recibe un aviso visual en la app (card roja pulsante + toast). Configurable desde <strong>Configuracion &rarr; Tiempo maximo de sesion</strong>.</li>
+                <li><strong>Nota del trabajador (info):</strong> cuando un trabajador anade una observacion al finalizar una atencion o limpieza, se genera una notificacion con el texto de la nota.</li>
                 <li><strong>Falta de cobertura (info):</strong> turnos de manana no tienen suficientes trabajadores segun los requisitos configurados.</li>
             </ul>
 
@@ -636,6 +637,7 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>11/08</td><td><strong>Notificacion por notas del trabajador:</strong> cuando un trabajador anade una observacion al finalizar una atencion o limpieza (ej: "cama mojada"), se genera automaticamente una notificacion visible en el centro de notificaciones del admin. Filtrable por tipo "Nota del trabajador".</td></tr>
                     <tr><td>11/08</td><td><strong>Editor de plan de limpieza:</strong> nueva pagina de edicion drag &amp; drop para crear planes de limpieza personalizados por trabajador. Permite arrastrar habitaciones entre un pool sin asignar y las columnas de cada trabajador, generar automaticamente el plan de un solo trabajador, y guardar para cualquier fecha. El plan guardado se usa tanto en la vista admin como en la app del trabajador.</td></tr>
                     <tr><td>11/08</td><td><strong>Generar mes con datos existentes:</strong> al pulsar "Generar mes" en cuadrantes, si ya hay turnos asignados, aparece un dialogo con dos opciones: "Conservar existentes y rellenar huecos" (mantiene todo y solo anade lo que falta) o "Regenerar todo" (recalcula desde cero, conservando solo cambios manuales).</td></tr>
                     <tr><td>11/08</td><td><strong>Aviso de sesion abierta al trabajador:</strong> cuando una sesion de limpieza o atencion supera el tiempo maximo configurado (por defecto 2h), la card de sesion activa se pone roja con animacion pulsante, se muestra un toast de aviso, y se genera una notificacion persistente. El umbral es configurable desde Configuracion &rarr; Tiempo maximo de sesion (minutos).</td></tr>

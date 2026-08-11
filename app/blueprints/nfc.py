@@ -21,7 +21,7 @@ from .. import app, db, limiter
 from ..models import (
     Cleaner, Room, Floor, Resident, CareType, CareRecord, CleaningRecord,
     ResidentGroup, cleaner_groups, ChecklistItem, WorkerSelfie,
-    VitalSignType, VitalSignReading, AppSetting,
+    VitalSignType, VitalSignReading, AppSetting, Notification,
 )
 from ..utils import (
     admin_required, _verify_worker_id, _safe_commit,
@@ -908,6 +908,7 @@ def finalize_group_care():
     names = []
     all_type_names = set()
 
+    notes_with_names = []
     for mapping in record_mapping:
         rec = records_by_id.get(mapping['record_id'])
         if not rec:
@@ -916,6 +917,8 @@ def finalize_group_care():
         notes = mapping.get('notes', '').strip()
         if notes:
             rec.notes = notes
+            resident_name = rec.resident.name if rec.resident else 'Residente'
+            notes_with_names.append((resident_name, notes, rec.resident_id))
         for ct_id in mapping.get('care_type_ids', []):
             ct = db.session.get(CareType, ct_id)
             if ct:
@@ -923,6 +926,19 @@ def finalize_group_care():
                 all_type_names.add(ct.name)
         if rec.resident:
             names.append(rec.resident.name)
+
+    # Generate notifications for notes in group care
+    if notes_with_names:
+        worker = db.session.get(Cleaner, worker_id)
+        worker_name = worker.name if worker else 'Trabajador'
+        for resident_name, note_text, resident_id in notes_with_names:
+            db.session.add(Notification(
+                type='worker_note',
+                title=f"{worker_name} ha anotado en atención con {resident_name}",
+                message=note_text, severity='info',
+                worker_id=worker_id, resident_id=resident_id,
+                link='/admin/care-records',
+            ))
 
     ok, err = _safe_commit()
     if not ok:
@@ -987,6 +1003,20 @@ def finalize_care():
             continue
         db.session.add(VitalSignReading(care_record_id=record.id, vital_sign_type_id=vst_id, value=val))
 
+    # Generate notification if worker added notes
+    if worker_notes:
+        worker = db.session.get(Cleaner, worker_id)
+        resident_name = record.resident.name if record.resident else 'Residente'
+        worker_name = worker.name if worker else 'Trabajador'
+        notif_title = f"{worker_name} ha anotado en atención con {resident_name}"
+        db.session.add(Notification(
+            type='worker_note', title=notif_title,
+            message=worker_notes, severity='info',
+            worker_id=worker_id,
+            resident_id=record.resident_id,
+            link='/admin/care-records',
+        ))
+
     ok, err = _safe_commit()
     if not ok:
         return jsonify({'error': err}), 500
@@ -1036,6 +1066,15 @@ def finalize_cleaning():
     worker_notes = data.get('notes', '').strip()
     if worker_notes:
         record.notes = worker_notes
+        worker = db.session.get(Cleaner, worker_id)
+        room_desc = f'Hab. {record.room.number}' if record.room else 'Habitación'
+        worker_name = worker.name if worker else 'Trabajador'
+        db.session.add(Notification(
+            type='worker_note', title=f"{worker_name} ha anotado en limpieza de {room_desc}",
+            message=worker_notes, severity='info',
+            worker_id=worker_id,
+            link='/admin/cleaning-records',
+        ))
     ok, err = _safe_commit()
     if not ok:
         return jsonify({'error': err}), 500

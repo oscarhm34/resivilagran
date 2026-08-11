@@ -31,6 +31,7 @@
                         <option value="document_pending" {% if filters.type == 'document_pending' %}selected{% endif %}>Documento pendiente</option>
                         <option value="stale_session" {% if filters.type == 'stale_session' %}selected{% endif %}>Sesion estancada</option>
                         <option value="coverage_gap" {% if filters.type == 'coverage_gap' %}selected{% endif %}>Falta cobertura</option>
+                        <option value="worker_note" {% if filters.type == 'worker_note' %}selected{% endif %}>Nota del trabajador</option>
                     </select>
                 </div>
                 <div class="col-auto">
@@ -74,7 +75,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% set type_icons = {'vital_alert': 'bi-heart-pulse-fill', 'incident': 'bi-exclamation-triangle-fill', 'document_pending': 'bi-file-earmark-text', 'stale_session': 'bi-clock-history', 'coverage_gap': 'bi-people-fill'} %}
+                    {% set type_icons = {'vital_alert': 'bi-heart-pulse-fill', 'incident': 'bi-exclamation-triangle-fill', 'document_pending': 'bi-file-earmark-text', 'stale_session': 'bi-clock-history', 'stale_session_worker': 'bi-clock-history', 'coverage_gap': 'bi-people-fill', 'worker_note': 'bi-chat-left-text-fill'} %}
                     {% set sev_colors = {'critical': '#cf222e', 'warning': '#fd7e14', 'info': '#0069d9'} %}
                     {% set sev_labels = {'critical': 'Critica', 'warning': 'Aviso', 'info': 'Info'} %}
                     {% for n in notifications %}
