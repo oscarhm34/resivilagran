@@ -839,7 +839,13 @@ def global_ai_report():
         for a in period_activities:
             confirmed = sum(1 for p in a.participations if p.engagement == 'participated')
             total = len(a.participations)
+            names = [p.resident.name for p in a.participations if p.engagement == 'participated' and p.resident]
+            absent = [p.resident.name for p in a.participations if p.engagement == 'absent' and p.resident]
             lines.append(f"  {a.activity_date.strftime('%d/%m')} - {a.title} ({a.category}) — {confirmed}/{total} participants")
+            if names:
+                lines.append(f"    Participants: {', '.join(names)}")
+            if absent:
+                lines.append(f"    Absents: {', '.join(absent)}")
 
     # Worker notes
     if notes_list:
@@ -988,7 +994,13 @@ def shift_handover_report():
             confirmed = sum(1 for p in a.participations if p.engagement == 'participated')
             total = len(a.participations)
             time_str = a.start_time.strftime('%H:%M') if a.start_time else ''
+            names = [p.resident.name for p in a.participations if p.engagement == 'participated' and p.resident]
+            absent = [p.resident.name for p in a.participations if p.engagement == 'absent' and p.resident]
             lines.append(f"  {time_str} {a.title} ({a.category}) — {confirmed}/{total} confirmats")
+            if names:
+                lines.append(f"    Participants: {', '.join(names)}")
+            if absent:
+                lines.append(f"    Absents: {', '.join(absent)}")
 
     if notes_list:
         lines.append(f"\nNOTAS DEL PERSONAL:")
