@@ -36,9 +36,29 @@
         </div>
     </div>
 
+    <!-- Add prescriptions for a resident -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex gap-2 align-items-end">
+                <div style="flex:1;max-width:300px">
+                    <label class="form-label" style="font-size:.82rem">Gestionar pautes d'un resident</label>
+                    <select id="select-resident-med" class="form-select form-select-sm">
+                        <option value="">-- Selecciona un resident --</option>
+                        {% for r in residents %}
+                        <option value="{{ r.id }}">{{ r.name }}{% if r.room_number %} (Hab. {{ r.room_number }}){% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="button" class="btn btn-primary btn-sm" id="btn-go-prescriptions">
+                    <i class="bi bi-capsule me-1"></i>Veure/afegir pautes
+                </button>
+            </div>
+        </div>
+    </div>
+
     {% if not resident_meds %}
     <div class="alert alert-info">
-        <i class="bi bi-info-circle me-1"></i>No hi ha medicacio activa. Afegeix pautes des de la fitxa de cada residente.
+        <i class="bi bi-info-circle me-1"></i>No hi ha medicacio activa. Selecciona un resident a dalt per afegir pautes.
     </div>
     {% endif %}
 
@@ -118,6 +138,12 @@
 {% block scripts %}
 <script>
 (function(){
+    document.getElementById('btn-go-prescriptions').addEventListener('click', function() {
+        var sel = document.getElementById('select-resident-med');
+        if (!sel.value) { if (typeof showToast === 'function') showToast('Selecciona un resident', 'warning'); return; }
+        window.location.href = '/admin/medication/prescriptions/' + sel.value;
+    });
+
     document.querySelectorAll('.btn-admin-med').forEach(function(btn) {
         btn.addEventListener('click', function() {
             var prescId = btn.dataset.prescId;

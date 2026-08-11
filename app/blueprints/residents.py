@@ -18,6 +18,7 @@ from ..models import (
     VitalSignType, VitalSignReading,
 )
 from .assessments import get_resident_assessment_data
+from ..models import MedicationPrescription, MedicationAdministration
 from ..utils import (
     admin_required, _format_duration, _allowed_file,
     ALLOWED_IMAGE_EXTENSIONS, ALLOWED_DOC_EXTENSIONS,
@@ -681,8 +682,15 @@ def resident_detail(resident_id: int):
 
     heatmap_data = {str(row.day): row.count for row in care_dates}
 
-    # Assessment data (Barthel, Norton, weight, meals)
+    # Assessment data (Barthel, Norton)
     assess_data = get_resident_assessment_data(resident_id)
+
+    # Medication data
+    prescriptions = MedicationPrescription.query.filter_by(
+        resident_id=resident_id,
+    ).order_by(MedicationPrescription.active.desc(), MedicationPrescription.drug_name).all()
+
+    from .medication import ROUTE_LABELS
 
     return render_template(
         'resident_detail.html',
@@ -691,6 +699,8 @@ def resident_detail(resident_id: int):
         pagination=pagination,
         vital_charts=list(vital_charts.values()),
         heatmap_data=heatmap_data,
+        prescriptions=prescriptions,
+        route_labels=ROUTE_LABELS,
         **assess_data,
     )
 
