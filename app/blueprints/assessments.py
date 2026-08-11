@@ -1245,10 +1245,16 @@ def quality_kpis():
         avg_resolution = 0
 
     # 8. Occupancy rate
-    from ..models import Room
-    total_rooms_resident = Room.query.join(Room.room_type).filter(
-        db.text("room_type.name LIKE '%residen%'")
-    ).count() or Room.query.count()
+    from ..models import Room, RoomType
+    total_rooms_resident = 0
+    try:
+        total_rooms_resident = Room.query.join(Room.room_type).filter(
+            RoomType.name.ilike('%residen%')
+        ).count()
+    except Exception:
+        pass
+    if not total_rooms_resident:
+        total_rooms_resident = Room.query.count() or 1
     occupied = len({r.room_number for r in residents if r.room_number})
     occupancy_pct = round((occupied / total_rooms_resident) * 100, 1) if total_rooms_resident else 0
 

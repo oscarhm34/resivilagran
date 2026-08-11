@@ -29,13 +29,26 @@
                 </div>
                 <div class="card-body p-1" style="min-height:120px">
                     {% for a in by_day[day] %}
-                    <div class="p-2 mb-1" style="border-radius:8px;border-left:3px solid {{ cat_colors.get(a.category, '#6c757d') }};background:{{ cat_colors.get(a.category, '#6c757d') }}10;font-size:.75rem;cursor:pointer"
-                         onclick="editAct({{ a.id }}, {{ a.title|tojson }}, {{ (a.description or '')|tojson }}, '{{ a.activity_date.isoformat() }}', '{{ a.start_time.strftime('%H:%M') if a.start_time else '' }}', '{{ a.end_time.strftime('%H:%M') if a.end_time else '' }}', {{ (a.location or '')|tojson }}, '{{ a.category }}')">
+                    <div class="act-item p-2 mb-1" style="border-radius:8px;border-left:3px solid {{ cat_colors.get(a.category, '#6c757d') }};background:{{ cat_colors.get(a.category, '#6c757d') }}10;font-size:.75rem;cursor:pointer"
+                         data-id="{{ a.id }}"
+                         data-title="{{ a.title }}"
+                         data-desc="{{ a.description or '' }}"
+                         data-date="{{ a.activity_date.isoformat() }}"
+                         data-start="{{ a.start_time.strftime('%H:%M') if a.start_time else '' }}"
+                         data-end="{{ a.end_time.strftime('%H:%M') if a.end_time else '' }}"
+                         data-loc="{{ a.location or '' }}"
+                         data-cat="{{ a.category }}"
+                         data-parts="{{ a.participations|length }}">
                         {% if a.start_time %}<span class="fw-bold">{{ a.start_time.strftime('%H:%M') }}</span> {% endif %}
                         <span>{{ a.title }}</span>
-                        {% if a.participations %}
-                        <br><span class="text-muted"><i class="bi bi-people-fill"></i> {{ a.participations|length }}</span>
-                        {% endif %}
+                        <div class="d-flex gap-1 mt-1">
+                            {% if a.participations %}
+                            <span class="text-muted"><i class="bi bi-people-fill"></i> {{ a.participations|length }}</span>
+                            {% endif %}
+                            <button type="button" class="btn-part-open btn p-0 ms-auto" style="font-size:.65rem;color:var(--color-primary);background:none;border:none" data-act-id="{{ a.id }}" data-act-title="{{ a.title }}" onclick="event.stopPropagation()">
+                                <i class="bi bi-people"></i> Participacio
+                            </button>
+                        </div>
                     </div>
                     {% endfor %}
                     <button class="btn btn-sm w-100 mt-1" style="font-size:.68rem;color:var(--color-text-secondary);border:1px dashed var(--color-border)"
@@ -106,39 +119,102 @@
 
 {% block scripts %}
 <script>
-var todayStr = '{{ view_date.isoformat() }}';
-function resetActForm() {
-    document.getElementById('act-id').value = '';
-    document.getElementById('actModalTitle').textContent = 'Nova activitat';
-    document.getElementById('act-title').value = '';
-    document.getElementById('act-cat').value = 'general';
-    document.getElementById('act-date').value = todayStr;
-    document.getElementById('act-start').value = '';
-    document.getElementById('act-end').value = '';
-    document.getElementById('act-loc').value = '';
-    document.getElementById('act-desc').value = '';
-    document.getElementById('act-delete-btn').style.display = 'none';
-}
-function editAct(id, title, desc, actDate, start, end, loc, cat) {
-    document.getElementById('act-id').value = id;
-    document.getElementById('actModalTitle').textContent = 'Editar activitat';
-    document.getElementById('act-title').value = title;
-    document.getElementById('act-cat').value = cat;
-    document.getElementById('act-date').value = actDate;
-    document.getElementById('act-start').value = start;
-    document.getElementById('act-end').value = end;
-    document.getElementById('act-loc').value = loc;
-    document.getElementById('act-desc').value = desc;
-    document.getElementById('act-delete-btn').style.display = '';
-    document.getElementById('act-delete-btn').dataset.id = id;
-    new bootstrap.Modal(document.getElementById('actModal')).show();
-}
-function deleteAct() {
-    var id = document.getElementById('act-delete-btn').dataset.id;
-    if (!confirm('Eliminar aquesta activitat?')) return;
-    var form = document.createElement('form');
-    form.method = 'POST'; form.action = '/admin/activities/' + id + '/delete';
-    document.body.appendChild(form); form.submit();
-}
+(function(){
+    var todayStr = '{{ view_date.isoformat() }}';
+    var residents = {{ residents|map(attribute='id')|list|tojson }};
+    var residentNames = { {% for r in residents %}{{ r.id }}: {{ r.name|tojson }}{{ ',' if not loop.last }}{% endfor %} };
+
+    window.resetActForm = function() {
+        document.getElementById('act-id').value = '';
+        document.getElementById('actModalTitle').textContent = 'Nova activitat';
+        document.getElementById('act-title').value = '';
+        document.getElementById('act-cat').value = 'general';
+        document.getElementById('act-date').value = todayStr;
+        document.getElementById('act-start').value = '';
+        document.getElementById('act-end').value = '';
+        document.getElementById('act-loc').value = '';
+        document.getElementById('act-desc').value = '';
+        document.getElementById('act-delete-btn').style.display = 'none';
+    };
+
+    // Click on activity item to edit
+    document.querySelectorAll('.act-item').forEach(function(item) {
+        item.addEventListener('click', function() {
+            document.getElementById('act-id').value = item.dataset.id;
+            document.getElementById('actModalTitle').textContent = 'Editar activitat';
+            document.getElementById('act-title').value = item.dataset.title;
+            document.getElementById('act-cat').value = item.dataset.cat;
+            document.getElementById('act-date').value = item.dataset.date;
+            document.getElementById('act-start').value = item.dataset.start;
+            document.getElementById('act-end').value = item.dataset.end;
+            document.getElementById('act-loc').value = item.dataset.loc;
+            document.getElementById('act-desc').value = item.dataset.desc;
+            document.getElementById('act-delete-btn').style.display = '';
+            document.getElementById('act-delete-btn').dataset.id = item.dataset.id;
+            new bootstrap.Modal(document.getElementById('actModal')).show();
+        });
+    });
+
+    window.deleteAct = function() {
+        var id = document.getElementById('act-delete-btn').dataset.id;
+        if (!confirm('Eliminar aquesta activitat?')) return;
+        var form = document.createElement('form');
+        form.method = 'POST'; form.action = '/admin/activities/' + id + '/delete';
+        document.body.appendChild(form); form.submit();
+    };
+
+    // Participation modal
+    var currentPartActId = null;
+    document.querySelectorAll('.btn-part-open').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            currentPartActId = parseInt(btn.dataset.actId);
+            document.getElementById('partModalTitle').textContent = 'Participacio: ' + btn.dataset.actTitle;
+            var body = document.getElementById('partBody');
+            var html = '<div class="table-responsive"><table class="table table-sm" style="font-size:.82rem">';
+            html += '<thead><tr><th>Resident</th><th>Participacio</th><th>Notes</th></tr></thead><tbody>';
+            residents.forEach(function(rid) {
+                html += '<tr><td>' + residentNames[rid] + '</td>';
+                html += '<td><select class="form-select form-select-sm part-eng" data-rid="' + rid + '">';
+                html += '<option value="">— No seleccionat —</option>';
+                html += '<option value="participated">Ha participat</option>';
+                html += '<option value="passive">Passiu/observador</option>';
+                html += '<option value="refused">Ha refusat</option>';
+                html += '<option value="absent">Absent</option>';
+                html += '</select></td>';
+                html += '<td><input type="text" class="form-control form-control-sm part-note" data-rid="' + rid + '" placeholder="Opcional"></td></tr>';
+            });
+            html += '</tbody></table></div>';
+            body.innerHTML = html;
+            new bootstrap.Modal(document.getElementById('partModal')).show();
+        });
+    });
+
+    document.getElementById('btn-save-part').addEventListener('click', function() {
+        if (!currentPartActId) return;
+        var participants = [];
+        document.querySelectorAll('.part-eng').forEach(function(sel) {
+            if (sel.value) {
+                var rid = parseInt(sel.dataset.rid);
+                var note = document.querySelector('.part-note[data-rid="' + rid + '"]');
+                participants.push({
+                    resident_id: rid,
+                    engagement: sel.value,
+                    notes: note ? note.value : '',
+                });
+            }
+        });
+        fetch('/admin/activities/' + currentPartActId + '/participation', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({participants: participants})
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            if (data.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('partModal')).hide();
+                if (typeof showToast === 'function') showToast('Participacio guardada (' + data.count + ' residents)', 'success');
+                setTimeout(function() { location.reload(); }, 500);
+            }
+        });
+    });
+})();
 </script>
 {% endblock %}
