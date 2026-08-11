@@ -1277,6 +1277,7 @@ def admin_settings():
         AppSetting.set('nfc_only', 'true' if request.form.get('nfc_only') else 'false')
         AppSetting.set('single_session', 'true' if request.form.get('single_session') else 'false')
         AppSetting.set('allow_worker_incidents', 'true' if request.form.get('allow_worker_incidents') else 'false')
+        AppSetting.set('allow_worker_activities', 'true' if request.form.get('allow_worker_activities') else 'false')
         session_max = request.form.get('session_max_minutes', '120')
         try:
             session_max = str(max(15, min(1440, int(session_max))))
@@ -1290,6 +1291,7 @@ def admin_settings():
         nfc_only=AppSetting.get('nfc_only', 'true') == 'true',
         single_session=AppSetting.get('single_session', 'false') == 'true',
         allow_worker_incidents=AppSetting.get('allow_worker_incidents', 'false') == 'true',
+        allow_worker_activities=AppSetting.get('allow_worker_activities', 'false') == 'true',
         session_max_minutes=int(AppSetting.get('session_max_minutes', '120')),
     )
 
@@ -1302,5 +1304,6 @@ def api_config():
         'nfc_only': AppSetting.get('nfc_only', 'true') == 'true',
         'single_session': AppSetting.get('single_session', 'false') == 'true',
         'allow_worker_incidents': AppSetting.get('allow_worker_incidents', 'false') == 'true',
+        'allow_worker_activities': AppSetting.get('allow_worker_activities', 'false') == 'true',
         'session_max_minutes': int(AppSetting.get('session_max_minutes', '120')),
     }), 200

@@ -1061,7 +1061,8 @@ async function initHome() {
     $('home-name').textContent = S.workerName || '—';
     show('screen-home');
     $('chat-fab').style.display = '';
-    await Promise.all([loadConfig(), loadActiveSessions(), loadHistory(), loadCareTypes(), loadMyGroups(), loadPendingItems(), loadRoute(), loadTodayActivities()]);
+    await Promise.all([loadConfig(), loadActiveSessions(), loadHistory(), loadCareTypes(), loadMyGroups(), loadPendingItems(), loadRoute()]);
+    if (S.config.allow_worker_activities) await loadTodayActivities();
     startGlobalTimer();
     startNotifPolling();
 }
