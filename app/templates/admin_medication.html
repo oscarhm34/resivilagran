@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Medicacion{% endblock %}
+
+{% block content %}
+<div class="py-3">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+        <h1 class="h3 mb-0"><i class="bi bi-capsule me-2"></i>Control de medicacion</h1>
+        <span class="text-muted" style="font-size:.85rem">{{ today.strftime('%d/%m/%Y') }}</span>
+    </div>
+
+    <!-- Summary -->
+    <div class="row g-3 mb-4">
+        <div class="col-4">
+            <div class="card h-100">
+                <div class="card-body text-center py-3">
+                    <div style="font-size:1.8rem;font-weight:800;color:var(--color-text)">{{ total_residents_with_meds }}</div>
+                    <div class="text-muted" style="font-size:.82rem">Residents amb medicacio</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="card h-100" {% if total_pending %}style="border-color:var(--color-warning)"{% endif %}>
+                <div class="card-body text-center py-3">
+                    <div style="font-size:1.8rem;font-weight:800;color:{% if total_pending %}var(--color-warning){% else %}var(--color-text-secondary){% endif %}">{{ total_pending }}</div>
+                    <div class="text-muted" style="font-size:.82rem">Preses pendents</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="card h-100">
+                <div class="card-body text-center py-3">
+                    <div style="font-size:1.8rem;font-weight:800;color:var(--color-success)">{{ total_completed }}</div>
+                    <div class="text-muted" style="font-size:.82rem">Administrades avui</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if not resident_meds %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle me-1"></i>No hi ha medicacio activa. Afegeix pautes des de la fitxa de cada residente.
+    </div>
+    {% endif %}
+
+    <!-- Per-resident medication cards -->
+    {% for rm in resident_meds %}
+    <div class="card mb-3">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-person-fill"></i>
+                <a href="{{ url_for('medication.resident_prescriptions', resident_id=rm.resident.id) }}" style="color:inherit;text-decoration:none">
+                    <strong>{{ rm.resident.name }}</strong>
+                </a>
+                {% if rm.resident.room_number %}
+                <span class="text-muted" style="font-size:.82rem">Hab. {{ rm.resident.room_number }}</span>
+                {% endif %}
+            </div>
+            <div class="d-flex gap-2">
+                {% if rm.total_pending %}
+                <span class="badge bg-warning text-dark">{{ rm.total_pending }} pendent{{ 's' if rm.total_pending != 1 }}</span>
+                {% endif %}
+                <span class="badge bg-success bg-opacity-10 text-success">{{ rm.total_completed }} feta{{ 's' if rm.total_completed != 1 }}</span>
+                <a href="{{ url_for('medication.resident_prescriptions', resident_id=rm.resident.id) }}" class="btn btn-outline-secondary btn-sm" style="font-size:.72rem">
+                    <i class="bi bi-pencil"></i> Pautes
+                </a>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0" style="font-size:.82rem">
+                <thead>
+                    <tr><th>Medicament</th><th>Dosi</th><th>Via</th><th>Horaris</th><th>Estat</th><th></th></tr>
+                </thead>
+                <tbody>
+                    {% for med in rm.medications %}
+                    {% set p = med.prescription %}
+                    <tr>
+                        <td class="fw-semibold">{{ p.drug_name }}</td>
+                        <td>{{ p.dose }}</td>
+                        <td>{{ route_labels.get(p.route, p.route) }}</td>
+                        <td>
+                            {% for t in med.times %}
+                            {% if t in [ct for ct in med.completed_times] %}
+                            <span class="badge bg-success bg-opacity-10 text-success" style="font-size:.72rem">{{ t }}</span>
+                            {% elif t in [pt for pt in med.pending_times] %}
+                            <span class="badge bg-warning bg-opacity-25 text-warning" style="font-size:.72rem">{{ t }}</span>
+                            {% else %}
+                            <span class="badge bg-secondary bg-opacity-10 text-secondary" style="font-size:.72rem">{{ t }}</span>
+                            {% endif %}
+                            {% endfor %}
+                        </td>
+                        <td>
+                            {% if med.pending_times %}
+                            <span class="text-warning fw-semibold">{{ med.pending_times|length }} pendent</span>
+                            {% elif not med.upcoming_times %}
+                            <span class="text-success"><i class="bi bi-check-lg"></i> Tot fet</span>
+                            {% else %}
+                            <span class="text-muted">Proper: {{ med.upcoming_times[0] }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% for t in med.pending_times %}
+                            <button class="btn btn-success btn-sm btn-admin-med" style="font-size:.68rem;padding:2px 8px"
+                                    data-presc-id="{{ p.id }}" data-time="{{ t }}">
+                                <i class="bi bi-check"></i> {{ t }}
+                            </button>
+                            {% endfor %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+    document.querySelectorAll('.btn-admin-med').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var prescId = btn.dataset.prescId;
+            var time = btn.dataset.time;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            fetch('/admin/medication/administer', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({prescription_id: parseInt(prescId), scheduled_time: time, status: 'given'})
+            }).then(function(r) { return r.json(); }).then(function(data) {
+                if (data.ok) {
+                    btn.classList.remove('btn-success');
+                    btn.classList.add('btn-outline-success');
+                    btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+                    btn.disabled = true;
+                    if (typeof showToast === 'function') showToast('Medicacio administrada', 'success');
+                }
+            });
+        });
+    });
+})();
+</script>
+{% endblock %}

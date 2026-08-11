@@ -508,6 +508,45 @@ class DailyCleaningAssignment(db.Model):
     __table_args__ = (db.UniqueConstraint('cleaner_id', 'room_id', 'date', name='uq_daily_clean'),)
 
 
+# ── MEDICACIÓN ────────────────────────────────────────────────────────────────
+
+class MedicationPrescription(db.Model):
+    """Active medication prescription for a resident."""
+    __tablename__ = 'medication_prescription'
+    id = db.Column(db.Integer, primary_key=True)
+    resident_id = db.Column(db.Integer, db.ForeignKey('resident.id'), nullable=False, index=True)
+    drug_name = db.Column(db.String(150), nullable=False)
+    dose = db.Column(db.String(100), nullable=False)
+    route = db.Column(db.String(50), default='oral')
+    frequency = db.Column(db.String(50), nullable=False)
+    schedule_times = db.Column(db.String(200))
+    instructions = db.Column(db.Text, nullable=True)
+    active = db.Column(db.Boolean, default=True, index=True)
+    start_date = db.Column(db.Date, nullable=True)
+    end_date = db.Column(db.Date, nullable=True)
+    prescribed_by = db.Column(db.String(100), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
+
+    resident = db.relationship('Resident', backref=db.backref('prescriptions', lazy=True))
+    creator = db.relationship('Cleaner', foreign_keys=[created_by])
+    administrations = db.relationship('MedicationAdministration', backref='prescription', lazy=True)
+
+
+class MedicationAdministration(db.Model):
+    """Record of a medication being administered to a resident."""
+    __tablename__ = 'medication_administration'
+    id = db.Column(db.Integer, primary_key=True)
+    prescription_id = db.Column(db.Integer, db.ForeignKey('medication_prescription.id'), nullable=False, index=True)
+    administered_at = db.Column(db.DateTime, default=datetime.now, index=True)
+    administered_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=False)
+    scheduled_time = db.Column(db.String(5), nullable=True)
+    status = db.Column(db.String(20), default='given')
+    notes = db.Column(db.Text, nullable=True)
+
+    worker = db.relationship('Cleaner', foreign_keys=[administered_by])
+
+
 # ── VALORACIONES CLÍNICAS ─────────────────────────────────────────────────────
 
 class AssessmentRecord(db.Model):
