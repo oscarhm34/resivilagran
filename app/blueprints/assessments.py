@@ -524,6 +524,13 @@ def ai_summary(resident_id: int):
 
     try:
         summary_html = _call_claude(SUMMARY_SYSTEM, prompt)
+        # Strip markdown code fences if Claude wraps the HTML in them
+        summary_html = summary_html.strip()
+        if summary_html.startswith('```'):
+            summary_html = summary_html.split('\n', 1)[1] if '\n' in summary_html else summary_html[3:]
+        if summary_html.endswith('```'):
+            summary_html = summary_html.rsplit('```', 1)[0]
+        summary_html = summary_html.strip()
     except Exception as e:
         return jsonify({'error': f'Error al generar informe: {str(e)}'}), 500
 
