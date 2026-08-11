@@ -79,9 +79,9 @@
                         <td>{{ route_labels.get(p.route, p.route) }}</td>
                         <td>
                             {% for t in med.times %}
-                            {% if t in [ct for ct in med.completed_times] %}
+                            {% if t in med.completed_times %}
                             <span class="badge bg-success bg-opacity-10 text-success" style="font-size:.72rem">{{ t }}</span>
-                            {% elif t in [pt for pt in med.pending_times] %}
+                            {% elif t in med.pending_times %}
                             <span class="badge bg-warning bg-opacity-25 text-warning" style="font-size:.72rem">{{ t }}</span>
                             {% else %}
                             <span class="badge bg-secondary bg-opacity-10 text-secondary" style="font-size:.72rem">{{ t }}</span>
