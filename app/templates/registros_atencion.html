@@ -89,7 +89,15 @@
                 <tbody>
                     {% for record in records %}
                     <tr>
-                        <td><strong>{{ record.resident.name if record.resident else '—' }}</strong></td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                {% if record.resident and record.resident.photo_path %}
+                                <img src="{{ url_for('nfc.serve_upload', filename=record.resident.photo_path) }}"
+                                     alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0">
+                                {% endif %}
+                                <strong>{{ record.resident.name if record.resident else '—' }}</strong>
+                            </div>
+                        </td>
                         <td class="hide-mobile">
                             {% if record.care_types %}
                             {% for ct in record.care_types %}
