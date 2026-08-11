@@ -15,6 +15,7 @@
             <span class="fw-semibold" style="font-size:1.05rem">
                 {{ plan_date.strftime('%A %d de %B de %Y') | capitalize }}
                 {% if is_today %}<span class="badge bg-primary ms-1">Hoy</span>{% endif %}
+                {% if has_daily_plan %}<span class="badge bg-success ms-1">Plan guardado</span>{% endif %}
             </span>
             <a href="{{ url_for('cleaning.admin_cleaning_plan', date=next_date) }}"
                class="btn btn-outline-secondary btn-sm" title="Día siguiente">
@@ -28,6 +29,9 @@
             <i class="bi bi-calendar-event me-1"></i>Hoy
         </a>
         {% endif %}
+        <a href="{{ url_for('cleaning.admin_cleaning_plan_edit', date=plan_date.isoformat()) }}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-pencil-square me-1"></i>Editar plan
+        </a>
         <a href="{{ url_for('cleaning.admin_cleaning_analytics') }}" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-speedometer2 me-1"></i>Análisis
         </a>

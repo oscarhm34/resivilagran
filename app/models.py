@@ -489,6 +489,25 @@ class CleaningTargetTime(db.Model):
     room_type = db.relationship('RoomType')
 
 
+class DailyCleaningAssignment(db.Model):
+    """Persisted per-day room assignment for a worker (manual or auto-generated)."""
+    __tablename__ = 'daily_cleaning_assignment'
+    id = db.Column(db.Integer, primary_key=True)
+    cleaner_id = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=False, index=True)
+    room_id = db.Column(db.Integer, db.ForeignKey('room.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False, index=True)
+    source = db.Column(db.String(20), default='manual')
+    position = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
+
+    cleaner = db.relationship('Cleaner', foreign_keys=[cleaner_id])
+    room = db.relationship('Room')
+    creator = db.relationship('Cleaner', foreign_keys=[created_by])
+
+    __table_args__ = (db.UniqueConstraint('cleaner_id', 'room_id', 'date', name='uq_daily_clean'),)
+
+
 # ── INCIDENTES ───────────────────────────────────────────────────────────────
 
 class IncidentType(db.Model):

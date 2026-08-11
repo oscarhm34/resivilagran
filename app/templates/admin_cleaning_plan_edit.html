@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+
+{% block title %}Editor Plan de Limpieza - {{ plan_date.strftime('%d/%m/%Y') }}{% endblock %}
+
+{% block content %}
+{# -- Header -- #}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div>
+        <h1 class="h3 mb-1"><i class="bi bi-pencil-square me-2"></i>Editor del plan de limpieza</h1>
+        <div class="d-flex align-items-center gap-2">
+            <a href="{{ url_for('cleaning.admin_cleaning_plan_edit', date=prev_date) }}"
+               class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-left"></i></a>
+            <span class="fw-semibold" style="font-size:1.05rem">
+                {{ plan_date.strftime('%A %d de %B de %Y') | capitalize }}
+                {% if is_today %}<span class="badge bg-primary ms-1">Hoy</span>{% endif %}
+            </span>
+            <a href="{{ url_for('cleaning.admin_cleaning_plan_edit', date=next_date) }}"
+               class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-right"></i></a>
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('cleaning.admin_cleaning_plan', date=plan_date.isoformat()) }}"
+           class="btn btn-outline-secondary btn-sm"><i class="bi bi-eye me-1"></i>Ver plan</a>
+        <button type="button" class="btn btn-primary btn-sm" id="btn-save">
+            <i class="bi bi-check-lg me-1"></i>Guardar plan
+        </button>
+    </div>
+</div>
+
+{# -- Editor grid -- #}
+<div class="cpe-grid" id="editor-grid">
+    {# Pool column #}
+    <div class="cpe-col cpe-pool" id="pool">
+        <div class="cpe-col-header">
+            <strong>Sin asignar</strong>
+            <span class="badge bg-secondary" id="pool-count">0</span>
+        </div>
+        <div class="cpe-filters">
+            <select class="form-select form-select-sm" id="filter-floor">
+                <option value="">Todas las plantas</option>
+                {% for f in floors %}
+                <option value="{{ f.id }}">{{ f.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="cpe-dropzone" id="pool-zone" data-worker="pool"></div>
+    </div>
+</div>
+
+<style>
+    .cpe-grid {
+        display:flex; gap:12px; overflow-x:auto; padding-bottom:12px;
+        min-height:calc(100vh - 220px);
+    }
+    .cpe-col {
+        min-width:220px; max-width:280px; flex:1 0 220px;
+        border:1.5px solid var(--color-border); border-radius:var(--radius-lg);
+        display:flex; flex-direction:column; background:var(--color-bg);
+    }
+    .cpe-pool { border-color:var(--color-text-secondary); }
+    .cpe-col-header {
+        padding:10px 12px; border-bottom:1px solid var(--color-border);
+        display:flex; align-items:center; justify-content:space-between; gap:6px;
+        font-size:.85rem; flex-shrink:0;
+    }
+    .cpe-col-header .badge { font-size:.7rem; }
+    .cpe-col-footer {
+        padding:8px 12px; border-top:1px solid var(--color-border);
+        font-size:.75rem; color:var(--color-text-secondary); flex-shrink:0;
+    }
+    .cpe-filters { padding:6px 8px; border-bottom:1px solid var(--color-border); flex-shrink:0; }
+    .cpe-dropzone {
+        flex:1; overflow-y:auto; padding:6px; min-height:60px;
+        transition:background .15s;
+    }
+    .cpe-dropzone.drag-over { background:rgba(0,105,217,.08); }
+
+    .cpe-item {
+        padding:8px 10px; margin-bottom:4px; border-radius:10px;
+        border:1.5px solid var(--color-border); background:#fff;
+        cursor:grab; font-size:.8rem; user-select:none;
+        transition:box-shadow .15s, opacity .15s;
+    }
+    .cpe-item:active { cursor:grabbing; }
+    .cpe-item.dragging { opacity:.4; }
+    .cpe-item .room-num { font-weight:700; font-size:.85rem; }
+    .cpe-item .room-meta { color:var(--color-text-secondary); font-size:.7rem; margin-top:2px; }
+    .cpe-item .room-est { float:right; font-size:.7rem; color:var(--color-text-secondary); }
+
+    .cpe-item.urgent { border-color:#cf222e; background:#fff5f5; }
+    .cpe-item.due { border-color:#bf8700; background:#fff8e6; }
+    .cpe-item.ok { border-color:var(--color-border); }
+
+    .cpe-worker-actions { padding:6px 8px; border-bottom:1px solid var(--color-border); display:flex; gap:4px; flex-shrink:0; }
+    .cpe-worker-actions .btn { font-size:.72rem; padding:4px 8px; }
+
+    .shift-badge {
+        font-size:.68rem; padding:2px 6px; border-radius:4px; color:#fff;
+        display:inline-block; margin-left:4px;
+    }
+</style>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+    var WORKERS = {{ workers_json | safe }};
+    var ROOMS = {{ rooms_json | safe }};
+    var EXISTING = {{ existing_json | safe }};
+    var PLAN_DATE = '{{ plan_date.isoformat() }}';
+
+    // State: { workerId -> [roomId, ...] } and 'pool' for unassigned
+    var state = { pool: [] };
+    WORKERS.forEach(function(w) { state[w.id] = []; });
+
+    // Room lookup
+    var roomById = {};
+    ROOMS.forEach(function(r) { roomById[r.id] = r; });
+
+    // Initialize from existing assignments
+    var assignedRoomIds = new Set();
+    Object.keys(EXISTING).forEach(function(wid) {
+        var numWid = parseInt(wid);
+        if (state[numWid] !== undefined) {
+            EXISTING[wid].forEach(function(rid) {
+                if (roomById[rid]) {
+                    state[numWid].push(rid);
+                    assignedRoomIds.add(rid);
+                }
+            });
+        }
+    });
+    // Remaining rooms go to pool
+    ROOMS.forEach(function(r) {
+        if (!assignedRoomIds.has(r.id)) state.pool.push(r.id);
+    });
+
+    // Build worker columns
+    var grid = document.getElementById('editor-grid');
+    WORKERS.forEach(function(w) {
+        var col = document.createElement('div');
+        col.className = 'cpe-col';
+        col.innerHTML =
+            '<div class="cpe-col-header">' +
+                '<div><strong>' + w.name + '</strong>' +
+                '<span class="shift-badge" style="background:' + w.shift_color + '">' +
+                    w.shift_name + ' ' + w.shift_start + '-' + w.shift_end +
+                '</span></div>' +
+                '<span class="badge bg-primary" id="count-' + w.id + '">0</span>' +
+            '</div>' +
+            '<div class="cpe-worker-actions">' +
+                '<button class="btn btn-outline-primary btn-auto" data-wid="' + w.id + '" title="Generar plan automatico">' +
+                    '<i class="bi bi-magic me-1"></i>Auto' +
+                '</button>' +
+                '<button class="btn btn-outline-danger btn-clear-worker" data-wid="' + w.id + '" title="Vaciar">' +
+                    '<i class="bi bi-x-lg"></i>' +
+                '</button>' +
+            '</div>' +
+            '<div class="cpe-dropzone" id="zone-' + w.id + '" data-worker="' + w.id + '"></div>' +
+            '<div class="cpe-col-footer" id="footer-' + w.id + '">Est: 0:00 / Jornada: ' +
+                Math.floor(w.shift_min/60) + ':' + String(w.shift_min%60).padStart(2,'0') + 'h</div>';
+        grid.appendChild(col);
+    });
+
+    // Render all
+    function render() {
+        renderZone('pool', state.pool);
+        WORKERS.forEach(function(w) { renderZone(w.id, state[w.id]); });
+        updateCounts();
+    }
+
+    function renderZone(key, roomIds) {
+        var zone = document.getElementById(key === 'pool' ? 'pool-zone' : 'zone-' + key);
+        if (!zone) return;
+        var floorFilter = key === 'pool' ? document.getElementById('filter-floor').value : '';
+        zone.innerHTML = '';
+        roomIds.forEach(function(rid) {
+            var r = roomById[rid];
+            if (!r) return;
+            if (floorFilter && String(r.floor_id) !== floorFilter) return;
+            var item = document.createElement('div');
+            item.className = 'cpe-item ' + r.priority;
+            item.draggable = true;
+            item.dataset.roomId = rid;
+            var daysText = r.days_since !== null ? r.days_since + 'd' : 'Nunca';
+            item.innerHTML =
+                '<span class="room-est">~' + r.estimated_min + 'min</span>' +
+                '<span class="room-num">' + r.number + '</span>' +
+                (r.description ? ' <small>' + r.description + '</small>' : '') +
+                '<div class="room-meta">' + r.floor_name + ' &middot; ' + r.room_type +
+                ' &middot; ' + daysText + '</div>';
+
+            item.addEventListener('dragstart', onDragStart);
+            item.addEventListener('dragend', onDragEnd);
+            zone.appendChild(item);
+        });
+    }
+
+    function updateCounts() {
+        document.getElementById('pool-count').textContent = state.pool.length;
+        WORKERS.forEach(function(w) {
+            var count = state[w.id].length;
+            document.getElementById('count-' + w.id).textContent = count;
+            var est = 0;
+            state[w.id].forEach(function(rid) {
+                var r = roomById[rid];
+                if (r) est += r.estimated_min;
+            });
+            var estH = Math.floor(est/60);
+            var estM = Math.round(est%60);
+            var footer = document.getElementById('footer-' + w.id);
+            if (footer) {
+                var jH = Math.floor(w.shift_min/60);
+                var jM = w.shift_min%60;
+                var color = est > w.shift_min ? 'var(--color-danger)' : 'var(--color-text-secondary)';
+                footer.innerHTML = 'Est: <strong style="color:' + color + '">' +
+                    estH + ':' + String(estM).padStart(2,'0') + 'h</strong> / Jornada: ' +
+                    jH + ':' + String(jM).padStart(2,'0') + 'h';
+            }
+        });
+    }
+
+    // Drag & drop
+    var dragRoomId = null;
+    var dragSourceKey = null;
+
+    function onDragStart(e) {
+        dragRoomId = parseInt(e.target.dataset.roomId);
+        dragSourceKey = e.target.closest('.cpe-dropzone').dataset.worker;
+        if (dragSourceKey !== 'pool') dragSourceKey = parseInt(dragSourceKey);
+        e.target.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+    }
+    function onDragEnd(e) {
+        e.target.classList.remove('dragging');
+        document.querySelectorAll('.drag-over').forEach(function(el) {
+            el.classList.remove('drag-over');
+        });
+    }
+
+    document.querySelectorAll('.cpe-dropzone').forEach(function(zone) {
+        zone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            zone.classList.add('drag-over');
+        });
+        zone.addEventListener('dragleave', function() {
+            zone.classList.remove('drag-over');
+        });
+        zone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            zone.classList.remove('drag-over');
+            var targetKey = zone.dataset.worker;
+            if (targetKey !== 'pool') targetKey = parseInt(targetKey);
+            if (dragRoomId === null || dragSourceKey === targetKey) return;
+
+            // Remove from source
+            var srcArr = state[dragSourceKey];
+            var idx = srcArr.indexOf(dragRoomId);
+            if (idx !== -1) srcArr.splice(idx, 1);
+
+            // Add to target
+            state[targetKey].push(dragRoomId);
+
+            render();
+        });
+    });
+
+    // Floor filter
+    document.getElementById('filter-floor').addEventListener('change', function() {
+        renderZone('pool', state.pool);
+    });
+
+    // Auto-generate for worker
+    document.querySelectorAll('.btn-auto').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var wid = parseInt(btn.dataset.wid);
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            fetch('/api/cleaning-plan/generate-worker', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({date: PLAN_DATE, cleaner_id: wid})
+            }).then(function(r) { return r.json(); }).then(function(data) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-magic me-1"></i>Auto';
+                if (data.ok) {
+                    // Move current rooms back to pool
+                    state[wid].forEach(function(rid) { state.pool.push(rid); });
+                    state[wid] = [];
+                    // Assign generated rooms (remove from pool and other workers)
+                    data.rooms.forEach(function(rid) {
+                        // Remove from pool
+                        var pi = state.pool.indexOf(rid);
+                        if (pi !== -1) state.pool.splice(pi, 1);
+                        // Remove from other workers
+                        WORKERS.forEach(function(ow) {
+                            if (ow.id !== wid) {
+                                var oi = state[ow.id].indexOf(rid);
+                                if (oi !== -1) {
+                                    state[ow.id].splice(oi, 1);
+                                }
+                            }
+                        });
+                        state[wid].push(rid);
+                    });
+                    render();
+                    showToast('Plan generado para ' + WORKERS.find(function(w){return w.id===wid}).name, 'success');
+                } else {
+                    showToast(data.error || 'Error al generar', 'error');
+                }
+            }).catch(function() {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-magic me-1"></i>Auto';
+                showToast('Error de conexion', 'error');
+            });
+        });
+    });
+
+    // Clear worker
+    document.querySelectorAll('.btn-clear-worker').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var wid = parseInt(btn.dataset.wid);
+            state[wid].forEach(function(rid) { state.pool.push(rid); });
+            state[wid] = [];
+            render();
+        });
+    });
+
+    // Save
+    document.getElementById('btn-save').addEventListener('click', function() {
+        var assignments = [];
+        WORKERS.forEach(function(w) {
+            state[w.id].forEach(function(rid, pos) {
+                assignments.push({cleaner_id: w.id, room_id: rid, position: pos});
+            });
+        });
+        var btn = document.getElementById('btn-save');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Guardando...';
+        fetch('/api/cleaning-plan/save', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({date: PLAN_DATE, assignments: assignments})
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Guardar plan';
+            if (data.ok) {
+                showToast('Plan guardado (' + data.count + ' asignaciones)', 'success');
+            } else {
+                showToast('Error al guardar', 'error');
+            }
+        }).catch(function() {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Guardar plan';
+            showToast('Error de conexion', 'error');
+        });
+    });
+
+    // Initial render
+    render();
+})();
+</script>
+{% endblock %}

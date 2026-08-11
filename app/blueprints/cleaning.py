@@ -10,7 +10,7 @@ from sqlalchemy.orm import joinedload
 from .. import db
 from ..models import (
     Room, Cleaner, CleaningRecord, Resident,
-    CleaningZoneAssignment, CleaningTargetTime,
+    CleaningZoneAssignment, CleaningTargetTime, DailyCleaningAssignment,
     ShiftAssignment, Absence, RoomType, Floor, CareRecord,
 )
 from ..utils import (
@@ -58,28 +58,41 @@ def worker_cleaning_route():
             'status': 'no_shift', 'message': 'No tienes turno asignado hoy.',
         }})
 
-    # Determine rooms: manual zone assignment OR auto-detect from history
-    zone_assignments = CleaningZoneAssignment.query.filter_by(cleaner_id=worker.id).all()
-    assigned_floor_ids = {za.floor_id for za in zone_assignments}
+    # Check for saved daily plan first
+    daily_assigns = DailyCleaningAssignment.query.filter_by(
+        cleaner_id=worker.id, date=today,
+    ).order_by(DailyCleaningAssignment.position).all()
+    use_daily_plan = len(daily_assigns) > 0
 
-    if assigned_floor_ids:
-        # Manual assignment exists: use it
-        rooms = Room.query.filter(Room.floor_id.in_(assigned_floor_ids)).all()
+    if use_daily_plan:
+        # Use persisted daily plan
+        daily_room_ids = [da.room_id for da in daily_assigns]
+        loaded = Room.query.options(
+            joinedload(Room.floor), joinedload(Room.room_type)
+        ).filter(Room.id.in_(daily_room_ids)).all()
+        room_by_id = {r.id: r for r in loaded}
+        rooms = [room_by_id[rid] for rid in daily_room_ids if rid in room_by_id]
     else:
-        # Auto-detect from historical data: which rooms has this worker cleaned?
-        cutoff_auto = datetime.now() - timedelta(days=90)
-        worker_room_ids = {r[0] for r in db.session.query(CleaningRecord.room_id).filter(
-            CleaningRecord.cleaner_id == worker.id,
-            CleaningRecord.end_time.isnot(None),
-            CleaningRecord.start_time >= cutoff_auto,
-        ).distinct().all()}
+        # Determine rooms: manual zone assignment OR auto-detect from history
+        zone_assignments = CleaningZoneAssignment.query.filter_by(cleaner_id=worker.id).all()
+        assigned_floor_ids = {za.floor_id for za in zone_assignments}
 
-        if worker_room_ids:
-            # Show rooms this worker usually cleans
-            rooms = Room.query.filter(Room.id.in_(worker_room_ids)).all()
+        if assigned_floor_ids:
+            # Manual assignment exists: use it
+            rooms = Room.query.filter(Room.floor_id.in_(assigned_floor_ids)).all()
         else:
-            # No history: show all rooms
-            rooms = Room.query.all()
+            # Auto-detect from historical data: which rooms has this worker cleaned?
+            cutoff_auto = datetime.now() - timedelta(days=90)
+            worker_room_ids = {r[0] for r in db.session.query(CleaningRecord.room_id).filter(
+                CleaningRecord.cleaner_id == worker.id,
+                CleaningRecord.end_time.isnot(None),
+                CleaningRecord.start_time >= cutoff_auto,
+            ).distinct().all()}
+
+            if worker_room_ids:
+                rooms = Room.query.filter(Room.id.in_(worker_room_ids)).all()
+            else:
+                rooms = Room.query.all()
 
     # Get today's completed cleanings
     today_start = datetime.combine(date.today(), datetime.min.time())
@@ -183,7 +196,8 @@ def worker_cleaning_route():
 
     # Only fill shift with extras for 'limpieza' role workers.
     # 'mixto' workers use their spare time for care tasks, not extra cleaning.
-    if worker.role != 'limpieza':
+    # Skip extra assignment if using a saved daily plan (already includes extras).
+    if worker.role != 'limpieza' or use_daily_plan:
         shift_net_minutes = 0  # skip extra room assignment
 
     # If worker has spare time, assign extra rooms from uncovered pool
@@ -338,6 +352,13 @@ def admin_cleaning_plan():
     occupied = {r.room_number for r in Resident.query.filter_by(active=True).all() if r.room_number}
     now = datetime.now()
 
+    # Check if there's a saved daily plan for this date
+    daily_assignments = DailyCleaningAssignment.query.filter_by(date=plan_date).all()
+    daily_plan_map = {}
+    for da in daily_assignments:
+        daily_plan_map.setdefault(da.cleaner_id, []).append(da)
+    has_daily_plan = len(daily_plan_map) > 0
+
     # Build plan per worker
     worker_plans = []
     globally_assigned_extra = set()  # track extras to avoid double-assigning
@@ -352,21 +373,26 @@ def admin_cleaning_plan():
             worker_plans.append({'worker': w, 'status': 'no_shift', 'shift': None, 'rooms': [], 'completed': []})
             continue
 
-        # Get worker's rooms (auto-detect from history)
-        worker_room_ids = {r[0] for r in db.session.query(CleaningRecord.room_id).filter(
-            CleaningRecord.cleaner_id == w.id, CleaningRecord.end_time.isnot(None),
-            CleaningRecord.start_time >= cutoff_freq,
-        ).distinct().all()}
-
-        # Manual zone assignments override
-        zone_assigns = CleaningZoneAssignment.query.filter_by(cleaner_id=w.id).all()
-        if zone_assigns:
-            assigned_floors = {za.floor_id for za in zone_assigns}
-            worker_rooms = [r for r in all_rooms if r.floor_id in assigned_floors]
-        elif worker_room_ids:
-            worker_rooms = [r for r in all_rooms if r.id in worker_room_ids]
+        # Use saved daily plan if it exists for this worker, otherwise dynamic
+        if w.id in daily_plan_map:
+            daily_room_ids = [da.room_id for da in sorted(daily_plan_map[w.id], key=lambda x: x.position)]
+            worker_rooms = [room_map[rid] for rid in daily_room_ids if rid in room_map]
         else:
-            worker_rooms = all_rooms
+            # Get worker's rooms (auto-detect from history)
+            worker_room_ids = {r[0] for r in db.session.query(CleaningRecord.room_id).filter(
+                CleaningRecord.cleaner_id == w.id, CleaningRecord.end_time.isnot(None),
+                CleaningRecord.start_time >= cutoff_freq,
+            ).distinct().all()}
+
+            # Manual zone assignments override
+            zone_assigns = CleaningZoneAssignment.query.filter_by(cleaner_id=w.id).all()
+            if zone_assigns:
+                assigned_floors = {za.floor_id for za in zone_assigns}
+                worker_rooms = [r for r in all_rooms if r.floor_id in assigned_floors]
+            elif worker_room_ids:
+                worker_rooms = [r for r in all_rooms if r.id in worker_room_ids]
+            else:
+                worker_rooms = all_rooms
 
         # Today's cleaned room ids for this worker
         completed_room_ids = {rec.room_id for rec in worker_completed.get(w.id, [])}
@@ -400,11 +426,11 @@ def admin_cleaning_plan():
                 end_dt += timedelta(days=1)
             shift_net_min = round(((end_dt - start_dt).total_seconds() / 60) - (st.breaks_minutes or 0))
 
-        # Fill shift with extra rooms for 'limpieza' workers
+        # Fill shift with extra rooms for 'limpieza' workers (skip if using saved daily plan)
         remaining_est = sum(r['estimated_min'] for r in rooms_plan if not r['completed'])
         worker_room_id_set = {r['room'].id for r in rooms_plan}
 
-        if w.role == 'limpieza' and shift_net_min > 0 and remaining_est < shift_net_min:
+        if w.id not in daily_plan_map and w.role == 'limpieza' and shift_net_min > 0 and remaining_est < shift_net_min:
             spare = shift_net_min - remaining_est
             today_cleaned_ids_all = {rec.room_id for rec in today_records if rec.end_time is not None}
             extra_candidates = []
@@ -482,6 +508,7 @@ def admin_cleaning_plan():
     return render_template('admin_cleaning_plan.html',
         plan_date=plan_date, worker_plans=worker_plans,
         uncovered=uncovered,
+        has_daily_plan=has_daily_plan,
         is_today=plan_date == date.today(),
         prev_date=(plan_date - timedelta(days=1)).isoformat(),
         next_date=(plan_date + timedelta(days=1)).isoformat(),
@@ -579,6 +606,254 @@ def admin_cleaning_analytics():
         worker_stats=worker_stats, coverage_gaps=coverage_gaps,
         target_map=target_map,
     )
+
+
+# ── EDITOR DE PLAN DE LIMPIEZA (DRAG & DROP) ─────────────────────────────────
+
+@bp.route('/admin/cleaning-plan/edit')
+@admin_required
+def admin_cleaning_plan_edit():
+    """Drag & drop editor for daily cleaning assignments."""
+    target_date = request.args.get('date', '')
+    plan_date = date.fromisoformat(target_date) if target_date else date.today()
+
+    # Workers on shift
+    cleaning_workers = Cleaner.query.filter(
+        Cleaner.active == True, Cleaner.role.in_(['limpieza', 'mixto']),
+    ).order_by(Cleaner.name).all()
+
+    shifts_today = {sa.cleaner_id: sa for sa in ShiftAssignment.query.filter_by(date=plan_date).all()}
+    absent_ids = {a.cleaner_id for a in Absence.query.filter(
+        Absence.start_date <= plan_date, Absence.end_date >= plan_date,
+    ).all()}
+
+    workers_on_shift = []
+    for w in cleaning_workers:
+        sa = shifts_today.get(w.id)
+        if w.id in absent_ids or not sa or not sa.shift_type_id:
+            continue
+        st = sa.shift_type
+        start_dt = datetime.combine(plan_date, st.start_time)
+        end_dt = datetime.combine(plan_date, st.end_time)
+        if end_dt <= start_dt:
+            end_dt += timedelta(days=1)
+        shift_min = round(((end_dt - start_dt).total_seconds() / 60) - (st.breaks_minutes or 0))
+        workers_on_shift.append({
+            'id': w.id, 'name': w.name, 'role': w.role,
+            'shift_name': st.short_name, 'shift_color': st.color,
+            'shift_start': st.start_time.strftime('%H:%M'),
+            'shift_end': st.end_time.strftime('%H:%M'),
+            'shift_min': shift_min,
+        })
+
+    # All rooms with urgency data
+    all_rooms = Room.query.options(joinedload(Room.floor), joinedload(Room.room_type)).order_by(Room.number).all()
+    stats = _compute_cleaning_stats(90)
+    avg_per_room = stats['avg_per_room']
+    targets_map = {t.room_type_id: t.target_minutes for t in CleaningTargetTime.query.all()}
+
+    cutoff_freq = datetime.now() - timedelta(days=90)
+    freq_records = CleaningRecord.query.filter(
+        CleaningRecord.end_time.isnot(None), CleaningRecord.start_time >= cutoff_freq,
+    ).all()
+    room_clean_count = {}
+    room_last_cleaned = {}
+    for rec in freq_records:
+        room_clean_count[rec.room_id] = room_clean_count.get(rec.room_id, 0) + 1
+        if rec.room_id not in room_last_cleaned or rec.start_time > room_last_cleaned[rec.room_id]:
+            room_last_cleaned[rec.room_id] = rec.start_time
+
+    occupied = {r.room_number for r in Resident.query.filter_by(active=True).all() if r.room_number}
+    now = datetime.now()
+
+    rooms_data = []
+    for room in all_rooms:
+        is_res = room.room_type and 'residen' in room.room_type.name.lower()
+        is_occ = room.number in occupied
+        urgency, days_since, freq = _calculate_room_urgency(
+            room.id, room_clean_count, room_last_cleaned, now, is_res, is_occ)
+        est = avg_per_room.get(room.id, targets_map.get(room.room_type_id, 15))
+        rooms_data.append({
+            'id': room.id, 'number': room.number,
+            'description': room.description or '',
+            'floor_name': room.floor.name if room.floor else '',
+            'floor_id': room.floor.id if room.floor else 0,
+            'room_type': room.room_type.name if room.room_type else '',
+            'urgency': round(urgency, 2),
+            'days_since': days_since,
+            'priority': _urgency_priority(urgency),
+            'estimated_min': round(est, 1),
+        })
+
+    # Existing assignments for this date
+    existing = DailyCleaningAssignment.query.filter_by(date=plan_date).order_by(
+        DailyCleaningAssignment.cleaner_id, DailyCleaningAssignment.position,
+    ).all()
+    existing_map = {}
+    for a in existing:
+        existing_map.setdefault(a.cleaner_id, []).append(a.room_id)
+
+    # Floor list for filters
+    floors = Floor.query.order_by(Floor.name).all()
+
+    import json
+    return render_template('admin_cleaning_plan_edit.html',
+        plan_date=plan_date,
+        workers_json=json.dumps(workers_on_shift),
+        rooms_json=json.dumps(rooms_data),
+        existing_json=json.dumps(existing_map),
+        floors=floors,
+        is_today=plan_date == date.today(),
+        prev_date=(plan_date - timedelta(days=1)).isoformat(),
+        next_date=(plan_date + timedelta(days=1)).isoformat(),
+    )
+
+
+@bp.route('/api/cleaning-plan/save', methods=['POST'])
+@admin_required
+def save_cleaning_plan():
+    """Save all cleaning assignments for a date."""
+    from flask_login import current_user
+    data = request.get_json()
+    plan_date = date.fromisoformat(data['date'])
+    assignments = data.get('assignments', [])
+
+    # Delete existing for this date
+    DailyCleaningAssignment.query.filter_by(date=plan_date).delete()
+
+    for item in assignments:
+        db.session.add(DailyCleaningAssignment(
+            cleaner_id=item['cleaner_id'],
+            room_id=item['room_id'],
+            date=plan_date,
+            source='manual',
+            position=item.get('position', 0),
+            created_by=current_user.id,
+        ))
+
+    db.session.commit()
+    return jsonify({'ok': True, 'count': len(assignments)})
+
+
+@bp.route('/api/cleaning-plan/generate-worker', methods=['POST'])
+@admin_required
+def generate_worker_plan():
+    """Auto-generate cleaning plan for a single worker."""
+    from flask_login import current_user
+    data = request.get_json()
+    plan_date = date.fromisoformat(data['date'])
+    cleaner_id = data['cleaner_id']
+
+    worker = Cleaner.query.get_or_404(cleaner_id)
+    sa = ShiftAssignment.query.filter_by(cleaner_id=cleaner_id, date=plan_date).first()
+    if not sa or not sa.shift_type_id:
+        return jsonify({'error': 'Trabajador sin turno asignado'}), 400
+
+    # Use the same algorithm as admin_cleaning_plan to compute rooms
+    stats = _compute_cleaning_stats(90)
+    avg_per_room = stats['avg_per_room']
+    targets_map = {t.room_type_id: t.target_minutes for t in CleaningTargetTime.query.all()}
+
+    all_rooms = Room.query.options(joinedload(Room.floor), joinedload(Room.room_type)).all()
+    cutoff_freq = datetime.now() - timedelta(days=90)
+    freq_records = CleaningRecord.query.filter(
+        CleaningRecord.end_time.isnot(None), CleaningRecord.start_time >= cutoff_freq,
+    ).all()
+    room_clean_count = {}
+    room_last_cleaned = {}
+    for rec in freq_records:
+        room_clean_count[rec.room_id] = room_clean_count.get(rec.room_id, 0) + 1
+        if rec.room_id not in room_last_cleaned or rec.start_time > room_last_cleaned[rec.room_id]:
+            room_last_cleaned[rec.room_id] = rec.start_time
+
+    occupied = {r.room_number for r in Resident.query.filter_by(active=True).all() if r.room_number}
+    now = datetime.now()
+
+    # Get rooms from zones or history
+    zone_assigns = CleaningZoneAssignment.query.filter_by(cleaner_id=worker.id).all()
+    if zone_assigns:
+        assigned_floors = {za.floor_id for za in zone_assigns}
+        worker_rooms = [r for r in all_rooms if r.floor_id in assigned_floors]
+    else:
+        worker_room_ids = {r[0] for r in db.session.query(CleaningRecord.room_id).filter(
+            CleaningRecord.cleaner_id == worker.id, CleaningRecord.end_time.isnot(None),
+            CleaningRecord.start_time >= cutoff_freq,
+        ).distinct().all()}
+        worker_rooms = [r for r in all_rooms if r.id in worker_room_ids] if worker_room_ids else all_rooms
+
+    # Build room list with urgency and sort
+    rooms_plan = []
+    for room in worker_rooms:
+        is_res = room.room_type and 'residen' in room.room_type.name.lower()
+        is_occ = room.number in occupied
+        urgency, days_since, freq = _calculate_room_urgency(
+            room.id, room_clean_count, room_last_cleaned, now, is_res, is_occ)
+        est = avg_per_room.get(room.id, targets_map.get(room.room_type_id, 15))
+        rooms_plan.append({
+            'room_id': room.id, 'urgency': urgency, 'estimated_min': est,
+        })
+
+    rooms_plan.sort(key=lambda r: -r['urgency'])
+
+    # Fill extras if limpieza worker
+    worker_room_ids_set = {r['room_id'] for r in rooms_plan}
+    if worker.role == 'limpieza':
+        st = sa.shift_type
+        start_dt = datetime.combine(plan_date, st.start_time)
+        end_dt = datetime.combine(plan_date, st.end_time)
+        if end_dt <= start_dt:
+            end_dt += timedelta(days=1)
+        shift_net_min = ((end_dt - start_dt).total_seconds() / 60) - (st.breaks_minutes or 0)
+        remaining = sum(r['estimated_min'] for r in rooms_plan)
+
+        # Rooms already assigned to other workers for this date
+        other_assigned = {a.room_id for a in DailyCleaningAssignment.query.filter(
+            DailyCleaningAssignment.date == plan_date,
+            DailyCleaningAssignment.cleaner_id != cleaner_id,
+        ).all()}
+
+        if remaining < shift_net_min:
+            spare = shift_net_min - remaining
+            for room in all_rooms:
+                if spare <= 0:
+                    break
+                if room.id in worker_room_ids_set or room.id in other_assigned:
+                    continue
+                is_res = room.room_type and 'residen' in room.room_type.name.lower()
+                is_occ = room.number in occupied
+                urg, _, _ = _calculate_room_urgency(
+                    room.id, room_clean_count, room_last_cleaned, now, is_res, is_occ)
+                est = avg_per_room.get(room.id, targets_map.get(room.room_type_id, 15))
+                rooms_plan.append({'room_id': room.id, 'urgency': urg, 'estimated_min': est})
+                worker_room_ids_set.add(room.id)
+                spare -= est
+
+    # Delete existing assignments for this worker+date and save new ones
+    DailyCleaningAssignment.query.filter_by(cleaner_id=cleaner_id, date=plan_date).delete()
+    for pos, rp in enumerate(rooms_plan):
+        db.session.add(DailyCleaningAssignment(
+            cleaner_id=cleaner_id, room_id=rp['room_id'], date=plan_date,
+            source='auto', position=pos, created_by=current_user.id,
+        ))
+    db.session.commit()
+
+    return jsonify({'ok': True, 'rooms': [r['room_id'] for r in rooms_plan]})
+
+
+@bp.route('/api/cleaning-plan/clear', methods=['POST'])
+@admin_required
+def clear_cleaning_plan():
+    """Clear cleaning assignments for a date (optionally for a single worker)."""
+    data = request.get_json()
+    plan_date = date.fromisoformat(data['date'])
+    cleaner_id = data.get('cleaner_id')
+
+    query = DailyCleaningAssignment.query.filter_by(date=plan_date)
+    if cleaner_id:
+        query = query.filter_by(cleaner_id=cleaner_id)
+    count = query.delete()
+    db.session.commit()
+    return jsonify({'ok': True, 'deleted': count})
 
 
 @bp.route('/admin/cleaning-config')
