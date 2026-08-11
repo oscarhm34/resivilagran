@@ -508,6 +508,58 @@ class DailyCleaningAssignment(db.Model):
     __table_args__ = (db.UniqueConstraint('cleaner_id', 'room_id', 'date', name='uq_daily_clean'),)
 
 
+# ── VALORACIONES CLÍNICAS ─────────────────────────────────────────────────────
+
+class AssessmentRecord(db.Model):
+    """A single clinical assessment (Barthel, Norton, etc.) for a resident."""
+    __tablename__ = 'assessment_record'
+    id = db.Column(db.Integer, primary_key=True)
+    resident_id = db.Column(db.Integer, db.ForeignKey('resident.id'), nullable=False, index=True)
+    scale_type = db.Column(db.String(20), nullable=False, index=True)
+    score = db.Column(db.Integer, nullable=False)
+    interpretation = db.Column(db.String(50))
+    answers_json = db.Column(db.Text)
+    notes = db.Column(db.Text, nullable=True)
+    assessed_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
+    assessed_at = db.Column(db.DateTime, default=datetime.now, index=True)
+
+    resident = db.relationship('Resident', backref=db.backref('assessments', lazy=True))
+    assessor = db.relationship('Cleaner', foreign_keys=[assessed_by])
+
+
+class WeightRecord(db.Model):
+    """Weight tracking for a resident with change alerts."""
+    __tablename__ = 'weight_record'
+    id = db.Column(db.Integer, primary_key=True)
+    resident_id = db.Column(db.Integer, db.ForeignKey('resident.id'), nullable=False, index=True)
+    weight_kg = db.Column(db.Float, nullable=False)
+    recorded_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
+    recorded_at = db.Column(db.DateTime, default=datetime.now, index=True)
+    notes = db.Column(db.Text, nullable=True)
+
+    resident = db.relationship('Resident', backref=db.backref('weight_records', lazy=True))
+    recorder = db.relationship('Cleaner', foreign_keys=[recorded_by])
+
+
+class MealIntakeRecord(db.Model):
+    """Meal intake and fluid tracking per resident per meal."""
+    __tablename__ = 'meal_intake_record'
+    id = db.Column(db.Integer, primary_key=True)
+    resident_id = db.Column(db.Integer, db.ForeignKey('resident.id'), nullable=False, index=True)
+    date = db.Column(db.Date, nullable=False, index=True)
+    meal_type = db.Column(db.String(20), nullable=False)
+    intake_pct = db.Column(db.Integer, nullable=False)
+    fluid_ml = db.Column(db.Integer, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    recorded_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
+    recorded_at = db.Column(db.DateTime, default=datetime.now)
+
+    resident = db.relationship('Resident', backref=db.backref('meal_records', lazy=True))
+    recorder = db.relationship('Cleaner', foreign_keys=[recorded_by])
+
+    __table_args__ = (db.UniqueConstraint('resident_id', 'date', 'meal_type', name='uq_meal_intake'),)
+
+
 # ── INCIDENTES ───────────────────────────────────────────────────────────────
 
 class IncidentType(db.Model):

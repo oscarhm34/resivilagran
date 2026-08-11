@@ -173,6 +173,9 @@
             <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-resumen" type="button" role="tab" aria-selected="true">Resumen</button>
         </li>
         <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-valoraciones" type="button" role="tab" aria-selected="false">Valoraciones</button>
+        </li>
+        <li class="nav-item" role="presentation">
             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-historial" type="button" role="tab" aria-selected="false">Historial</button>
         </li>
         <li class="nav-item" role="presentation">
@@ -241,6 +244,183 @@
             {% if not vital_charts and not heatmap_data %}
             <div class="alert alert-info">No hay datos de resumen disponibles todavía.</div>
             {% endif %}
+        </div>
+
+        <!-- Tab Valoraciones -->
+        <div class="tab-pane fade" id="tab-valoraciones" role="tabpanel">
+
+            <!-- Barthel -->
+            <div class="card mb-4">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <div><i class="bi bi-clipboard2-pulse me-1"></i><strong>Barthel</strong> <small class="text-muted">Independencia en AVDs</small></div>
+                    <a href="{{ url_for('assessments.assessment_barthel', resident_id=resident.id) }}" class="btn btn-primary btn-sm">
+                        <i class="bi bi-plus-lg me-1"></i>Nueva
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if barthel_records %}
+                    {% set last_b = barthel_records[0] %}
+                    {% set b_colors = {'total': '#dc3545', 'severa': '#fd7e14', 'moderada': '#ffc107', 'leve': '#0d6efd', 'independiente': '#198754'} %}
+                    {% set b_labels = {'total': 'Dep. total', 'severa': 'Dep. severa', 'moderada': 'Dep. moderada', 'leve': 'Dep. leve', 'independiente': 'Independiente'} %}
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <div style="font-size:2rem;font-weight:800;color:{{ b_colors.get(last_b.interpretation, '#6c757d') }}">{{ last_b.score }}<span style="font-size:1rem;color:var(--color-text-secondary)">/100</span></div>
+                        <div>
+                            <span class="badge" style="background:{{ b_colors.get(last_b.interpretation, '#6c757d') }}20;color:{{ b_colors.get(last_b.interpretation, '#6c757d') }}">{{ b_labels.get(last_b.interpretation, last_b.interpretation) }}</span>
+                            <br><small class="text-muted">{{ last_b.assessed_at.strftime('%d/%m/%Y') }}</small>
+                        </div>
+                    </div>
+                    {% if barthel_records|length > 1 %}
+                    <canvas id="chart-barthel" height="100"></canvas>
+                    {% endif %}
+                    <details class="mt-2">
+                        <summary class="text-muted" style="font-size:.8rem;cursor:pointer">Historial ({{ barthel_records|length }})</summary>
+                        <table class="table table-sm mt-2" style="font-size:.8rem">
+                            <thead><tr><th>Fecha</th><th>Puntuacion</th><th>Resultado</th><th>Evaluador</th></tr></thead>
+                            <tbody>
+                            {% for a in barthel_records %}
+                            <tr>
+                                <td>{{ a.assessed_at.strftime('%d/%m/%Y') }}</td>
+                                <td><strong>{{ a.score }}</strong>/100</td>
+                                <td><span style="color:{{ b_colors.get(a.interpretation, '#6c757d') }}">{{ b_labels.get(a.interpretation, a.interpretation) }}</span></td>
+                                <td>{{ a.assessor.name if a.assessor else '—' }}</td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </details>
+                    {% else %}
+                    <p class="text-muted mb-0">Sin valoraciones Barthel. Pulsa "Nueva" para crear la primera.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Norton -->
+            <div class="card mb-4">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <div><i class="bi bi-shield-exclamation me-1"></i><strong>Norton</strong> <small class="text-muted">Riesgo de ulceras por presion</small></div>
+                    <a href="{{ url_for('assessments.assessment_norton', resident_id=resident.id) }}" class="btn btn-outline-warning btn-sm">
+                        <i class="bi bi-plus-lg me-1"></i>Nueva
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if norton_records %}
+                    {% set last_n = norton_records[0] %}
+                    {% set n_colors = {'muy_alto': '#dc3545', 'alto': '#fd7e14', 'medio': '#ffc107', 'minimo': '#198754'} %}
+                    {% set n_labels = {'muy_alto': 'Riesgo muy alto', 'alto': 'Riesgo alto', 'medio': 'Riesgo medio', 'minimo': 'Sin riesgo'} %}
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <div style="font-size:2rem;font-weight:800;color:{{ n_colors.get(last_n.interpretation, '#6c757d') }}">{{ last_n.score }}<span style="font-size:1rem;color:var(--color-text-secondary)">/20</span></div>
+                        <div>
+                            <span class="badge" style="background:{{ n_colors.get(last_n.interpretation, '#6c757d') }}20;color:{{ n_colors.get(last_n.interpretation, '#6c757d') }}">{{ n_labels.get(last_n.interpretation, last_n.interpretation) }}</span>
+                            <br><small class="text-muted">{{ last_n.assessed_at.strftime('%d/%m/%Y') }}</small>
+                        </div>
+                    </div>
+                    {% if norton_records|length > 1 %}
+                    <canvas id="chart-norton" height="100"></canvas>
+                    {% endif %}
+                    <details class="mt-2">
+                        <summary class="text-muted" style="font-size:.8rem;cursor:pointer">Historial ({{ norton_records|length }})</summary>
+                        <table class="table table-sm mt-2" style="font-size:.8rem">
+                            <thead><tr><th>Fecha</th><th>Puntuacion</th><th>Resultado</th><th>Evaluador</th></tr></thead>
+                            <tbody>
+                            {% for a in norton_records %}
+                            <tr>
+                                <td>{{ a.assessed_at.strftime('%d/%m/%Y') }}</td>
+                                <td><strong>{{ a.score }}</strong>/20</td>
+                                <td><span style="color:{{ n_colors.get(a.interpretation, '#6c757d') }}">{{ n_labels.get(a.interpretation, a.interpretation) }}</span></td>
+                                <td>{{ a.assessor.name if a.assessor else '—' }}</td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </details>
+                    {% else %}
+                    <p class="text-muted mb-0">Sin valoraciones Norton. Pulsa "Nueva" para crear la primera.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Peso -->
+            <div class="card mb-4">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <div><i class="bi bi-speedometer me-1"></i><strong>Peso</strong></div>
+                </div>
+                <div class="card-body">
+                    {% if weights %}
+                    {% set last_w = weights[0] %}
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <div style="font-size:2rem;font-weight:800">{{ last_w.weight_kg|round(1) }} <span style="font-size:1rem;color:var(--color-text-secondary)">kg</span></div>
+                        {% if weights|length > 1 %}
+                        {% set diff_w = last_w.weight_kg - weights[1].weight_kg %}
+                        <span style="font-size:.85rem;font-weight:600;padding:2px 8px;border-radius:20px;
+                            {% if diff_w < -1 %}background:#f8d7da;color:#dc3545{% elif diff_w > 1 %}background:#d4edda;color:#198754{% else %}background:#e9ecef;color:#6c757d{% endif %}">
+                            {{ '↓' if diff_w < 0 else '↑' if diff_w > 0 else '→' }} {{ diff_w|abs|round(1) }} kg
+                        </span>
+                        {% endif %}
+                        <small class="text-muted">{{ last_w.recorded_at.strftime('%d/%m/%Y') }}</small>
+                    </div>
+                    {% if weights|length > 1 %}
+                    <canvas id="chart-weight" height="100"></canvas>
+                    {% endif %}
+                    {% else %}
+                    <p class="text-muted mb-2">Sin registros de peso.</p>
+                    {% endif %}
+                    <form method="POST" action="{{ url_for('assessments.record_weight', resident_id=resident.id) }}" class="d-flex gap-2 align-items-end mt-3">
+                        <div>
+                            <label class="form-label" style="font-size:.75rem">Peso (kg)</label>
+                            <input type="number" name="weight_kg" class="form-control form-control-sm" step="0.1" min="20" max="250" required style="width:100px">
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-size:.75rem">Notas</label>
+                            <input type="text" name="notes" class="form-control form-control-sm" placeholder="Opcional" style="width:160px">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg"></i></button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Ingesta / Hidratacion -->
+            <div class="card mb-4">
+                <div class="card-header"><i class="bi bi-cup-hot me-1"></i><strong>Ingesta y hidratacion de hoy</strong></div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0" style="font-size:.85rem">
+                        <thead>
+                            <tr><th>Comida</th><th>Ingesta</th><th>Liquidos</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            {% for mt in meal_types %}
+                            {% set m = today_meals.get(mt) %}
+                            <tr>
+                                <td class="fw-semibold">{{ meal_labels[mt] }}</td>
+                                <td>
+                                    {% if m %}
+                                    {% set pct = m.intake_pct %}
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="progress" style="width:60px;height:8px">
+                                            <div class="progress-bar {% if pct >= 75 %}bg-success{% elif pct >= 50 %}bg-warning{% else %}bg-danger{% endif %}" style="width:{{ pct }}%"></div>
+                                        </div>
+                                        <span>{{ pct }}%</span>
+                                    </div>
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ m.fluid_ml|string + ' ml' if m and m.fluid_ml else '—' }}</td>
+                                <td>
+                                    <div class="d-flex gap-1 meal-btns" data-meal="{{ mt }}">
+                                        {% for pct in [0, 25, 50, 75, 100] %}
+                                        <button type="button" class="btn btn-outline-secondary meal-pct-btn {% if m and m.intake_pct == pct %}active{% endif %}"
+                                                style="font-size:.65rem;padding:2px 6px;min-width:30px"
+                                                data-pct="{{ pct }}">{{ pct }}%</button>
+                                        {% endfor %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
         </div>
 
         <!-- Tab Historial -->
@@ -531,4 +711,73 @@ vitalData.forEach((chart, i) => {
 });
 </script>
 {% endif %}
+
+{# Assessment charts #}
+{% if barthel_records|length > 1 %}
+<script>
+(function(){
+    var labels = [{% for a in barthel_records|reverse %}'{{ a.assessed_at.strftime("%d/%m/%y") }}'{{ ',' if not loop.last }}{% endfor %}];
+    var data = [{% for a in barthel_records|reverse %}{{ a.score }}{{ ',' if not loop.last }}{% endfor %}];
+    var ctx = document.getElementById('chart-barthel');
+    if (ctx) new Chart(ctx, {
+        type: 'line',
+        data: { labels: labels, datasets: [{ data: data, borderColor: '#0d6efd', backgroundColor: 'rgba(13,110,253,.1)', fill: true, tension: .3 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 100 }, x: { ticks: { font: { size: 9 } } } }, elements: { point: { radius: 3 } } }
+    });
+})();
+</script>
+{% endif %}
+{% if norton_records|length > 1 %}
+<script>
+(function(){
+    var labels = [{% for a in norton_records|reverse %}'{{ a.assessed_at.strftime("%d/%m/%y") }}'{{ ',' if not loop.last }}{% endfor %}];
+    var data = [{% for a in norton_records|reverse %}{{ a.score }}{{ ',' if not loop.last }}{% endfor %}];
+    var ctx = document.getElementById('chart-norton');
+    if (ctx) new Chart(ctx, {
+        type: 'line',
+        data: { labels: labels, datasets: [
+            { data: data, borderColor: '#fd7e14', backgroundColor: 'rgba(253,126,20,.1)', fill: true, tension: .3 },
+            { data: labels.map(function(){ return 12; }), borderColor: '#dc3545', borderDash: [4,4], pointRadius: 0, borderWidth: 1 },
+        ] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { min: 5, max: 20 }, x: { ticks: { font: { size: 9 } } } }, elements: { point: { radius: 3 } } }
+    });
+})();
+</script>
+{% endif %}
+{% if weights|length > 1 %}
+<script>
+(function(){
+    var labels = [{% for w in weights|reverse %}'{{ w.recorded_at.strftime("%d/%m/%y") }}'{{ ',' if not loop.last }}{% endfor %}];
+    var data = [{% for w in weights|reverse %}{{ w.weight_kg }}{{ ',' if not loop.last }}{% endfor %}];
+    var ctx = document.getElementById('chart-weight');
+    if (ctx) new Chart(ctx, {
+        type: 'line',
+        data: { labels: labels, datasets: [{ data: data, borderColor: '#6f42c1', backgroundColor: 'rgba(111,66,193,.1)', fill: true, tension: .3 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { font: { size: 9 } } } }, elements: { point: { radius: 3 } } }
+    });
+})();
+</script>
+{% endif %}
+
+{# Meal intake quick buttons #}
+<script>
+(function(){
+    document.querySelectorAll('.meal-pct-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var row = btn.closest('.meal-btns');
+            var meal = row.dataset.meal;
+            var pct = parseInt(btn.dataset.pct);
+            row.querySelectorAll('.meal-pct-btn').forEach(function(b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            fetch('/admin/resident/{{ resident.id }}/meal-intake', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({date: new Date().toISOString().split('T')[0], meal_type: meal, intake_pct: pct})
+            }).then(function(r) { return r.json(); }).then(function(data) {
+                if (data.ok && typeof showToast === 'function') showToast('Ingesta registrada', 'success');
+            });
+        });
+    });
+})();
+</script>
 {% endblock %}

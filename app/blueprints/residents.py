@@ -17,6 +17,7 @@ from ..models import (
     CleaningRecord, Room, ResidentDocument,
     VitalSignType, VitalSignReading,
 )
+from .assessments import get_resident_assessment_data
 from ..utils import (
     admin_required, _format_duration, _allowed_file,
     ALLOWED_IMAGE_EXTENSIONS, ALLOWED_DOC_EXTENSIONS,
@@ -680,6 +681,9 @@ def resident_detail(resident_id: int):
 
     heatmap_data = {str(row.day): row.count for row in care_dates}
 
+    # Assessment data (Barthel, Norton, weight, meals)
+    assess_data = get_resident_assessment_data(resident_id)
+
     return render_template(
         'resident_detail.html',
         resident=resident,
@@ -687,6 +691,7 @@ def resident_detail(resident_id: int):
         pagination=pagination,
         vital_charts=list(vital_charts.values()),
         heatmap_data=heatmap_data,
+        **assess_data,
     )
 
 

@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Barthel{% endblock %}
+
+{% block content %}
+<div class="py-3">
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a href="{{ url_for('assessments.admin_assessments') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>Valoraciones
+        </a>
+        <h1 class="h3 mb-0">Indice de Barthel</h1>
+        <span class="badge bg-primary">Independencia en AVDs</span>
+    </div>
+
+    <form method="POST" action="{{ url_for('assessments.assessment_barthel') }}">
+        {% if resident %}
+        <input type="hidden" name="resident_id" value="{{ resident.id }}">
+        <div class="alert alert-light border d-flex align-items-center gap-2 mb-4">
+            <i class="bi bi-person-fill"></i>
+            <strong>{{ resident.name }}</strong>
+            {% if resident.room_number %}<span class="text-muted">Hab. {{ resident.room_number }}</span>{% endif %}
+        </div>
+        {% else %}
+        <div class="card mb-4">
+            <div class="card-body">
+                <label for="resident_id" class="form-label fw-semibold">Seleccionar residente</label>
+                <select name="resident_id" id="resident_id" class="form-select" required>
+                    <option value="">-- Selecciona --</option>
+                    {% for r in residents %}
+                    <option value="{{ r.id }}">{{ r.name }}{% if r.room_number %} (Hab. {{ r.room_number }}){% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Score display -->
+        <div class="card mb-4" style="border-color:var(--color-primary)">
+            <div class="card-body text-center py-3">
+                <div style="font-size:2.5rem;font-weight:800;color:var(--color-primary)" id="score-total">0</div>
+                <div class="text-muted" style="font-size:.85rem">de 100 puntos</div>
+                <div class="mt-2">
+                    <span class="badge" id="score-badge" style="font-size:.85rem;padding:6px 16px;background:#e9ecef;color:#6c757d">Sin completar</span>
+                </div>
+                <div class="progress mt-3" style="height:8px">
+                    <div class="progress-bar" id="score-bar" role="progressbar" style="width:0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Items -->
+        {% for item in items %}
+        <div class="card mb-3">
+            <div class="card-header d-flex align-items-center gap-2">
+                <span class="badge bg-secondary">{{ loop.index }}</span>
+                <strong>{{ item.label }}</strong>
+            </div>
+            <div class="card-body">
+                {% for val, label in item.options %}
+                <div class="form-check mb-2">
+                    <input class="form-check-input barthel-radio" type="radio"
+                           name="{{ item.key }}" value="{{ val }}"
+                           id="{{ item.key }}_{{ val }}" required>
+                    <label class="form-check-label" for="{{ item.key }}_{{ val }}">
+                        <strong>{{ val }}</strong> — {{ label }}
+                    </label>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+
+        <!-- Notes -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <label for="notes" class="form-label fw-semibold">Observaciones (opcional)</label>
+                <textarea name="notes" id="notes" class="form-control" rows="2" placeholder="Notas adicionales..."></textarea>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg me-1"></i>Guardar valoracion Barthel
+        </button>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+    var interpretTable = [
+        [0, 20, 'Dependencia total', '#dc3545'],
+        [21, 60, 'Dependencia severa', '#fd7e14'],
+        [61, 90, 'Dependencia moderada', '#ffc107'],
+        [91, 99, 'Dependencia leve', '#0d6efd'],
+        [100, 100, 'Independiente', '#198754'],
+    ];
+
+    function updateScore() {
+        var total = 0, answered = 0;
+        var radios = document.querySelectorAll('.barthel-radio:checked');
+        radios.forEach(function(r) { total += parseInt(r.value); answered++; });
+
+        document.getElementById('score-total').textContent = total;
+        var bar = document.getElementById('score-bar');
+        bar.style.width = total + '%';
+
+        var badge = document.getElementById('score-badge');
+        if (answered < {{ items|length }}) {
+            badge.textContent = answered + '/{{ items|length }} respondidos';
+            badge.style.background = '#e9ecef';
+            badge.style.color = '#6c757d';
+            bar.style.background = '#6c757d';
+        } else {
+            for (var i = 0; i < interpretTable.length; i++) {
+                if (total >= interpretTable[i][0] && total <= interpretTable[i][1]) {
+                    badge.textContent = interpretTable[i][2];
+                    badge.style.background = interpretTable[i][3];
+                    badge.style.color = '#fff';
+                    bar.style.background = interpretTable[i][3];
+                    break;
+                }
+            }
+        }
+    }
+
+    document.querySelectorAll('.barthel-radio').forEach(function(r) {
+        r.addEventListener('change', updateScore);
+    });
+})();
+</script>
+{% endblock %}

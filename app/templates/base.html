@@ -245,7 +245,7 @@
             <div class="collapse navbar-collapse" id="navMenu">
                 <ul class="navbar-nav me-auto gap-1">
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {% if request.endpoint in ('admin_bp.manage_workers','residents.manage_residents','care.manage_care_types','residents.manage_groups','residents.resident_detail','residents.group_detail') %}active{% endif %}"
+                        <a class="nav-link dropdown-toggle {% if request.endpoint in ('admin_bp.manage_workers','residents.manage_residents','care.manage_care_types','residents.manage_groups','residents.resident_detail','residents.group_detail','assessments.admin_assessments','assessments.assessment_barthel','assessments.assessment_norton') %}active{% endif %}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-people me-1" aria-hidden="true"></i>Personas
                         </a>
@@ -253,6 +253,8 @@
                             <li><a class="dropdown-item" href="{{ url_for('admin_bp.manage_workers') }}"><i class="bi bi-person-badge me-1" aria-hidden="true"></i>Empleados</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('residents.manage_residents') }}"><i class="bi bi-person-heart me-1" aria-hidden="true"></i>Residentes</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('residents.manage_groups') }}"><i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Grupos</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('assessments.admin_assessments') }}"><i class="bi bi-clipboard2-pulse me-1" aria-hidden="true"></i>Valoraciones clinicas</a></li>
                         </ul>
                     </li>
                     <li class="nav-item dropdown">

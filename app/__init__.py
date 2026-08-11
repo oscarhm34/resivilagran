@@ -42,6 +42,7 @@ from .blueprints.admin import bp as admin_bp  # noqa: E402
 from .blueprints.care import bp as care_bp  # noqa: E402
 from .blueprints.incidents import bp as incidents_bp  # noqa: E402
 from .blueprints.notifications import bp as notifications_bp  # noqa: E402
+from .blueprints.assessments import bp as assessments_bp  # noqa: E402
 app.register_blueprint(nfc_bp)
 app.register_blueprint(training_bp)
 app.register_blueprint(documents_bp)
@@ -53,6 +54,7 @@ app.register_blueprint(admin_bp)
 app.register_blueprint(care_bp)
 app.register_blueprint(incidents_bp)
 app.register_blueprint(notifications_bp)
+app.register_blueprint(assessments_bp)
 
 
 @app.errorhandler(404)
