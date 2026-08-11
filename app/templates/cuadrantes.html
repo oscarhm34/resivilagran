@@ -303,6 +303,9 @@
             <button type="button" class="btn btn-primary btn-sm no-print" id="btn-generate" title="Generar mes desde patrones">
                 <i class="bi bi-magic me-1"></i>Generar mes
             </button>
+            <button type="button" class="btn btn-outline-info btn-sm no-print" id="btn-ai-shifts" title="Suggeriments IA per al quadrant">
+                <i class="bi bi-stars me-1"></i>IA
+            </button>
             <button type="button" class="btn btn-outline-warning btn-sm no-print" id="btn-validate" title="Validar cumplimiento laboral">
                 <i class="bi bi-shield-check me-1"></i>Validar
             </button>
@@ -1085,6 +1088,30 @@
     });
 
     /* ── Clear month ──────────────────────────────────────── */
+    /* ── AI shift suggestions ────────────────────────────── */
+    document.getElementById('btn-ai-shifts').addEventListener('click', function() {
+        var btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Analitzant...';
+        fetch('/api/shifts/ai-suggestions', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({year: YEAR, month: MONTH})
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>IA';
+            if (data.suggestions) {
+                alert('Suggeriments IA:\n\n' + data.suggestions);
+            } else {
+                showToast(data.error || 'Error', 'error');
+            }
+        }).catch(function() {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>IA';
+            showToast('Error de connexio', 'error');
+        });
+    });
+
     document.getElementById('btn-clear').addEventListener('click', function() {
         showConfirm('¿Borrar TODOS los turnos del mes? Esta acción no se puede deshacer.', function() {
             fetch('/cuadrantes/clear', {

@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Activitats{% endblock %}
+
+{% block content %}
+<div class="py-3">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <h1 class="h3 mb-0"><i class="bi bi-calendar-event me-2"></i>Calendari d'activitats</h1>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('activities.admin_activities', date=prev_week) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-left"></i></a>
+            {% if not is_current_week %}
+            <a href="{{ url_for('activities.admin_activities') }}" class="btn btn-outline-primary btn-sm">Avui</a>
+            {% endif %}
+            <a href="{{ url_for('activities.admin_activities', date=next_week) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-right"></i></a>
+            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#actModal" onclick="resetActForm()">
+                <i class="bi bi-plus-lg me-1"></i>Nova activitat
+            </button>
+        </div>
+    </div>
+
+    <!-- Week grid -->
+    <div class="row g-2">
+        {% set day_names = ['Dilluns','Dimarts','Dimecres','Dijous','Divendres','Dissabte','Diumenge'] %}
+        {% for day in days %}
+        <div class="col" style="min-width:140px">
+            <div class="card h-100 {% if day == view_date %}border-primary{% endif %}" style="{% if day.weekday() >= 5 %}background:#f8f9fa{% endif %}">
+                <div class="card-header text-center py-2" style="font-size:.78rem;{% if is_current_week and day.weekday() == view_date.weekday() and day == view_date %}background:var(--color-primary);color:#fff{% endif %}">
+                    <div class="fw-bold">{{ day_names[day.weekday()] }}</div>
+                    <div>{{ day.strftime('%d/%m') }}</div>
+                </div>
+                <div class="card-body p-1" style="min-height:120px">
+                    {% for a in by_day[day] %}
+                    <div class="p-2 mb-1" style="border-radius:8px;border-left:3px solid {{ cat_colors.get(a.category, '#6c757d') }};background:{{ cat_colors.get(a.category, '#6c757d') }}10;font-size:.75rem;cursor:pointer"
+                         onclick="editAct({{ a.id }}, {{ a.title|tojson }}, {{ (a.description or '')|tojson }}, '{{ a.activity_date.isoformat() }}', '{{ a.start_time.strftime('%H:%M') if a.start_time else '' }}', '{{ a.end_time.strftime('%H:%M') if a.end_time else '' }}', {{ (a.location or '')|tojson }}, '{{ a.category }}')">
+                        {% if a.start_time %}<span class="fw-bold">{{ a.start_time.strftime('%H:%M') }}</span> {% endif %}
+                        <span>{{ a.title }}</span>
+                        {% if a.participations %}
+                        <br><span class="text-muted"><i class="bi bi-people-fill"></i> {{ a.participations|length }}</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    <button class="btn btn-sm w-100 mt-1" style="font-size:.68rem;color:var(--color-text-secondary);border:1px dashed var(--color-border)"
+                            onclick="resetActForm(); document.getElementById('act-date').value='{{ day.isoformat() }}'; new bootstrap.Modal(document.getElementById('actModal')).show()">
+                        <i class="bi bi-plus"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Modal: Add/Edit Activity -->
+<div class="modal fade" id="actModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content" style="border-radius:var(--radius-lg)">
+            <form method="POST" action="{{ url_for('activities.save_activity') }}" id="actForm">
+                <input type="hidden" name="activity_id" id="act-id" value="">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="actModalTitle">Nova activitat</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-8"><label class="form-label">Titol <span class="text-danger">*</span></label><input type="text" class="form-control" name="title" id="act-title" required></div>
+                        <div class="col-4"><label class="form-label">Categoria</label>
+                            <select class="form-select" name="category" id="act-cat">
+                                {% for k, v in categories.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-4"><label class="form-label">Data <span class="text-danger">*</span></label><input type="date" class="form-control" name="activity_date" id="act-date" required></div>
+                        <div class="col-4"><label class="form-label">Hora inici</label><input type="time" class="form-control" name="start_time" id="act-start"></div>
+                        <div class="col-4"><label class="form-label">Hora fi</label><input type="time" class="form-control" name="end_time" id="act-end"></div>
+                        <div class="col-12"><label class="form-label">Ubicacio</label><input type="text" class="form-control" name="location" id="act-loc" placeholder="Ej: Sala d'actes, Jardi..."></div>
+                        <div class="col-12"><label class="form-label">Descripcio</label><textarea class="form-control" name="description" id="act-desc" rows="2"></textarea></div>
+                    </div>
+                </div>
+                <div class="modal-footer d-flex justify-content-between">
+                    <button type="button" class="btn btn-outline-danger btn-sm" id="act-delete-btn" style="display:none" onclick="deleteAct()"><i class="bi bi-trash me-1"></i>Eliminar</button>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Guardar</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Participation -->
+<div class="modal fade" id="partModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" style="border-radius:var(--radius-lg)">
+            <div class="modal-header">
+                <h5 class="modal-title" id="partModalTitle">Participacio</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="partBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Tancar</button>
+                <button type="button" class="btn btn-primary" id="btn-save-part">Guardar participacio</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var todayStr = '{{ view_date.isoformat() }}';
+function resetActForm() {
+    document.getElementById('act-id').value = '';
+    document.getElementById('actModalTitle').textContent = 'Nova activitat';
+    document.getElementById('act-title').value = '';
+    document.getElementById('act-cat').value = 'general';
+    document.getElementById('act-date').value = todayStr;
+    document.getElementById('act-start').value = '';
+    document.getElementById('act-end').value = '';
+    document.getElementById('act-loc').value = '';
+    document.getElementById('act-desc').value = '';
+    document.getElementById('act-delete-btn').style.display = 'none';
+}
+function editAct(id, title, desc, actDate, start, end, loc, cat) {
+    document.getElementById('act-id').value = id;
+    document.getElementById('actModalTitle').textContent = 'Editar activitat';
+    document.getElementById('act-title').value = title;
+    document.getElementById('act-cat').value = cat;
+    document.getElementById('act-date').value = actDate;
+    document.getElementById('act-start').value = start;
+    document.getElementById('act-end').value = end;
+    document.getElementById('act-loc').value = loc;
+    document.getElementById('act-desc').value = desc;
+    document.getElementById('act-delete-btn').style.display = '';
+    document.getElementById('act-delete-btn').dataset.id = id;
+    new bootstrap.Modal(document.getElementById('actModal')).show();
+}
+function deleteAct() {
+    var id = document.getElementById('act-delete-btn').dataset.id;
+    if (!confirm('Eliminar aquesta activitat?')) return;
+    var form = document.createElement('form');
+    form.method = 'POST'; form.action = '/admin/activities/' + id + '/delete';
+    document.body.appendChild(form); form.submit();
+}
+</script>
+{% endblock %}

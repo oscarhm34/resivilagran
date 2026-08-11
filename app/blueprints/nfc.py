@@ -1007,15 +1007,40 @@ def finalize_care():
             from .assessments import check_weight_loss_from_vitals
             check_weight_loss_from_vitals(record.resident_id, val)
 
-    # Generate notification if worker added notes
+    # Generate notification if worker added notes (with AI classification)
     if worker_notes:
         worker = db.session.get(Cleaner, worker_id)
         resident_name = record.resident.name if record.resident else 'Residente'
         worker_name = worker.name if worker else 'Trabajador'
-        notif_title = f"{worker_name} ha anotado en atención con {resident_name}"
+        note_severity = 'info'
+        note_prefix = ''
+        # Quick AI classification (async-safe, non-blocking on failure)
+        try:
+            api_key = app.config.get('ANTHROPIC_API_KEY')
+            if api_key:
+                from anthropic import Anthropic
+                client = Anthropic(api_key=api_key)
+                cls_resp = client.messages.create(
+                    model='claude-haiku-4-5-20251001', max_tokens=50,
+                    system='Clasifica esta nota de un trabajador de residencia. Responde SOLO con una palabra: URGENTE, CLINICA, CONDUCTUAL, LOGISTICA o NORMAL',
+                    messages=[{'role': 'user', 'content': worker_notes}],
+                )
+                category = ''.join(b.text for b in cls_resp.content if hasattr(b, 'text')).strip().upper()
+                if 'URGENTE' in category:
+                    note_severity = 'warning'
+                    note_prefix = '⚠ URGENTE: '
+                elif 'CLINICA' in category:
+                    note_prefix = '[Clinica] '
+                elif 'CONDUCTUAL' in category:
+                    note_prefix = '[Conductual] '
+                elif 'LOGISTICA' in category:
+                    note_prefix = '[Logistica] '
+        except Exception:
+            pass
+        notif_title = f"{note_prefix}{worker_name} ha anotado en atencion con {resident_name}"
         db.session.add(Notification(
             type='worker_note', title=notif_title,
-            message=worker_notes, severity='info',
+            message=worker_notes, severity=note_severity,
             worker_id=worker_id,
             resident_id=record.resident_id,
             link='/admin/care-records',
@@ -1071,11 +1096,31 @@ def finalize_cleaning():
     if worker_notes:
         record.notes = worker_notes
         worker = db.session.get(Cleaner, worker_id)
-        room_desc = f'Hab. {record.room.number}' if record.room else 'Habitación'
+        room_desc = f'Hab. {record.room.number}' if record.room else 'Habitacion'
         worker_name = worker.name if worker else 'Trabajador'
+        note_severity = 'info'
+        note_prefix = ''
+        try:
+            api_key = app.config.get('ANTHROPIC_API_KEY')
+            if api_key:
+                from anthropic import Anthropic
+                client = Anthropic(api_key=api_key)
+                cls_resp = client.messages.create(
+                    model='claude-haiku-4-5-20251001', max_tokens=50,
+                    system='Clasifica esta nota de un trabajador de residencia. Responde SOLO con una palabra: URGENTE, CLINICA, CONDUCTUAL, LOGISTICA o NORMAL',
+                    messages=[{'role': 'user', 'content': worker_notes}],
+                )
+                category = ''.join(b.text for b in cls_resp.content if hasattr(b, 'text')).strip().upper()
+                if 'URGENTE' in category:
+                    note_severity = 'warning'
+                    note_prefix = '⚠ URGENTE: '
+                elif 'LOGISTICA' in category:
+                    note_prefix = '[Logistica] '
+        except Exception:
+            pass
         db.session.add(Notification(
-            type='worker_note', title=f"{worker_name} ha anotado en limpieza de {room_desc}",
-            message=worker_notes, severity='info',
+            type='worker_note', title=f"{note_prefix}{worker_name} ha anotado en limpieza de {room_desc}",
+            message=worker_notes, severity=note_severity,
             worker_id=worker_id,
             link='/admin/cleaning-records',
         ))

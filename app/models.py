@@ -508,6 +508,40 @@ class DailyCleaningAssignment(db.Model):
     __table_args__ = (db.UniqueConstraint('cleaner_id', 'room_id', 'date', name='uq_daily_clean'),)
 
 
+# ── ACTIVIDADES ───────────────────────────────────────────────────────────────
+
+class Activity(db.Model):
+    """Scheduled activity (taller, gimnàsia, bingo, etc.)."""
+    __tablename__ = 'activity'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(150), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    activity_date = db.Column(db.Date, nullable=False, index=True)
+    start_time = db.Column(db.Time, nullable=True)
+    end_time = db.Column(db.Time, nullable=True)
+    location = db.Column(db.String(100), nullable=True)
+    category = db.Column(db.String(50), default='general')
+    created_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    creator = db.relationship('Cleaner', foreign_keys=[created_by])
+    participations = db.relationship('ActivityParticipation', backref='activity', lazy=True, cascade='all, delete-orphan')
+
+
+class ActivityParticipation(db.Model):
+    """Records a resident's participation in an activity."""
+    __tablename__ = 'activity_participation'
+    id = db.Column(db.Integer, primary_key=True)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activity.id'), nullable=False, index=True)
+    resident_id = db.Column(db.Integer, db.ForeignKey('resident.id'), nullable=False, index=True)
+    engagement = db.Column(db.String(20), default='participated')
+    notes = db.Column(db.Text, nullable=True)
+
+    resident = db.relationship('Resident', backref=db.backref('activity_participations', lazy=True))
+
+    __table_args__ = (db.UniqueConstraint('activity_id', 'resident_id', name='uq_activity_resident'),)
+
+
 # ── MEDICACIÓN ────────────────────────────────────────────────────────────────
 
 class MedicationPrescription(db.Model):

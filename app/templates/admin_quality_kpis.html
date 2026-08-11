@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}KPIs de qualitat{% endblock %}
+
+{% block content %}
+<div class="py-3">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+        <h1 class="h3 mb-0"><i class="bi bi-graph-up me-2"></i>Indicadors de qualitat assistencial</h1>
+        <div class="d-flex gap-2">
+            {% for d in [7, 14, 30, 90] %}
+            <a href="{{ url_for('assessments.quality_kpis', days=d) }}"
+               class="btn btn-sm {% if days == d %}btn-primary{% else %}btn-outline-secondary{% endif %}">{{ d }}d</a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <p class="text-muted mb-4" style="font-size:.85rem">
+        Indicadors calculats sobre els ultims <strong>{{ days }} dies</strong> amb {{ total_residents }} residents actius.
+        Els objectius son orientatius basats en estandards del sector.
+    </p>
+
+    <div class="row g-3">
+        {% for k in kpis %}
+        <div class="col-md-3 col-sm-6">
+            <div class="card h-100" style="border-top:3px solid {{ k.color }}">
+                <div class="card-body text-center py-3">
+                    <div class="mb-2"><i class="bi {{ k.icon }}" style="font-size:1.5rem;color:{{ k.color }}"></i></div>
+                    <div style="font-size:2rem;font-weight:800;color:{{ k.color }}">{{ k.value }}</div>
+                    <div class="text-muted" style="font-size:.75rem">{{ k.unit }}</div>
+                    <div class="fw-semibold mt-1" style="font-size:.82rem">{{ k.name }}</div>
+                    <div class="mt-2">
+                        <div class="progress" style="height:6px">
+                            {% if k.good == 'low' %}
+                            {% set pct = ((k.target - k.value) / k.target * 50 + 50) if k.target else 50 %}
+                            {% else %}
+                            {% set pct = (k.value / k.target * 100) if k.target else 50 %}
+                            {% endif %}
+                            <div class="progress-bar" style="width:{{ [0, [pct, 100]|min]|max }}%;background:{{ k.color }}"></div>
+                        </div>
+                        <div class="text-muted mt-1" style="font-size:.7rem">Objectiu: {{ k.target }} {{ k.unit }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Detail cards -->
+    <div class="row g-3 mt-3">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header" style="font-size:.85rem"><i class="bi bi-exclamation-triangle me-1"></i>Caigudes ({{ fall_count }})</div>
+                <div class="card-body" style="font-size:.82rem">
+                    <p class="mb-0">{{ fall_count }} caigudes registrades en {{ days }} dies sobre {{ total_residents }} residents.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header" style="font-size:.85rem"><i class="bi bi-bandaid me-1"></i>Risc UPP ({{ upp_count }})</div>
+                <div class="card-body" style="font-size:.82rem">
+                    <p class="mb-0">{{ upp_count }} residents amb Norton &le;12 (risc alt o molt alt de ulceres per pressio).</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header" style="font-size:.85rem"><i class="bi bi-arrow-down-circle me-1"></i>Perdua de pes ({{ weight_loss_count }})</div>
+                <div class="card-body" style="font-size:.82rem">
+                    <p class="mb-0">{{ weight_loss_count }} residents amb perdua de pes &ge;5% en el periode.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

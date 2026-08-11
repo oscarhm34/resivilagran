@@ -826,3 +826,103 @@ def cuadrantes_validate():
                 })
 
     return jsonify({'warnings': warnings})
+
+
+@bp.route('/api/shifts/ai-suggestions', methods=['POST'])
+@admin_required
+def ai_shift_suggestions():
+    """Use AI to analyze shift patterns and suggest improvements."""
+    from .. import app
+    api_key = app.config.get('ANTHROPIC_API_KEY')
+    if not api_key:
+        return jsonify({'error': 'IA no disponible'}), 503
+
+    data = request.get_json() or {}
+    year = data.get('year', date.today().year)
+    month = data.get('month', date.today().month)
+    import calendar
+    num_days = calendar.monthrange(year, month)[1]
+    first = date(year, month, 1)
+    last = date(year, month, num_days)
+
+    # Gather data
+    workers = Cleaner.query.filter_by(active=True).filter(Cleaner.role != 'gestion').order_by(Cleaner.name).all()
+    shift_types = {st.id: st for st in ShiftType.query.filter_by(active=True).all()}
+    assignments = ShiftAssignment.query.filter(ShiftAssignment.date >= first, ShiftAssignment.date <= last).all()
+    absences = Absence.query.filter(Absence.start_date <= last, Absence.end_date >= first).all()
+    reqs = ShiftCoverageRequirement.query.all()
+
+    # Absence patterns (last 6 months)
+    abs_6m = Absence.query.filter(Absence.start_date >= date.today() - timedelta(days=180)).all()
+    absence_summary = {}
+    for a in abs_6m:
+        w = a.cleaner
+        if w:
+            absence_summary.setdefault(w.name, []).append(f"{a.start_date.strftime('%d/%m')}-{a.end_date.strftime('%d/%m')} ({a.absence_type.name if a.absence_type else '?'})")
+
+    # Current coverage
+    assign_map = {}
+    for a in assignments:
+        key = (a.date.isoformat(), a.shift_type_id)
+        assign_map[key] = assign_map.get(key, 0) + 1
+
+    lines = [f"QUADRANT {month:02d}/{year} — {len(workers)} treballadors, {num_days} dies"]
+
+    # Coverage gaps
+    gaps = []
+    for d in range(1, num_days + 1):
+        target_date = date(year, month, d)
+        is_weekend = target_date.weekday() >= 5
+        for st_id, st in shift_types.items():
+            count = assign_map.get((target_date.isoformat(), st_id), 0)
+            for req in reqs:
+                if req.shift_type_id == st_id:
+                    day_type = 'weekend' if is_weekend else 'weekday'
+                    if req.day_type in (day_type, 'all') and count < req.min_workers:
+                        gaps.append(f"  {target_date.strftime('%d/%m')} {st.short_name}: {count}/{req.min_workers}")
+
+    if gaps:
+        lines.append(f"\nGAPS DE COBERTURA ({len(gaps)}):")
+        for g in gaps[:15]:
+            lines.append(g)
+
+    # Worker hours
+    worker_hours = {}
+    for a in assignments:
+        if a.shift_type_id and a.shift_type_id in shift_types:
+            st = shift_types[a.shift_type_id]
+            hours = ((datetime.combine(date.today(), st.end_time) - datetime.combine(date.today(), st.start_time)).total_seconds() / 3600)
+            if hours < 0:
+                hours += 24
+            worker_hours[a.cleaner_id] = worker_hours.get(a.cleaner_id, 0) + hours
+
+    lines.append(f"\nHORES PER TREBALLADOR:")
+    for w in workers:
+        h = worker_hours.get(w.id, 0)
+        lines.append(f"  {w.name}: {h:.0f}h")
+
+    if absence_summary:
+        lines.append(f"\nPATRONS D'ABSENCIA (6 mesos):")
+        for name, abs_list in absence_summary.items():
+            lines.append(f"  {name}: {', '.join(abs_list[:5])}")
+
+    context = '\n'.join(lines)
+    system = """Eres un consultor de planificacion de turnos para la residencia La Vila Gran.
+Analiza los datos del cuadrante y da sugerencias concretas y accionables.
+Responde en espanol, formato texto breve con viñetas.
+Busca: gaps de cobertura, desequilibrios de horas, patrones de absentismo,
+trabajadores sobrecargados o infrautilizados, y mejoras de distribucion."""
+
+    try:
+        from anthropic import Anthropic
+        client = Anthropic(api_key=api_key)
+        resp = client.messages.create(
+            model='claude-haiku-4-5-20251001', max_tokens=800,
+            system=system,
+            messages=[{'role': 'user', 'content': f'Analiza este cuadrante:\n\n{context}'}],
+        )
+        text = ''.join(b.text for b in resp.content if hasattr(b, 'text'))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    return jsonify({'suggestions': text})

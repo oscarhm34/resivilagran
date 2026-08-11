@@ -256,6 +256,7 @@
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ url_for('assessments.admin_assessments') }}"><i class="bi bi-clipboard2-pulse me-1" aria-hidden="true"></i>Valoraciones clinicas</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('medication.admin_medication') }}"><i class="bi bi-capsule me-1" aria-hidden="true"></i>Medicacion</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('activities.admin_activities') }}"><i class="bi bi-calendar-event me-1" aria-hidden="true"></i>Activitats</a></li>
                         </ul>
                     </li>
                     <li class="nav-item dropdown">
@@ -310,6 +311,7 @@
                             <li><a class="dropdown-item" href="{{ url_for('admin_bp.admin_analytics') }}"><i class="bi bi-activity me-1" aria-hidden="true"></i>Actividad general</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('admin_bp.admin_performance') }}"><i class="bi bi-speedometer me-1" aria-hidden="true"></i>Rendimiento</a></li>
                             <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('assessments.quality_kpis') }}"><i class="bi bi-graph-up me-1" aria-hidden="true"></i>KPIs de qualitat</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('assessments.compliance_audit') }}"><i class="bi bi-shield-check me-1" aria-hidden="true"></i>Auditoria de compliment</a></li>
                         </ul>
                     </li>

@@ -1165,6 +1165,126 @@ def risk_profile(resident_id: int):
     return jsonify({'risks': risks, 'labels': risk_labels})
 
 
+# ── Quality KPIs Dashboard ───────────────────────────────────────────────────
+
+@bp.route('/admin/quality-kpis')
+@admin_required
+def quality_kpis():
+    """Quality indicators dashboard for inspection reporting."""
+    from ..models import MedicationAdministration, MedicationPrescription
+
+    days = request.args.get('days', 30, type=int)
+    now = datetime.now()
+    cutoff = now - timedelta(days=days)
+    residents = Resident.query.filter_by(active=True).all()
+    total_residents = len(residents)
+    resident_days = total_residents * days if total_residents else 1
+
+    # 1. Falls rate (per 1000 resident-days)
+    fall_incidents = Incident.query.filter(
+        Incident.created_at >= cutoff,
+    ).all()
+    fall_count = sum(1 for i in fall_incidents if 'ca' in (i.title or '').lower() or 'caida' in (i.title or '').lower() or 'caiguda' in (i.title or '').lower())
+    falls_rate = round((fall_count / resident_days) * 1000, 1) if resident_days else 0
+
+    # 2. UPP prevalence (residents with Norton ≤12)
+    upp_count = 0
+    for r in residents:
+        latest_n = AssessmentRecord.query.filter_by(resident_id=r.id, scale_type='norton').order_by(AssessmentRecord.assessed_at.desc()).first()
+        if latest_n and latest_n.score <= 12:
+            upp_count += 1
+    upp_pct = round((upp_count / total_residents) * 100, 1) if total_residents else 0
+
+    # 3. Unplanned weight loss (residents with >5% loss in period)
+    weight_loss_count = 0
+    for r in residents:
+        readings = db.session.query(VitalSignReading.value, CareRecord.start_time).join(
+            CareRecord, VitalSignReading.care_record_id == CareRecord.id
+        ).join(VitalSignType, VitalSignReading.vital_sign_type_id == VitalSignType.id).filter(
+            CareRecord.resident_id == r.id, VitalSignType.name.ilike('%peso%'),
+            CareRecord.start_time >= cutoff,
+        ).order_by(CareRecord.start_time.asc()).all()
+        if len(readings) >= 2 and readings[0].value > 0:
+            loss = ((readings[0].value - readings[-1].value) / readings[0].value) * 100
+            if loss >= 5:
+                weight_loss_count += 1
+    weight_loss_pct = round((weight_loss_count / total_residents) * 100, 1) if total_residents else 0
+
+    # 4. Medication refusal rate
+    total_admins = MedicationAdministration.query.filter(MedicationAdministration.administered_at >= cutoff).count()
+    refused_admins = MedicationAdministration.query.filter(
+        MedicationAdministration.administered_at >= cutoff,
+        MedicationAdministration.status.in_(['refused', 'omitted']),
+    ).count()
+    med_refusal_pct = round((refused_admins / total_admins) * 100, 1) if total_admins else 0
+
+    # 5. Assessment compliance (% residents with Barthel+Norton in last 6 months)
+    cutoff_6m = now - timedelta(days=180)
+    assessed_b = {a.resident_id for a in AssessmentRecord.query.filter(
+        AssessmentRecord.scale_type == 'barthel', AssessmentRecord.assessed_at >= cutoff_6m).all()}
+    assessed_n = {a.resident_id for a in AssessmentRecord.query.filter(
+        AssessmentRecord.scale_type == 'norton', AssessmentRecord.assessed_at >= cutoff_6m).all()}
+    both_assessed = assessed_b & assessed_n
+    assess_pct = round((len(both_assessed) / total_residents) * 100, 1) if total_residents else 0
+
+    # 6. Training compliance
+    from ..models import TrainingPill, TrainingCompletion
+    active_pills = TrainingPill.query.filter_by(active=True).count()
+    active_workers = db.session.query(Cleaner).filter_by(active=True).count()
+    total_needed = active_pills * active_workers
+    total_completed = TrainingCompletion.query.filter_by(passed=True).count()
+    training_pct = round((total_completed / total_needed) * 100, 1) if total_needed else 100
+
+    # 7. Incident resolution time (avg days)
+    resolved = Incident.query.filter(
+        Incident.resolved_at.isnot(None), Incident.created_at >= cutoff,
+    ).all()
+    if resolved:
+        avg_resolution = sum((i.resolved_at - i.created_at).days for i in resolved) / len(resolved)
+    else:
+        avg_resolution = 0
+
+    # 8. Occupancy rate
+    from ..models import Room
+    total_rooms_resident = Room.query.join(Room.room_type).filter(
+        db.text("room_type.name LIKE '%residen%'")
+    ).count() or Room.query.count()
+    occupied = len({r.room_number for r in residents if r.room_number})
+    occupancy_pct = round((occupied / total_rooms_resident) * 100, 1) if total_rooms_resident else 0
+
+    kpis = [
+        {'name': 'Taxa de caigudes', 'value': falls_rate, 'unit': 'per 1000 dies-resident',
+         'target': 5.0, 'icon': 'bi-exclamation-triangle', 'good': 'low'},
+        {'name': 'Residents amb risc UPP', 'value': upp_pct, 'unit': '%',
+         'target': 15, 'icon': 'bi-bandaid', 'good': 'low'},
+        {'name': 'Perdua de pes no planificada', 'value': weight_loss_pct, 'unit': '%',
+         'target': 5, 'icon': 'bi-arrow-down-circle', 'good': 'low'},
+        {'name': 'Refus/omissio medicacio', 'value': med_refusal_pct, 'unit': '%',
+         'target': 5, 'icon': 'bi-capsule', 'good': 'low'},
+        {'name': 'Compliment valoracions (B+N)', 'value': assess_pct, 'unit': '%',
+         'target': 90, 'icon': 'bi-clipboard2-pulse', 'good': 'high'},
+        {'name': 'Compliment formatiu', 'value': training_pct, 'unit': '%',
+         'target': 80, 'icon': 'bi-mortarboard', 'good': 'high'},
+        {'name': 'Temps resolucio incidencies', 'value': round(avg_resolution, 1), 'unit': 'dies',
+         'target': 7, 'icon': 'bi-clock-history', 'good': 'low'},
+        {'name': 'Ocupacio', 'value': occupancy_pct, 'unit': '%',
+         'target': 85, 'icon': 'bi-house', 'good': 'high'},
+    ]
+
+    # Color logic
+    for k in kpis:
+        if k['good'] == 'low':
+            k['color'] = '#198754' if k['value'] <= k['target'] else ('#fd7e14' if k['value'] <= k['target'] * 1.5 else '#dc3545')
+        else:
+            k['color'] = '#198754' if k['value'] >= k['target'] else ('#fd7e14' if k['value'] >= k['target'] * 0.7 else '#dc3545')
+
+    return render_template('admin_quality_kpis.html',
+        kpis=kpis, days=days,
+        total_residents=total_residents, fall_count=fall_count,
+        upp_count=upp_count, weight_loss_count=weight_loss_count,
+    )
+
+
 # ── Assessment history data for resident detail ──────────────────────────────
 
 def get_resident_assessment_data(resident_id: int) -> dict:
