@@ -33,6 +33,14 @@
         </div>
         {% endif %}
 
+        <!-- AI suggest button -->
+        <div class="mb-3">
+            <button type="button" class="btn btn-outline-primary btn-sm" id="btn-ai-suggest">
+                <i class="bi bi-stars me-1"></i>Suggerir amb IA (basant-se en les notes dels treballadors)
+            </button>
+            <span id="ai-suggest-status" class="ms-2 text-muted" style="font-size:.8rem"></span>
+        </div>
+
         <!-- Score display -->
         <div class="card mb-4" style="border-color:var(--color-primary)">
             <div class="card-body text-center py-3">
@@ -125,6 +133,45 @@
 
     document.querySelectorAll('.barthel-radio').forEach(function(r) {
         r.addEventListener('change', updateScore);
+    });
+
+    // AI suggest
+    document.getElementById('btn-ai-suggest').addEventListener('click', function() {
+        var residentId = document.querySelector('[name="resident_id"]');
+        if (!residentId || !residentId.value) { alert('Selecciona un residente primero.'); return; }
+        var btn = this;
+        var status = document.getElementById('ai-suggest-status');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Analitzant...';
+        status.textContent = '';
+
+        fetch('/api/resident/' + residentId.value + '/ai-suggest-assessment', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({scale: 'barthel'})
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Suggerir amb IA (basant-se en les notes dels treballadors)';
+            if (data.suggestions) {
+                var keys = Object.keys(data.suggestions);
+                keys.forEach(function(key) {
+                    var val = data.suggestions[key];
+                    var radio = document.querySelector('input[name="' + key + '"][value="' + val + '"]');
+                    if (radio) radio.checked = true;
+                });
+                updateScore();
+                status.textContent = 'Suggerencies aplicades. Revisa i ajusta abans de guardar.';
+                status.style.color = 'var(--color-success, #198754)';
+            } else {
+                status.textContent = data.error || 'No s\'han pogut generar suggerencies.';
+                status.style.color = 'var(--color-danger, #dc3545)';
+            }
+        }).catch(function() {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Suggerir amb IA (basant-se en les notes dels treballadors)';
+            status.textContent = 'Error de connexio.';
+            status.style.color = 'var(--color-danger, #dc3545)';
+        });
     });
 })();
 </script>

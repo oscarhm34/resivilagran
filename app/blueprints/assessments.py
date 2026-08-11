@@ -247,6 +247,146 @@ def assessment_norton():
     )
 
 
+# ── AI suggestions for assessments ────────────────────────────────────────────
+
+@bp.route('/api/resident/<int:resident_id>/ai-suggest-assessment', methods=['POST'])
+@admin_required
+def ai_suggest_assessment(resident_id: int):
+    """Use AI to suggest Barthel or Norton answers based on recent worker notes."""
+    data = request.get_json() or {}
+    scale = data.get('scale', 'barthel')
+
+    ctx = _build_resident_context(resident_id, days=30)
+    if not ctx:
+        return jsonify({'error': 'Residente no encontrado'}), 404
+
+    context_text = _context_to_text(ctx, 30)
+
+    if scale == 'barthel':
+        items_desc = '\n'.join(
+            f"- {item['key']}: {item['label']} (opciones: {', '.join(f'{v}={l}' for v, l in item['options'])})"
+            for item in BARTHEL_ITEMS
+        )
+        system = f"""Analiza los datos del residente y sugiere valores para cada item del Indice de Barthel.
+Basate SOLO en las observaciones del personal, atenciones registradas y nivel de dependencia actual.
+Si no hay informacion suficiente para un item, elige el valor intermedio.
+
+Items del Barthel:
+{items_desc}
+
+Responde SOLO con un JSON object con las claves de cada item y el valor numerico sugerido.
+Ejemplo: {{"comer": 5, "trasladarse": 10, "aseo": 0, ...}}"""
+    else:
+        items_desc = '\n'.join(
+            f"- {item['key']}: {item['label']} (opciones: {', '.join(f'{v}={l}' for v, l in item['options'])})"
+            for item in NORTON_ITEMS
+        )
+        system = f"""Analiza los datos del residente y sugiere valores para cada item de la Escala de Norton.
+Basate SOLO en las observaciones del personal, atenciones registradas y nivel de dependencia actual.
+Si no hay informacion suficiente para un item, elige el valor intermedio.
+
+Items del Norton:
+{items_desc}
+
+Responde SOLO con un JSON object con las claves de cada item y el valor numerico sugerido.
+Ejemplo: {{"estado_fisico": 3, "estado_mental": 4, ...}}"""
+
+    prompt = f"Datos del residente:\n\n{context_text}"
+
+    try:
+        response = _call_claude(system, prompt)
+        response = response.strip()
+        if response.startswith('```'):
+            response = response.split('\n', 1)[1] if '\n' in response else response[3:]
+        if response.endswith('```'):
+            response = response.rsplit('```', 1)[0]
+        suggestions = _json.loads(response.strip())
+    except Exception:
+        return jsonify({'error': 'No se han podido generar sugerencias'}), 500
+
+    return jsonify({'suggestions': suggestions})
+
+
+# ── Inspection reports ────────────────────────────────────────────────────────
+
+INSPECTION_SYSTEM = """Eres un profesional sanitario redactando documentos oficiales para la residencia de ancianos La Vila Gran.
+Genera documentos formales en HTML estructurado, con lenguaje tecnico-sanitario apropiado para inspecciones
+y auditorias de la Conselleria de Sanitat.
+Escribe siempre en espanol. No inventes datos. Usa solo la informacion proporcionada.
+
+FORMATO: Devuelve SOLO contenido HTML (sin <html>, <head> ni <body>).
+Usa h3 para secciones, <strong> para datos clave, <ul>/<li> para listados, <table> cuando proceda.
+No uses emojis."""
+
+REPORT_TYPES = {
+    'monthly': {
+        'title': 'Informe mensual de seguimiento',
+        'prompt': """Genera un informe mensual de seguimiento del residente para la inspeccion.
+Secciones:
+- Datos del residente (nombre, habitacion, diagnosticos, alergias, nivel de dependencia)
+- Estado funcional (ultima valoracion Barthel y Norton con interpretacion)
+- Evolucion asistencial (resumen de atenciones del mes: tipos, frecuencia, observaciones relevantes)
+- Constantes vitales (resumen de lecturas del mes, valores medios, alertas si las hubo)
+- Incidencias (resumen de incidencias del mes si las hubo)
+- Plan de cuidados actual (basado en los tipos de atencion que recibe)
+- Conclusiones y recomendaciones"""
+    },
+    'pai': {
+        'title': 'Plan de Atencion Individualizado (PAI)',
+        'prompt': """Genera un borrador de Plan de Atencion Individualizado (PAI) del residente.
+Secciones:
+- Datos identificativos (nombre, habitacion, diagnosticos, alergias, medicacion)
+- Valoracion integral:
+  * Area funcional (Barthel, nivel de dependencia, movilidad)
+  * Area clinica (diagnosticos, constantes vitales, riesgo de UPP segun Norton)
+  * Area social (grupo asignado, participacion)
+- Objetivos de atencion (basados en los datos — funcionales, clinicos, sociales)
+- Plan de intervenciones (que atenciones necesita, frecuencia recomendada, profesionales implicados)
+- Seguimiento (indicadores a vigilar, frecuencia de revision)
+Nota: este es un borrador basado en datos del sistema. Debe ser revisado y completado por el equipo interdisciplinar."""
+    },
+}
+
+@bp.route('/api/resident/<int:resident_id>/inspection-report', methods=['POST'])
+@admin_required
+def inspection_report(resident_id: int):
+    """Generate formal inspection report for a resident."""
+    data = request.get_json() or {}
+    report_type = data.get('type', 'monthly')
+
+    if report_type not in REPORT_TYPES:
+        return jsonify({'error': 'Tipo de informe no valido'}), 400
+
+    rtype = REPORT_TYPES[report_type]
+    ctx = _build_resident_context(resident_id, days=30)
+    if not ctx:
+        return jsonify({'error': 'Residente no encontrado'}), 404
+
+    resident = db.session.get(Resident, resident_id)
+    context_text = _context_to_text(ctx, 30)
+    prompt = f"{rtype['prompt']}\n\n{context_text}"
+
+    try:
+        html = _call_claude(INSPECTION_SYSTEM, prompt)
+        html = html.strip()
+        if html.startswith('```'):
+            html = html.split('\n', 1)[1] if '\n' in html else html[3:]
+        if html.endswith('```'):
+            html = html.rsplit('```', 1)[0]
+        html = html.strip()
+    except Exception as e:
+        return jsonify({'error': f'Error: {str(e)}'}), 500
+
+    return jsonify({
+        'html': html,
+        'title': rtype['title'],
+        'resident_name': resident.name if resident else '',
+        'resident_room': resident.room_number or '' if resident else '',
+        'generated_at': datetime.now().strftime('%d/%m/%Y %H:%M'),
+        'generated_by': current_user.name if current_user else '',
+    })
+
+
 # ── Weight loss detection (uses existing VitalSignReading for "Peso") ─────────
 
 def check_weight_loss_from_vitals(resident_id: int, current_weight: float):

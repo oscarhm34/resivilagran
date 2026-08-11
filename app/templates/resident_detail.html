@@ -413,6 +413,56 @@
                 </div>
             </div>
 
+            <!-- Informes per inspecció -->
+            <div class="card mb-4" style="border-color:var(--color-primary);border-style:dashed">
+                <div class="card-header d-flex align-items-center justify-content-between" style="background:rgba(13,110,253,.04)">
+                    <div><i class="bi bi-file-earmark-medical me-1" style="color:var(--color-primary)"></i><strong>Informes per inspeccion</strong></div>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-primary btn-sm btn-insp-report" data-type="monthly">
+                            <i class="bi bi-calendar-month me-1"></i>Seguiment mensual
+                        </button>
+                        <button type="button" class="btn btn-outline-primary btn-sm btn-insp-report" data-type="pai">
+                            <i class="bi bi-file-earmark-text me-1"></i>Borrador PAI
+                        </button>
+                    </div>
+                </div>
+                <div id="insp-report-container" style="display:none">
+                    <div class="card-body py-2 d-flex gap-2 justify-content-end no-print" style="border-bottom:1px solid var(--color-border)">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-insp-print">
+                            <i class="bi bi-printer me-1"></i>Imprimir / PDF
+                        </button>
+                    </div>
+                    <div class="card-body" id="insp-print-area">
+                        <div id="insp-header" class="report-print-header" style="display:none">
+                            <div style="border-bottom:2px solid #333;padding-bottom:12px;margin-bottom:16px">
+                                <div style="font-size:18px;font-weight:700">Centre Medic La Vila Gran</div>
+                                <div style="font-size:12px;color:#666" id="insp-doc-title"></div>
+                            </div>
+                            <table style="width:100%;font-size:13px;margin-bottom:16px">
+                                <tr>
+                                    <td><strong>Residente:</strong> <span id="insp-rpt-name"></span></td>
+                                    <td><strong>Habitacion:</strong> <span id="insp-rpt-room"></span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Fecha:</strong> <span id="insp-rpt-date"></span></td>
+                                    <td><strong>Generado por:</strong> <span id="insp-rpt-by"></span></td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div id="insp-content" class="ai-report-content"></div>
+                        <div id="insp-footer" class="report-print-footer" style="display:none">
+                            <div style="border-top:1px solid #ccc;padding-top:8px;margin-top:24px;font-size:11px;color:#999;text-align:center">
+                                Documento generado automaticamente por IA. Debe ser revisado y validado por el equipo profesional.
+                            </div>
+                            <div style="margin-top:30px;display:flex;justify-content:space-between">
+                                <div style="border-top:1px solid #333;width:200px;text-align:center;padding-top:4px;font-size:11px">Firma del profesional</div>
+                                <div style="border-top:1px solid #333;width:200px;text-align:center;padding-top:4px;font-size:11px">Fecha y sello</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
 
         <!-- Tab Historial -->
@@ -794,6 +844,60 @@ vitalData.forEach((chart, i) => {
         navigator.clipboard.writeText(text).then(function() {
             if (typeof showToast === 'function') showToast('Texto copiado al portapapeles', 'success');
         });
+    });
+
+    // Inspection reports
+    document.querySelectorAll('.btn-insp-report').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var rtype = btn.dataset.type;
+            var container = document.getElementById('insp-report-container');
+            var contentEl = document.getElementById('insp-content');
+            btn.disabled = true;
+            var origHtml = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generant...';
+            container.style.display = 'block';
+            contentEl.innerHTML = '<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>Generant informe...</div>';
+
+            fetch('/api/resident/{{ resident.id }}/inspection-report', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({type: rtype})
+            }).then(function(r) { return r.json(); }).then(function(data) {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+                if (data.html) {
+                    contentEl.innerHTML = data.html;
+                    document.getElementById('insp-doc-title').textContent = data.title;
+                    document.getElementById('insp-rpt-name').textContent = data.resident_name;
+                    document.getElementById('insp-rpt-room').textContent = data.resident_room;
+                    document.getElementById('insp-rpt-date').textContent = data.generated_at;
+                    document.getElementById('insp-rpt-by').textContent = data.generated_by;
+                } else {
+                    contentEl.innerHTML = '<div class="alert alert-warning">' + (data.error || 'Error') + '</div>';
+                }
+            }).catch(function() {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+                contentEl.innerHTML = '<div class="alert alert-danger">Error de connexio</div>';
+            });
+        });
+    });
+
+    document.getElementById('btn-insp-print').addEventListener('click', function() {
+        document.getElementById('insp-header').style.display = 'block';
+        document.getElementById('insp-footer').style.display = 'block';
+        // Override print area to use inspection report
+        var style = document.createElement('style');
+        style.id = 'insp-print-style';
+        style.textContent = '@media print { body * { visibility: hidden !important; } #insp-print-area, #insp-print-area * { visibility: visible !important; } #insp-print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 30px; } .report-print-header, .report-print-footer { display: block !important; } .no-print { display: none !important; } .ai-report-content h3 { color: #333 !important; } }';
+        document.head.appendChild(style);
+        window.print();
+        setTimeout(function() {
+            document.getElementById('insp-header').style.display = 'none';
+            document.getElementById('insp-footer').style.display = 'none';
+            var s = document.getElementById('insp-print-style');
+            if (s) s.remove();
+        }, 500);
     });
 })();
 </script>
