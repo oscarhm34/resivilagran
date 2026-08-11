@@ -187,10 +187,10 @@
         <!-- Tab Resumen -->
         <div class="tab-pane fade show active" id="tab-resumen" role="tabpanel">
 
-            <!-- Resumen IA -->
+            <!-- Informe IA -->
             <div class="card mb-4" style="border-color:var(--color-primary);border-style:dashed">
                 <div class="card-header d-flex align-items-center justify-content-between" style="background:rgba(13,110,253,.04)">
-                    <div><i class="bi bi-stars me-1" style="color:var(--color-primary)"></i><strong>Resumen IA</strong></div>
+                    <div><i class="bi bi-stars me-1" style="color:var(--color-primary)"></i><strong>Informe clinico IA</strong></div>
                     <div class="d-flex gap-2 align-items-center">
                         <select id="ai-period" class="form-select form-select-sm" style="width:auto;font-size:.8rem">
                             <option value="today">Hoy</option>
@@ -198,19 +198,67 @@
                             <option value="month">Ultimo mes</option>
                         </select>
                         <button type="button" class="btn btn-primary btn-sm" id="btn-ai-summary">
-                            <i class="bi bi-stars me-1"></i>Generar
+                            <i class="bi bi-stars me-1"></i>Generar informe
                         </button>
                     </div>
                 </div>
-                <div class="card-body" id="ai-summary-body" style="display:none">
-                    <div id="ai-summary-text" style="white-space:pre-wrap;font-size:.85rem;line-height:1.6"></div>
-                    <div class="mt-2 text-end">
-                        <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-copy-summary" style="display:none">
-                            <i class="bi bi-clipboard me-1"></i>Copiar
+                <div id="ai-report-container" style="display:none">
+                    <div class="card-body py-2 d-flex gap-2 justify-content-end no-print" style="border-bottom:1px solid var(--color-border)">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-print-report">
+                            <i class="bi bi-printer me-1"></i>Imprimir / PDF
                         </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-copy-report">
+                            <i class="bi bi-clipboard me-1"></i>Copiar texto
+                        </button>
+                    </div>
+                    <div class="card-body" id="ai-report-body">
+                        <!-- Report header (visible when printing) -->
+                        <div id="report-header" class="report-print-header" style="display:none">
+                            <div style="border-bottom:2px solid #333;padding-bottom:12px;margin-bottom:16px">
+                                <div style="font-size:18px;font-weight:700">Centre Medic La Vila Gran</div>
+                                <div style="font-size:12px;color:#666">Informe clinico generado por IA</div>
+                            </div>
+                            <table style="width:100%;font-size:13px;margin-bottom:16px">
+                                <tr>
+                                    <td><strong>Residente:</strong> <span id="rpt-name"></span></td>
+                                    <td><strong>Habitacion:</strong> <span id="rpt-room"></span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Periodo:</strong> <span id="rpt-period"></span></td>
+                                    <td><strong>Fecha:</strong> <span id="rpt-date"></span></td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2"><strong>Generado por:</strong> <span id="rpt-by"></span></td>
+                                </tr>
+                            </table>
+                        </div>
+                        <!-- AI-generated content -->
+                        <div id="ai-report-content" class="ai-report-content"></div>
+                        <!-- Footer -->
+                        <div id="report-footer" class="report-print-footer" style="display:none">
+                            <div style="border-top:1px solid #ccc;padding-top:8px;margin-top:24px;font-size:11px;color:#999;text-align:center">
+                                Informe generado automaticamente por IA a partir de los registros del sistema.
+                                No sustituye la valoracion del profesional sanitario.
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
+
+            <style>
+                .ai-report-content { font-size:.88rem; line-height:1.7; }
+                .ai-report-content h3 { font-size:1rem; font-weight:700; color:var(--color-primary); margin-top:20px; margin-bottom:8px; border-bottom:1px solid #eee; padding-bottom:4px; }
+                .ai-report-content ul { padding-left:20px; }
+                .ai-report-content li { margin-bottom:4px; }
+                @media print {
+                    body * { visibility: hidden !important; }
+                    #ai-report-body, #ai-report-body * { visibility: visible !important; }
+                    #ai-report-body { position: absolute; left: 0; top: 0; width: 100%; padding: 30px; }
+                    .report-print-header, .report-print-footer { display: block !important; }
+                    .ai-report-content h3 { color: #333 !important; }
+                    .no-print { display: none !important; }
+                }
+            </style>
 
             <!-- Seguimiento de constantes vitales -->
             {% if vital_charts %}
@@ -692,17 +740,15 @@ vitalData.forEach((chart, i) => {
 <script>
 (function(){
     var btn = document.getElementById('btn-ai-summary');
-    var body = document.getElementById('ai-summary-body');
-    var textEl = document.getElementById('ai-summary-text');
-    var copyBtn = document.getElementById('btn-copy-summary');
+    var container = document.getElementById('ai-report-container');
+    var content = document.getElementById('ai-report-content');
 
     btn.addEventListener('click', function() {
         var period = document.getElementById('ai-period').value;
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generando...';
-        body.style.display = 'block';
-        textEl.textContent = 'Analizando datos del residente...';
-        copyBtn.style.display = 'none';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generando informe...';
+        container.style.display = 'block';
+        content.innerHTML = '<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>Analizando datos del residente...</div>';
 
         fetch('/api/resident/{{ resident.id }}/ai-summary', {
             method: 'POST',
@@ -710,23 +756,39 @@ vitalData.forEach((chart, i) => {
             body: JSON.stringify({period: period})
         }).then(function(r) { return r.json(); }).then(function(data) {
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar';
-            if (data.summary) {
-                textEl.textContent = data.summary;
-                copyBtn.style.display = '';
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar informe';
+            if (data.html) {
+                content.innerHTML = data.html;
+                // Fill print header
+                document.getElementById('rpt-name').textContent = data.resident_name;
+                document.getElementById('rpt-room').textContent = data.resident_room;
+                document.getElementById('rpt-period').textContent = data.title;
+                document.getElementById('rpt-date').textContent = data.generated_at;
+                document.getElementById('rpt-by').textContent = data.generated_by;
             } else {
-                textEl.textContent = data.error || 'Error al generar el resumen.';
+                content.innerHTML = '<div class="alert alert-warning">' + (data.error || 'Error al generar el informe.') + '</div>';
             }
         }).catch(function() {
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar';
-            textEl.textContent = 'Error de conexion.';
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar informe';
+            content.innerHTML = '<div class="alert alert-danger">Error de conexion.</div>';
         });
     });
 
-    copyBtn.addEventListener('click', function() {
-        navigator.clipboard.writeText(textEl.textContent).then(function() {
-            if (typeof showToast === 'function') showToast('Copiado al portapapeles', 'success');
+    document.getElementById('btn-print-report').addEventListener('click', function() {
+        document.getElementById('report-header').style.display = 'block';
+        document.getElementById('report-footer').style.display = 'block';
+        window.print();
+        setTimeout(function() {
+            document.getElementById('report-header').style.display = 'none';
+            document.getElementById('report-footer').style.display = 'none';
+        }, 500);
+    });
+
+    document.getElementById('btn-copy-report').addEventListener('click', function() {
+        var text = content.innerText || content.textContent;
+        navigator.clipboard.writeText(text).then(function() {
+            if (typeof showToast === 'function') showToast('Texto copiado al portapapeles', 'success');
         });
     });
 })();

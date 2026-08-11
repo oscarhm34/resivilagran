@@ -484,15 +484,28 @@ def _context_to_text(ctx: dict, days: int) -> str:
 # ── AI summary endpoint ──────────────────────────────────────────────────────
 
 SUMMARY_SYSTEM = """Eres un asistente clinico de la residencia de ancianos La Vila Gran.
-Genera resumenes profesionales y concisos sobre residentes basandote en los datos proporcionados.
-Escribe siempre en espanol. Usa un tono profesional pero comprensible.
+Genera informes clinicos estructurados en HTML sobre residentes basandote en los datos proporcionados.
+Escribe siempre en espanol. Usa un tono profesional sanitario.
 No inventes datos — solo comenta lo que aparece en los datos.
-Si no hay datos suficientes, indicalo brevemente."""
+Si no hay datos suficientes, indicalo brevemente.
+
+FORMATO: Devuelve SOLO el contenido HTML del informe (sin <html>, <head> ni <body>).
+Usa estas secciones con encabezados h3:
+- Situacion general (parrafo breve del estado actual)
+- Atenciones recibidas (resumen de cuidados, frecuencia, tipos)
+- Constantes vitales (valores recientes, tendencias si las hay)
+- Valoracion funcional (Barthel, Norton si hay datos)
+- Observaciones del personal (notas relevantes de los trabajadores)
+- Incidencias (si las hay)
+- Aspectos a vigilar / recomendaciones (si detectas algo que requiera atencion)
+
+Usa <strong> para datos importantes, <ul>/<li> para listas.
+Si una seccion no tiene datos, omitela. No uses emojis."""
 
 @bp.route('/api/resident/<int:resident_id>/ai-summary', methods=['POST'])
 @admin_required
 def ai_summary(resident_id: int):
-    """Generate AI summary for a resident."""
+    """Generate AI clinical report for a resident."""
     data = request.get_json() or {}
     period = data.get('period', 'week')
     days_map = {'today': 1, 'week': 7, 'month': 30}
@@ -502,21 +515,30 @@ def ai_summary(resident_id: int):
     if not ctx:
         return jsonify({'error': 'Residente no encontrado'}), 404
 
+    resident = db.session.get(Resident, resident_id)
     context_text = _context_to_text(ctx, days)
     period_label = {'today': 'de hoy', 'week': 'de la ultima semana', 'month': 'del ultimo mes'}
-    prompt = f"""Genera un resumen clinico {period_label.get(period, 'reciente')} de este residente.
-Incluye: atenciones recibidas, constantes vitales relevantes, observaciones del personal,
-estado funcional (valoraciones Barthel/Norton si las hay), incidencias, y cualquier aspecto
-a destacar o que requiera atencion. Se breve pero completo.
+    prompt = f"""Genera un informe clinico {period_label.get(period, 'reciente')} de este residente.
 
 {context_text}"""
 
     try:
-        summary = _call_claude(SUMMARY_SYSTEM, prompt)
+        summary_html = _call_claude(SUMMARY_SYSTEM, prompt)
     except Exception as e:
-        return jsonify({'error': f'Error al generar resumen: {str(e)}'}), 500
+        return jsonify({'error': f'Error al generar informe: {str(e)}'}), 500
 
-    return jsonify({'summary': summary, 'period': period})
+    # Build full report metadata
+    period_titles = {'today': 'Informe del dia', 'week': 'Informe semanal', 'month': 'Informe mensual'}
+    report = {
+        'html': summary_html,
+        'period': period,
+        'title': period_titles.get(period, 'Informe'),
+        'resident_name': resident.name if resident else '',
+        'resident_room': resident.room_number or '' if resident else '',
+        'generated_at': datetime.now().strftime('%d/%m/%Y %H:%M'),
+        'generated_by': current_user.name if current_user else '',
+    }
+    return jsonify(report)
 
 
 # ── Assessment history data for resident detail ──────────────────────────────
