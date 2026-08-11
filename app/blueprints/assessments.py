@@ -12,7 +12,7 @@ from .. import app, db
 from ..models import (
     Resident, Cleaner, AssessmentRecord, Notification,
     VitalSignReading, VitalSignType, CareRecord, CleaningRecord,
-    Incident, Room,
+    Incident, Room, Activity, ActivityParticipation,
 )
 from ..utils import admin_required
 
@@ -561,6 +561,23 @@ def _build_resident_context(resident_id: int, days: int = 7) -> dict:
             if cl.notes:
                 worker_notes.append(f"{cl.start_time.strftime('%d/%m')} (limpieza): {cl.notes}")
 
+    # Activities
+    activity_data = []
+    participations = ActivityParticipation.query.join(Activity).filter(
+        ActivityParticipation.resident_id == resident_id,
+        Activity.activity_date >= cutoff.date(),
+    ).all()
+    for p in participations:
+        a = p.activity
+        if a:
+            eng_label = {'participated': 'Ha participat', 'passive': 'Passiu', 'refused': 'Ha refusat', 'absent': 'Absent'}.get(p.engagement, 'Pendent')
+            activity_data.append({
+                'date': a.activity_date.strftime('%d/%m/%Y'),
+                'title': a.title,
+                'category': a.category,
+                'engagement': eng_label,
+            })
+
     return {
         'profile': profile,
         'care_records': care_data,
@@ -568,6 +585,7 @@ def _build_resident_context(resident_id: int, days: int = 7) -> dict:
         'assessments': assess_data,
         'incidents': incident_data,
         'cleaning': cleaning_data,
+        'activities': activity_data,
         'worker_notes': worker_notes,
     }
 
@@ -613,6 +631,11 @@ def _context_to_text(ctx: dict, days: int) -> str:
             dur = f" ({cl['duration_min']}min)" if cl['duration_min'] else ''
             lines.append(f"  {cl['date']}{dur}")
 
+    if ctx.get('activities'):
+        lines.append(f"\nACTIVITATS ({len(ctx['activities'])}):")
+        for act in ctx['activities'][:10]:
+            lines.append(f"  {act['date']} - {act['title']} ({act['category']}) — {act['engagement']}")
+
     if ctx['worker_notes']:
         lines.append(f"\nNOTAS DEL PERSONAL:")
         for note in ctx['worker_notes'][:15]:
@@ -637,6 +660,7 @@ Usa estas secciones con encabezados h3:
 - Valoracion funcional (Barthel, Norton si hay datos)
 - Observaciones del personal (notas relevantes de los trabajadores)
 - Incidencias (si las hay)
+- Actividades y participacion (si hay datos de actividades realizadas)
 - Aspectos a vigilar / recomendaciones (si detectas algo que requiera atencion)
 
 Usa <strong> para datos importantes, <ul>/<li> para listas.
@@ -806,6 +830,17 @@ def global_ai_report():
             room_num = cl.room.number if cl.room else '?'
             notes_list.append(f"  {cl.start_time.strftime('%d/%m')}: Hab. {room_num} (limpieza) — {cl.notes}")
 
+    # Activities
+    period_activities = Activity.query.filter(
+        Activity.activity_date >= cutoff.date(),
+    ).options(joinedload(Activity.participations)).all()
+    if period_activities:
+        lines.append(f"\nACTIVITATS ({len(period_activities)}):")
+        for a in period_activities:
+            confirmed = sum(1 for p in a.participations if p.engagement == 'participated')
+            total = len(a.participations)
+            lines.append(f"  {a.activity_date.strftime('%d/%m')} - {a.title} ({a.category}) — {confirmed}/{total} participants")
+
     # Worker notes
     if notes_list:
         lines.append(f"\nNOTAS DEL PERSONAL ({len(notes_list)}):")
@@ -850,6 +885,7 @@ Secciones con h3:
 - Atenciones destacadas (las que tienen notas o constantes fuera de rango)
 - Incidencias (nuevas o abiertas)
 - Alertas y avisos (constantes vitales fuera de rango, sesiones sin cerrar)
+- Actividades realizadas (si hay actividades programadas, participacion)
 - Pendiente para el siguiente turno (que queda por hacer)
 - Observaciones del personal (notas agrupadas por tematica)
 
@@ -941,6 +977,18 @@ def shift_handover_report():
         lines.append(f"\nALERTAS CONSTANTES VITALES:")
         for va in vital_alerts:
             lines.append(va)
+
+    # Activities today
+    today_activities = Activity.query.filter_by(activity_date=today).options(
+        joinedload(Activity.participations),
+    ).all()
+    if today_activities:
+        lines.append(f"\nACTIVITATS D'AVUI ({len(today_activities)}):")
+        for a in today_activities:
+            confirmed = sum(1 for p in a.participations if p.engagement == 'participated')
+            total = len(a.participations)
+            time_str = a.start_time.strftime('%H:%M') if a.start_time else ''
+            lines.append(f"  {time_str} {a.title} ({a.category}) — {confirmed}/{total} confirmats")
 
     if notes_list:
         lines.append(f"\nNOTAS DEL PERSONAL:")
