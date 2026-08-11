@@ -39,8 +39,9 @@
                         <li><a href="#registros">13. Registros y exportacion</a></li>
                         <li><a href="#rendimiento">14. Rendimiento</a></li>
                         <li><a href="#valoraciones">15. Valoraciones clinicas</a></li>
-                        <li><a href="#config">16. Configuracion</a></li>
-                        <li><a href="#changelog">17. Registro de cambios</a></li>
+                        <li><a href="#ia">16. Inteligencia artificial (IA)</a></li>
+                        <li><a href="#config">17. Configuracion</a></li>
+                        <li><a href="#changelog">18. Registro de cambios</a></li>
                     </ul>
                 </div>
             </div>
@@ -675,8 +676,91 @@
         </div>
     </div>
 
+    <!-- 16. Inteligencia artificial -->
+    <div class="card mb-4" id="ia">
+        <div class="card-header">16. Inteligencia artificial (IA)</div>
+        <div class="card-body">
+            <p>El sistema utiliza <strong>Claude (Anthropic)</strong> y <strong>Whisper (OpenAI)</strong> para automatizar tareas, generar informes y detectar patrones. Todas las funciones IA requieren la API key de Anthropic configurada.</p>
+
+            <h6 class="mt-3">Chatbot IA</h6>
+            <ul>
+                <li>Disponible tanto en el <strong>panel admin</strong> como en la <strong>webapp del trabajador</strong>.</li>
+                <li>Puede consultar datos de residentes, atenciones, limpiezas, turnos y constantes vitales.</li>
+                <li>Preguntas como <strong>"Com esta Maria?"</strong> devuelven un resumen completo con perfil medico, valoraciones Barthel/Norton, notas recientes del personal e incidencias.</li>
+                <li>Soporta <strong>entrada por voz</strong> via Whisper (OpenAI).</li>
+            </ul>
+
+            <h6 class="mt-3">Informe IA del residente</h6>
+            <ul>
+                <li>En la ficha del residente (pestana Resumen), boton <strong>"Generar informe"</strong>.</li>
+                <li>Genera un informe estructurado en HTML con secciones: situacion general, atenciones, constantes vitales, valoracion funcional, observaciones y recomendaciones.</li>
+                <li>Seleccionable por periodo: <strong>hoy, semana o mes</strong>.</li>
+                <li>Imprimible con cabecera profesional (nombre del centro, datos del residente, fecha).</li>
+            </ul>
+
+            <h6 class="mt-3">Informe IA global de la residencia</h6>
+            <ul>
+                <li>Boton <strong>"Informe IA"</strong> en el dashboard principal.</li>
+                <li>Genera un informe ejecutivo con: actividad asistencial, estado de los residentes, constantes vitales, incidencias, limpieza, observaciones del personal y recomendaciones.</li>
+                <li>Analiza datos de <strong>todos los residentes y trabajadores</strong> del periodo seleccionado.</li>
+            </ul>
+
+            <h6 class="mt-3">Traspaso de turno IA</h6>
+            <ul>
+                <li>Boton <strong>"Traspaso de turno"</strong> en el dashboard principal.</li>
+                <li>Genera un resumen de todo lo que ha pasado en las ultimas 8, 12 o 24 horas.</li>
+                <li>Incluye: atenciones destacadas, incidencias, alertas vitales, notas del personal, sesiones abiertas y pendientes para el turno siguiente.</li>
+                <li>Pensado para imprimir y entregar al equipo entrante.</li>
+            </ul>
+
+            <h6 class="mt-3">Informes para inspeccion</h6>
+            <ul>
+                <li>En la ficha del residente (pestana Valoraciones), dos botones:</li>
+                <li><strong>Seguimiento mensual:</strong> informe formal con datos del residente, estado funcional, evolucion, constantes, incidencias y plan de cuidados.</li>
+                <li><strong>Borrador PAI:</strong> Plan de Atencion Individualizado con valoracion integral, objetivos, intervenciones y seguimiento.</li>
+                <li>Imprimibles con espacio para firma del profesional.</li>
+            </ul>
+
+            <h6 class="mt-3">Sugerencias IA para Barthel/Norton</h6>
+            <ul>
+                <li>Boton <strong>"Suggerir amb IA"</strong> en los formularios de Barthel y Norton.</li>
+                <li>Analiza las notas de los trabajadores y el historial de atenciones de los ultimos 30 dias.</li>
+                <li>Pre-rellena las respuestas sugeridas. <strong>Siempre revisar y ajustar antes de guardar.</strong></li>
+            </ul>
+
+            <h6 class="mt-3">Clasificacion automatica de incidencias</h6>
+            <ul>
+                <li>Boton <strong>"Classificar amb IA"</strong> en el formulario de nueva incidencia.</li>
+                <li>Analiza el titulo y descripcion y sugiere automaticamente el <strong>tipo</strong> y la <strong>severidad</strong>.</li>
+            </ul>
+
+            <h6 class="mt-3">Alertas inteligentes (ai_insight)</h6>
+            <ul>
+                <li>Cada 6 horas, la IA analiza automaticamente los datos de todos los residentes (30 dias).</li>
+                <li>Detecta tendencias preocupantes: perdida de independencia, caidas repetidas, deterioro nutricional, constantes con tendencia sostenida, residentes con pocas atenciones.</li>
+                <li>Los hallazgos aparecen como <strong>notificaciones</strong> tipo "Alerta IA" en la campana.</li>
+            </ul>
+
+            <h6 class="mt-3">Perfil de riesgo del residente</h6>
+            <ul>
+                <li>En la ficha del residente (pestana Resumen), badges de color:</li>
+                <li><span style="background:#dc354520;color:#dc3545;padding:2px 8px;border-radius:12px;font-size:.8rem">Alt</span> <span style="background:#fd7e1420;color:#fd7e14;padding:2px 8px;border-radius:12px;font-size:.8rem">Mig</span> <span style="background:#19875420;color:#198754;padding:2px 8px;border-radius:12px;font-size:.8rem">Baix</span></li>
+                <li>Riscos evaluados: <strong>Caidas</strong> (Norton + incidents), <strong>UPP</strong> (Norton), <strong>Deterioro funcional</strong> (tendencia Barthel), <strong>Nutricional</strong> (tendencia de pes).</li>
+                <li>Calculados automaticamente a partir de les dades existents.</li>
+            </ul>
+
+            <h6 class="mt-3">Auditoria de compliment</h6>
+            <ul>
+                <li>Pagina dedicada en <strong>Analiticas &rarr; Auditoria de compliment</strong>.</li>
+                <li>Comprovacions automatiques: valoracions pendents (&gt;6 mesos), risc alt UPP, residents sense atencion (&gt;3 dies), documents sense signar, formacio pendent, incidencies obertes (&gt;7 dies).</li>
+                <li>Troballes classificades per categoria i severitat (critica, avis, info).</li>
+                <li>Cada troballa es un enllaç directe a la pagina corresponent per actuar.</li>
+            </ul>
+        </div>
+    </div>
+
     <div class="card mb-4" id="config">
-        <div class="card-header">16. Configuracion</div>
+        <div class="card-header">17. Configuracion</div>
         <div class="card-body">
             <p>Desde <strong><i class="bi bi-gear"></i> Config</strong> en el menu, el administrador puede activar o desactivar opciones:</p>
             <ul>
@@ -691,7 +775,7 @@
 
     <!-- 16. Registro de cambios -->
     <div class="card mb-4" id="changelog">
-        <div class="card-header">17. Registro de cambios recientes</div>
+        <div class="card-header">18. Registro de cambios recientes</div>
         <div class="card-body">
 
             <h6>Agosto 2026</h6>
@@ -700,6 +784,11 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>11/08</td><td><strong>Traspaso de turno IA:</strong> boto al dashboard que genera un informe IA de les ultimes 8/12/24 hores amb atencions, incidencies, alertes vitals, notes del personal i pendents pel torn seguent. Imprimible.</td></tr>
+                    <tr><td>11/08</td><td><strong>Auditoria de compliment:</strong> nova pagina (Analitiques &rarr; Auditoria) amb comprovacions automatiques: valoracions pendents, risc UPP, residents sense atencio, documents sense signar, formacio pendent, incidencies antigues obertes.</td></tr>
+                    <tr><td>11/08</td><td><strong>Perfil de risc del residente:</strong> badges de color a la fitxa del residente (Caigudes, UPP, Deteriorament funcional, Nutricional) calculats automaticament des de Norton, Barthel, incidencies i pes.</td></tr>
+                    <tr><td>11/08</td><td><strong>Classificacio automatica d'incidencies:</strong> boto "Classificar amb IA" al formulari d'incidencies que suggereix tipus i severitat basant-se en el text.</td></tr>
+                    <tr><td>11/08</td><td><strong>Chatbot millorat:</strong> ara respon "Com esta Maria?" amb perfil medic complet, valoracions, notes recents i incidencies.</td></tr>
                     <tr><td>11/08</td><td><strong>Suggerencies IA per Barthel/Norton:</strong> boto "Suggerir amb IA" als formularis de valoracio que pre-omple les respostes basant-se en les notes dels treballadors i l'historial d'atencions. Cal revisar i ajustar abans de guardar.</td></tr>
                     <tr><td>11/08</td><td><strong>Informes per inspeccion:</strong> des de la fitxa del residente (pestanya Valoraciones), botons per generar automaticament un Informe Mensual de Seguiment o un borrador de PAI (Pla d'Atencio Individualitzat) amb format professional, imprimible amb espai per firma.</td></tr>
                     <tr><td>11/08</td><td><strong>Resumen IA y alertas inteligentes:</strong> boton "Generar resumen IA" en la ficha de cada residente (pestana Resumen) que genera un informe clinico automatico del dia, semana o mes usando Claude. Ademas, el sistema analiza automaticamente (cada 6h) los datos de todos los residentes y genera alertas de patrones preocupantes (perdida de independencia, caidas repetidas, deterioro nutricional, etc.).</td></tr>
