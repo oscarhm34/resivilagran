@@ -41,12 +41,24 @@
                          data-parts="{{ a.participations|length }}">
                         {% if a.start_time %}<span class="fw-bold">{{ a.start_time.strftime('%H:%M') }}</span> {% endif %}
                         <span>{{ a.title }}</span>
-                        <div class="d-flex gap-1 mt-1">
-                            {% if a.participations %}
-                            <span class="text-muted"><i class="bi bi-people-fill"></i> {{ a.participations|length }}</span>
+                        <div class="d-flex align-items-center gap-1 mt-1">
+                            {% set invited = a.participations|list %}
+                            {% set confirmed = invited|selectattr('engagement')|list %}
+                            {% if invited %}
+                            <div class="d-flex" style="margin-right:auto">
+                                {% for p in invited[:4] %}
+                                {% if p.resident and p.resident.photo_path %}
+                                <img src="{{ url_for('nfc.serve_upload', filename=p.resident.photo_path) }}" style="width:18px;height:18px;border-radius:50%;object-fit:cover;border:1.5px solid {% if p.engagement == 'participated' %}#198754{% elif p.engagement == 'absent' %}#dc3545{% else %}#ccc{% endif %};margin-left:-4px" alt="">
+                                {% else %}
+                                <div style="width:18px;height:18px;border-radius:50%;background:#e9ecef;border:1.5px solid {% if p.engagement == 'participated' %}#198754{% elif p.engagement == 'absent' %}#dc3545{% else %}#ccc{% endif %};margin-left:-4px;font-size:8px;display:flex;align-items:center;justify-content:center">👤</div>
+                                {% endif %}
+                                {% endfor %}
+                                {% if invited|length > 4 %}<span style="font-size:.6rem;color:var(--color-text-secondary);margin-left:2px">+{{ invited|length - 4 }}</span>{% endif %}
+                            </div>
+                            <span style="font-size:.6rem;{% if confirmed|length == invited|length %}color:#198754{% elif confirmed %}color:#fd7e14{% else %}color:#6c757d{% endif %}">{{ confirmed|length }}/{{ invited|length }}</span>
                             {% endif %}
-                            <button type="button" class="btn-part-open btn p-0 ms-auto" style="font-size:.65rem;color:var(--color-primary);background:none;border:none" data-act-id="{{ a.id }}" data-act-title="{{ a.title }}" onclick="event.stopPropagation()">
-                                <i class="bi bi-people"></i> Participacio
+                            <button type="button" class="btn-invite-open btn p-0" style="font-size:.6rem;color:var(--color-primary);background:none;border:none" data-act-id="{{ a.id }}" data-act-title="{{ a.title }}" onclick="event.stopPropagation()">
+                                <i class="bi bi-person-plus"></i>
                             </button>
                         </div>
                     </div>
@@ -99,30 +111,59 @@
     </div>
 </div>
 
-<!-- Modal: Participation -->
-<div class="modal fade" id="partModal" tabindex="-1">
+<!-- Modal: Invite Residents -->
+<div class="modal fade" id="inviteModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content" style="border-radius:var(--radius-lg)">
             <div class="modal-header">
-                <h5 class="modal-title" id="partModalTitle">Participacio</h5>
+                <h5 class="modal-title" id="inviteModalTitle">Convidar residents</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body" id="partBody"></div>
+            <div class="modal-body">
+                <div class="d-flex gap-2 mb-3">
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="btn-select-all"><i class="bi bi-check-all me-1"></i>Tots</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-deselect-all"><i class="bi bi-x-lg me-1"></i>Cap</button>
+                    <select class="form-select form-select-sm" id="invite-group-filter" style="width:auto">
+                        <option value="">Tots els grups</option>
+                        {% for g in residents|map(attribute='group')|select|unique %}
+                        <option value="{{ g.id }}">{{ g.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div id="invite-grid" class="d-flex flex-wrap gap-2">
+                    {% for r in residents %}
+                    <div class="invite-card" data-rid="{{ r.id }}" data-group="{{ r.group_id or '' }}"
+                         style="width:90px;text-align:center;padding:8px 4px;border-radius:12px;border:2px solid var(--color-border);cursor:pointer;transition:all .15s">
+                        {% if r.photo_path %}
+                        <img src="{{ url_for('nfc.serve_upload', filename=r.photo_path) }}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid transparent" alt="">
+                        {% else %}
+                        <div style="width:48px;height:48px;border-radius:50%;background:#e9ecef;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:1.2rem;border:2px solid transparent">👤</div>
+                        {% endif %}
+                        <div style="font-size:.7rem;font-weight:600;margin-top:4px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.name.split(' ')[0] }}</div>
+                        <div style="font-size:.6rem;color:var(--color-text-secondary)">{{ r.room_number or '' }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Tancar</button>
-                <button type="button" class="btn btn-primary" id="btn-save-part">Guardar participacio</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btn-save-invites"><i class="bi bi-check-lg me-1"></i>Guardar convidats (<span id="invite-count">0</span>)</button>
             </div>
         </div>
     </div>
 </div>
+
+<style>
+    .invite-card.selected { border-color: var(--color-primary) !important; background: rgba(13,110,253,.06); }
+    .invite-card.selected img, .invite-card.selected div:first-child { border-color: var(--color-primary) !important; }
+    .invite-card:hover { border-color: var(--color-primary); }
+</style>
 {% endblock %}
 
 {% block scripts %}
 <script>
 (function(){
     var todayStr = '{{ view_date.isoformat() }}';
-    var residents = {{ residents|map(attribute='id')|list|tojson }};
-    var residentNames = { {% for r in residents %}{{ r.id }}: {{ r.name|tojson }}{{ ',' if not loop.last }}{% endfor %} };
 
     window.resetActForm = function() {
         document.getElementById('act-id').value = '';
@@ -163,54 +204,67 @@
         document.body.appendChild(form); form.submit();
     };
 
-    // Participation modal
-    var currentPartActId = null;
-    document.querySelectorAll('.btn-part-open').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            currentPartActId = parseInt(btn.dataset.actId);
-            document.getElementById('partModalTitle').textContent = 'Participacio: ' + btn.dataset.actTitle;
-            var body = document.getElementById('partBody');
-            var html = '<div class="table-responsive"><table class="table table-sm" style="font-size:.82rem">';
-            html += '<thead><tr><th>Resident</th><th>Participacio</th><th>Notes</th></tr></thead><tbody>';
-            residents.forEach(function(rid) {
-                html += '<tr><td>' + residentNames[rid] + '</td>';
-                html += '<td><select class="form-select form-select-sm part-eng" data-rid="' + rid + '">';
-                html += '<option value="">— No seleccionat —</option>';
-                html += '<option value="participated">Ha participat</option>';
-                html += '<option value="passive">Passiu/observador</option>';
-                html += '<option value="refused">Ha refusat</option>';
-                html += '<option value="absent">Absent</option>';
-                html += '</select></td>';
-                html += '<td><input type="text" class="form-control form-control-sm part-note" data-rid="' + rid + '" placeholder="Opcional"></td></tr>';
-            });
-            html += '</tbody></table></div>';
-            body.innerHTML = html;
-            new bootstrap.Modal(document.getElementById('partModal')).show();
+    // ── Invite residents modal ──────────────────────────────
+    var currentInviteActId = null;
+
+    // Toggle card selection
+    document.querySelectorAll('.invite-card').forEach(function(card) {
+        card.addEventListener('click', function() {
+            card.classList.toggle('selected');
+            updateInviteCount();
         });
     });
 
-    document.getElementById('btn-save-part').addEventListener('click', function() {
-        if (!currentPartActId) return;
-        var participants = [];
-        document.querySelectorAll('.part-eng').forEach(function(sel) {
-            if (sel.value) {
-                var rid = parseInt(sel.dataset.rid);
-                var note = document.querySelector('.part-note[data-rid="' + rid + '"]');
-                participants.push({
-                    resident_id: rid,
-                    engagement: sel.value,
-                    notes: note ? note.value : '',
-                });
-            }
+    function updateInviteCount() {
+        var count = document.querySelectorAll('.invite-card.selected').length;
+        document.getElementById('invite-count').textContent = count;
+    }
+
+    // Open invite modal
+    document.querySelectorAll('.btn-invite-open').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            currentInviteActId = parseInt(btn.dataset.actId);
+            document.getElementById('inviteModalTitle').textContent = 'Convidar residents: ' + btn.dataset.actTitle;
+            // Reset selections
+            document.querySelectorAll('.invite-card').forEach(function(c) { c.classList.remove('selected'); c.style.display = ''; });
+            updateInviteCount();
+            new bootstrap.Modal(document.getElementById('inviteModal')).show();
         });
-        fetch('/admin/activities/' + currentPartActId + '/participation', {
+    });
+
+    // Select all / deselect all
+    document.getElementById('btn-select-all').addEventListener('click', function() {
+        document.querySelectorAll('.invite-card').forEach(function(c) {
+            if (c.style.display !== 'none') c.classList.add('selected');
+        });
+        updateInviteCount();
+    });
+    document.getElementById('btn-deselect-all').addEventListener('click', function() {
+        document.querySelectorAll('.invite-card').forEach(function(c) { c.classList.remove('selected'); });
+        updateInviteCount();
+    });
+
+    // Group filter
+    document.getElementById('invite-group-filter').addEventListener('change', function() {
+        var gid = this.value;
+        document.querySelectorAll('.invite-card').forEach(function(c) {
+            c.style.display = (!gid || c.dataset.group === gid) ? '' : 'none';
+        });
+    });
+
+    // Save invites
+    document.getElementById('btn-save-invites').addEventListener('click', function() {
+        if (!currentInviteActId) return;
+        var ids = [];
+        document.querySelectorAll('.invite-card.selected').forEach(function(c) { ids.push(parseInt(c.dataset.rid)); });
+        fetch('/admin/activities/' + currentInviteActId + '/invite', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({participants: participants})
+            body: JSON.stringify({resident_ids: ids})
         }).then(function(r) { return r.json(); }).then(function(data) {
             if (data.ok) {
-                bootstrap.Modal.getInstance(document.getElementById('partModal')).hide();
-                if (typeof showToast === 'function') showToast('Participacio guardada (' + data.count + ' residents)', 'success');
+                bootstrap.Modal.getInstance(document.getElementById('inviteModal')).hide();
+                if (typeof showToast === 'function') showToast(data.count + ' residents convidats', 'success');
                 setTimeout(function() { location.reload(); }, 500);
             }
         });

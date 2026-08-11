@@ -529,15 +529,19 @@ class Activity(db.Model):
 
 
 class ActivityParticipation(db.Model):
-    """Records a resident's participation in an activity."""
+    """Records a resident's invitation and participation in an activity."""
     __tablename__ = 'activity_participation'
     id = db.Column(db.Integer, primary_key=True)
     activity_id = db.Column(db.Integer, db.ForeignKey('activity.id'), nullable=False, index=True)
     resident_id = db.Column(db.Integer, db.ForeignKey('resident.id'), nullable=False, index=True)
-    engagement = db.Column(db.String(20), default='participated')
+    invited = db.Column(db.Boolean, default=True)
+    engagement = db.Column(db.String(20), nullable=True)
+    confirmed_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
+    confirmed_at = db.Column(db.DateTime, nullable=True)
     notes = db.Column(db.Text, nullable=True)
 
     resident = db.relationship('Resident', backref=db.backref('activity_participations', lazy=True))
+    confirmer = db.relationship('Cleaner', foreign_keys=[confirmed_by])
 
     __table_args__ = (db.UniqueConstraint('activity_id', 'resident_id', name='uq_activity_resident'),)
 

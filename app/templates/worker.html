@@ -100,6 +100,21 @@
         .worker-toast { position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:9999; background:#e65100; color:#fff; padding:12px 20px; border-radius:14px; font-size:13px; font-weight:600; box-shadow:0 4px 16px rgba(0,0,0,.2); opacity:0; transition:opacity .3s; pointer-events:none; max-width:90vw; text-align:center; }
         .worker-toast.show { opacity:1; pointer-events:auto; }
 
+        .act-card { border-radius:16px; padding:14px; margin-bottom:10px; border:2px solid var(--border); background:var(--bg); }
+        .act-card-header { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+        .act-cat-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+        .act-card-title { font-weight:700; font-size:15px; }
+        .act-card-meta { font-size:12px; color:var(--text-2); }
+        .act-resident { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); }
+        .act-resident:last-child { border-bottom:none; }
+        .act-res-photo { width:36px; height:36px; border-radius:50%; object-fit:cover; flex-shrink:0; }
+        .act-res-name { flex:1; font-size:14px; font-weight:600; }
+        .act-res-room { font-size:11px; color:var(--text-2); }
+        .act-btn-confirm { width:36px; height:36px; border-radius:50%; border:2px solid var(--border); background:none; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .15s; }
+        .act-btn-confirm.yes { border-color:#198754; background:#19875420; color:#198754; }
+        .act-btn-confirm.no { border-color:#dc3545; background:#dc354520; color:#dc3545; }
+        .act-btn-confirm:active { transform:scale(.9); }
+
         /* ── Mode cards ── */
         .mode-cards { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:24px; }
         .mode-card { border-radius:18px; padding:22px 14px; border:2px solid transparent; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:10px; transition:transform .15s,border-color .15s; user-select:none; -webkit-user-select:none; background:none; font-family:inherit; width:100%; }
@@ -432,6 +447,12 @@
                 </div>
                 <span class="pending-badge" id="pending-train-count">0</span>
             </button>
+        </div>
+
+        <!-- Activitats d'avui -->
+        <div id="today-activities" style="display:none">
+            <div class="section-label">Activitats d'avui</div>
+            <div id="activities-list"></div>
         </div>
 
         <!-- Escaneo NFC unificado -->
@@ -1040,7 +1061,7 @@ async function initHome() {
     $('home-name').textContent = S.workerName || '—';
     show('screen-home');
     $('chat-fab').style.display = '';
-    await Promise.all([loadConfig(), loadActiveSessions(), loadHistory(), loadCareTypes(), loadMyGroups(), loadPendingItems(), loadRoute()]);
+    await Promise.all([loadConfig(), loadActiveSessions(), loadHistory(), loadCareTypes(), loadMyGroups(), loadPendingItems(), loadRoute(), loadTodayActivities()]);
     startGlobalTimer();
     startNotifPolling();
 }
@@ -1061,6 +1082,69 @@ async function checkWorkerNotifs() {
         api(`/api/worker/notifications/${n.id}/read`, 'POST');
     }
 }
+// ── Today's activities ────────────────────────────────────────────────────
+async function loadTodayActivities() {
+    if (!S.token) return;
+    const { ok, data } = await api('/api/activities/today');
+    if (!ok || !data || !data.activities || !data.activities.length) {
+        $('today-activities').style.display = 'none';
+        return;
+    }
+    $('today-activities').style.display = '';
+    var list = $('activities-list');
+    var html = '';
+    for (var act of data.activities) {
+        html += '<div class="act-card" style="border-left:3px solid ' + act.category_color + '">';
+        html += '<div class="act-card-header">';
+        html += '<div class="act-cat-dot" style="background:' + act.category_color + '"></div>';
+        html += '<div><div class="act-card-title">' + act.title + '</div>';
+        html += '<div class="act-card-meta">';
+        if (act.start_time) html += act.start_time;
+        if (act.end_time) html += ' - ' + act.end_time;
+        if (act.location) html += ' · ' + act.location;
+        html += ' · ' + act.total_confirmed + '/' + act.total_invited + ' confirmats';
+        html += '</div></div></div>';
+        for (var p of act.participants) {
+            var yesClass = p.engagement === 'participated' ? ' yes' : '';
+            var noClass = p.engagement === 'absent' ? ' no' : '';
+            html += '<div class="act-resident">';
+            if (p.photo_url) {
+                html += '<img class="act-res-photo" data-auth-src="' + p.photo_url + '" alt="">';
+            } else {
+                html += '<div class="act-res-photo" style="background:#e9ecef;display:flex;align-items:center;justify-content:center;font-size:16px">👤</div>';
+            }
+            html += '<div style="flex:1"><div class="act-res-name">' + p.name + '</div>';
+            html += '<div class="act-res-room">Hab. ' + p.room_number + '</div></div>';
+            if (!p.confirmed) {
+                html += '<button class="act-btn-confirm" onclick="confirmActivity(' + act.id + ',' + p.resident_id + ',\'participated\',this)" title="Ha vingut">✓</button>';
+                html += '<button class="act-btn-confirm" onclick="confirmActivity(' + act.id + ',' + p.resident_id + ',\'absent\',this)" title="No ha vingut" style="margin-left:4px">✗</button>';
+            } else if (p.engagement === 'participated') {
+                html += '<div class="act-btn-confirm yes">✓</div>';
+            } else {
+                html += '<div class="act-btn-confirm no">✗</div>';
+            }
+            html += '</div>';
+        }
+        if (!act.participants.length) {
+            html += '<div style="text-align:center;color:var(--text-2);font-size:13px;padding:8px">Sense residents convidats</div>';
+        }
+        html += '</div>';
+    }
+    list.innerHTML = html;
+    list.querySelectorAll('img[data-auth-src]').forEach(function(img) { loadAuthImg(img, img.dataset.authSrc); });
+}
+
+async function confirmActivity(actId, residentId, status, btn) {
+    btn.disabled = true;
+    const { ok } = await api('/api/activities/' + actId + '/confirm', 'POST', {resident_id: residentId, status: status});
+    if (ok) {
+        await loadTodayActivities();
+        toast(status === 'participated' ? 'Assistencia confirmada' : 'Marcat com absent');
+    } else {
+        btn.disabled = false;
+    }
+}
+
 function showWorkerToast(msg) {
     const t = $('worker-toast');
     t.textContent = '⚠ ' + msg;
