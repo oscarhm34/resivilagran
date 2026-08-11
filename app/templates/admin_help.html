@@ -540,6 +540,7 @@
                 <li><strong>Sesion estancada (aviso):</strong> sesiones de limpieza o atencion llevan mas de 24 horas abiertas.</li>
                 <li><strong>Aviso al trabajador (aviso):</strong> cuando una sesion supera el <em>tiempo maximo configurado</em> (por defecto 2 horas), el trabajador recibe un aviso visual en la app (card roja pulsante + toast). Configurable desde <strong>Configuracion &rarr; Tiempo maximo de sesion</strong>.</li>
                 <li><strong>Nota del trabajador (info):</strong> cuando un trabajador anade una observacion al finalizar una atencion o limpieza, se genera una notificacion con el texto de la nota.</li>
+                <li><strong>Alerta IA (info/aviso):</strong> la inteligencia artificial analiza automaticamente los datos de los residentes cada 6 horas y detecta tendencias preocupantes: perdida de independencia, aumento de caidas, deterioro nutricional, constantes vitales con tendencias sostenidas, o residentes con pocas atenciones.</li>
                 <li><strong>Falta de cobertura (info):</strong> turnos de manana no tienen suficientes trabajadores segun los requisitos configurados.</li>
             </ul>
 
@@ -699,6 +700,7 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>11/08</td><td><strong>Resumen IA y alertas inteligentes:</strong> boton "Generar resumen IA" en la ficha de cada residente (pestana Resumen) que genera un informe clinico automatico del dia, semana o mes usando Claude. Ademas, el sistema analiza automaticamente (cada 6h) los datos de todos los residentes y genera alertas de patrones preocupantes (perdida de independencia, caidas repetidas, deterioro nutricional, etc.).</td></tr>
                     <tr><td>11/08</td><td><strong>Valoraciones clinicas (Barthel + Norton):</strong> nuevo modulo de escalas de valoracion geriatrica. Barthel (independencia en AVDs, 0-100) con actualizacion automatica del nivel de dependencia. Norton (riesgo de ulceras, 5-20) con notificacion si riesgo alto. Puntuacion en tiempo real, graficos de evolucion, historial. Alertas automaticas de perdida de peso significativa al registrar el peso como constante vital.</td></tr>
                     <tr><td>11/08</td><td><strong>Notificacion por notas del trabajador:</strong> cuando un trabajador anade una observacion al finalizar una atencion o limpieza (ej: "cama mojada"), se genera automaticamente una notificacion visible en el centro de notificaciones del admin. Filtrable por tipo "Nota del trabajador".</td></tr>
                     <tr><td>11/08</td><td><strong>Editor de plan de limpieza:</strong> nueva pagina de edicion drag &amp; drop para crear planes de limpieza personalizados por trabajador. Permite arrastrar habitaciones entre un pool sin asignar y las columnas de cada trabajador, generar automaticamente el plan de un solo trabajador, y guardar para cualquier fecha. El plan guardado se usa tanto en la vista admin como en la app del trabajador.</td></tr>

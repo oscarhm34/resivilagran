@@ -8,10 +8,11 @@ from flask_login import current_user
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy.orm import joinedload
 
-from .. import db
+from .. import app, db
 from ..models import (
     Resident, Cleaner, AssessmentRecord, Notification,
-    VitalSignReading, VitalSignType, CareRecord,
+    VitalSignReading, VitalSignType, CareRecord, CleaningRecord,
+    Incident, Room,
 )
 from ..utils import admin_required
 
@@ -300,6 +301,222 @@ def check_weight_loss_from_vitals(resident_id: int, current_weight: float):
                     type='weight_alert', title=title, severity='critical',
                     resident_id=resident_id, link=f'/admin/resident/{resident_id}',
                 ))
+
+
+# ── AI helpers ────────────────────────────────────────────────────────────────
+
+def _call_claude(system_prompt: str, user_message: str) -> str:
+    """Call Claude API with a simple prompt (no tools)."""
+    api_key = app.config.get('ANTHROPIC_API_KEY')
+    if not api_key:
+        return 'Error: API key de Anthropic no configurada.'
+    from anthropic import Anthropic
+    client = Anthropic(api_key=api_key)
+    response = client.messages.create(
+        model='claude-haiku-4-5-20251001',
+        max_tokens=1500,
+        system=system_prompt,
+        messages=[{'role': 'user', 'content': user_message}],
+    )
+    parts = [b.text for b in response.content if hasattr(b, 'text')]
+    return '\n'.join(parts) or 'No se ha podido generar una respuesta.'
+
+
+def _build_resident_context(resident_id: int, days: int = 7) -> dict:
+    """Build structured data for AI analysis of a resident."""
+    resident = db.session.get(Resident, resident_id)
+    if not resident:
+        return {}
+
+    cutoff = datetime.now() - timedelta(days=days)
+
+    # Profile
+    dep_labels = {'autonomous': 'Autonomo', 'mild': 'Leve', 'moderate': 'Moderado',
+                  'severe': 'Severo', 'total': 'Total'}
+    profile = {
+        'name': resident.name,
+        'room': resident.room_number or '—',
+        'diagnoses': resident.diagnoses or '',
+        'allergies': resident.allergies or '',
+        'medication': resident.current_medication or '',
+        'dependency': dep_labels.get(resident.dependency_level, resident.dependency_level or '—'),
+        'relevant_info': resident.relevant_info or '',
+    }
+
+    # Care records
+    care_records = CareRecord.query.options(
+        joinedload(CareRecord.worker), joinedload(CareRecord.care_types),
+        joinedload(CareRecord.vital_sign_readings).joinedload(VitalSignReading.vital_sign_type),
+    ).filter(
+        CareRecord.resident_id == resident_id,
+        CareRecord.start_time >= cutoff,
+        CareRecord.end_time.isnot(None),
+    ).order_by(CareRecord.start_time.desc()).limit(50).all()
+
+    care_data = []
+    worker_notes = []
+    vital_data = []
+    for cr in care_records:
+        types_str = ', '.join(ct.name for ct in cr.care_types) if cr.care_types else '—'
+        dur = cr.calculate_duration()
+        care_data.append({
+            'date': cr.start_time.strftime('%d/%m/%Y %H:%M'),
+            'types': types_str,
+            'worker': cr.worker.name if cr.worker else '—',
+            'duration_min': round(dur / 60, 1) if dur else None,
+        })
+        if cr.notes:
+            worker_notes.append(f"{cr.start_time.strftime('%d/%m')}: {cr.notes}")
+        for reading in cr.vital_sign_readings:
+            vst = reading.vital_sign_type
+            vital_data.append({
+                'date': cr.start_time.strftime('%d/%m/%Y'),
+                'type': vst.name if vst else '—',
+                'value': reading.value,
+                'unit': vst.unit if vst else '',
+            })
+
+    # Assessments
+    assessments = AssessmentRecord.query.filter(
+        AssessmentRecord.resident_id == resident_id,
+        AssessmentRecord.assessed_at >= cutoff,
+    ).order_by(AssessmentRecord.assessed_at.desc()).all()
+    assess_data = [{'date': a.assessed_at.strftime('%d/%m/%Y'), 'scale': a.scale_type,
+                     'score': a.score, 'interpretation': a.interpretation} for a in assessments]
+
+    # Also include latest assessment even if older than cutoff
+    for scale in ['barthel', 'norton']:
+        if not any(a['scale'] == scale for a in assess_data):
+            latest = AssessmentRecord.query.filter_by(
+                resident_id=resident_id, scale_type=scale,
+            ).order_by(AssessmentRecord.assessed_at.desc()).first()
+            if latest:
+                assess_data.append({'date': latest.assessed_at.strftime('%d/%m/%Y'),
+                                    'scale': latest.scale_type, 'score': latest.score,
+                                    'interpretation': latest.interpretation})
+
+    # Incidents
+    incidents = Incident.query.filter(
+        Incident.resident_id == resident_id,
+        Incident.created_at >= cutoff,
+    ).order_by(Incident.created_at.desc()).all()
+    incident_data = [{'date': i.created_at.strftime('%d/%m/%Y'), 'title': i.title,
+                       'severity': i.severity, 'status': i.status} for i in incidents]
+
+    # Cleaning
+    room = Room.query.filter_by(number=resident.room_number).first() if resident.room_number else None
+    cleaning_data = []
+    if room:
+        cleanings = CleaningRecord.query.filter(
+            CleaningRecord.room_id == room.id,
+            CleaningRecord.start_time >= cutoff,
+            CleaningRecord.end_time.isnot(None),
+        ).order_by(CleaningRecord.start_time.desc()).limit(20).all()
+        for cl in cleanings:
+            dur = cl.calculate_duration()
+            cleaning_data.append({
+                'date': cl.start_time.strftime('%d/%m/%Y'),
+                'duration_min': round(dur / 60, 1) if dur else None,
+            })
+            if cl.notes:
+                worker_notes.append(f"{cl.start_time.strftime('%d/%m')} (limpieza): {cl.notes}")
+
+    return {
+        'profile': profile,
+        'care_records': care_data,
+        'vital_signs': vital_data,
+        'assessments': assess_data,
+        'incidents': incident_data,
+        'cleaning': cleaning_data,
+        'worker_notes': worker_notes,
+    }
+
+
+def _context_to_text(ctx: dict, days: int) -> str:
+    """Format context dict as readable text for Claude."""
+    lines = [f"RESIDENTE: {ctx['profile']['name']} | Hab. {ctx['profile']['room']}"]
+    p = ctx['profile']
+    if p['diagnoses']:
+        lines.append(f"Diagnosticos: {p['diagnoses']}")
+    if p['allergies']:
+        lines.append(f"Alergias: {p['allergies']}")
+    if p['medication']:
+        lines.append(f"Medicacion: {p['medication']}")
+    lines.append(f"Nivel de dependencia: {p['dependency']}")
+    if p['relevant_info']:
+        lines.append(f"Info relevante: {p['relevant_info']}")
+
+    if ctx['assessments']:
+        lines.append(f"\nVALORACIONES:")
+        for a in ctx['assessments']:
+            lines.append(f"  {a['date']} - {a['scale'].capitalize()}: {a['score']} ({a['interpretation']})")
+
+    if ctx['care_records']:
+        lines.append(f"\nATENCIONES ({len(ctx['care_records'])} en los ultimos {days} dias):")
+        for cr in ctx['care_records'][:20]:
+            dur = f", {cr['duration_min']}min" if cr['duration_min'] else ''
+            lines.append(f"  {cr['date']} - {cr['types']} por {cr['worker']}{dur}")
+
+    if ctx['vital_signs']:
+        lines.append(f"\nCONSTANTES VITALES:")
+        for vs in ctx['vital_signs'][:20]:
+            lines.append(f"  {vs['date']} - {vs['type']}: {vs['value']} {vs['unit']}")
+
+    if ctx['incidents']:
+        lines.append(f"\nINCIDENCIAS:")
+        for inc in ctx['incidents']:
+            lines.append(f"  {inc['date']} - {inc['title']} (sev: {inc['severity']}, estado: {inc['status']})")
+
+    if ctx['cleaning']:
+        lines.append(f"\nLIMPIEZAS HABITACION ({len(ctx['cleaning'])}):")
+        for cl in ctx['cleaning'][:10]:
+            dur = f" ({cl['duration_min']}min)" if cl['duration_min'] else ''
+            lines.append(f"  {cl['date']}{dur}")
+
+    if ctx['worker_notes']:
+        lines.append(f"\nNOTAS DEL PERSONAL:")
+        for note in ctx['worker_notes'][:15]:
+            lines.append(f"  - {note}")
+
+    return '\n'.join(lines)
+
+
+# ── AI summary endpoint ──────────────────────────────────────────────────────
+
+SUMMARY_SYSTEM = """Eres un asistente clinico de la residencia de ancianos La Vila Gran.
+Genera resumenes profesionales y concisos sobre residentes basandote en los datos proporcionados.
+Escribe siempre en espanol. Usa un tono profesional pero comprensible.
+No inventes datos — solo comenta lo que aparece en los datos.
+Si no hay datos suficientes, indicalo brevemente."""
+
+@bp.route('/api/resident/<int:resident_id>/ai-summary', methods=['POST'])
+@admin_required
+def ai_summary(resident_id: int):
+    """Generate AI summary for a resident."""
+    data = request.get_json() or {}
+    period = data.get('period', 'week')
+    days_map = {'today': 1, 'week': 7, 'month': 30}
+    days = days_map.get(period, 7)
+
+    ctx = _build_resident_context(resident_id, days)
+    if not ctx:
+        return jsonify({'error': 'Residente no encontrado'}), 404
+
+    context_text = _context_to_text(ctx, days)
+    period_label = {'today': 'de hoy', 'week': 'de la ultima semana', 'month': 'del ultimo mes'}
+    prompt = f"""Genera un resumen clinico {period_label.get(period, 'reciente')} de este residente.
+Incluye: atenciones recibidas, constantes vitales relevantes, observaciones del personal,
+estado funcional (valoraciones Barthel/Norton si las hay), incidencias, y cualquier aspecto
+a destacar o que requiera atencion. Se breve pero completo.
+
+{context_text}"""
+
+    try:
+        summary = _call_claude(SUMMARY_SYSTEM, prompt)
+    except Exception as e:
+        return jsonify({'error': f'Error al generar resumen: {str(e)}'}), 500
+
+    return jsonify({'summary': summary, 'period': period})
 
 
 # ── Assessment history data for resident detail ──────────────────────────────

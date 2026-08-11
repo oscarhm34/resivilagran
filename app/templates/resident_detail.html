@@ -186,6 +186,32 @@
     <div class="tab-content">
         <!-- Tab Resumen -->
         <div class="tab-pane fade show active" id="tab-resumen" role="tabpanel">
+
+            <!-- Resumen IA -->
+            <div class="card mb-4" style="border-color:var(--color-primary);border-style:dashed">
+                <div class="card-header d-flex align-items-center justify-content-between" style="background:rgba(13,110,253,.04)">
+                    <div><i class="bi bi-stars me-1" style="color:var(--color-primary)"></i><strong>Resumen IA</strong></div>
+                    <div class="d-flex gap-2 align-items-center">
+                        <select id="ai-period" class="form-select form-select-sm" style="width:auto;font-size:.8rem">
+                            <option value="today">Hoy</option>
+                            <option value="week" selected>Ultima semana</option>
+                            <option value="month">Ultimo mes</option>
+                        </select>
+                        <button type="button" class="btn btn-primary btn-sm" id="btn-ai-summary">
+                            <i class="bi bi-stars me-1"></i>Generar
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body" id="ai-summary-body" style="display:none">
+                    <div id="ai-summary-text" style="white-space:pre-wrap;font-size:.85rem;line-height:1.6"></div>
+                    <div class="mt-2 text-end">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-copy-summary" style="display:none">
+                            <i class="bi bi-clipboard me-1"></i>Copiar
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Seguimiento de constantes vitales -->
             {% if vital_charts %}
             <div class="row g-4 mb-4">
@@ -662,4 +688,47 @@ vitalData.forEach((chart, i) => {
 })();
 </script>
 {% endif %}
+
+<script>
+(function(){
+    var btn = document.getElementById('btn-ai-summary');
+    var body = document.getElementById('ai-summary-body');
+    var textEl = document.getElementById('ai-summary-text');
+    var copyBtn = document.getElementById('btn-copy-summary');
+
+    btn.addEventListener('click', function() {
+        var period = document.getElementById('ai-period').value;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generando...';
+        body.style.display = 'block';
+        textEl.textContent = 'Analizando datos del residente...';
+        copyBtn.style.display = 'none';
+
+        fetch('/api/resident/{{ resident.id }}/ai-summary', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({period: period})
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar';
+            if (data.summary) {
+                textEl.textContent = data.summary;
+                copyBtn.style.display = '';
+            } else {
+                textEl.textContent = data.error || 'Error al generar el resumen.';
+            }
+        }).catch(function() {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar';
+            textEl.textContent = 'Error de conexion.';
+        });
+    });
+
+    copyBtn.addEventListener('click', function() {
+        navigator.clipboard.writeText(textEl.textContent).then(function() {
+            if (typeof showToast === 'function') showToast('Copiado al portapapeles', 'success');
+        });
+    });
+})();
+</script>
 {% endblock %}

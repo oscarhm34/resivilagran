@@ -186,6 +186,115 @@ def _generate_notifications() -> int:
 
     if created:
         db.session.commit()
+
+    # AI insights (throttled, async-safe)
+    try:
+        created += _generate_ai_insights()
+    except Exception:
+        pass
+
+    return created
+
+
+# ── AI-powered pattern detection ──────────────────────────────────────────────
+
+def _generate_ai_insights() -> int:
+    """Analyze residents with AI to detect concerning patterns. Throttled to 1x/6h."""
+    # Throttle check
+    last_run = AppSetting.get('ai_insights_last_run', '')
+    if last_run:
+        try:
+            last_dt = datetime.fromisoformat(last_run)
+            if (datetime.now() - last_dt).total_seconds() < 6 * 3600:
+                return 0
+        except (ValueError, TypeError):
+            pass
+
+    from .. import app
+    api_key = app.config.get('ANTHROPIC_API_KEY')
+    if not api_key:
+        return 0
+
+    AppSetting.set('ai_insights_last_run', datetime.now().isoformat())
+    db.session.commit()
+
+    from .assessments import _build_resident_context, _context_to_text
+
+    residents = Resident.query.filter_by(active=True).all()
+    if not residents:
+        return 0
+
+    # Build context for all residents with enough data
+    contexts = []
+    for r in residents:
+        ctx = _build_resident_context(r.id, days=30)
+        if not ctx:
+            continue
+        total_records = len(ctx.get('care_records', [])) + len(ctx.get('vital_signs', []))
+        if total_records < 3:
+            continue
+        contexts.append((r.id, r.name, _context_to_text(ctx, 30)))
+
+    if not contexts:
+        return 0
+
+    # Build prompt with all residents (limit to 15 to avoid token overflow)
+    resident_texts = []
+    for rid, name, text in contexts[:15]:
+        resident_texts.append(f"--- RESIDENTE ID {rid} ---\n{text}")
+
+    full_context = '\n\n'.join(resident_texts)
+
+    system = """Eres un sistema de alerta clinica de la residencia de ancianos La Vila Gran.
+Analiza los datos de los residentes y detecta SOLO tendencias preocupantes que requieran atencion.
+Busca: perdida de independencia, aumento de caidas, deterioro cognitivo, perdida de peso,
+constantes vitales con tendencia sostenida, residentes con pocas atenciones, observaciones
+preocupantes del personal.
+Si un residente esta estable, NO lo incluyas.
+Responde SOLO con un JSON array. Si no hay alertas, responde [].
+Formato: [{"resident_id": 123, "resident_name": "Nombre", "finding": "Descripcion breve del hallazgo", "recommendation": "Accion recomendada", "severity": "warning|info"}]"""
+
+    prompt = f"Analiza los datos de los ultimos 30 dias de estos residentes:\n\n{full_context}"
+
+    try:
+        from .assessments import _call_claude
+        response = _call_claude(system, prompt)
+
+        # Parse JSON from response (handle markdown code blocks)
+        import json as _json
+        text = response.strip()
+        if text.startswith('```'):
+            text = text.split('\n', 1)[1] if '\n' in text else text[3:]
+            text = text.rsplit('```', 1)[0]
+        insights = _json.loads(text)
+    except Exception:
+        return 0
+
+    created = 0
+    for insight in insights:
+        rid = insight.get('resident_id')
+        name = insight.get('resident_name', '')
+        finding = insight.get('finding', '')
+        recommendation = insight.get('recommendation', '')
+        severity = insight.get('severity', 'info')
+        if severity not in ('warning', 'info'):
+            severity = 'info'
+
+        title = f"{name}: {finding}"
+        if len(title) > 195:
+            title = title[:195] + '...'
+
+        if not _notif_exists('ai_insight', title, hours=48):
+            db.session.add(Notification(
+                type='ai_insight', title=title,
+                message=recommendation, severity=severity,
+                resident_id=rid,
+                link=f'/admin/resident/{rid}' if rid else None,
+            ))
+            created += 1
+
+    if created:
+        db.session.commit()
     return created
 
 
