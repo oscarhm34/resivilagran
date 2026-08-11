@@ -527,25 +527,6 @@ class AssessmentRecord(db.Model):
     assessor = db.relationship('Cleaner', foreign_keys=[assessed_by])
 
 
-class MealIntakeRecord(db.Model):
-    """Meal intake and fluid tracking per resident per meal."""
-    __tablename__ = 'meal_intake_record'
-    id = db.Column(db.Integer, primary_key=True)
-    resident_id = db.Column(db.Integer, db.ForeignKey('resident.id'), nullable=False, index=True)
-    date = db.Column(db.Date, nullable=False, index=True)
-    meal_type = db.Column(db.String(20), nullable=False)
-    intake_pct = db.Column(db.Integer, nullable=False)
-    fluid_ml = db.Column(db.Integer, nullable=True)
-    notes = db.Column(db.Text, nullable=True)
-    recorded_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
-    recorded_at = db.Column(db.DateTime, default=datetime.now)
-
-    resident = db.relationship('Resident', backref=db.backref('meal_records', lazy=True))
-    recorder = db.relationship('Cleaner', foreign_keys=[recorded_by])
-
-    __table_args__ = (db.UniqueConstraint('resident_id', 'date', 'meal_type', name='uq_meal_intake'),)
-
-
 # ── INCIDENTES ───────────────────────────────────────────────────────────────
 
 class IncidentType(db.Model):

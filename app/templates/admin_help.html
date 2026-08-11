@@ -660,19 +660,11 @@
                 <li>Si el resultado es riesgo alto o muy alto, se genera una <strong>notificacion automatica</strong> al admin.</li>
             </ul>
 
-            <h6 class="mt-3">Seguimiento de peso</h6>
+            <h6 class="mt-3">Alertas de peso</h6>
             <ul>
-                <li>Registro de peso con historico y <strong>grafico de evolucion</strong>.</li>
-                <li>Formulario rapido en la ficha del residente.</li>
-                <li>Si se detecta perdida &gt;5% en 30 dias o &gt;10% en 6 meses, se genera una <strong>alerta de peso</strong>.</li>
-            </ul>
-
-            <h6 class="mt-3">Ingesta y hidratacion</h6>
-            <ul>
-                <li>Registro de ingesta en cada comida: desayuno, comida, merienda, cena.</li>
-                <li>Botones rapidos para indicar el <strong>porcentaje de ingesta</strong> (0%, 25%, 50%, 75%, 100%).</li>
-                <li>Campo opcional de <strong>liquidos consumidos</strong> (ml).</li>
-                <li>Vista del dia actual con totales.</li>
+                <li>El peso se registra como <strong>constante vital</strong> en las atenciones (tipo "Constantes" con campo "Peso").</li>
+                <li>El grafico de evolucion del peso aparece en la pestana <strong>Resumen</strong> de la ficha del residente.</li>
+                <li>Si se detecta perdida &gt;5% en 30 dias o &gt;10% en 6 meses, se genera una <strong>alerta automatica</strong> al admin.</li>
             </ul>
 
             <h6 class="mt-3">Residentes sin valoracion reciente</h6>
@@ -707,7 +699,7 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
-                    <tr><td>11/08</td><td><strong>Valoraciones clinicas (Barthel + Norton):</strong> nuevo modulo de escalas de valoracion geriatrica. Barthel (independencia en AVDs, 0-100) con actualizacion automatica del nivel de dependencia. Norton (riesgo de ulceras, 5-20) con notificacion si riesgo alto. Puntuacion en tiempo real, graficos de evolucion, historial. Seguimiento de peso con alertas de perdida significativa. Registro de ingesta y hidratacion con botones rapidos.</td></tr>
+                    <tr><td>11/08</td><td><strong>Valoraciones clinicas (Barthel + Norton):</strong> nuevo modulo de escalas de valoracion geriatrica. Barthel (independencia en AVDs, 0-100) con actualizacion automatica del nivel de dependencia. Norton (riesgo de ulceras, 5-20) con notificacion si riesgo alto. Puntuacion en tiempo real, graficos de evolucion, historial. Alertas automaticas de perdida de peso significativa al registrar el peso como constante vital.</td></tr>
                     <tr><td>11/08</td><td><strong>Notificacion por notas del trabajador:</strong> cuando un trabajador anade una observacion al finalizar una atencion o limpieza (ej: "cama mojada"), se genera automaticamente una notificacion visible en el centro de notificaciones del admin. Filtrable por tipo "Nota del trabajador".</td></tr>
                     <tr><td>11/08</td><td><strong>Editor de plan de limpieza:</strong> nueva pagina de edicion drag &amp; drop para crear planes de limpieza personalizados por trabajador. Permite arrastrar habitaciones entre un pool sin asignar y las columnas de cada trabajador, generar automaticamente el plan de un solo trabajador, y guardar para cualquier fecha. El plan guardado se usa tanto en la vista admin como en la app del trabajador.</td></tr>
                     <tr><td>11/08</td><td><strong>Generar mes con datos existentes:</strong> al pulsar "Generar mes" en cuadrantes, si ya hay turnos asignados, aparece un dialogo con dos opciones: "Conservar existentes y rellenar huecos" (mantiene todo y solo anade lo que falta) o "Regenerar todo" (recalcula desde cero, conservando solo cambios manuales).</td></tr>

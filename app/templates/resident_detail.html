@@ -339,49 +339,6 @@
                 </div>
             </div>
 
-            <!-- Ingesta / Hidratacion -->
-            <div class="card mb-4">
-                <div class="card-header"><i class="bi bi-cup-hot me-1"></i><strong>Ingesta y hidratacion de hoy</strong></div>
-                <div class="card-body p-0">
-                    <table class="table table-sm mb-0" style="font-size:.85rem">
-                        <thead>
-                            <tr><th>Comida</th><th>Ingesta</th><th>Liquidos</th><th></th></tr>
-                        </thead>
-                        <tbody>
-                            {% for mt in meal_types %}
-                            {% set m = today_meals.get(mt) %}
-                            <tr>
-                                <td class="fw-semibold">{{ meal_labels[mt] }}</td>
-                                <td>
-                                    {% if m %}
-                                    {% set pct = m.intake_pct %}
-                                    <div class="d-flex align-items-center gap-2">
-                                        <div class="progress" style="width:60px;height:8px">
-                                            <div class="progress-bar {% if pct >= 75 %}bg-success{% elif pct >= 50 %}bg-warning{% else %}bg-danger{% endif %}" style="width:{{ pct }}%"></div>
-                                        </div>
-                                        <span>{{ pct }}%</span>
-                                    </div>
-                                    {% else %}
-                                    <span class="text-muted">—</span>
-                                    {% endif %}
-                                </td>
-                                <td>{{ m.fluid_ml|string + ' ml' if m and m.fluid_ml else '—' }}</td>
-                                <td>
-                                    <div class="d-flex gap-1 meal-btns" data-meal="{{ mt }}">
-                                        {% for pct in [0, 25, 50, 75, 100] %}
-                                        <button type="button" class="btn btn-outline-secondary meal-pct-btn {% if m and m.intake_pct == pct %}active{% endif %}"
-                                                style="font-size:.65rem;padding:2px 6px;min-width:30px"
-                                                data-pct="{{ pct }}">{{ pct }}%</button>
-                                        {% endfor %}
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
         </div>
 
         <!-- Tab Historial -->
@@ -705,25 +662,4 @@ vitalData.forEach((chart, i) => {
 })();
 </script>
 {% endif %}
-{# Meal intake quick buttons #}
-<script>
-(function(){
-    document.querySelectorAll('.meal-pct-btn').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            var row = btn.closest('.meal-btns');
-            var meal = row.dataset.meal;
-            var pct = parseInt(btn.dataset.pct);
-            row.querySelectorAll('.meal-pct-btn').forEach(function(b) { b.classList.remove('active'); });
-            btn.classList.add('active');
-            fetch('/admin/resident/{{ resident.id }}/meal-intake', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({date: new Date().toISOString().split('T')[0], meal_type: meal, intake_pct: pct})
-            }).then(function(r) { return r.json(); }).then(function(data) {
-                if (data.ok && typeof showToast === 'function') showToast('Ingesta registrada', 'success');
-            });
-        });
-    });
-})();
-</script>
 {% endblock %}
