@@ -623,8 +623,8 @@ def _context_to_text(ctx: dict, days: int) -> str:
 
 # ── AI summary endpoint ──────────────────────────────────────────────────────
 
-SUMMARY_SYSTEM = """Eres un asistente clinico de la residencia de ancianos La Vila Gran.
-Genera informes clinicos estructurados en HTML sobre residentes basandote en los datos proporcionados.
+SUMMARY_SYSTEM = """Eres un asistente de la residencia de ancianos La Vila Gran.
+Genera informes estructurados en HTML sobre residentes basandote en los datos proporcionados.
 Escribe siempre en espanol. Usa un tono profesional sanitario.
 No inventes datos — solo comenta lo que aparece en los datos.
 Si no hay datos suficientes, indicalo brevemente.
@@ -658,7 +658,7 @@ def ai_summary(resident_id: int):
     resident = db.session.get(Resident, resident_id)
     context_text = _context_to_text(ctx, days)
     period_label = {'today': 'de hoy', 'week': 'de la ultima semana', 'month': 'del ultimo mes'}
-    prompt = f"""Genera un informe clinico {period_label.get(period, 'reciente')} de este residente.
+    prompt = f"""Genera un informe {period_label.get(period, 'reciente')} de este residente.
 
 {context_text}"""
 
