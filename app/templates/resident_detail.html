@@ -23,7 +23,10 @@
 </style>
 <div class="py-4">
 
-    <div class="mb-3 d-flex align-items-center justify-content-end no-print">
+    <div class="mb-3 d-flex align-items-center justify-content-between no-print">
+        <a href="{{ url_for('residents.manage_residents') }}?edit={{ resident.id }}" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-pencil me-1"></i>Editar residente
+        </a>
         <div class="d-flex gap-2">
             <a href="{{ url_for('residents.export_resident_care_excel', resident_id=resident.id) }}" class="btn btn-sm btn-outline-success">↓ Exportar Excel</a>
             <button onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir</button>

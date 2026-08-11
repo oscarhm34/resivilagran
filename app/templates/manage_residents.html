@@ -497,6 +497,14 @@ var RESIDENT_DOCS = {
     // Reset form when offcanvas closes
     offcanvasEl.addEventListener('hidden.bs.offcanvas', resetForm);
 
+    // Auto-open edit if ?edit=ID in URL
+    var urlParams = new URLSearchParams(window.location.search);
+    var autoEditId = urlParams.get('edit');
+    if (autoEditId) {
+        var editBtn = document.querySelector('.edit-btn[data-id="' + autoEditId + '"]');
+        if (editBtn) setTimeout(function() { editBtn.click(); }, 300);
+    }
+
     document.querySelectorAll('.delete-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
             document.getElementById('delete-name').textContent = this.dataset.name;
