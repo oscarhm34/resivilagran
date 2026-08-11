@@ -242,9 +242,14 @@
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer" style="border-color:var(--color-border)!important">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary" id="inc-submit-btn">Crear incidencia</button>
+                <div class="modal-footer d-flex justify-content-between" style="border-color:var(--color-border)!important">
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="btn-ai-classify">
+                        <i class="bi bi-stars me-1"></i>Classificar amb IA
+                    </button>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary" id="inc-submit-btn">Crear incidencia</button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -314,6 +319,43 @@
         document.getElementById('resolveForm').action = '/admin/incidents/' + id + '/update-status';
         new bootstrap.Modal(document.getElementById('resolveModal')).show();
     };
+    // AI classify
+    document.getElementById('btn-ai-classify').addEventListener('click', function() {
+        var title = document.getElementById('inc-title').value.trim();
+        var desc = document.getElementById('inc-description').value.trim();
+        if (!title && !desc) {
+            if (typeof showToast === 'function') showToast('Escriu un titol o descripcio primer', 'warning');
+            return;
+        }
+        var btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Classificant...';
+        fetch('/api/incidents/ai-classify', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({title: title, description: desc})
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Classificar amb IA';
+            if (data.incident_type_id) {
+                document.getElementById('inc-type').value = data.incident_type_id;
+            }
+            if (data.severity) {
+                document.getElementById('inc-severity').value = data.severity;
+            }
+            var msg = 'IA suggereix: ';
+            var typeSelect = document.getElementById('inc-type');
+            var selOption = typeSelect.options[typeSelect.selectedIndex];
+            msg += 'Tipus: ' + (selOption ? selOption.text : '?');
+            msg += ', Severitat: ' + (data.severity || '?');
+            if (data.reason) msg += ' (' + data.reason + ')';
+            if (typeof showToast === 'function') showToast(msg, 'success');
+        }).catch(function() {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Classificar amb IA';
+            if (typeof showToast === 'function') showToast('Error de connexio', 'error');
+        });
+    });
 })();
 </script>
 {% endblock %}

@@ -8,7 +8,7 @@ from anthropic import Anthropic
 from . import db
 from .models import (Resident, CareRecord, CareType, CleaningRecord, Room, Floor,
                      Cleaner, ResidentGroup, ChecklistItem, ResidentDocument,
-                     VitalSignType, VitalSignReading)
+                     VitalSignType, VitalSignReading, AssessmentRecord, Incident)
 
 SYSTEM_PROMPT = """Eres un asistente de la residencia de mayores "La Vila Gran".
 Ayudas al personal a consultar información sobre residentes, limpiezas y atenciones.
@@ -24,7 +24,9 @@ Capacidades importantes:
 - Puedes responder preguntas sobre el contenido de los documentos (medicación, dietas, objetivos, etc.) directamente con la info que devuelve info_residente.
 - Si el usuario pregunta "quién tiene PIA" o "qué residentes tienen informes", usa residentes_con_documentos.
 - Puedes consultar constantes vitales (tensión arterial, glucemia, temperatura, etc.) de un residente con constantes_vitales_residente.
-- Para preguntas como "cuál es la tensión de María" o "glucemia de Juan", usa constantes_vitales_residente."""
+- Para preguntas como "cuál es la tensión de María" o "glucemia de Juan", usa constantes_vitales_residente.
+- Para preguntas como "cómo está María" o "estado de Juan", usa info_residente — incluye perfil médico, valoraciones Barthel/Norton, notas recientes del personal e incidencias. Resume el estado del residente de forma clara.
+- Si preguntan sobre valoraciones, dependencia o riesgo de úlceras, la info ya viene en info_residente (campo valoraciones).
 
 TOOLS = [
     {
@@ -219,14 +221,80 @@ def _info_residente(residente_id: int, include_content: bool = False) -> str:
         if include_content:
             doc_data["contenido"] = _extract_doc_text(d)
         docs.append(doc_data)
-    return json.dumps({
+    # Medical profile
+    dep_labels = {'autonomous': 'Autónomo', 'mild': 'Leve', 'moderate': 'Moderado',
+                  'severe': 'Severo', 'total': 'Total'}
+    perfil_medico = {}
+    if r.diagnoses:
+        perfil_medico['diagnosticos'] = r.diagnoses
+    if r.allergies:
+        perfil_medico['alergias'] = r.allergies
+    if r.current_medication:
+        perfil_medico['medicacion'] = r.current_medication
+    if r.blood_type:
+        perfil_medico['grupo_sanguineo'] = r.blood_type
+    if r.dependency_level:
+        perfil_medico['nivel_dependencia'] = dep_labels.get(r.dependency_level, r.dependency_level)
+
+    # Latest assessments (Barthel, Norton)
+    valoraciones = {}
+    for scale in ['barthel', 'norton']:
+        latest = AssessmentRecord.query.filter_by(
+            resident_id=r.id, scale_type=scale,
+        ).order_by(AssessmentRecord.assessed_at.desc()).first()
+        if latest:
+            valoraciones[scale] = {
+                'puntuacion': latest.score,
+                'interpretacion': latest.interpretation,
+                'fecha': latest.assessed_at.strftime('%d/%m/%Y'),
+            }
+
+    # Recent worker notes (last 7 days)
+    cutoff_notes = datetime.now() - timedelta(days=7)
+    recent_notes = []
+    noted_records = CareRecord.query.filter(
+        CareRecord.resident_id == r.id,
+        CareRecord.notes.isnot(None),
+        CareRecord.notes != '',
+        CareRecord.start_time >= cutoff_notes,
+    ).order_by(CareRecord.start_time.desc()).limit(5).all()
+    for nr in noted_records:
+        recent_notes.append({
+            'fecha': nr.start_time.strftime('%d/%m'),
+            'nota': nr.notes,
+            'trabajador': nr.worker.name if nr.worker else '?',
+        })
+
+    # Recent incidents
+    recent_incidents = Incident.query.filter(
+        Incident.resident_id == r.id,
+        Incident.created_at >= cutoff_notes,
+    ).order_by(Incident.created_at.desc()).limit(3).all()
+    incidencias = [{
+        'fecha': i.created_at.strftime('%d/%m'),
+        'titulo': i.title,
+        'severidad': i.severity,
+        'estado': i.status,
+    } for i in recent_incidents]
+
+    result = {
         "id": r.id, "nombre": r.name, "habitacion": r.room_number or "Sin asignar",
         "grupo": r.group.name if r.group else "Sin grupo",
         "notas": r.notes or "", "info_relevante": r.relevant_info or "",
         "activo": r.active, "tiene_foto": bool(r.photo_path),
         "ultimas_atenciones": atenciones,
         "documentos": docs,
-    }, ensure_ascii=False)
+    }
+    if perfil_medico:
+        result['perfil_medico'] = perfil_medico
+    if valoraciones:
+        result['valoraciones'] = valoraciones
+    if recent_notes:
+        result['notas_recientes_trabajadores'] = recent_notes
+    if incidencias:
+        result['incidencias_recientes'] = incidencias
+
+    return json.dumps(result, ensure_ascii=False)
 
 
 def _atenciones_residente(residente_id: int, fecha: str | None = None) -> str:

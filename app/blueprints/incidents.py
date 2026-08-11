@@ -7,7 +7,7 @@ from flask_jwt_extended import jwt_required
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
 
-from .. import db
+from .. import app, db
 from ..models import Cleaner, Resident, IncidentType, Incident, AppSetting
 from ..utils import admin_required, _verify_worker_id
 
@@ -309,3 +309,60 @@ def worker_report_incident():
     db.session.add(incident)
     db.session.commit()
     return jsonify({'ok': True, 'id': incident.id}), 201
+
+
+# ── AI classification for incidents ──────────────────────────────────────────
+
+@bp.route('/api/incidents/ai-classify', methods=['POST'])
+@jwt_required()
+def ai_classify_incident():
+    """Use AI to suggest incident type and severity from free text."""
+    data = request.json or {}
+    title = (data.get('title') or '').strip()
+    description = (data.get('description') or '').strip()
+
+    if not title and not description:
+        return jsonify({'error': 'Texto requerido'}), 400
+
+    api_key = app.config.get('ANTHROPIC_API_KEY')
+    if not api_key:
+        return jsonify({'error': 'IA no disponible'}), 503
+
+    # Get available incident types
+    types = IncidentType.query.filter_by(active=True).order_by(IncidentType.name).all()
+    types_list = ', '.join(f'{t.id}={t.name}' for t in types)
+
+    system = f"""Eres un clasificador de incidencias para la residencia de ancianos La Vila Gran.
+Dada la descripcion de una incidencia, sugiere:
+1. El tipo de incidencia mas apropiado (de la lista disponible)
+2. La severidad: low, medium, high, critical
+
+Tipos disponibles: {types_list}
+
+Responde SOLO con JSON: {{"incident_type_id": <id>, "severity": "<low|medium|high|critical>", "reason": "<explicacion breve>"}}"""
+
+    text = f"Titulo: {title}"
+    if description:
+        text += f"\nDescripcion: {description}"
+
+    try:
+        from anthropic import Anthropic
+        client = Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model='claude-haiku-4-5-20251001',
+            max_tokens=200,
+            system=system,
+            messages=[{'role': 'user', 'content': text}],
+        )
+        result = ''.join(b.text for b in response.content if hasattr(b, 'text'))
+        result = result.strip()
+        if result.startswith('```'):
+            result = result.split('\n', 1)[1] if '\n' in result else result[3:]
+        if result.endswith('```'):
+            result = result.rsplit('```', 1)[0]
+
+        import json as _json
+        suggestion = _json.loads(result.strip())
+        return jsonify(suggestion)
+    except Exception:
+        return jsonify({'error': 'No se ha podido clasificar'}), 500
