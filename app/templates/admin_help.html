@@ -42,6 +42,7 @@
                         <li><a href="#medicacion">16. Medicacion</a></li>
                         <li><a href="#activitats">16b. Activitats</a></li>
                         <li><a href="#mood">16d. Estat d'anim</a></li>
+                        <li><a href="#ingesta">16d2. Ingesta i hidratacio</a></li>
                         <li><a href="#darkmode">16e. Mode fosc</a></li>
                         <li><a href="#digest">16f. Resums diaris IA</a></li>
                         <li><a href="#pai">16g. PAI (Pla d'Atencio)</a></li>
@@ -869,11 +870,12 @@
 
             <h6 class="mt-3">Registrar des de la webapp</h6>
             <ul>
-                <li>A la pantalla de detall d'una activitat, despres de confirmar l'assistencia d'un resident, apareix un boto <strong>😊</strong> al costat.</li>
-                <li>Clic per obrir la pantalla de registre d'estat d'anim.</li>
+                <li>Despres de <strong>finalitzar una atencio</strong> amb un resident, a la pantalla de resultat ("¡Atencion completada!") apareix el boto <strong>😊 Estat d'anim</strong>.</li>
+                <li>Clic per obrir la pantalla de registre (ja sap amb quin resident estas, no cal tornar a seleccionar).</li>
                 <li>Seleccionar un dels <strong>5 nivells</strong>: 😢 Molt malament, 😟 Malament, 😐 Normal, 🙂 Be, 😊 Molt be.</li>
                 <li>Opcionalment, marcar <strong>chips de conducta</strong>: Agitat, Confos, Cooperatiu, Tranquil, Trist, Content, Agressiu, Somnolent.</li>
                 <li>Afegir observacions si cal i guardar.</li>
+                <li>Es un registre <strong>opcional</strong> — si no es polsa, es pot tornar a la home normalment.</li>
             </ul>
 
             <h6 class="mt-3">Consultar des de l'admin</h6>
@@ -887,6 +889,30 @@
             <ul>
                 <li>Les dades d'estat d'anim s'inclouen automaticament en els informes IA del resident (individual, familiar i executiu).</li>
                 <li>L'IA pot detectar patrons d'anim (declivi, canvis sobtats) i mencionar-los als informes.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 16d2. Registre d'ingesta -->
+    <div class="card mb-4" id="ingesta">
+        <div class="card-header">16d2. Registre d'ingesta i hidratacio <span class="badge bg-success">NOU</span></div>
+        <div class="card-body">
+            <p>Permet als treballadors registrar la ingesta alimentaria i la hidratacio dels residents.</p>
+
+            <h6 class="mt-3">Registrar des de la webapp</h6>
+            <ul>
+                <li>Despres de <strong>finalitzar una atencio</strong> amb un resident, a la pantalla de resultat apareix el boto <strong>🍽 Ingesta</strong>.</li>
+                <li>Seleccionar l'<strong>apat</strong>: Esmorzar, Dinar, Berenar o Sopar.</li>
+                <li>Ajustar el <strong>percentatge d'ingesta</strong> amb el slider (0%, 25%, 50%, 75%, 100%).</li>
+                <li>Seleccionar els <strong>ml de liquids</strong> consumits (0, 100, 200, 300 ml).</li>
+                <li>Opcionalment, afegir observacions.</li>
+                <li>Si la ingesta es <strong>&lt;50%</strong>, es genera una <strong>notificacio d'alerta</strong> automaticament.</li>
+            </ul>
+
+            <h6 class="mt-3">Dades registrades</h6>
+            <ul>
+                <li>Si es registra el mateix apat dues vegades el mateix dia per al mateix resident, s'<strong>actualitza</strong> en lloc de duplicar.</li>
+                <li>Les dades d'ingesta s'inclouen als <strong>informes IA</strong> del resident.</li>
             </ul>
         </div>
     </div>
@@ -1119,7 +1145,7 @@
                 </thead>
                 <tbody>
                     <tr><td>12/08</td><td><strong>Generacio preguntes IA per pildores:</strong> boto "Generar amb IA" al formulari de crear pildora. La IA genera 5 preguntes amb opcions basant-se en el titol i descripcio.</td></tr>
-                    <tr><td>12/08</td><td><strong>Registre d'ingesta/hidratacio:</strong> des de la webapp, boto 🍽 per registrar ingesta (% apat + ml liquids) per resident. Alerta automatica si ingesta &lt;50%.</td></tr>
+                    <tr><td>12/08</td><td><strong>Registre d'ingesta/hidratacio:</strong> despres de finalitzar una atencio, botons 😊 Estat d'anim i 🍽 Ingesta a la pantalla de resultat per registrar opcionalament l'anim i la ingesta del resident. Alerta automatica si ingesta &lt;50%.</td></tr>
                     <tr><td>12/08</td><td><strong>Analisi IA rendiment treballadors:</strong> boto "Analisi IA" a la pagina de Rendiment. La IA analitza productivitat, temps mitjos, absencies i dona recomanacions.</td></tr>
                     <tr><td>12/08</td><td><strong>Detall limpiezas al traspas:</strong> l'informe de traspas de torn ara mostra cada neteja amb habitacio, planta i treballador.</td></tr>
                     <tr><td>12/08</td><td><strong>Formacio obligatoria:</strong> les pildores formatives es poden marcar com "Obligatoria" i assignar a treballadors especifics. La webapp es bloqueja fins completar la formacio pendent.</td></tr>
