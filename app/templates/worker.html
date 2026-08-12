@@ -471,18 +471,7 @@
             </button>
         </div>
 
-        <!-- Registres ràpids -->
-        <div class="section-label" style="margin-top:16px">Registres ràpids</div>
-        <div class="mode-cards">
-            <button class="mode-card" id="btn-quick-mood" style="background:#fef3c7;border-color:#f59e0b">
-                <div class="mode-icon">😊</div>
-                <div class="mode-label" style="color:#92400e">Estat d'ànim</div>
-            </button>
-            <button class="mode-card" id="btn-quick-meal" style="background:#dcfce7;border-color:#16a34a">
-                <div class="mode-icon">🍽</div>
-                <div class="mode-label" style="color:#166534">Ingesta</div>
-            </button>
-        </div>
+        <!-- spacer -->
 
         <!-- Botón consulta grupo -->
         <div id="my-groups-btn-wrap" style="display:none;margin-bottom:20px">
@@ -740,6 +729,14 @@
             <div class="result-time" id="result-time">00:00:00</div>
         </div>
         <div id="result-vital-alerts" style="display:none;width:100%;max-width:340px"></div>
+        <!-- Quick actions after care -->
+        <div id="result-quick-actions" style="display:none;width:100%;max-width:340px;margin-top:8px">
+            <div style="font-size:12px;color:var(--text-2);text-align:center;margin-bottom:8px">Registrar tambe:</div>
+            <div style="display:flex;gap:8px;justify-content:center">
+                <button id="result-btn-mood" style="flex:1;padding:12px;border-radius:12px;border:1.5px solid #f59e0b;background:#fef3c7;font-size:14px;font-weight:700;cursor:pointer;color:#92400e">😊 Estat d'anim</button>
+                <button id="result-btn-meal" style="flex:1;padding:12px;border-radius:12px;border:1.5px solid #16a34a;background:#dcfce7;font-size:14px;font-weight:700;cursor:pointer;color:#166534">🍽 Ingesta</button>
+            </div>
+        </div>
         <div class="spacer"></div>
         <div class="result-bar-wrap"><div class="result-bar cleaning" id="result-bar"></div></div>
         <p class="result-hint" id="result-hint">Volviendo al inicio…</p>
@@ -1462,84 +1459,15 @@ $('meal-save').addEventListener('click', async function() {
 
 $('meal-back').addEventListener('click', function() { show(S_mealReturnScreen); });
 
-// ── Quick access: resident picker for mood/meal ──
-var S_quickAction = null; // 'mood' or 'meal'
-
-$('btn-quick-mood').addEventListener('click', function() {
-    S_quickAction = 'mood';
-    showResidentPickerForQuick();
+// ── Result screen quick actions for mood/meal ──
+$('result-btn-mood').addEventListener('click', function() {
+    if (S.resultTimeout) clearTimeout(S.resultTimeout);
+    openMoodScreen(S.lastCareResidentId, S.lastCareResidentName, 'screen-home');
 });
-$('btn-quick-meal').addEventListener('click', function() {
-    S_quickAction = 'meal';
-    showResidentPickerForQuick();
+$('result-btn-meal').addEventListener('click', function() {
+    if (S.resultTimeout) clearTimeout(S.resultTimeout);
+    openMealScreen(S.lastCareResidentId, S.lastCareResidentName, 'screen-home');
 });
-
-function showResidentPickerForQuick() {
-    // Reuse the care resident list (already loaded in S.residents or S.myGroups)
-    var residents = [];
-    if (S.myGroups && S.myGroups.length) {
-        for (var g of S.myGroups) {
-            for (var r of (g.residents || [])) {
-                residents.push(r);
-            }
-        }
-    }
-    if (!residents.length && S.allResidents) {
-        residents = S.allResidents;
-    }
-
-    // Build a simple picker screen using the select screen
-    var title = S_quickAction === 'mood' ? '😊 Estat d\'ànim — Selecciona resident' : '🍽 Ingesta — Selecciona resident';
-    var list = $('select-list');
-    $('select-badge').textContent = title;
-    $('select-badge').style.background = S_quickAction === 'mood' ? '#fef3c7' : '#dcfce7';
-    $('select-badge').style.color = S_quickAction === 'mood' ? '#92400e' : '#166534';
-
-    // Fetch residents if not loaded
-    if (!residents.length) {
-        api('/api/residents?worker_id=' + S.workerId).then(function(res) {
-            if (res.ok && res.data.groups) {
-                var all = [];
-                for (var g of res.data.groups) {
-                    for (var r of g.residents) all.push(r);
-                }
-                renderQuickPicker(all);
-            }
-        });
-    } else {
-        renderQuickPicker(residents);
-    }
-    show('screen-select');
-}
-
-function renderQuickPicker(residents) {
-    var list = $('select-list');
-    var html = '';
-    for (var r of residents) {
-        html += '<div class="select-item quick-resident-pick" data-rid="' + r.id + '" data-rname="' + esc(r.name) + '" style="cursor:pointer">';
-        if (r.photo_url) {
-            html += '<img class="select-photo" data-auth-src="' + r.photo_url + '" alt="">';
-        } else {
-            html += '<div class="select-photo" style="background:#e9ecef;display:flex;align-items:center;justify-content:center;font-size:18px">👤</div>';
-        }
-        html += '<div class="select-info"><div class="select-name">' + esc(r.name) + '</div>';
-        html += '<div class="select-sub">Hab. ' + (r.room_number || '') + '</div></div>';
-        html += '</div>';
-    }
-    list.innerHTML = html;
-    list.querySelectorAll('img[data-auth-src]').forEach(function(img) { loadAuthImg(img, img.dataset.authSrc); });
-    list.querySelectorAll('.quick-resident-pick').forEach(function(item) {
-        item.addEventListener('click', function() {
-            var rid = parseInt(item.dataset.rid);
-            var rname = item.dataset.rname;
-            if (S_quickAction === 'mood') {
-                openMoodScreen(rid, rname, 'screen-home');
-            } else {
-                openMealScreen(rid, rname, 'screen-home');
-            }
-        });
-    });
-}
 
 function showWorkerToast(msg) {
     const t = $('worker-toast');
@@ -3024,12 +2952,22 @@ function showResult(mode, data) {
         check.style.background = '';
     }
 
+    // Show quick action buttons for care (not cleaning)
+    var quickActions = $('result-quick-actions');
+    if (isCare && data.resident_id) {
+        S.lastCareResidentId = data.resident_id;
+        S.lastCareResidentName = data.subject || '';
+        quickActions.style.display = '';
+    } else {
+        quickActions.style.display = 'none';
+    }
+
     show('screen-result');
     requestAnimationFrame(() => { bar.style.width = '100%'; });
     if (S.resultTimeout) clearTimeout(S.resultTimeout);
 
-    // If there are vital alerts, don't auto-dismiss — worker needs to read them
-    if (!hasAlerts) {
+    // If there are vital alerts or care quick actions, don't auto-dismiss
+    if (!hasAlerts && !isCare) {
         S.resultTimeout = setTimeout(async () => {
             await loadHistory();
             show('screen-home');

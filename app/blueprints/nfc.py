@@ -1080,6 +1080,7 @@ def finalize_care():
     type_names = ', '.join(ct.name for ct in record.care_types)
     resp = {
         'action': 'ended',
+        'resident_id': record.resident_id,
         'subject': record.resident.name if record.resident else 'Residente',
         'subject_sub': type_names,
         'duration': record.calculate_duration(),
