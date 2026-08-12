@@ -41,6 +41,8 @@
                         <li><a href="#valoraciones">15. Valoraciones clinicas</a></li>
                         <li><a href="#medicacion">16. Medicacion</a></li>
                         <li><a href="#activitats">16b. Activitats</a></li>
+                        <li><a href="#mood">16d. Estat d'anim</a></li>
+                        <li><a href="#darkmode">16e. Mode fosc</a></li>
                         <li><a href="#kpis">16c. KPIs de qualitat</a></li>
                         <li><a href="#ia">17. Inteligencia artificial (IA)</a></li>
                         <li><a href="#config">18. Configuracion</a></li>
@@ -809,10 +811,67 @@
                 <li><em>Informacio orientativa — la decisio clinica es del professional.</em></li>
             </ul>
 
+            <h6 class="mt-3">Vista mensual <span class="badge bg-success">NOU</span></h6>
+            <ul>
+                <li>Toggle <strong><i class="bi bi-calendar-week"></i> / <i class="bi bi-calendar-month"></i></strong> a la barra de navegacio per canviar entre vista setmanal i mensual.</li>
+                <li>La vista mensual mostra un grid compacte amb punts de color per categoria i les activitats resumides.</li>
+                <li>Clic sobre una activitat per editar-la (igual que a la vista setmanal).</li>
+            </ul>
+
+            <h6 class="mt-3">Fotos d'activitats <span class="badge bg-success">NOU</span></h6>
+            <ul>
+                <li>A la vista setmanal, les activitats mostren <strong>thumbnails de fotos</strong> si en tenen.</li>
+                <li>Clic sobre un thumbnail per veure la foto a mida completa.</li>
+                <li>Els treballadors poden pujar fotos des de la webapp despres de confirmar assistencia.</li>
+                <li>L'admin pot pujar fotos des del formulari d'edicio de l'activitat.</li>
+            </ul>
+
             <h6 class="mt-3">Informes IA amb activitats</h6>
             <ul>
                 <li>Els informes IA (individual, global i traspas de torn) inclouen les activitats amb els <strong>noms dels residents</strong> que han participat i els que han estat absents.</li>
-                <li>L'informe de <strong>traspas de torn</strong> ara inclou els <strong>valors de constantes vitals</strong> en cada atencio (SpO2, TA, temperatura, etc.) <span class="badge bg-success">NOU</span></li>
+                <li>L'informe de <strong>traspas de torn</strong> ara inclou els <strong>valors de constantes vitals</strong> en cada atencio (SpO2, TA, temperatura, etc.)</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 16d. Estat d'anim -->
+    <div class="card mb-4" id="mood">
+        <div class="card-header">16d. Seguiment d'estat d'anim <span class="badge bg-success">NOU</span></div>
+        <div class="card-body">
+            <p>Permet als treballadors registrar l'estat d'anim i la conducta dels residents.</p>
+
+            <h6 class="mt-3">Registrar des de la webapp</h6>
+            <ul>
+                <li>A la pantalla de detall d'una activitat, despres de confirmar l'assistencia d'un resident, apareix un boto <strong>😊</strong> al costat.</li>
+                <li>Clic per obrir la pantalla de registre d'estat d'anim.</li>
+                <li>Seleccionar un dels <strong>5 nivells</strong>: 😢 Molt malament, 😟 Malament, 😐 Normal, 🙂 Be, 😊 Molt be.</li>
+                <li>Opcionalment, marcar <strong>chips de conducta</strong>: Agitat, Confos, Cooperatiu, Tranquil, Trist, Content, Agressiu, Somnolent.</li>
+                <li>Afegir observacions si cal i guardar.</li>
+            </ul>
+
+            <h6 class="mt-3">Consultar des de l'admin</h6>
+            <ul>
+                <li>A la <strong>fitxa del resident</strong> (pestanya Resum), apareix un <strong>grafic de tendencia</strong> amb els ultims 30 dies.</li>
+                <li>El grafic mostra el nivell d'anim amb colors (verd = be, groc = normal, vermell = malament).</li>
+                <li>Tooltip amb detalls: conducta, observacions i treballador que ho ha registrat.</li>
+            </ul>
+
+            <h6 class="mt-3">Integracio amb informes IA</h6>
+            <ul>
+                <li>Les dades d'estat d'anim s'inclouen automaticament en els informes IA del resident (individual, familiar i executiu).</li>
+                <li>L'IA pot detectar patrons d'anim (declivi, canvis sobtats) i mencionar-los als informes.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 16e. Mode fosc -->
+    <div class="card mb-4" id="darkmode">
+        <div class="card-header">16e. Mode fosc <span class="badge bg-success">NOU</span></div>
+        <div class="card-body">
+            <ul>
+                <li>Icona <strong><i class="bi bi-moon"></i></strong> a la barra de navegacio per activar/desactivar el mode fosc.</li>
+                <li>La preferencia es guarda al navegador i es recorda entre sessions.</li>
+                <li>Afecta tot el panel d'administracio (menus, taules, modals, formularis).</li>
             </ul>
         </div>
     </div>
@@ -953,6 +1012,11 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>12/08</td><td><strong>Seguiment d'estat d'anim:</strong> els treballadors poden registrar l'estat d'anim dels residents (5 nivells + conducta). Grafic de tendencia a la fitxa del resident. Dades integrades als informes IA.</td></tr>
+                    <tr><td>12/08</td><td><strong>Fotos d'activitats:</strong> pujar fotos des de l'admin o la webapp. Thumbnails visibles al calendari setmanal.</td></tr>
+                    <tr><td>12/08</td><td><strong>Vista mensual d'activitats:</strong> toggle setmana/mes al calendari amb grid compacte.</td></tr>
+                    <tr><td>12/08</td><td><strong>Mode fosc:</strong> icona lluna a la navbar per activar mode fosc. Preferencia persistent.</td></tr>
+                    <tr><td>12/08</td><td><strong>Fix informes IA "Avui":</strong> corregit que l'informe de "Hoy" mostrava dades del dia anterior.</td></tr>
                     <tr><td>12/08</td><td><strong>Activitats recurrents:</strong> al crear una activitat es pot marcar "Recurrent" (setmanal/quinzenal/mensual) per generar instancies automatiques. Gestio de plantilles des del boto "Recurrents".</td></tr>
                     <tr><td>12/08</td><td><strong>Estadistiques d'activitats:</strong> nova pagina amb taxa de participacio per resident i categoria, alertes de baixa participacio, i exportacio a Excel.</td></tr>
                     <tr><td>12/08</td><td><strong>Suggerencies IA d'activitats:</strong> l'IA analitza perfils i historial per suggerir 5 activitats setmanals adaptades als residents.</td></tr>
