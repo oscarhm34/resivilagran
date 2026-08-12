@@ -177,6 +177,50 @@ def training_results(pill_id: int):
                            pill=pill, completions=completions, pending=pending)
 
 
+# ── AI Question Generation ───────────────────────────────────────────────────
+
+@bp.route('/api/training/ai-generate-questions', methods=['POST'])
+@admin_required
+def ai_generate_questions():
+    """Use AI to generate quiz questions from pill title and description."""
+    from ..blueprints.assessments import _call_claude
+
+    data = request.get_json() or {}
+    title = data.get('title', '').strip()
+    description = data.get('description', '').strip()
+
+    if not title:
+        return jsonify({'error': 'Cal un títol'}), 400
+
+    system = (
+        "Eres un formador de residencias geriatricas. "
+        "Genera preguntas tipo test para evaluar la comprension de una formacion. "
+        "Cada pregunta tiene 4 opciones (A, B, C, D) y una respuesta correcta. "
+        "Las preguntas deben ser claras, practicas y relevantes para el trabajo en residencias. "
+        "Responde SOLO en JSON con formato: "
+        '[{"question_text": "...", "option_a": "...", "option_b": "...", "option_c": "...", "option_d": "...", "correct_option": "a"}]'
+    )
+
+    content_desc = f"Título: {title}"
+    if description:
+        content_desc += f"\nDescripción/contenido: {description}"
+
+    num_questions = data.get('num_questions', 5)
+    prompt = f"Genera {num_questions} preguntas tipo test sobre esta formacion:\n\n{content_desc}"
+
+    try:
+        import re
+        response = _call_claude(system, prompt)
+        json_match = re.search(r'\[.*\]', response, re.DOTALL)
+        if json_match:
+            questions = json.loads(json_match.group())
+        else:
+            questions = []
+        return jsonify({'questions': questions})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 # ── Worker API ───────────────────────────────────────────────────────────────
 
 @bp.route('/api/worker/pending-training')

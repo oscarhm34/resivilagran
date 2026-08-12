@@ -148,7 +148,13 @@
                     </div>
 
                     <hr>
-                    <h6 style="font-weight:700">Preguntas</h6>
+                    <div class="d-flex align-items-center justify-content-between">
+                        <h6 style="font-weight:700;margin:0">Preguntas</h6>
+                        <button type="button" class="btn btn-outline-purple btn-sm" id="btn-ai-questions">
+                            <i class="bi bi-stars me-1"></i>Generar amb IA
+                        </button>
+                    </div>
+                    <div id="ai-questions-status" class="text-muted mt-1 mb-2" style="font-size:.8rem;display:none"></div>
                     <div id="questions-container"></div>
                     <button type="button" class="btn btn-outline-secondary btn-sm mt-2" onclick="addQuestion()">
                         + Añadir pregunta
@@ -250,6 +256,44 @@
         }
         new bootstrap.Modal(document.getElementById('pillModal')).show();
     };
+
+    // AI question generation
+    document.getElementById('btn-ai-questions').addEventListener('click', function() {
+        var title = document.getElementById('pill-title').value.trim();
+        var desc = document.getElementById('pill-desc').value.trim();
+        if (!title) { alert('Introdueix primer el títol de la píldora.'); return; }
+        var btn = this;
+        var status = document.getElementById('ai-questions-status');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generant...';
+        status.style.display = '';
+        status.textContent = 'La IA està generant preguntes basades en el títol i descripció...';
+
+        fetch('/api/training/ai-generate-questions', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({title: title, description: desc, num_questions: 5})
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar amb IA';
+            if (data.questions && data.questions.length) {
+                qIdx = 0;
+                document.getElementById('questions-container').innerHTML = '';
+                data.questions.forEach(function(q) { addQuestion(q); });
+                status.textContent = data.questions.length + ' preguntes generades. Pots editar-les abans de guardar.';
+                status.style.color = 'var(--color-success)';
+            } else {
+                status.textContent = data.error || 'No s\'han pogut generar preguntes.';
+                status.style.color = 'var(--color-danger)';
+            }
+        }).catch(function() {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar amb IA';
+            status.textContent = 'Error de connexió.';
+            status.style.color = 'var(--color-danger)';
+        });
+    });
 })();
 </script>
+<style>.btn-outline-purple{color:#6f42c1;border-color:#6f42c1}.btn-outline-purple:hover{color:#fff;background:#6f42c1}</style>
 {% endblock %}

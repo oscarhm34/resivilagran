@@ -6,11 +6,14 @@
 
     <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
         <h1 class="h3 mb-0"><i class="bi bi-speedometer me-2"></i>Rendimiento</h1>
-        <div class="btn-group btn-group-sm">
-            <a href="?days=7" class="btn {% if days == 7 %}btn-primary{% else %}btn-outline-secondary{% endif %}">7 dias</a>
-            <a href="?days=14" class="btn {% if days == 14 %}btn-primary{% else %}btn-outline-secondary{% endif %}">14 dias</a>
-            <a href="?days=30" class="btn {% if days == 30 %}btn-primary{% else %}btn-outline-secondary{% endif %}">30 dias</a>
-            <a href="?days=90" class="btn {% if days == 90 %}btn-primary{% else %}btn-outline-secondary{% endif %}">90 dias</a>
+        <div class="d-flex gap-2">
+            <div class="btn-group btn-group-sm">
+                <a href="?days=7" class="btn {% if days == 7 %}btn-primary{% else %}btn-outline-secondary{% endif %}">7 dias</a>
+                <a href="?days=14" class="btn {% if days == 14 %}btn-primary{% else %}btn-outline-secondary{% endif %}">14 dias</a>
+                <a href="?days=30" class="btn {% if days == 30 %}btn-primary{% else %}btn-outline-secondary{% endif %}">30 dias</a>
+                <a href="?days=90" class="btn {% if days == 90 %}btn-primary{% else %}btn-outline-secondary{% endif %}">90 dias</a>
+            </div>
+            <button type="button" class="btn btn-sm" id="btn-ai-perf" style="color:#6f42c1;border-color:#6f42c1"><i class="bi bi-stars me-1"></i>Analisi IA</button>
         </div>
     </div>
 
@@ -209,5 +212,38 @@
         }
     });
 })();
+
+// AI performance analysis
+document.getElementById('btn-ai-perf').addEventListener('click', function() {
+    var btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Analitzant...';
+    // Create container if not exists
+    var container = document.getElementById('ai-perf-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'ai-perf-container';
+        container.className = 'card mb-4';
+        container.style.borderColor = '#6f42c1';
+        container.style.borderStyle = 'dashed';
+        container.innerHTML = '<div class="card-header" style="background:rgba(111,66,193,.05)"><i class="bi bi-stars me-1" style="color:#6f42c1"></i><strong>Anàlisi IA de rendiment</strong></div><div class="card-body ai-report-content" id="ai-perf-content"></div>';
+        btn.closest('.d-flex').parentElement.after(container);
+    }
+    container.style.display = '';
+    var content = document.getElementById('ai-perf-content');
+    content.innerHTML = '<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>Analitzant rendiment dels treballadors...</div>';
+
+    fetch('/api/worker-performance/ai-analysis', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'
+    }).then(function(r) { return r.json(); }).then(function(data) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-stars me-1"></i>Analisi IA';
+        content.innerHTML = data.html || ('<div class="alert alert-warning">' + (data.error || 'Error') + '</div>');
+    }).catch(function() {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-stars me-1"></i>Analisi IA';
+        content.innerHTML = '<div class="alert alert-danger">Error de connexio.</div>';
+    });
+});
 </script>
 {% endblock %}

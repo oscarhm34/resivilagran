@@ -22,7 +22,7 @@ from ..models import (
     Cleaner, Room, Floor, Resident, CareType, CareRecord, CleaningRecord,
     ResidentGroup, cleaner_groups, ChecklistItem, WorkerSelfie,
     VitalSignType, VitalSignReading, AppSetting, Notification,
-    MoodRecord,
+    MoodRecord, MealRecord,
 )
 from ..utils import (
     admin_required, _verify_worker_id, _safe_commit,
@@ -1376,3 +1376,62 @@ def api_mood_history(resident_id):
         'recorded_at': r.recorded_at.strftime('%d/%m %H:%M'),
         'worker': r.worker.name if r.worker else '?',
     } for r in records]})
+
+
+# ── Meal/intake tracking ──────────────────────────────────────────────────────
+
+@bp.route('/api/meal', methods=['POST'])
+@jwt_required()
+def api_record_meal():
+    """Record a meal/fluid intake for a resident."""
+    identity = get_jwt_identity()
+    worker = Cleaner.query.filter_by(username=identity).first()
+    if not worker:
+        return jsonify({'error': 'No autoritzat'}), 403
+
+    data = request.get_json() or {}
+    resident_id = data.get('resident_id')
+    meal_type = data.get('meal_type')  # breakfast, lunch, snack, dinner
+    intake_pct = data.get('intake_pct')
+
+    if not resident_id or not meal_type or intake_pct is None:
+        return jsonify({'error': 'Falten dades'}), 400
+
+    from datetime import date as _date
+    today = _date.today()
+
+    # Upsert: update if exists for same resident/date/meal
+    existing = MealRecord.query.filter_by(
+        resident_id=resident_id, date=today, meal_type=meal_type).first()
+    if existing:
+        existing.intake_pct = intake_pct
+        existing.fluid_ml = data.get('fluid_ml')
+        existing.texture = data.get('texture')
+        existing.notes = data.get('notes', '').strip() or None
+        existing.recorded_by = worker.id
+        existing.recorded_at = datetime.now()
+    else:
+        record = MealRecord(
+            resident_id=resident_id, date=today,
+            meal_type=meal_type, intake_pct=intake_pct,
+            fluid_ml=data.get('fluid_ml'),
+            texture=data.get('texture'),
+            notes=data.get('notes', '').strip() or None,
+            recorded_by=worker.id,
+        )
+        db.session.add(record)
+
+    # Alert if low intake
+    if intake_pct < 50:
+        resident = db.session.get(Resident, resident_id)
+        r_name = resident.name if resident else 'Resident'
+        meal_labels = {'breakfast': 'Esmorzar', 'lunch': 'Dinar', 'snack': 'Berenar', 'dinner': 'Sopar'}
+        db.session.add(Notification(
+            type='vital_alert',
+            title=f'Baixa ingesta: {r_name} — {meal_labels.get(meal_type, meal_type)} {intake_pct}%',
+            severity='warning', resident_id=resident_id,
+            link=f'/admin/resident/{resident_id}',
+        ))
+
+    db.session.commit()
+    return jsonify({'ok': True})

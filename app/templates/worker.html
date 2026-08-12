@@ -567,6 +567,47 @@
         <button id="mood-save" class="btn-cam primary" style="width:100%;padding:14px;border-radius:14px;border:none;background:var(--green);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:'Outfit',system-ui,sans-serif" disabled>Selecciona un estat</button>
     </div>
 
+    <!-- ══ MEAL INTAKE ══ -->
+    <div id="screen-meal" class="screen">
+        <div class="scan-header">
+            <button class="btn-back" id="meal-back" aria-label="Tornar">←</button>
+            <span class="mode-badge" style="background:#dcfce7;color:#166534">🍽 Ingesta</span>
+        </div>
+        <div style="padding:12px 0;text-align:center">
+            <h3 id="meal-resident-name" style="font-size:18px;font-weight:700;margin:0"></h3>
+        </div>
+        <div style="padding:0 0 12px">
+            <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:8px">Apat:</div>
+            <div id="meal-type-btns" style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="meal-type-btn" data-type="breakfast" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;cursor:pointer;font-weight:600">🌅 Esmorzar</button>
+                <button class="meal-type-btn" data-type="lunch" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;cursor:pointer;font-weight:600">☀️ Dinar</button>
+                <button class="meal-type-btn" data-type="snack" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;cursor:pointer;font-weight:600">🍪 Berenar</button>
+                <button class="meal-type-btn" data-type="dinner" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;cursor:pointer;font-weight:600">🌙 Sopar</button>
+            </div>
+        </div>
+        <div style="padding:0 0 12px">
+            <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:8px">Ingesta (%):</div>
+            <input type="range" id="meal-intake" min="0" max="100" value="75" step="25" style="width:100%;accent-color:var(--green)">
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-2)">
+                <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+            </div>
+            <div style="text-align:center;font-size:2rem;font-weight:800;margin-top:4px" id="meal-intake-val">75%</div>
+        </div>
+        <div style="padding:0 0 12px">
+            <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:8px">Líquids (ml):</div>
+            <div style="display:flex;gap:8px">
+                <button class="meal-fluid-btn" data-ml="0" style="flex:1;padding:8px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-size:12px;cursor:pointer">0</button>
+                <button class="meal-fluid-btn" data-ml="100" style="flex:1;padding:8px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-size:12px;cursor:pointer">100ml</button>
+                <button class="meal-fluid-btn selected" data-ml="200" style="flex:1;padding:8px;border-radius:10px;border:1.5px solid var(--blue);background:var(--blue-lt);color:var(--blue);font-size:12px;cursor:pointer">200ml</button>
+                <button class="meal-fluid-btn" data-ml="300" style="flex:1;padding:8px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-size:12px;cursor:pointer">300ml</button>
+            </div>
+        </div>
+        <div style="padding:0 0 12px">
+            <textarea id="meal-notes" rows="2" placeholder="Observacions (opcional)..." style="width:100%;border:1px solid var(--border);border-radius:10px;padding:10px;font-size:14px;resize:none;font-family:inherit"></textarea>
+        </div>
+        <button id="meal-save" style="width:100%;padding:14px;border-radius:14px;border:none;background:var(--green);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:'Outfit',system-ui,sans-serif" disabled>Selecciona un apat</button>
+    </div>
+
     <!-- ══ SELECT ══ -->
     <div id="screen-select" class="screen">
         <div class="scan-header">
@@ -1225,6 +1266,7 @@ function openActivityDetail(idx) {
         } else if (p.engagement === 'participated') {
             html += '<div class="act-btn-confirm yes">✓</div>';
             html += '<button class="mood-open-btn" data-rid="' + p.resident_id + '" data-rname="' + esc(p.name) + '" style="margin-left:4px;background:none;border:1.5px solid #f59e0b;border-radius:8px;padding:2px 6px;font-size:14px;cursor:pointer" title="Registrar estat d\'anim">😊</button>';
+            html += '<button class="meal-open-btn" data-rid="' + p.resident_id + '" data-rname="' + esc(p.name) + '" style="margin-left:2px;background:none;border:1.5px solid #16a34a;border-radius:8px;padding:2px 6px;font-size:14px;cursor:pointer" title="Registrar ingesta">🍽</button>';
         } else {
             html += '<div class="act-btn-confirm no">✗</div>';
         }
@@ -1327,7 +1369,86 @@ document.addEventListener('click', function(e) {
     if (btn) {
         openMoodScreen(parseInt(btn.dataset.rid), btn.dataset.rname, 'screen-activity');
     }
+    var mealBtn = e.target.closest('.meal-open-btn');
+    if (mealBtn) {
+        openMealScreen(parseInt(mealBtn.dataset.rid), mealBtn.dataset.rname, 'screen-activity');
+    }
 });
+
+// ── Meal intake ──────────────────────────────────────
+var S_mealResidentId = null;
+var S_mealType = null;
+var S_mealFluid = 200;
+var S_mealReturnScreen = 'screen-home';
+
+function openMealScreen(residentId, residentName, returnScreen) {
+    S_mealResidentId = residentId;
+    S_mealType = null;
+    S_mealFluid = 200;
+    S_mealReturnScreen = returnScreen || 'screen-home';
+    $('meal-resident-name').textContent = residentName;
+    $('meal-save').disabled = true;
+    $('meal-save').textContent = 'Selecciona un apat';
+    $('meal-notes').value = '';
+    $('meal-intake').value = 75;
+    $('meal-intake-val').textContent = '75%';
+    document.querySelectorAll('.meal-type-btn').forEach(b => { b.style.borderColor = 'var(--border)'; b.style.background = 'var(--surface)'; b.style.color = 'inherit'; });
+    document.querySelectorAll('.meal-fluid-btn').forEach(b => { b.style.borderColor = 'var(--border)'; b.style.background = 'var(--surface)'; b.style.color = 'inherit'; b.classList.remove('selected'); });
+    document.querySelector('.meal-fluid-btn[data-ml="200"]').style.borderColor = 'var(--blue)';
+    document.querySelector('.meal-fluid-btn[data-ml="200"]').style.background = 'var(--blue-lt)';
+    document.querySelector('.meal-fluid-btn[data-ml="200"]').style.color = 'var(--blue)';
+    show('screen-meal');
+}
+
+document.querySelectorAll('.meal-type-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        S_mealType = btn.dataset.type;
+        document.querySelectorAll('.meal-type-btn').forEach(b => { b.style.borderColor = 'var(--border)'; b.style.background = 'var(--surface)'; b.style.color = 'inherit'; });
+        btn.style.borderColor = 'var(--green)';
+        btn.style.background = '#dcfce7';
+        btn.style.color = '#166534';
+        var labels = {breakfast:'Esmorzar',lunch:'Dinar',snack:'Berenar',dinner:'Sopar'};
+        $('meal-save').disabled = false;
+        $('meal-save').textContent = 'Guardar ' + labels[S_mealType];
+    });
+});
+
+$('meal-intake').addEventListener('input', function() {
+    $('meal-intake-val').textContent = this.value + '%';
+    $('meal-intake-val').style.color = this.value < 50 ? 'var(--danger, #dc3545)' : 'inherit';
+});
+
+document.querySelectorAll('.meal-fluid-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        S_mealFluid = parseInt(btn.dataset.ml);
+        document.querySelectorAll('.meal-fluid-btn').forEach(b => { b.style.borderColor = 'var(--border)'; b.style.background = 'var(--surface)'; b.style.color = 'inherit'; });
+        btn.style.borderColor = 'var(--blue)';
+        btn.style.background = 'var(--blue-lt)';
+        btn.style.color = 'var(--blue)';
+    });
+});
+
+$('meal-save').addEventListener('click', async function() {
+    if (!S_mealType || !S_mealResidentId) return;
+    $('meal-save').disabled = true;
+    $('meal-save').textContent = 'Guardant...';
+    const { ok } = await api('/api/meal', 'POST', {
+        resident_id: S_mealResidentId,
+        meal_type: S_mealType,
+        intake_pct: parseInt($('meal-intake').value),
+        fluid_ml: S_mealFluid,
+        notes: $('meal-notes').value.trim(),
+    });
+    if (ok) {
+        toast('Ingesta registrada');
+        show(S_mealReturnScreen);
+    } else {
+        $('meal-save').disabled = false;
+        $('meal-save').textContent = 'Error — torna a provar';
+    }
+});
+
+$('meal-back').addEventListener('click', function() { show(S_mealReturnScreen); });
 
 function showWorkerToast(msg) {
     const t = $('worker-toast');

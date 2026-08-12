@@ -975,3 +975,62 @@ def admin_performance():
         clean_per_day=json.dumps(dict(clean_per_day)),
         care_per_day=json.dumps(dict(care_per_day)),
     )
+
+
+@bp.route('/api/worker-performance/ai-analysis', methods=['POST'])
+@admin_required
+def ai_worker_performance():
+    """AI analysis of worker performance data."""
+    from ..blueprints.assessments import _call_claude
+    from ..models import (CareRecord, CleaningRecord, TrainingCompletion,
+                          ShiftAssignment, Absence)
+
+    days = 30
+    cutoff = datetime.now() - timedelta(days=days)
+
+    workers = Cleaner.query.filter_by(active=True, is_admin=False).order_by(Cleaner.name).all()
+    lines = [f"ANALISIS RENDIMENT TREBALLADORS — Ultims {days} dies\n"]
+
+    for w in workers:
+        cares = CareRecord.query.filter(
+            CareRecord.worker_id == w.id, CareRecord.start_time >= cutoff,
+            CareRecord.end_time.isnot(None)).all()
+        cleans = CleaningRecord.query.filter(
+            CleaningRecord.cleaner_id == w.id, CleaningRecord.start_time >= cutoff,
+            CleaningRecord.end_time.isnot(None)).all()
+        shifts = ShiftAssignment.query.filter(
+            ShiftAssignment.cleaner_id == w.id,
+            ShiftAssignment.date >= cutoff.date()).count()
+        absences = Absence.query.filter(
+            Absence.cleaner_id == w.id,
+            Absence.start_date >= cutoff.date()).count()
+        trainings = TrainingCompletion.query.filter_by(
+            cleaner_id=w.id, passed=True).count()
+
+        care_durations = [c.calculate_duration() for c in cares if c.calculate_duration()]
+        avg_care = round(sum(care_durations) / len(care_durations) / 60, 1) if care_durations else 0
+        clean_durations = [c.calculate_duration() for c in cleans if c.calculate_duration()]
+        avg_clean = round(sum(clean_durations) / len(clean_durations) / 60, 1) if clean_durations else 0
+
+        lines.append(f"- {w.name} (rol: {w.role}): {len(cares)} atencions (mitja {avg_care}min), "
+                     f"{len(cleans)} neteges (mitja {avg_clean}min), {shifts} torns, "
+                     f"{absences} absencies, {trainings} formacions aprovades")
+
+    system = (
+        "Eres un gestor de recursos humanos de una residencia geriatrica. "
+        "Analiza el rendimiento de los trabajadores y genera un informe breve en HTML. "
+        "Destaca: trabajadores mas productivos, los que tienen tiempos por encima de la media, "
+        "patrones de absentismo, y recomendaciones de mejora. "
+        "Se constructivo, no acusatorio. Formato: HTML con h3 y ul/li. Sin emojis."
+    )
+
+    try:
+        html = _call_claude(system, '\n'.join(lines))
+        html = html.strip()
+        if html.startswith('```'):
+            html = html.split('\n', 1)[1] if '\n' in html else html[3:]
+        if html.endswith('```'):
+            html = html.rsplit('```', 1)[0]
+        return jsonify({'html': html.strip()})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
