@@ -1126,13 +1126,20 @@ def shift_handover_report():
         lines.append("Por trabajador: " + ', '.join(f"{k}: {v}" for k, v in sorted(worker_care.items(), key=lambda x: -x[1])))
 
     # Cleaning in last N hours
-    cleanings = CleaningRecord.query.filter(
+    cleanings = CleaningRecord.query.options(
+        joinedload(CleaningRecord.room), joinedload(CleaningRecord.cleaner),
+    ).filter(
         CleaningRecord.start_time >= cutoff, CleaningRecord.end_time.isnot(None),
-    ).all()
+    ).order_by(CleaningRecord.start_time.desc()).all()
     lines.append(f"\nLIMPIEZAS ULTIMAS {hours}H: {len(cleanings)}")
     for cl in cleanings:
+        room_num = cl.room.number if cl.room else '?'
+        floor_name = cl.room.floor.name if cl.room and cl.room.floor else ''
+        w_name = cl.cleaner.name if cl.cleaner else '?'
+        dur = cl.calculate_duration()
+        dur_str = f" ({round(dur/60)}min)" if dur else ''
+        lines.append(f"  {cl.start_time.strftime('%H:%M')} - Hab.{room_num} {floor_name} por {w_name}{dur_str}")
         if cl.notes:
-            room_num = cl.room.number if cl.room else '?'
             notes_list.append(f"  {cl.start_time.strftime('%H:%M')} Hab.{room_num} (limpieza): {cl.notes}")
 
     # Open sessions (not closed)
