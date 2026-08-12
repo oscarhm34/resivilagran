@@ -1223,6 +1223,8 @@ async function checkWorkerNotifs() {
 }
 // ── Today's activities ────────────────────────────────────────────────────
 var S_activities = [];
+var pendingDocs = [];
+var pendingTrains = [];
 async function loadTodayActivities() {
     if (!S.token) return;
     const { ok, data } = await api('/api/activities/today');
@@ -3136,9 +3138,6 @@ $('selfie-save').addEventListener('click', async () => {
 // ══════════════════════════════════════════════════════════════════════════
 //  PENDING ITEMS
 // ══════════════════════════════════════════════════════════════════════════
-
-let pendingDocs = [];
-let pendingTrains = [];
 
 async function loadPendingItems() {
     const [docsRes, trainRes] = await Promise.all([
