@@ -548,6 +548,7 @@ class Activity(db.Model):
 
     creator = db.relationship('Cleaner', foreign_keys=[created_by])
     participations = db.relationship('ActivityParticipation', backref='activity', lazy=True, cascade='all, delete-orphan')
+    photos = db.relationship('ActivityPhoto', backref='activity', lazy=True, cascade='all, delete-orphan')
 
 
 class ActivityParticipation(db.Model):
@@ -566,6 +567,36 @@ class ActivityParticipation(db.Model):
     confirmer = db.relationship('Cleaner', foreign_keys=[confirmed_by])
 
     __table_args__ = (db.UniqueConstraint('activity_id', 'resident_id', name='uq_activity_resident'),)
+
+
+class ActivityPhoto(db.Model):
+    """Photo taken during an activity."""
+    __tablename__ = 'activity_photo'
+    id = db.Column(db.Integer, primary_key=True)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activity.id'), nullable=False, index=True)
+    photo_path = db.Column(db.String(255), nullable=False)
+    caption = db.Column(db.Text, nullable=True)
+    uploaded_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
+    uploaded_at = db.Column(db.DateTime, default=datetime.now)
+
+    uploader = db.relationship('Cleaner', foreign_keys=[uploaded_by])
+
+
+# ── ESTADO DE ÁNIMO ──────────────────────────────────────────────────────────
+
+class MoodRecord(db.Model):
+    """Mood/behavior check-in for a resident."""
+    __tablename__ = 'mood_record'
+    id = db.Column(db.Integer, primary_key=True)
+    resident_id = db.Column(db.Integer, db.ForeignKey('resident.id'), nullable=False, index=True)
+    worker_id = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=False)
+    mood_score = db.Column(db.Integer, nullable=False)  # 1-5
+    behavior_flags = db.Column(db.Text, nullable=True)  # JSON array
+    notes = db.Column(db.Text, nullable=True)
+    recorded_at = db.Column(db.DateTime, default=datetime.now, index=True)
+
+    resident = db.relationship('Resident', backref=db.backref('mood_records', lazy=True))
+    worker = db.relationship('Cleaner', foreign_keys=[worker_id])
 
 
 # ── MEDICACIÓN ────────────────────────────────────────────────────────────────

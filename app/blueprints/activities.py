@@ -11,7 +11,7 @@ from sqlalchemy import func, case
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from .. import db
-from ..models import Activity, ActivityParticipation, ActivityTemplate, Resident, Cleaner
+from ..models import Activity, ActivityParticipation, ActivityTemplate, ActivityPhoto, Resident, Cleaner
 from ..utils import admin_required
 
 bp = Blueprint('activities', __name__)
@@ -45,17 +45,62 @@ ENGAGEMENT_LABELS = {
 @bp.route('/admin/activities')
 @admin_required
 def admin_activities():
-    """Activity calendar view."""
+    """Activity calendar view (week or month)."""
+    import calendar
     target = request.args.get('date', '')
+    view = request.args.get('view', 'week')  # week or month
     view_date = date.fromisoformat(target) if target else date.today()
 
-    # Week view: Monday to Sunday
+    if view == 'month':
+        # Month view
+        year, month = view_date.year, view_date.month
+        first_day = date(year, month, 1)
+        last_day = date(year, month, calendar.monthrange(year, month)[1])
+        # Extend to full weeks (Mon-Sun)
+        start = first_day - timedelta(days=first_day.weekday())
+        end = last_day + timedelta(days=(6 - last_day.weekday()))
+        days = [start + timedelta(days=i) for i in range((end - start).days + 1)]
+
+        activities = Activity.query.filter(
+            Activity.activity_date >= start, Activity.activity_date <= end,
+        ).options(joinedload(Activity.participations), joinedload(Activity.photos)).order_by(
+            Activity.activity_date, Activity.start_time,
+        ).all()
+
+        by_day = {d: [] for d in days}
+        for a in activities:
+            if a.activity_date in by_day:
+                by_day[a.activity_date].append(a)
+
+        residents = Resident.query.filter_by(active=True).order_by(Resident.name).all()
+        templates = ActivityTemplate.query.filter_by(active=True).order_by(ActivityTemplate.title).all()
+
+        # Previous/next month
+        if month == 1:
+            prev_month = date(year - 1, 12, 1)
+        else:
+            prev_month = date(year, month - 1, 1)
+        if month == 12:
+            next_month = date(year + 1, 1, 1)
+        else:
+            next_month = date(year, month + 1, 1)
+
+        return render_template('admin_activities.html',
+            view='month', days=days, by_day=by_day, view_date=view_date,
+            month=month, year=year, first_day=first_day, last_day=last_day,
+            categories=CATEGORIES, cat_icons=CAT_ICONS, cat_colors=CAT_COLORS,
+            engagement_labels=ENGAGEMENT_LABELS, residents=residents, templates=templates,
+            prev_date=prev_month.isoformat(), next_date=next_month.isoformat(),
+            is_current=view_date.month == date.today().month and view_date.year == date.today().year,
+        )
+
+    # Week view (default)
     monday = view_date - timedelta(days=view_date.weekday())
     days = [monday + timedelta(days=i) for i in range(7)]
 
     activities = Activity.query.filter(
         Activity.activity_date >= days[0], Activity.activity_date <= days[-1],
-    ).options(joinedload(Activity.participations)).order_by(
+    ).options(joinedload(Activity.participations), joinedload(Activity.photos)).order_by(
         Activity.activity_date, Activity.start_time,
     ).all()
 
@@ -68,12 +113,12 @@ def admin_activities():
     templates = ActivityTemplate.query.filter_by(active=True).order_by(ActivityTemplate.title).all()
 
     return render_template('admin_activities.html',
-        days=days, by_day=by_day, view_date=view_date,
+        view='week', days=days, by_day=by_day, view_date=view_date,
         monday=monday, categories=CATEGORIES, cat_icons=CAT_ICONS, cat_colors=CAT_COLORS,
         engagement_labels=ENGAGEMENT_LABELS, residents=residents, templates=templates,
-        prev_week=(monday - timedelta(days=7)).isoformat(),
-        next_week=(monday + timedelta(days=7)).isoformat(),
-        is_current_week=date.today() in days,
+        prev_date=(monday - timedelta(days=7)).isoformat(),
+        next_date=(monday + timedelta(days=7)).isoformat(),
+        is_current=date.today() in days,
     )
 
 
@@ -482,6 +527,66 @@ def save_participation(act_id: int):
     return jsonify({'ok': True, 'count': len(participants)})
 
 
+# ── Activity Photos ────────────────────────────────────────────────────────────
+
+@bp.route('/admin/activities/<int:act_id>/photos', methods=['POST'])
+@admin_required
+def upload_activity_photo(act_id: int):
+    """Upload a photo for an activity."""
+    import os, uuid
+    from flask import current_app
+    from PIL import Image
+
+    a = db.session.get(Activity, act_id)
+    if not a:
+        return jsonify({'error': 'Activitat no trobada'}), 404
+
+    file = request.files.get('photo')
+    if not file:
+        return jsonify({'error': 'No s\'ha enviat cap foto'}), 400
+
+    upload_dir = os.path.join(current_app.config.get('UPLOAD_FOLDER', 'uploads'))
+    os.makedirs(upload_dir, exist_ok=True)
+
+    ext = os.path.splitext(file.filename)[1].lower() or '.jpg'
+    filename = f"act_{act_id}_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = os.path.join(upload_dir, filename)
+
+    img = Image.open(file.stream)
+    img.thumbnail((1200, 1200))
+    if img.mode in ('RGBA', 'P'):
+        img = img.convert('RGB')
+    img.save(filepath, 'JPEG', quality=85)
+
+    caption = request.form.get('caption', '').strip() or None
+    photo = ActivityPhoto(
+        activity_id=act_id, photo_path=filename,
+        caption=caption, uploaded_by=current_user.id,
+    )
+    db.session.add(photo)
+    db.session.commit()
+    return jsonify({'ok': True, 'id': photo.id, 'photo_path': filename})
+
+
+@bp.route('/admin/activities/photos/<int:photo_id>/delete', methods=['POST'])
+@admin_required
+def delete_activity_photo(photo_id: int):
+    """Delete an activity photo."""
+    import os
+    from flask import current_app
+
+    photo = db.session.get(ActivityPhoto, photo_id)
+    if not photo:
+        return jsonify({'error': 'Foto no trobada'}), 404
+
+    filepath = os.path.join(current_app.config.get('UPLOAD_FOLDER', 'uploads'), photo.photo_path)
+    if os.path.exists(filepath):
+        os.remove(filepath)
+    db.session.delete(photo)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
 # ── Worker API ────────────────────────────────────────────────────────────────
 
 @bp.route('/api/activities/today')
@@ -555,3 +660,45 @@ def api_confirm_attendance(act_id: int):
 
     db.session.commit()
     return jsonify({'ok': True})
+
+
+@bp.route('/api/activities/<int:act_id>/photo', methods=['POST'])
+@jwt_required()
+def api_upload_activity_photo(act_id: int):
+    """Worker uploads a photo for an activity."""
+    import os, uuid
+    from flask import current_app
+    from PIL import Image
+
+    identity = get_jwt_identity()
+    worker = Cleaner.query.filter_by(username=identity).first()
+    if not worker:
+        return jsonify({'error': 'No autoritzat'}), 403
+
+    a = db.session.get(Activity, act_id)
+    if not a:
+        return jsonify({'error': 'Activitat no trobada'}), 404
+
+    file = request.files.get('photo')
+    if not file:
+        return jsonify({'error': 'No photo'}), 400
+
+    upload_dir = os.path.join(current_app.config.get('UPLOAD_FOLDER', 'uploads'))
+    os.makedirs(upload_dir, exist_ok=True)
+
+    filename = f"act_{act_id}_{uuid.uuid4().hex[:8]}.jpg"
+    filepath = os.path.join(upload_dir, filename)
+
+    img = Image.open(file.stream)
+    img.thumbnail((1200, 1200))
+    if img.mode in ('RGBA', 'P'):
+        img = img.convert('RGB')
+    img.save(filepath, 'JPEG', quality=85)
+
+    photo = ActivityPhoto(
+        activity_id=act_id, photo_path=filename,
+        uploaded_by=worker.id,
+    )
+    db.session.add(photo)
+    db.session.commit()
+    return jsonify({'ok': True, 'id': photo.id})

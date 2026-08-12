@@ -531,6 +531,42 @@
         <div id="act-detail-list" style="flex:1;overflow-y:auto"></div>
     </div>
 
+    <!-- ══ MOOD CHECK-IN ══ -->
+    <div id="screen-mood" class="screen">
+        <div class="scan-header">
+            <button class="btn-back" id="mood-back" aria-label="Tornar">←</button>
+            <span class="mode-badge" style="background:#fef3c7;color:#92400e">😊 Estat d'anim</span>
+        </div>
+        <div style="padding:12px 0;text-align:center">
+            <h3 id="mood-resident-name" style="font-size:18px;font-weight:700;margin:0"></h3>
+            <p style="font-size:13px;color:var(--text-2);margin-top:4px">Com esta avui?</p>
+        </div>
+        <div id="mood-emojis" style="display:flex;justify-content:center;gap:12px;padding:16px 0">
+            <button class="mood-btn" data-score="1" style="font-size:2.2rem;background:none;border:3px solid transparent;border-radius:16px;padding:8px 12px;cursor:pointer;transition:all .15s">😢</button>
+            <button class="mood-btn" data-score="2" style="font-size:2.2rem;background:none;border:3px solid transparent;border-radius:16px;padding:8px 12px;cursor:pointer;transition:all .15s">😟</button>
+            <button class="mood-btn" data-score="3" style="font-size:2.2rem;background:none;border:3px solid transparent;border-radius:16px;padding:8px 12px;cursor:pointer;transition:all .15s">😐</button>
+            <button class="mood-btn" data-score="4" style="font-size:2.2rem;background:none;border:3px solid transparent;border-radius:16px;padding:8px 12px;cursor:pointer;transition:all .15s">🙂</button>
+            <button class="mood-btn" data-score="5" style="font-size:2.2rem;background:none;border:3px solid transparent;border-radius:16px;padding:8px 12px;cursor:pointer;transition:all .15s">😊</button>
+        </div>
+        <div style="padding:0 0 12px">
+            <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:8px">Conducta (opcional):</div>
+            <div id="mood-flags" style="display:flex;flex-wrap:wrap;gap:6px">
+                <button class="mood-flag" data-flag="Agitat" style="font-size:12px;padding:6px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Agitat</button>
+                <button class="mood-flag" data-flag="Confos" style="font-size:12px;padding:6px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Confós</button>
+                <button class="mood-flag" data-flag="Cooperatiu" style="font-size:12px;padding:6px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Cooperatiu</button>
+                <button class="mood-flag" data-flag="Tranquil" style="font-size:12px;padding:6px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Tranquil</button>
+                <button class="mood-flag" data-flag="Trist" style="font-size:12px;padding:6px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Trist</button>
+                <button class="mood-flag" data-flag="Content" style="font-size:12px;padding:6px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Content</button>
+                <button class="mood-flag" data-flag="Agressiu" style="font-size:12px;padding:6px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Agressiu</button>
+                <button class="mood-flag" data-flag="Somnolent" style="font-size:12px;padding:6px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Somnolent</button>
+            </div>
+        </div>
+        <div style="padding:0 0 12px">
+            <textarea id="mood-notes" rows="2" placeholder="Observacions (opcional)..." style="width:100%;border:1px solid var(--border);border-radius:10px;padding:10px;font-size:14px;resize:none;font-family:inherit"></textarea>
+        </div>
+        <button id="mood-save" class="btn-cam primary" style="width:100%;padding:14px;border-radius:14px;border:none;background:var(--green);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:'Outfit',system-ui,sans-serif" disabled>Selecciona un estat</button>
+    </div>
+
     <!-- ══ SELECT ══ -->
     <div id="screen-select" class="screen">
         <div class="scan-header">
@@ -1161,6 +1197,7 @@ function openActivityDetail(idx) {
             html += '<button class="act-btn-confirm" data-actid="' + act.id + '" data-rid="' + p.resident_id + '" data-status="absent" title="No ha vingut" style="margin-left:4px">✗</button>';
         } else if (p.engagement === 'participated') {
             html += '<div class="act-btn-confirm yes">✓</div>';
+            html += '<button class="mood-open-btn" data-rid="' + p.resident_id + '" data-rname="' + esc(p.name) + '" style="margin-left:4px;background:none;border:1.5px solid #f59e0b;border-radius:8px;padding:2px 6px;font-size:14px;cursor:pointer" title="Registrar estat d\'anim">😊</button>';
         } else {
             html += '<div class="act-btn-confirm no">✗</div>';
         }
@@ -1192,6 +1229,78 @@ function openActivityDetail(idx) {
 }
 
 $('activity-back').addEventListener('click', function() { show('screen-home'); });
+
+// ── Mood check-in ──────────────────────────────────────
+var S_moodResidentId = null;
+var S_moodScore = null;
+var S_moodReturnScreen = 'screen-home';
+
+function openMoodScreen(residentId, residentName, returnScreen) {
+    S_moodResidentId = residentId;
+    S_moodScore = null;
+    S_moodReturnScreen = returnScreen || 'screen-home';
+    $('mood-resident-name').textContent = residentName;
+    $('mood-save').disabled = true;
+    $('mood-save').textContent = 'Selecciona un estat';
+    $('mood-notes').value = '';
+    document.querySelectorAll('.mood-btn').forEach(b => { b.style.borderColor = 'transparent'; b.style.background = 'none'; });
+    document.querySelectorAll('.mood-flag').forEach(b => { b.style.borderColor = 'var(--border)'; b.style.background = 'var(--surface)'; b.style.color = 'inherit'; });
+    show('screen-mood');
+}
+
+document.querySelectorAll('.mood-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        S_moodScore = parseInt(btn.dataset.score);
+        document.querySelectorAll('.mood-btn').forEach(b => { b.style.borderColor = 'transparent'; b.style.background = 'none'; });
+        btn.style.borderColor = '#f59e0b';
+        btn.style.background = '#fef3c7';
+        var labels = {1:'Muy mal',2:'Mal',3:'Normal',4:'Bien',5:'Muy bien'};
+        $('mood-save').disabled = false;
+        $('mood-save').textContent = 'Guardar: ' + labels[S_moodScore];
+    });
+});
+
+document.querySelectorAll('.mood-flag').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var isActive = btn.style.background === 'rgb(245, 158, 11)';
+        btn.style.background = isActive ? 'var(--surface)' : '#f59e0b';
+        btn.style.color = isActive ? 'inherit' : '#fff';
+        btn.style.borderColor = isActive ? 'var(--border)' : '#f59e0b';
+    });
+});
+
+$('mood-save').addEventListener('click', async function() {
+    if (!S_moodScore || !S_moodResidentId) return;
+    var flags = [];
+    document.querySelectorAll('.mood-flag').forEach(function(b) {
+        if (b.style.background === 'rgb(245, 158, 11)') flags.push(b.dataset.flag);
+    });
+    $('mood-save').disabled = true;
+    $('mood-save').textContent = 'Guardant...';
+    const { ok } = await api('/api/mood', 'POST', {
+        resident_id: S_moodResidentId,
+        mood_score: S_moodScore,
+        behavior_flags: flags,
+        notes: $('mood-notes').value.trim(),
+    });
+    if (ok) {
+        toast('Estat d\'anim registrat');
+        show(S_moodReturnScreen);
+    } else {
+        $('mood-save').disabled = false;
+        $('mood-save').textContent = 'Error — torna a provar';
+    }
+});
+
+$('mood-back').addEventListener('click', function() { show(S_moodReturnScreen); });
+
+// Bind mood buttons in activity detail (delegated)
+document.addEventListener('click', function(e) {
+    var btn = e.target.closest('.mood-open-btn');
+    if (btn) {
+        openMoodScreen(parseInt(btn.dataset.rid), btn.dataset.rname, 'screen-activity');
+    }
+});
 
 function showWorkerToast(msg) {
     const t = $('worker-toast');

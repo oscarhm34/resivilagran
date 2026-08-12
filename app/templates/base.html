@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+    <script>if(localStorage.getItem('theme')==='dark')document.documentElement.setAttribute('data-theme','dark')</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Gestión Residencial{% endblock %} - La Vila Gran</title>
@@ -31,6 +32,34 @@
             --shadow-sm:              0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
             --shadow-md:              0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.06);
         }
+
+        /* ── Dark mode ──────────────────────────────────────────── */
+        [data-theme="dark"] {
+            --color-primary:          #4da3ff;
+            --color-primary-dk:       #2684e6;
+            --color-primary-lt:       #1a2940;
+            --color-success:          #3fb950;
+            --color-warning:          #d29922;
+            --color-danger:           #f85149;
+            --color-info:             #58a6ff;
+            --color-bg:               #0d1117;
+            --color-surface:          #161b22;
+            --color-border:           #30363d;
+            --color-text:             #e6edf3;
+            --color-text-secondary:   #8b949e;
+            --shadow-sm:              0 1px 3px rgba(0,0,0,.3);
+            --shadow-md:              0 4px 6px rgba(0,0,0,.3);
+        }
+        [data-theme="dark"] .card { background: var(--color-surface); border-color: var(--color-border); }
+        [data-theme="dark"] .table { color: var(--color-text); --bs-table-bg: var(--color-surface); --bs-table-border-color: var(--color-border); --bs-table-striped-bg: #1c2128; --bs-table-hover-bg: #1c2128; }
+        [data-theme="dark"] .modal-content { background: var(--color-surface); color: var(--color-text); border-color: var(--color-border); }
+        [data-theme="dark"] .offcanvas { background: var(--color-surface); color: var(--color-text); }
+        [data-theme="dark"] .form-control, [data-theme="dark"] .form-select { background: #0d1117; color: var(--color-text); border-color: var(--color-border); }
+        [data-theme="dark"] .dropdown-menu { background: var(--color-surface); border-color: var(--color-border); }
+        [data-theme="dark"] .dropdown-item { color: var(--color-text); }
+        [data-theme="dark"] .dropdown-item:hover { background: #1c2128; }
+        [data-theme="dark"] .alert { border-color: var(--color-border); }
+        [data-theme="dark"] .btn-close { filter: invert(1); }
 
         /* ── Base ───────────────────────────────────────────────── */
         body {
@@ -323,6 +352,9 @@
                         <a class="nav-link {% if request.endpoint == 'nfc.admin_settings' %}active{% endif %}"
                            href="{{ url_for('nfc.admin_settings') }}" title="Configuración"><i class="bi bi-gear" aria-hidden="true"></i></a>
                     </li>
+                    <li class="nav-item">
+                        <button class="nav-link" id="btn-dark-toggle" title="Mode fosc" style="background:none;border:none;cursor:pointer"><i class="bi bi-moon" aria-hidden="true"></i></button>
+                    </li>
                 </ul>
 
                 <ul class="navbar-nav ms-auto align-items-center gap-2">
@@ -505,6 +537,24 @@
             else { startPolling(); }
         });
         startPolling();
+    })();
+
+    /* ── Dark mode toggle ── */
+    (function() {
+        var btn = document.getElementById('btn-dark-toggle');
+        if (!btn) return;
+        var icon = btn.querySelector('i');
+        function applyTheme(dark) {
+            document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+            icon.className = dark ? 'bi bi-sun' : 'bi bi-moon';
+            btn.title = dark ? 'Mode clar' : 'Mode fosc';
+            localStorage.setItem('theme', dark ? 'dark' : 'light');
+        }
+        var saved = localStorage.getItem('theme');
+        if (saved === 'dark') applyTheme(true);
+        btn.addEventListener('click', function() {
+            applyTheme(document.documentElement.getAttribute('data-theme') !== 'dark');
+        });
     })();
     </script>
 

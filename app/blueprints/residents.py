@@ -15,7 +15,7 @@ from .. import app, db
 from ..models import (
     Cleaner, Resident, ResidentGroup, CareRecord, CareType,
     CleaningRecord, Room, ResidentDocument,
-    VitalSignType, VitalSignReading,
+    VitalSignType, VitalSignReading, MoodRecord,
 )
 from .assessments import get_resident_assessment_data
 from ..models import MedicationPrescription, MedicationAdministration
@@ -811,3 +811,24 @@ def delete_care_record(record_id: int):
     db.session.commit()
     flash('Registro de atención eliminado.', 'success')
     return redirect(url_for('residents.registros_atencion'))
+
+
+@bp.route('/api/resident/<int:resident_id>/mood-history')
+@admin_required
+def admin_mood_history(resident_id):
+    """Get mood records for admin charts."""
+    import json
+    cutoff = datetime.now() - timedelta(days=30)
+    records = MoodRecord.query.filter(
+        MoodRecord.resident_id == resident_id,
+        MoodRecord.recorded_at >= cutoff,
+    ).order_by(MoodRecord.recorded_at).all()
+
+    return jsonify({'records': [{
+        'id': r.id,
+        'mood_score': r.mood_score,
+        'behavior_flags': json.loads(r.behavior_flags) if r.behavior_flags else [],
+        'notes': r.notes,
+        'recorded_at': r.recorded_at.strftime('%d/%m %H:%M'),
+        'worker': r.worker.name if r.worker else '?',
+    } for r in records]})

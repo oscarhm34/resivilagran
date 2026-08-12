@@ -22,6 +22,7 @@ from ..models import (
     Cleaner, Room, Floor, Resident, CareType, CareRecord, CleaningRecord,
     ResidentGroup, cleaner_groups, ChecklistItem, WorkerSelfie,
     VitalSignType, VitalSignReading, AppSetting, Notification,
+    MoodRecord,
 )
 from ..utils import (
     admin_required, _verify_worker_id, _safe_commit,
@@ -1320,3 +1321,58 @@ def api_config():
         'allow_worker_activities': AppSetting.get('allow_worker_activities', 'false') == 'true',
         'session_max_minutes': int(AppSetting.get('session_max_minutes', '120')),
     }), 200
+
+
+# ── Mood tracking ──────────────────────────────────────────────────────────────
+
+@bp.route('/api/mood', methods=['POST'])
+@jwt_required()
+def api_record_mood():
+    """Record a mood/behavior check-in for a resident."""
+    identity = get_jwt_identity()
+    worker = Cleaner.query.filter_by(username=identity).first()
+    if not worker:
+        return jsonify({'error': 'No autoritzat'}), 403
+
+    data = request.get_json() or {}
+    resident_id = data.get('resident_id')
+    mood_score = data.get('mood_score')
+
+    if not resident_id or not mood_score:
+        return jsonify({'error': 'Falten dades'}), 400
+    if mood_score not in (1, 2, 3, 4, 5):
+        return jsonify({'error': 'Puntuacio invalida (1-5)'}), 400
+
+    import json
+    record = MoodRecord(
+        resident_id=resident_id,
+        worker_id=worker.id,
+        mood_score=mood_score,
+        behavior_flags=json.dumps(data.get('behavior_flags', [])),
+        notes=data.get('notes', '').strip() or None,
+    )
+    db.session.add(record)
+    db.session.commit()
+    return jsonify({'ok': True, 'id': record.id})
+
+
+@bp.route('/api/resident/<int:resident_id>/mood-history')
+@jwt_required()
+def api_mood_history(resident_id):
+    """Get last 30 days of mood records for a resident."""
+    from datetime import timedelta
+    cutoff = datetime.now() - timedelta(days=30)
+    records = MoodRecord.query.filter(
+        MoodRecord.resident_id == resident_id,
+        MoodRecord.recorded_at >= cutoff,
+    ).order_by(MoodRecord.recorded_at).all()
+
+    import json
+    return jsonify({'records': [{
+        'id': r.id,
+        'mood_score': r.mood_score,
+        'behavior_flags': json.loads(r.behavior_flags) if r.behavior_flags else [],
+        'notes': r.notes,
+        'recorded_at': r.recorded_at.strftime('%d/%m %H:%M'),
+        'worker': r.worker.name if r.worker else '?',
+    } for r in records]})

@@ -366,7 +366,6 @@
         }).then(function(r) { return r.json(); }).then(function(data) {
             btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar resum';
-            if (data.debug_context) console.log('HANDOVER CONTEXT:', data.debug_context);
             if (data.html) {
                 content.innerHTML = data.html;
                 document.getElementById('btn-ho-print').style.display = '';

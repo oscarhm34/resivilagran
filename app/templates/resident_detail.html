@@ -321,6 +321,18 @@
             {% if not vital_charts and not heatmap_data %}
             <div class="alert alert-info">No hay datos de resumen disponibles todavía.</div>
             {% endif %}
+
+            <!-- Mood chart -->
+            <div class="card mb-4">
+                <div class="card-header"><i class="bi bi-emoji-smile me-1"></i><strong>Estat d'anim</strong> <span class="text-muted" style="font-size:.78rem">(ultims 30 dies)</span></div>
+                <div class="card-body" style="height:200px">
+                    <canvas id="moodChart"></canvas>
+                </div>
+                <div id="mood-empty" class="card-body text-center text-muted py-3" style="display:none">
+                    <i class="bi bi-emoji-neutral" style="font-size:1.5rem"></i>
+                    <p class="mb-0 mt-1" style="font-size:.85rem">Sense registres d'estat d'anim</p>
+                </div>
+            </div>
         </div>
 
         <!-- Tab Valoraciones -->
@@ -1066,6 +1078,63 @@ vitalData.forEach((chart, i) => {
             if (s) s.remove();
         }, 500);
     });
+})();
+
+// ── Mood chart ──
+(function() {
+    fetch('/api/resident/{{ resident.id }}/mood-history')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var records = data.records || [];
+            var canvas = document.getElementById('moodChart');
+            if (!records.length) {
+                canvas.parentElement.style.display = 'none';
+                document.getElementById('mood-empty').style.display = '';
+                return;
+            }
+            var labels = records.map(function(r) { return r.recorded_at; });
+            var scores = records.map(function(r) { return r.mood_score; });
+            var colors = scores.map(function(s) {
+                return s <= 2 ? '#ef4444' : s === 3 ? '#f59e0b' : '#22c55e';
+            });
+            new Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Estat d\'anim',
+                        data: scores,
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245,158,11,.1)',
+                        pointBackgroundColor: colors,
+                        pointBorderColor: colors,
+                        pointRadius: 6,
+                        fill: true,
+                        tension: 0.3,
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: {
+                        y: { min: 0.5, max: 5.5, ticks: { stepSize: 1, callback: function(v) { return ['','😢','😟','😐','🙂','😊'][v] || ''; } } },
+                        x: { ticks: { maxTicksLimit: 8, font: { size: 10 } } }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(ctx) {
+                                    var r = records[ctx.dataIndex];
+                                    var l = ['','Muy mal','Mal','Normal','Bien','Muy bien'][r.mood_score];
+                                    var flags = r.behavior_flags.length ? ' [' + r.behavior_flags.join(', ') + ']' : '';
+                                    return l + flags + ' — ' + r.worker;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }).catch(function() {});
 })();
 </script>
 {% endblock %}

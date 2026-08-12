@@ -6,11 +6,15 @@
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
         <h1 class="h3 mb-0"><i class="bi bi-calendar-event me-2"></i>Calendari d'activitats</h1>
         <div class="d-flex flex-wrap gap-2">
-            <a href="{{ url_for('activities.admin_activities', date=prev_week) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-left"></i></a>
-            {% if not is_current_week %}
-            <a href="{{ url_for('activities.admin_activities') }}" class="btn btn-outline-primary btn-sm">Avui</a>
+            <a href="{{ url_for('activities.admin_activities', date=prev_date, view=view) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-left"></i></a>
+            {% if not is_current %}
+            <a href="{{ url_for('activities.admin_activities', view=view) }}" class="btn btn-outline-primary btn-sm">Avui</a>
             {% endif %}
-            <a href="{{ url_for('activities.admin_activities', date=next_week) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-right"></i></a>
+            <a href="{{ url_for('activities.admin_activities', date=next_date, view=view) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-right"></i></a>
+            <div class="btn-group btn-group-sm">
+                <a href="{{ url_for('activities.admin_activities', date=view_date.isoformat(), view='week') }}" class="btn btn-outline-secondary {% if view == 'week' %}active{% endif %}"><i class="bi bi-calendar-week"></i></a>
+                <a href="{{ url_for('activities.admin_activities', date=view_date.isoformat(), view='month') }}" class="btn btn-outline-secondary {% if view == 'month' %}active{% endif %}"><i class="bi bi-calendar-month"></i></a>
+            </div>
             <a href="{{ url_for('activities.activity_stats') }}" class="btn btn-outline-info btn-sm" title="Estadistiques"><i class="bi bi-bar-chart-line me-1"></i><span class="hide-mobile">Estadistiques</span></a>
             <a href="{{ url_for('activities.admin_activity_templates') }}" class="btn btn-outline-secondary btn-sm" title="Plantilles recurrents"><i class="bi bi-arrow-repeat me-1"></i><span class="hide-mobile">Recurrents</span></a>
             <button type="button" class="btn btn-outline-purple btn-sm" id="btn-ai-suggest" title="Suggerencies IA"><i class="bi bi-stars me-1"></i><span class="hide-mobile">IA</span></button>
@@ -20,14 +24,46 @@
         </div>
     </div>
 
+    {% set day_names = ['Dl','Dm','Dc','Dj','Dv','Ds','Dg'] %}
+    {% set day_names_long = ['Dilluns','Dimarts','Dimecres','Dijous','Divendres','Dissabte','Diumenge'] %}
+    {% set today = view_date.__class__.today() %}
+
+    {% if view == 'month' %}
+    <!-- Month grid -->
+    <div class="card">
+        <div class="card-header text-center py-2"><strong>{{ ['Gener','Febrer','Marc','Abril','Maig','Juny','Juliol','Agost','Setembre','Octubre','Novembre','Desembre'][month - 1] }} {{ year }}</strong></div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--color-border)">
+            {% for dn in day_names %}
+            <div class="text-center py-1" style="font-size:.7rem;font-weight:700;color:var(--color-text-secondary);border-right:1px solid var(--color-border)">{{ dn }}</div>
+            {% endfor %}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr)">
+            {% for day in days %}
+            <div style="min-height:80px;border-right:1px solid var(--color-border);border-bottom:1px solid var(--color-border);padding:2px;{% if day.month != month %}opacity:.4{% endif %};{% if day == today %}background:rgba(13,110,253,.05){% elif day.weekday() >= 5 %}background:#fafafa{% endif %}">
+                <div class="text-end" style="font-size:.7rem;{% if day == today %}font-weight:700;color:var(--color-primary){% else %}color:var(--color-text-secondary){% endif %}">{{ day.day }}</div>
+                {% for a in by_day.get(day, [])[:3] %}
+                <div class="act-item" style="font-size:.6rem;padding:1px 4px;margin-bottom:1px;border-radius:4px;background:{{ cat_colors.get(a.category, '#6c757d') }}20;border-left:2px solid {{ cat_colors.get(a.category, '#6c757d') }};cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
+                     data-id="{{ a.id }}" data-title="{{ a.title }}" data-desc="{{ a.description or '' }}" data-date="{{ a.activity_date.isoformat() }}" data-start="{{ a.start_time.strftime('%H:%M') if a.start_time else '' }}" data-end="{{ a.end_time.strftime('%H:%M') if a.end_time else '' }}" data-loc="{{ a.location or '' }}" data-cat="{{ a.category }}" data-tmpl="{{ a.template_id or '' }}"
+                     title="{{ a.title }}{% if a.start_time %} ({{ a.start_time.strftime('%H:%M') }}){% endif %}">
+                    {% if a.start_time %}<span class="fw-bold">{{ a.start_time.strftime('%H:%M') }}</span> {% endif %}{{ a.title }}
+                </div>
+                {% endfor %}
+                {% if by_day.get(day, [])|length > 3 %}
+                <div style="font-size:.55rem;color:var(--color-text-secondary);text-align:center">+{{ by_day[day]|length - 3 }} mes</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    {% else %}
     <!-- Week grid -->
     <div class="row g-2">
-        {% set day_names = ['Dilluns','Dimarts','Dimecres','Dijous','Divendres','Dissabte','Diumenge'] %}
         {% for day in days %}
         <div class="col" style="min-width:140px">
-            <div class="card h-100 {% if day == view_date %}border-primary{% endif %}" style="{% if day.weekday() >= 5 %}background:#f8f9fa{% endif %}">
-                <div class="card-header text-center py-2" style="font-size:.78rem;{% if is_current_week and day.weekday() == view_date.weekday() and day == view_date %}background:var(--color-primary);color:#fff{% endif %}">
-                    <div class="fw-bold">{{ day_names[day.weekday()] }}</div>
+            <div class="card h-100 {% if day == today %}border-primary{% endif %}" style="{% if day.weekday() >= 5 %}background:#f8f9fa{% endif %}">
+                <div class="card-header text-center py-2" style="font-size:.78rem;{% if day == today %}background:var(--color-primary);color:#fff{% endif %}">
+                    <div class="fw-bold">{{ day_names_long[day.weekday()] }}</div>
                     <div>{{ day.strftime('%d/%m') }}</div>
                 </div>
                 <div class="card-body p-1" style="min-height:120px">
@@ -64,7 +100,17 @@
                             <button type="button" class="btn-invite-open btn p-0" style="font-size:.6rem;color:var(--color-primary);background:none;border:none" data-act-id="{{ a.id }}" data-act-title="{{ a.title }}" onclick="event.stopPropagation()">
                                 <i class="bi bi-person-plus"></i>
                             </button>
+                            {% if a.photos %}
+                            <span style="font-size:.6rem;color:var(--color-text-secondary)"><i class="bi bi-camera"></i> {{ a.photos|length }}</span>
+                            {% endif %}
                         </div>
+                        {% if a.photos %}
+                        <div class="d-flex gap-1 mt-1" style="overflow-x:auto">
+                            {% for photo in a.photos[:3] %}
+                            <img src="{{ url_for('nfc.serve_upload', filename=photo.photo_path) }}" style="width:28px;height:28px;border-radius:4px;object-fit:cover;cursor:pointer" onclick="event.stopPropagation(); window.open('{{ url_for('nfc.serve_upload', filename=photo.photo_path) }}', '_blank')" alt="">
+                            {% endfor %}
+                        </div>
+                        {% endif %}
                     </div>
                     {% endfor %}
                     <button class="btn btn-sm w-100 mt-1" style="font-size:.68rem;color:var(--color-text-secondary);border:1px dashed var(--color-border)"
@@ -76,6 +122,7 @@
         </div>
         {% endfor %}
     </div>
+    {% endif %}
 </div>
 
 <!-- Modal: Add/Edit Activity -->

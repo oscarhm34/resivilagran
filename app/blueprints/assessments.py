@@ -578,6 +578,26 @@ def _build_resident_context(resident_id: int, days: int = 7) -> dict:
                 'engagement': eng_label,
             })
 
+    # Mood records
+    from ..models import MoodRecord
+    import json as _json
+    mood_data = []
+    mood_records = MoodRecord.query.filter(
+        MoodRecord.resident_id == resident_id,
+        MoodRecord.recorded_at >= cutoff,
+    ).order_by(MoodRecord.recorded_at.desc()).limit(20).all()
+    mood_labels = {1: 'Muy mal', 2: 'Mal', 3: 'Normal', 4: 'Bien', 5: 'Muy bien'}
+    for m in mood_records:
+        flags = _json.loads(m.behavior_flags) if m.behavior_flags else []
+        mood_data.append({
+            'date': m.recorded_at.strftime('%d/%m/%Y %H:%M'),
+            'score': m.mood_score,
+            'label': mood_labels.get(m.mood_score, '?'),
+            'flags': ', '.join(flags) if flags else '',
+            'notes': m.notes or '',
+            'worker': m.worker.name if m.worker else '?',
+        })
+
     return {
         'profile': profile,
         'care_records': care_data,
@@ -586,6 +606,7 @@ def _build_resident_context(resident_id: int, days: int = 7) -> dict:
         'incidents': incident_data,
         'cleaning': cleaning_data,
         'activities': activity_data,
+        'mood': mood_data,
         'worker_notes': worker_notes,
     }
 
@@ -635,6 +656,13 @@ def _context_to_text(ctx: dict, days: int) -> str:
         lines.append(f"\nACTIVITATS ({len(ctx['activities'])}):")
         for act in ctx['activities'][:10]:
             lines.append(f"  {act['date']} - {act['title']} ({act['category']}) — {act['engagement']}")
+
+    if ctx.get('mood'):
+        lines.append(f"\nESTADO DE ANIMO ({len(ctx['mood'])} registros):")
+        for m in ctx['mood'][:10]:
+            flags_str = f" [{m['flags']}]" if m['flags'] else ''
+            notes_str = f" — {m['notes']}" if m['notes'] else ''
+            lines.append(f"  {m['date']} - {m['label']} ({m['score']}/5){flags_str}{notes_str} por {m['worker']}")
 
     if ctx['worker_notes']:
         lines.append(f"\nNOTAS DEL PERSONAL:")
@@ -1084,10 +1112,6 @@ def shift_handover_report():
             lines.append(n)
 
     context = '\n'.join(lines)
-
-    import logging
-    logging.getLogger(__name__).warning("HANDOVER CONTEXT:\n%s", context)
-
     prompt = f"Genera un informe de traspaso de turno basado en estos datos:\n\n{context}"
 
     try:
@@ -1103,7 +1127,7 @@ def shift_handover_report():
 
     return jsonify({
         'html': html,
-        'debug_context': context,
+
         'title': f'Traspaso de turno — {now.strftime("%d/%m/%Y %H:%M")}',
         'generated_at': now.strftime('%d/%m/%Y %H:%M'),
         'generated_by': current_user.name if current_user else '',
