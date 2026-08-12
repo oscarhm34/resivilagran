@@ -712,6 +712,63 @@ def ai_summary(resident_id: int):
     return jsonify(report)
 
 
+# ── Family-friendly AI summary ─────────────────────────────────────────────────
+
+FAMILY_SUMMARY_SYSTEM = """Eres un asistente de la residencia de ancianos La Vila Gran.
+Genera un resumen semanal PARA LA FAMILIA del residente, en un tono amable, cercano y positivo.
+
+REGLAS IMPORTANTES:
+- Escribe siempre en espanol
+- Usa un tono calido y tranquilizador, como si hablaras con un familiar en una visita
+- NO uses terminologia clinica ni datos en bruto de constantes vitales
+- Si hay constantes vitales normales, di "sus constantes se mantienen estables"
+- Solo menciona anomalias de forma suave: "hemos prestado especial atencion a..."
+- Destaca las actividades en las que ha participado y su nivel de disfrute
+- Menciona la interaccion social y el estado de animo
+- Si hay mejoras, destácalas; si hay declive, sé delicado y propositivo
+- NO incluyas diagnosticos ni medicacion especifica
+- NO uses emojis
+
+FORMATO: Devuelve SOLO contenido HTML (sin <html>, <head> ni <body>).
+Estructura libre pero cercana: un saludo inicial, 2-3 parrafos sobre como ha ido la semana,
+y un cierre positivo. Usa <strong> para lo mas relevante. Maximo 300 palabras."""
+
+
+@bp.route('/api/resident/<int:resident_id>/family-summary', methods=['POST'])
+@admin_required
+def family_summary(resident_id: int):
+    """Generate a family-friendly weekly summary for a resident."""
+    ctx = _build_resident_context(resident_id, 7)
+    if not ctx:
+        return jsonify({'error': 'Residente no encontrado'}), 404
+
+    resident = db.session.get(Resident, resident_id)
+    context_text = _context_to_text(ctx, 7)
+    prompt = f"""Genera un resumen semanal para la familia de {resident.name}.
+Los datos son internos — tu resumen debe ser PARA LA FAMILIA, sin jerga clinica.
+
+{context_text}"""
+
+    try:
+        html = _call_claude(FAMILY_SUMMARY_SYSTEM, prompt)
+        html = html.strip()
+        if html.startswith('```'):
+            html = html.split('\n', 1)[1] if '\n' in html else html[3:]
+        if html.endswith('```'):
+            html = html.rsplit('```', 1)[0]
+        html = html.strip()
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    return jsonify({
+        'html': html,
+        'title': f'Resumen familiar — {resident.name}',
+        'resident_name': resident.name if resident else '',
+        'generated_at': datetime.now().strftime('%d/%m/%Y %H:%M'),
+        'generated_by': current_user.name if current_user else '',
+    })
+
+
 # ── Global AI report ─────────────────────────────────────────────────────────
 
 GLOBAL_REPORT_SYSTEM = """Eres un asistente de direccion de la residencia de ancianos La Vila Gran.
@@ -885,12 +942,18 @@ Genera un informe de traspaso de turno en HTML estructurado para el equipo entra
 El informe debe ser claro, conciso y orientado a la accion.
 Escribe en espanol. No inventes datos.
 
+REGLA CRITICA: Si una atencion incluye constantes vitales (SpO2, temperatura, TA, glucemia, etc.)
+DEBES mostrar los valores numericos exactos en el informe. Ejemplo:
+"Maria Garcia — Constantes vitales: SpO2 96%, TA 130/80mmHg, Temp 36.5°C"
+NUNCA omitas los valores de constantes vitales, son esenciales para el equipo entrante.
+
 FORMATO: Solo contenido HTML (sin <html>/<body>).
 Secciones con h3:
 - Resumen del turno (que ha pasado, cuantos trabajadores, atenciones y limpiezas)
-- Atenciones destacadas (las que tienen notas o constantes fuera de rango)
+- Constantes vitales registradas (TODAS las constantes del turno con valores numericos por residente. Esta seccion es OBLIGATORIA si hay constantes)
+- Atenciones destacadas (las que tienen notas, duracion inusual o constantes fuera de rango)
 - Incidencias (nuevas o abiertas)
-- Alertas y avisos (constantes vitales fuera de rango, sesiones sin cerrar)
+- Alertas y avisos (constantes fuera de rango con valores, sesiones sin cerrar)
 - Actividades realizadas (si hay actividades programadas, participacion)
 - Pendiente para el siguiente turno (que queda por hacer)
 - Observaciones del personal (notas agrupadas por tematica)
@@ -940,13 +1003,26 @@ def shift_handover_report():
         r_name = cr.resident.name if cr.resident else '?'
         dur = cr.calculate_duration()
         dur_str = f" ({round(dur/60)}min)" if dur else ''
-        lines.append(f"  {cr.start_time.strftime('%H:%M')} - {r_name}: {types} por {w_name}{dur_str}")
-        if cr.notes:
-            notes_list.append(f"  {cr.start_time.strftime('%H:%M')} {r_name} ({w_name}): {cr.notes}")
+        # Build vital signs inline string for this care record
+        vitals_parts = []
         for reading in cr.vital_sign_readings:
             vst = reading.vital_sign_type
-            if vst and ((vst.min_value and reading.value < vst.min_value) or (vst.max_value and reading.value > vst.max_value)):
-                vital_alerts.append(f"  {r_name}: {vst.name} = {reading.value} {vst.unit} (rango: {vst.min_value}-{vst.max_value})")
+            if vst:
+                flag = ''
+                if ((vst.min_value is not None and reading.value < vst.min_value) or
+                        (vst.max_value is not None and reading.value > vst.max_value)):
+                    flag = ' ⚠️'
+                    vital_alerts.append(
+                        f"  {r_name}: {vst.name} = {reading.value} {vst.unit}"
+                        f" (rango: {vst.min_value}-{vst.max_value})")
+                vitals_parts.append(f"{vst.name}: {reading.value}{vst.unit}{flag}")
+
+        vitals_str = f" | {', '.join(vitals_parts)}" if vitals_parts else ''
+        lines.append(
+            f"  {cr.start_time.strftime('%H:%M')} - {r_name}: {types}"
+            f" por {w_name}{dur_str}{vitals_str}")
+        if cr.notes:
+            notes_list.append(f"  {cr.start_time.strftime('%H:%M')} {r_name} ({w_name}): {cr.notes}")
 
     if worker_care:
         lines.append("Por trabajador: " + ', '.join(f"{k}: {v}" for k, v in sorted(worker_care.items(), key=lambda x: -x[1])))
@@ -1008,6 +1084,10 @@ def shift_handover_report():
             lines.append(n)
 
     context = '\n'.join(lines)
+
+    import logging
+    logging.getLogger(__name__).warning("HANDOVER CONTEXT:\n%s", context)
+
     prompt = f"Genera un informe de traspaso de turno basado en estos datos:\n\n{context}"
 
     try:
@@ -1023,6 +1103,7 @@ def shift_handover_report():
 
     return jsonify({
         'html': html,
+        'debug_context': context,
         'title': f'Traspaso de turno — {now.strftime("%d/%m/%Y %H:%M")}',
         'generated_at': now.strftime('%d/%m/%Y %H:%M'),
         'generated_by': current_user.name if current_user else '',

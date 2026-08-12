@@ -510,6 +510,27 @@ class DailyCleaningAssignment(db.Model):
 
 # ── ACTIVIDADES ───────────────────────────────────────────────────────────────
 
+class ActivityTemplate(db.Model):
+    """Template for recurring activities."""
+    __tablename__ = 'activity_template'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(150), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    weekday = db.Column(db.Integer, nullable=False)  # 0=Monday, 6=Sunday
+    start_time = db.Column(db.Time, nullable=True)
+    end_time = db.Column(db.Time, nullable=True)
+    location = db.Column(db.String(100), nullable=True)
+    category = db.Column(db.String(50), default='general')
+    recurrence = db.Column(db.String(20), default='weekly')  # weekly, biweekly, monthly
+    resident_ids_json = db.Column(db.Text, nullable=True)  # JSON array of invited resident IDs
+    active = db.Column(db.Boolean, default=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    creator = db.relationship('Cleaner', foreign_keys=[created_by])
+    activities = db.relationship('Activity', backref='template', lazy=True)
+
+
 class Activity(db.Model):
     """Scheduled activity (taller, gimnàsia, bingo, etc.)."""
     __tablename__ = 'activity'
@@ -521,6 +542,7 @@ class Activity(db.Model):
     end_time = db.Column(db.Time, nullable=True)
     location = db.Column(db.String(100), nullable=True)
     category = db.Column(db.String(50), default='general')
+    template_id = db.Column(db.Integer, db.ForeignKey('activity_template.id'), nullable=True)
     created_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
 

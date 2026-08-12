@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from flask import (
     Blueprint, request, jsonify, render_template, redirect, url_for,
-    flash, send_from_directory, abort,
+    flash, send_from_directory, abort, current_app,
 )
 from flask_login import login_required
 from flask_jwt_extended import (
@@ -194,6 +194,14 @@ def api_registros_limpieza():
 @bp.route('/worker')
 def worker():
     return render_template('worker.html')
+
+
+@bp.route('/sw.js')
+def service_worker():
+    return send_from_directory(
+        current_app.static_folder, 'sw.js',
+        mimetype='application/javascript',
+    )
 
 
 @bp.route('/worker/manifest.json')
@@ -984,6 +992,15 @@ def finalize_care():
         if ct:
             record.care_types.append(ct)
 
+    # Validate: if selected care types have vital sign fields, values are required
+    provided_vst_ids = {vs.get('vital_sign_type_id') for vs in vital_signs if vs.get('value') not in (None, '')}
+    for ct_id in care_type_ids:
+        ct = db.session.get(CareType, ct_id)
+        if ct:
+            for vst in ct.vital_sign_types:
+                if vst.active and vst.id not in provided_vst_ids:
+                    return jsonify({'error': f'Falta el valor de {vst.name}'}), 400
+
     # Save vital sign readings
     for vs_data in vital_signs:
         vst_id = vs_data.get('vital_sign_type_id')
@@ -996,10 +1013,6 @@ def finalize_care():
         try:
             val = float(val)
         except (ValueError, TypeError):
-            continue
-        if vst.min_value is not None and val < vst.min_value:
-            continue
-        if vst.max_value is not None and val > vst.max_value:
             continue
         db.session.add(VitalSignReading(care_record_id=record.id, vital_sign_type_id=vst_id, value=val))
         # Check weight loss if this is a weight reading

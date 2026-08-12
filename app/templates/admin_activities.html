@@ -5,12 +5,15 @@
 <div class="py-3">
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
         <h1 class="h3 mb-0"><i class="bi bi-calendar-event me-2"></i>Calendari d'activitats</h1>
-        <div class="d-flex gap-2">
+        <div class="d-flex flex-wrap gap-2">
             <a href="{{ url_for('activities.admin_activities', date=prev_week) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-left"></i></a>
             {% if not is_current_week %}
             <a href="{{ url_for('activities.admin_activities') }}" class="btn btn-outline-primary btn-sm">Avui</a>
             {% endif %}
             <a href="{{ url_for('activities.admin_activities', date=next_week) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-right"></i></a>
+            <a href="{{ url_for('activities.activity_stats') }}" class="btn btn-outline-info btn-sm" title="Estadistiques"><i class="bi bi-bar-chart-line me-1"></i><span class="hide-mobile">Estadistiques</span></a>
+            <a href="{{ url_for('activities.admin_activity_templates') }}" class="btn btn-outline-secondary btn-sm" title="Plantilles recurrents"><i class="bi bi-arrow-repeat me-1"></i><span class="hide-mobile">Recurrents</span></a>
+            <button type="button" class="btn btn-outline-purple btn-sm" id="btn-ai-suggest" title="Suggerencies IA"><i class="bi bi-stars me-1"></i><span class="hide-mobile">IA</span></button>
             <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#actModal" onclick="resetActForm()">
                 <i class="bi bi-plus-lg me-1"></i>Nova activitat
             </button>
@@ -38,6 +41,7 @@
                          data-end="{{ a.end_time.strftime('%H:%M') if a.end_time else '' }}"
                          data-loc="{{ a.location or '' }}"
                          data-cat="{{ a.category }}"
+                         data-tmpl="{{ a.template_id or '' }}"
                          data-parts="{{ a.participations|length }}">
                         {% if a.start_time %}<span class="fw-bold">{{ a.start_time.strftime('%H:%M') }}</span> {% endif %}
                         <span>{{ a.title }}</span>
@@ -97,6 +101,20 @@
                         <div class="col-4"><label class="form-label">Hora fi</label><input type="time" class="form-control" name="end_time" id="act-end"></div>
                         <div class="col-12"><label class="form-label">Ubicacio</label><input type="text" class="form-control" name="location" id="act-loc" placeholder="Ej: Sala d'actes, Jardi..."></div>
                         <div class="col-12"><label class="form-label">Descripcio</label><textarea class="form-control" name="description" id="act-desc" rows="2"></textarea></div>
+                        <div class="col-12" id="recurring-section">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="recurring" id="act-recurring">
+                                <label class="form-check-label" for="act-recurring">Recurrent <i class="bi bi-arrow-repeat"></i></label>
+                            </div>
+                            <div id="recurrence-options" class="mt-2" style="display:none">
+                                <select class="form-select form-select-sm" name="recurrence" id="act-recurrence" style="width:auto">
+                                    <option value="weekly">Setmanal</option>
+                                    <option value="biweekly">Quinzenal</option>
+                                    <option value="monthly">Mensual</option>
+                                </select>
+                                <small class="text-muted d-block mt-1">Es generaran instancies automaticament per les properes setmanes.</small>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer d-flex justify-content-between">
@@ -153,10 +171,34 @@
     </div>
 </div>
 
+<!-- Modal: AI Suggestions -->
+<div class="modal fade" id="aiSuggestModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" style="border-radius:var(--radius-lg)">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-stars me-2" style="color:#6f42c1"></i>Suggerencies IA d'activitats</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="ai-suggest-loading" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">Analitzant perfils de residents i historial de participacio...</p>
+                </div>
+                <div id="ai-suggest-results" style="display:none"></div>
+                <div id="ai-suggest-error" class="alert alert-danger" style="display:none"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
     .invite-card.selected { border-color: var(--color-primary) !important; background: rgba(13,110,253,.06); }
     .invite-card.selected img, .invite-card.selected div:first-child { border-color: var(--color-primary) !important; }
     .invite-card:hover { border-color: var(--color-primary); }
+    .btn-outline-purple { color: #6f42c1; border-color: #6f42c1; }
+    .btn-outline-purple:hover { color: #fff; background-color: #6f42c1; border-color: #6f42c1; }
+    .ai-suggestion-card { border-left: 3px solid #6f42c1; background: #f8f6ff; border-radius: 8px; padding: 12px; margin-bottom: 8px; }
+    .ai-suggestion-card .cat-badge { font-size: .7rem; padding: 2px 8px; border-radius: 12px; color: #fff; }
 </style>
 {% endblock %}
 
@@ -176,7 +218,15 @@
         document.getElementById('act-loc').value = '';
         document.getElementById('act-desc').value = '';
         document.getElementById('act-delete-btn').style.display = 'none';
+        document.getElementById('act-recurring').checked = false;
+        document.getElementById('recurrence-options').style.display = 'none';
+        document.getElementById('recurring-section').style.display = '';
     };
+
+    // Toggle recurrence options
+    document.getElementById('act-recurring').addEventListener('change', function() {
+        document.getElementById('recurrence-options').style.display = this.checked ? '' : 'none';
+    });
 
     // Click on activity item to edit
     document.querySelectorAll('.act-item').forEach(function(item) {
@@ -192,15 +242,28 @@
             document.getElementById('act-desc').value = item.dataset.desc;
             document.getElementById('act-delete-btn').style.display = '';
             document.getElementById('act-delete-btn').dataset.id = item.dataset.id;
+            document.getElementById('act-delete-btn').dataset.tmpl = item.dataset.tmpl || '';
+            // Hide recurring section when editing
+            document.getElementById('recurring-section').style.display = 'none';
             new bootstrap.Modal(document.getElementById('actModal')).show();
         });
     });
 
     window.deleteAct = function() {
         var id = document.getElementById('act-delete-btn').dataset.id;
-        if (!confirm('Eliminar aquesta activitat?')) return;
+        var tmplId = document.getElementById('act-delete-btn').dataset.tmpl;
+        var scope = 'single';
+        if (tmplId) {
+            var choice = confirm('Eliminar tambe totes les futures instancies?\n\nOK = Eliminar aquesta i futures\nCancel = Eliminar nomes aquesta');
+            scope = choice ? 'future' : 'single';
+        } else {
+            if (!confirm('Eliminar aquesta activitat?')) return;
+        }
         var form = document.createElement('form');
         form.method = 'POST'; form.action = '/admin/activities/' + id + '/delete';
+        var input = document.createElement('input');
+        input.type = 'hidden'; input.name = 'scope'; input.value = scope;
+        form.appendChild(input);
         document.body.appendChild(form); form.submit();
     };
 
@@ -267,6 +330,49 @@
                 if (typeof showToast === 'function') showToast(data.count + ' residents convidats', 'success');
                 setTimeout(function() { location.reload(); }, 500);
             }
+        });
+    });
+
+    // ── AI Suggestions ──────────────────────────────────────
+    var catColors = {{ cat_colors | tojson }};
+    document.getElementById('btn-ai-suggest').addEventListener('click', function() {
+        var modal = new bootstrap.Modal(document.getElementById('aiSuggestModal'));
+        document.getElementById('ai-suggest-loading').style.display = '';
+        document.getElementById('ai-suggest-results').style.display = 'none';
+        document.getElementById('ai-suggest-error').style.display = 'none';
+        modal.show();
+
+        fetch('/api/activities/ai-suggest', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: '{}'
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            document.getElementById('ai-suggest-loading').style.display = 'none';
+            if (data.error) {
+                document.getElementById('ai-suggest-error').textContent = data.error;
+                document.getElementById('ai-suggest-error').style.display = '';
+                return;
+            }
+            var html = '';
+            (data.suggestions || []).forEach(function(s) {
+                var color = catColors[s.category] || '#6c757d';
+                html += '<div class="ai-suggestion-card">'
+                    + '<div class="d-flex align-items-center gap-2 mb-1">'
+                    + '<strong>' + (s.title || '') + '</strong>'
+                    + '<span class="cat-badge" style="background:' + color + '">' + (s.category || '') + '</span>'
+                    + '<span class="text-muted" style="font-size:.78rem"><i class="bi bi-calendar me-1"></i>' + (s.weekday || '') + '</span>'
+                    + '<span class="text-muted" style="font-size:.78rem"><i class="bi bi-clock me-1"></i>' + (s.duration_min || '?') + ' min</span>'
+                    + '</div>'
+                    + '<div style="font-size:.85rem;color:var(--color-text-secondary)">' + (s.reason || '') + '</div>'
+                    + '</div>';
+            });
+            if (!html) html = '<p class="text-muted text-center">No s\'han pogut generar suggerencies.</p>';
+            document.getElementById('ai-suggest-results').innerHTML = html;
+            document.getElementById('ai-suggest-results').style.display = '';
+        }).catch(function(err) {
+            document.getElementById('ai-suggest-loading').style.display = 'none';
+            document.getElementById('ai-suggest-error').textContent = 'Error de connexio: ' + err.message;
+            document.getElementById('ai-suggest-error').style.display = '';
         });
     });
 })();

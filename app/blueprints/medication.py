@@ -326,3 +326,61 @@ def worker_administer():
 
     db.session.commit()
     return jsonify({'ok': True})
+
+
+# ── AI Medication Interaction Checker ──────────────────────────────────────────
+
+@bp.route('/api/medication/interaction-check', methods=['POST'])
+@admin_required
+def check_interactions():
+    """Use Claude to check for potential drug interactions."""
+    from ..blueprints.assessments import _call_claude
+
+    data = request.get_json() or {}
+    resident_id = data.get('resident_id')
+    new_drug = data.get('drug_name', '').strip()
+    new_dose = data.get('dose', '').strip()
+
+    if not resident_id or not new_drug:
+        return jsonify({'error': 'Faltan datos'}), 400
+
+    resident = db.session.get(Resident, resident_id)
+    if not resident:
+        return jsonify({'error': 'Residente no encontrado'}), 404
+
+    # Get all active prescriptions
+    prescriptions = MedicationPrescription.query.filter_by(
+        resident_id=resident_id, active=True).all()
+
+    if not prescriptions:
+        return jsonify({'interactions': [], 'message': 'No hay medicacion activa previa.'})
+
+    med_list = '\n'.join(
+        f"- {p.drug_name} {p.dose} ({p.route}, {p.frequency})"
+        for p in prescriptions
+    )
+
+    system = (
+        "Eres un asistente farmacologico informativo. "
+        "Analiza posibles interacciones entre los medicamentos listados y el nuevo farmaco. "
+        "IMPORTANTE: Esta informacion es solo orientativa. No prescribes ni contraindicas. "
+        "Solo informas al profesional sanitario de posibles interacciones conocidas. "
+        "La decision clinica es siempre del profesional. "
+        "Responde en espanol. Si no hay interacciones relevantes, indicalo claramente. "
+        "Formato: lista breve de interacciones detectadas con nivel de gravedad (leve/moderada/grave). "
+        "Si no encuentras interacciones, responde con un mensaje tranquilizador."
+    )
+
+    prompt = (
+        f"Residente: {resident.name}, {resident.diagnoses or 'sin diagnosticos registrados'}, "
+        f"alergias: {resident.allergies or 'ninguna registrada'}\n\n"
+        f"Medicacion activa actual:\n{med_list}\n\n"
+        f"NUEVO FARMACO a anadir: {new_drug} {new_dose}\n\n"
+        f"Analiza posibles interacciones del nuevo farmaco con la medicacion actual."
+    )
+
+    try:
+        response = _call_claude(system, prompt)
+        return jsonify({'analysis': response, 'drug': new_drug})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

@@ -189,9 +189,9 @@
 
             <!-- Informe IA -->
             <div class="card mb-4" style="border-color:var(--color-primary);border-style:dashed">
-                <div class="card-header d-flex align-items-center justify-content-between" style="background:rgba(13,110,253,.04)">
-                    <div><i class="bi bi-stars me-1" style="color:var(--color-primary)"></i><strong>Informe IA</strong></div>
-                    <div class="d-flex gap-2 align-items-center">
+                <div class="card-header" style="background:rgba(13,110,253,.04)">
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <div class="me-auto"><i class="bi bi-stars me-1" style="color:var(--color-primary)"></i><strong>Informe IA</strong></div>
                         <select id="ai-period" class="form-select form-select-sm" style="width:auto;font-size:.8rem">
                             <option value="today">Hoy</option>
                             <option value="week" selected>Ultima semana</option>
@@ -199,6 +199,9 @@
                         </select>
                         <button type="button" class="btn btn-primary btn-sm" id="btn-ai-summary">
                             <i class="bi bi-stars me-1"></i>Generar informe
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm" id="btn-family-summary" title="Resumen para familias">
+                            <i class="bi bi-people me-1"></i>Resumen familiar
                         </button>
                     </div>
                 </div>
@@ -899,6 +902,38 @@ vitalData.forEach((chart, i) => {
         var text = content.innerText || content.textContent;
         navigator.clipboard.writeText(text).then(function() {
             if (typeof showToast === 'function') showToast('Texto copiado al portapapeles', 'success');
+        });
+    });
+
+    // Family summary button
+    document.getElementById('btn-family-summary').addEventListener('click', function() {
+        var famBtn = this;
+        famBtn.disabled = true;
+        famBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generando...';
+        container.style.display = 'block';
+        content.innerHTML = '<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>Generando resumen familiar...</div>';
+
+        fetch('/api/resident/{{ resident.id }}/family-summary', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: '{}'
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            famBtn.disabled = false;
+            famBtn.innerHTML = '<i class="bi bi-people me-1"></i>Resumen familiar';
+            if (data.html) {
+                content.innerHTML = data.html;
+                document.getElementById('rpt-name').textContent = data.resident_name;
+                document.getElementById('rpt-room').textContent = '';
+                document.getElementById('rpt-period').textContent = 'Resumen semanal familiar';
+                document.getElementById('rpt-date').textContent = data.generated_at;
+                document.getElementById('rpt-by').textContent = data.generated_by;
+            } else {
+                content.innerHTML = '<div class="alert alert-warning">' + (data.error || 'Error al generar el resumen.') + '</div>';
+            }
+        }).catch(function() {
+            famBtn.disabled = false;
+            famBtn.innerHTML = '<i class="bi bi-people me-1"></i>Resumen familiar';
+            content.innerHTML = '<div class="alert alert-danger">Error de conexion.</div>';
         });
     });
 

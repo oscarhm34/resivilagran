@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Estadistiques d'activitats{% endblock %}
+
+{% block content %}
+<div class="py-3">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <h1 class="h3 mb-0"><i class="bi bi-bar-chart-line me-2"></i>Estadistiques d'activitats</h1>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('activities.admin_activities') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-calendar-event me-1"></i>Calendari</a>
+            <a href="{{ url_for('activities.export_activity_stats', start=start_date.isoformat(), end=end_date.isoformat()) }}" class="btn btn-outline-success btn-sm"><i class="bi bi-file-earmark-excel me-1"></i>Exportar Excel</a>
+        </div>
+    </div>
+
+    <!-- Date filter -->
+    <form method="GET" class="card p-3 mb-3">
+        <div class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label mb-1" style="font-size:.8rem">Des de</label>
+                <input type="date" class="form-control form-control-sm" name="start" value="{{ start_date.isoformat() }}">
+            </div>
+            <div class="col-auto">
+                <label class="form-label mb-1" style="font-size:.8rem">Fins a</label>
+                <input type="date" class="form-control form-control-sm" name="end" value="{{ end_date.isoformat() }}">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel me-1"></i>Filtrar</button>
+            </div>
+        </div>
+    </form>
+
+    <!-- Summary cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card text-center p-3">
+                <div style="font-family:'Outfit';font-size:2rem;font-weight:700;color:var(--color-primary)">{{ total_activities }}</div>
+                <div style="font-size:.78rem;text-transform:uppercase;color:var(--color-text-secondary)">Activitats</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center p-3">
+                <div style="font-family:'Outfit';font-size:2rem;font-weight:700;color:var(--color-success)">{{ total_participations }}</div>
+                <div style="font-size:.78rem;text-transform:uppercase;color:var(--color-text-secondary)">Participacions</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center p-3">
+                <div style="font-family:'Outfit';font-size:2rem;font-weight:700;color:var(--color-info)">{{ total_invited }}</div>
+                <div style="font-size:.78rem;text-transform:uppercase;color:var(--color-text-secondary)">Convidades</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center p-3">
+                <div style="font-family:'Outfit';font-size:2rem;font-weight:700;color:{% if total_invited > 0 and (total_participations / total_invited) >= 0.5 %}var(--color-success){% else %}var(--color-warning){% endif %}">
+                    {{ '%d' | format((total_participations / total_invited * 100) if total_invited > 0 else 0) }}%
+                </div>
+                <div style="font-size:.78rem;text-transform:uppercase;color:var(--color-text-secondary)">Taxa participacio</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category breakdown -->
+    <div class="card mb-4">
+        <div class="card-header"><strong>Per categoria</strong></div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr><th>Categoria</th><th class="text-center">Activitats</th><th class="text-center">Convidats</th><th class="text-center">Participacions</th><th class="text-center">Taxa</th><th></th></tr>
+                </thead>
+                <tbody>
+                    {% for key, cs in cat_stats.items() if cs.count > 0 %}
+                    <tr>
+                        <td><i class="bi {{ cat_icons.get(key, 'bi-calendar') }} me-1" style="color:{{ cat_colors.get(key, '#6c757d') }}"></i>{{ cs.name }}</td>
+                        <td class="text-center">{{ cs.count }}</td>
+                        <td class="text-center">{{ cs.invited }}</td>
+                        <td class="text-center">{{ cs.participated }}</td>
+                        <td class="text-center">
+                            {% set rate = (cs.participated / cs.invited * 100) if cs.invited > 0 else 0 %}
+                            <span class="badge" style="background:{{ cat_colors.get(key, '#6c757d') }}">{{ '%d' | format(rate) }}%</span>
+                        </td>
+                        <td style="width:120px">
+                            <div style="height:6px;background:#e9ecef;border-radius:3px">
+                                <div style="width:{{ rate }}%;height:100%;background:{{ cat_colors.get(key, '#6c757d') }};border-radius:3px"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% if low_engagement %}
+    <!-- Low engagement alert -->
+    <div class="alert alert-warning d-flex align-items-start gap-2 mb-4">
+        <i class="bi bi-exclamation-triangle" style="font-size:1.2rem;margin-top:2px"></i>
+        <div>
+            <strong>Residents amb baixa participacio (&lt;30%)</strong>
+            <div class="mt-1" style="font-size:.85rem">
+                {% for r in low_engagement %}
+                <span class="badge bg-warning text-dark me-1 mb-1">{{ r.name }} ({{ '%d' | format(r.participated / r.invited * 100) if r.invited > 0 else 0 }}%)</span>
+                {% endfor %}
+            </div>
+            <div class="mt-1" style="font-size:.78rem;color:var(--color-text-secondary)">Considerar revisar el pla d'activitats per a aquests residents.</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Per-resident table -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong>Per resident</strong>
+            <input type="text" id="resident-search" class="form-control form-control-sm" style="max-width:250px" placeholder="Buscar resident...">
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Resident</th>
+                        <th class="text-center hide-mobile">Hab.</th>
+                        <th class="text-center">Convidat</th>
+                        <th class="text-center">Participat</th>
+                        <th class="text-center hide-mobile">Refusat</th>
+                        <th class="text-center hide-mobile">Absent</th>
+                        <th class="text-center">Taxa</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="resident-tbody">
+                    {% for r in resident_list|reverse %}
+                    <tr>
+                        <td>{{ r.name }}</td>
+                        <td class="text-center hide-mobile">{{ r.room or '' }}</td>
+                        <td class="text-center">{{ r.invited }}</td>
+                        <td class="text-center fw-bold" style="color:var(--color-success)">{{ r.participated }}</td>
+                        <td class="text-center hide-mobile" style="color:var(--color-danger)">{{ r.refused }}</td>
+                        <td class="text-center hide-mobile" style="color:var(--color-text-secondary)">{{ r.absent }}</td>
+                        <td class="text-center">
+                            {% set rate = (r.participated / r.invited * 100) if r.invited > 0 else 0 %}
+                            <span class="badge {% if rate >= 60 %}bg-success{% elif rate >= 30 %}bg-warning text-dark{% else %}bg-danger{% endif %}">{{ '%d' | format(rate) }}%</span>
+                        </td>
+                        <td style="width:80px">
+                            <div style="height:6px;background:#e9ecef;border-radius:3px">
+                                <div style="width:{{ rate }}%;height:100%;background:{% if rate >= 60 %}var(--color-success){% elif rate >= 30 %}var(--color-warning){% else %}var(--color-danger){% endif %};border-radius:3px"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('resident-search').addEventListener('input', function() {
+    var term = this.value.toLowerCase();
+    document.querySelectorAll('#resident-tbody tr').forEach(function(row) {
+        row.style.display = row.textContent.toLowerCase().includes(term) ? '' : 'none';
+    });
+});
+</script>
+{% endblock %}

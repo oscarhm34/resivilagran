@@ -606,7 +606,7 @@
         <div class="ct-grid" id="ct-grid" style="display:block"></div>
         <!-- Vital signs input (shown dynamically when care types with vital fields are selected) -->
         <div id="ct-vital-signs" style="display:none;padding:12px 0">
-            <div style="font-size:13px;font-weight:600;color:var(--text-2);text-align:center;margin-bottom:10px">Introduce las constantes vitales (opcional):</div>
+            <div style="font-size:13px;font-weight:600;color:var(--danger,#dc3545);text-align:center;margin-bottom:10px">Introduce las constantes vitales (obligatorio):</div>
             <div id="ct-vital-fields" style="display:flex;flex-direction:column;gap:10px"></div>
         </div>
         <div style="padding:8px 0">
@@ -2504,6 +2504,25 @@ async function finalizeCare() {
     });
     if (!selected.length) { toast('Selecciona al menos un tipo de atención'); return; }
 
+    // Validate vital signs: if fields are visible, ALL must be filled
+    const visibleInputs = $('ct-vital-fields').querySelectorAll('.vital-input');
+    if (visibleInputs.length > 0) {
+        let missing = [];
+        visibleInputs.forEach(input => {
+            if (input.value.trim() === '') {
+                missing.push(input.closest('div').querySelector('label').textContent.trim());
+                input.style.borderColor = 'var(--danger, #dc3545)';
+            } else {
+                input.style.borderColor = 'var(--border)';
+            }
+        });
+        if (missing.length) {
+            toast('Completa las constantes vitales: ' + missing.join(', '));
+            visibleInputs[0].focus();
+            return;
+        }
+    }
+
     const vitalSigns = collectVitalSigns();
     const confirmBtn = $('ct-confirm');
     confirmBtn.disabled = true;
@@ -3356,6 +3375,11 @@ $('route-back').addEventListener('click', function() { show('screen-home'); });
         else { audioFileInput.click(); } // fallback: open native recorder
     });
 })();
+
+// ── Register Service Worker for PWA install ──
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(function() {});
+}
 </script>
 </body>
 </html>

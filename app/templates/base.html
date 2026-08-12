@@ -473,10 +473,12 @@
         });
     });
 
-    /* ── Notification badge polling ── */
+    /* ── Notification badge polling (smart: pauses when tab hidden) ── */
     (function() {
         var badge = document.getElementById('notif-badge');
         if (!badge) return;
+        var timer = null;
+        var INTERVAL_ACTIVE = 30000;   // 30s when tab visible
         function checkNotifs() {
             fetch('/api/notifications/unread-count')
                 .then(function(r) { return r.json(); })
@@ -490,8 +492,19 @@
                 })
                 .catch(function() {});
         }
-        checkNotifs();
-        setInterval(checkNotifs, 60000);
+        function startPolling() {
+            if (timer) return;
+            checkNotifs();
+            timer = setInterval(checkNotifs, INTERVAL_ACTIVE);
+        }
+        function stopPolling() {
+            if (timer) { clearInterval(timer); timer = null; }
+        }
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) { stopPolling(); }
+            else { startPolling(); }
+        });
+        startPolling();
     })();
     </script>
 

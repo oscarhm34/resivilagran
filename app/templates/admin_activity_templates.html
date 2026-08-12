@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Plantilles recurrents{% endblock %}
+
+{% block content %}
+<div class="py-3">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <h1 class="h3 mb-0"><i class="bi bi-arrow-repeat me-2"></i>Activitats recurrents</h1>
+        <a href="{{ url_for('activities.admin_activities') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-calendar-event me-1"></i>Calendari</a>
+    </div>
+
+    {% if templates %}
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Activitat</th>
+                        <th>Categoria</th>
+                        <th>Dia</th>
+                        <th>Hora</th>
+                        <th class="text-center">Frequencia</th>
+                        <th class="text-center">Instancies</th>
+                        <th class="text-center">Futures</th>
+                        <th>Estat</th>
+                        <th class="text-end">Accions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in templates %}
+                    <tr style="{% if not t.active %}opacity:.5{% endif %}">
+                        <td class="fw-bold">{{ t.title }}</td>
+                        <td><span class="badge" style="background:{{ cat_colors.get(t.category, '#6c757d') }}"><i class="bi {{ cat_icons.get(t.category, 'bi-calendar') }} me-1"></i>{{ categories.get(t.category, t.category) }}</span></td>
+                        <td>{{ t.day_name }}</td>
+                        <td>{{ t.start_time.strftime('%H:%M') if t.start_time else '-' }}{% if t.end_time %} - {{ t.end_time.strftime('%H:%M') }}{% endif %}</td>
+                        <td class="text-center"><span class="badge bg-primary bg-opacity-10 text-primary">{{ t.recurrence_label }}</span></td>
+                        <td class="text-center">{{ t.instance_count }}</td>
+                        <td class="text-center">{{ t.future_count }}</td>
+                        <td>
+                            {% if t.active %}
+                            <span class="status-badge status-success">Activa</span>
+                            {% else %}
+                            <span class="status-badge" style="color:#6c757d;background:#e9ecef">Inactiva</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <div class="d-flex gap-1 justify-content-end">
+                                {% if t.active %}
+                                <form method="POST" action="{{ url_for('activities.generate_template_instances', tmpl_id=t.id) }}" class="d-inline">
+                                    <input type="hidden" name="weeks" value="4">
+                                    <button type="submit" class="btn btn-outline-primary btn-sm" title="Generar 4 setmanes mes"><i class="bi bi-plus-circle"></i></button>
+                                </form>
+                                {% endif %}
+                                <form method="POST" action="{{ url_for('activities.toggle_template', tmpl_id=t.id) }}" class="d-inline">
+                                    <button type="submit" class="btn btn-outline-{{ 'warning' if t.active else 'success' }} btn-sm" title="{{ 'Desactivar' if t.active else 'Activar' }}">
+                                        <i class="bi bi-{{ 'pause' if t.active else 'play' }}"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="card p-4 text-center" style="color:var(--color-text-secondary)">
+        <i class="bi bi-arrow-repeat" style="font-size:2rem"></i>
+        <p class="mt-2 mb-0">No hi ha plantilles recurrents. Crea una activitat marcant "Recurrent" al calendari.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

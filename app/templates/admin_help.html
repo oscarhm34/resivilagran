@@ -771,9 +771,48 @@
                 <li>L'estat es refresca automaticament i es reflecteix al calendari admin.</li>
             </ul>
 
+            <h6 class="mt-3">Activitats recurrents <span class="badge bg-success">NOU</span></h6>
+            <ul>
+                <li>Al crear una activitat, marca <strong>"Recurrent"</strong> per generar instancies automatiques (setmanal, quinzenal o mensual).</li>
+                <li>Boto <strong><i class="bi bi-arrow-repeat"></i> Recurrents</strong> al calendari per gestionar les plantilles: activar/desactivar, generar mes instancies.</li>
+                <li>En eliminar una activitat recurrent, opcio de eliminar <strong>nomes aquesta</strong> o <strong>aquesta i totes les futures</strong>.</li>
+            </ul>
+
+            <h6 class="mt-3">Estadistiques d'activitats <span class="badge bg-success">NOU</span></h6>
+            <ul>
+                <li>Boto <strong><i class="bi bi-bar-chart-line"></i> Estadistiques</strong> al calendari.</li>
+                <li>Resum: nombre d'activitats, participacions totals, taxa de participacio global.</li>
+                <li>Desglossament per <strong>categoria</strong> amb barres de progres.</li>
+                <li>Taula per resident amb taxa individual. Alerta per residents amb <strong>participacio &lt;30%</strong>.</li>
+                <li><strong>Exportacio a Excel</strong> amb totes les participacions del periode.</li>
+            </ul>
+
+            <h6 class="mt-3">Suggerencies IA d'activitats <span class="badge bg-success">NOU</span></h6>
+            <ul>
+                <li>Boto <strong><i class="bi bi-stars"></i> IA</strong> al calendari.</li>
+                <li>L'IA analitza perfils de residents (dependencia, diagnostics) i historial de participacio per suggerir 5 activitats per la setmana.</li>
+                <li>Cada suggerencia inclou: titol, categoria, dia recomanat, duracio i justificacio.</li>
+            </ul>
+
+            <h6 class="mt-3">Resumen familiar IA <span class="badge bg-success">NOU</span></h6>
+            <ul>
+                <li>A la fitxa del resident, boto <strong><i class="bi bi-people"></i> Resumen familiar</strong>.</li>
+                <li>Genera un resum setmanal en to amable per enviar a les families (sense jerga clinica ni constantes en brut).</li>
+                <li>Permet imprimir, generar PDF o copiar al porta-retalls.</li>
+            </ul>
+
+            <h6 class="mt-3">Checker interaccions medicamentoses IA <span class="badge bg-success">NOU</span></h6>
+            <ul>
+                <li>Al crear/editar una prescripcio, boto <strong><i class="bi bi-exclamation-triangle"></i> Comprovar interaccions (IA)</strong>.</li>
+                <li>L'IA analitza el nou farmac contra tota la medicacio activa del resident.</li>
+                <li>Mostra possibles interaccions amb nivell de gravetat (lleu/moderada/greu).</li>
+                <li><em>Informacio orientativa — la decisio clinica es del professional.</em></li>
+            </ul>
+
             <h6 class="mt-3">Informes IA amb activitats</h6>
             <ul>
                 <li>Els informes IA (individual, global i traspas de torn) inclouen les activitats amb els <strong>noms dels residents</strong> que han participat i els que han estat absents.</li>
+                <li>L'informe de <strong>traspas de torn</strong> ara inclou els <strong>valors de constantes vitals</strong> en cada atencio (SpO2, TA, temperatura, etc.) <span class="badge bg-success">NOU</span></li>
             </ul>
         </div>
     </div>
@@ -914,6 +953,14 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>12/08</td><td><strong>Activitats recurrents:</strong> al crear una activitat es pot marcar "Recurrent" (setmanal/quinzenal/mensual) per generar instancies automatiques. Gestio de plantilles des del boto "Recurrents".</td></tr>
+                    <tr><td>12/08</td><td><strong>Estadistiques d'activitats:</strong> nova pagina amb taxa de participacio per resident i categoria, alertes de baixa participacio, i exportacio a Excel.</td></tr>
+                    <tr><td>12/08</td><td><strong>Suggerencies IA d'activitats:</strong> l'IA analitza perfils i historial per suggerir 5 activitats setmanals adaptades als residents.</td></tr>
+                    <tr><td>12/08</td><td><strong>Resumen familiar IA:</strong> genera resums setmanals en to amable per enviar a les families, sense jerga clinica.</td></tr>
+                    <tr><td>12/08</td><td><strong>Checker interaccions medicamentoses:</strong> boto IA al formulari de prescripcio que analitza possibles interaccions amb la medicacio activa del resident.</td></tr>
+                    <tr><td>12/08</td><td><strong>Traspas de torn amb constantes:</strong> l'informe IA de traspas ara inclou els valors de constantes vitals (SpO2, TA, temperatura) en cada atencio.</td></tr>
+                    <tr><td>12/08</td><td><strong>PWA Service Worker:</strong> la webapp del treballador ara es pot instal·lar com a app al mobil (Android/iOS).</td></tr>
+                    <tr><td>12/08</td><td><strong>Polling intel·ligent:</strong> les notificacions es pausan automaticament quan la pestanya esta oculta per estalviar recursos.</td></tr>
                     <tr><td>11/08</td><td><strong>Calendari d'activitats:</strong> vista setmanal amb categories de colors. Grid visual de fotos per convidar residents. Confirmacio d'assistencia des de la webapp amb cards compactes i pantalla de detall. Informes IA inclouen activitats amb noms de participants.</td></tr>
                     <tr><td>11/08</td><td><strong>KPIs de qualitat assistencial:</strong> dashboard amb 8 indicadors per inspeccions: taxa caigudes, risc UPP, perdua pes, refus medicacio, compliment valoracions, compliment formatiu, resolucio incidencies, ocupacio. Semafors amb objectius.</td></tr>
                     <tr><td>11/08</td><td><strong>Classificacio intel·ligent de notes:</strong> les notes dels treballadors es classifiquen automaticament per IA (urgent, clinica, conductual, logistica). Les urgents generen notificacio amb severitat warning.</td></tr>
