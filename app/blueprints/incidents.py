@@ -356,12 +356,11 @@ def worker_report_incident():
 @bp.route('/api/incidents/ai-classify', methods=['POST'])
 @jwt_required()
 def ai_classify_incident():
-    """Use AI to suggest incident type and severity from free text."""
+    """Use AI to pre-fill incident form fields from free text description."""
     data = request.json or {}
-    title = (data.get('title') or '').strip()
-    description = (data.get('description') or '').strip()
+    description = (data.get('description') or data.get('title') or '').strip()
 
-    if not title and not description:
+    if not description or len(description) < 5:
         return jsonify({'error': 'Texto requerido'}), 400
 
     api_key = app.config.get('ANTHROPIC_API_KEY')
@@ -372,27 +371,40 @@ def ai_classify_incident():
     types = IncidentType.query.filter_by(active=True).order_by(IncidentType.name).all()
     types_list = ', '.join(f'{t.id}={t.name}' for t in types)
 
-    system = f"""Eres un clasificador de incidencias para la residencia de ancianos La Vila Gran.
-Dada la descripcion de una incidencia, sugiere:
-1. El tipo de incidencia mas apropiado (de la lista disponible)
-2. La severidad: low, medium, high, critical
+    system = f"""Eres un asistente de documentación de incidencias en la residencia de ancianos La Vila Gran.
+Dada la descripción libre de una incidencia, extrae y sugiere TODOS los campos estructurados posibles.
 
-Tipos disponibles: {types_list}
+Tipos de incidencia disponibles: {types_list}
 
-Responde SOLO con JSON: {{"incident_type_id": <id>, "severity": "<low|medium|high|critical>", "reason": "<explicacion breve>"}}"""
-
-    text = f"Titulo: {title}"
-    if description:
-        text += f"\nDescripcion: {description}"
+Responde SOLO con JSON válido con estos campos:
+{{
+  "title": "<titulo corto y descriptivo de la incidencia, max 60 chars>",
+  "incident_type_id": <id del tipo mas apropiado>,
+  "severity": "<low|medium|high|critical>",
+  "location": "<lugar donde ocurrió si se menciona, o null>",
+  "is_fall": <true si es una caída, false si no>,
+  "fall_data": {{
+    "fall_location": "<lugar exacto de la caída o null>",
+    "activity_at_time": "<que hacía el residente cuando cayó o null>",
+    "footwear": "<calzado que llevaba o null>",
+    "witnesses": "<testigos o null>",
+    "injuries": "<lesiones observadas o null>",
+    "injury_severity": "<none|minor|moderate|severe>",
+    "measures_taken": "<medidas tomadas o null>",
+    "contributing_factors": "<factores contribuyentes o null>"
+  }},
+  "description": "<descripción profesional expandida de la incidencia, 2-3 frases>"
+}}
+Si no es una caída, fall_data debe ser null. No inventes información que no esté en el texto."""
 
     try:
         from anthropic import Anthropic
         client = Anthropic(api_key=api_key)
         response = client.messages.create(
             model='claude-haiku-4-5-20251001',
-            max_tokens=200,
+            max_tokens=500,
             system=system,
-            messages=[{'role': 'user', 'content': text}],
+            messages=[{'role': 'user', 'content': f'Descripcion del trabajador: "{description}"'}],
         )
         result = ''.join(b.text for b in response.content if hasattr(b, 'text'))
         result = result.strip()

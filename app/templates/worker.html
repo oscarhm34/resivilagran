@@ -564,7 +564,12 @@
             </div>
         </div>
         <div style="padding:0 0 12px">
-            <textarea id="mood-notes" rows="2" placeholder="Observacions (opcional)..." style="width:100%;border:1px solid var(--border);border-radius:10px;padding:10px;font-size:14px;resize:none;font-family:inherit"></textarea>
+            <div class="textarea-mic-wrap">
+                <textarea id="mood-notes" rows="2" placeholder="Observacions (opcional)..." style="width:100%;border:1px solid var(--border);border-radius:10px;padding:10px;font-size:14px;resize:none;font-family:inherit"></textarea>
+                <button type="button" class="voice-mic-btn" data-target="mood-notes" aria-label="Dictar">🎤</button>
+            </div>
+            <button type="button" class="ai-expand-btn" data-target="mood-notes" data-context="mood">✨ Expandir amb IA</button>
+            <div class="quick-phrases" data-target="mood-notes" data-context="mood"></div>
         </div>
         <button id="mood-save" class="btn-cam primary" style="width:100%;padding:14px;border-radius:14px;border:none;background:var(--green);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:'Outfit',system-ui,sans-serif" disabled>Selecciona un estat</button>
     </div>
@@ -605,7 +610,12 @@
             </div>
         </div>
         <div style="padding:0 0 12px">
-            <textarea id="meal-notes" rows="2" placeholder="Observacions (opcional)..." style="width:100%;border:1px solid var(--border);border-radius:10px;padding:10px;font-size:14px;resize:none;font-family:inherit"></textarea>
+            <div class="textarea-mic-wrap">
+                <textarea id="meal-notes" rows="2" placeholder="Observacions (opcional)..." style="width:100%;border:1px solid var(--border);border-radius:10px;padding:10px;font-size:14px;resize:none;font-family:inherit"></textarea>
+                <button type="button" class="voice-mic-btn" data-target="meal-notes" aria-label="Dictar">🎤</button>
+            </div>
+            <button type="button" class="ai-expand-btn" data-target="meal-notes" data-context="meal">✨ Expandir amb IA</button>
+            <div class="quick-phrases" data-target="meal-notes" data-context="meal"></div>
         </div>
         <button id="meal-save" style="width:100%;padding:14px;border-radius:14px;border:none;background:var(--green);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:'Outfit',system-ui,sans-serif" disabled>Selecciona un apat</button>
     </div>
@@ -690,7 +700,12 @@
         </div>
         <div style="padding:8px 0">
             <label for="care-notes" style="font-size:12px;font-weight:600;color:var(--text-2);display:block;margin-bottom:4px">Observaciones (opcional)</label>
-            <textarea id="care-notes" rows="2" placeholder="Ej: residente dormido, incidencia menor..." style="width:100%;border:1px solid var(--border);border-radius:10px;padding:10px;font-size:14px;resize:none;font-family:inherit"></textarea>
+            <div class="textarea-mic-wrap">
+                <textarea id="care-notes" rows="2" placeholder="Ej: residente dormido, incidencia menor..." style="width:100%;border:1px solid var(--border);border-radius:10px;padding:10px;font-size:14px;resize:none;font-family:inherit"></textarea>
+                <button type="button" class="voice-mic-btn" data-target="care-notes" aria-label="Dictar">🎤</button>
+            </div>
+            <button type="button" class="ai-expand-btn" data-target="care-notes" data-context="care">✨ Expandir amb IA</button>
+            <div class="quick-phrases" data-target="care-notes" data-context="care"></div>
         </div>
         <!-- Optional: mood inline -->
         <div style="padding:8px 0">
@@ -732,7 +747,12 @@
         <div id="checklist-items" style="flex:1;overflow-y:auto"></div>
         <div style="padding:8px 0">
             <label for="cleaning-notes" style="font-size:12px;font-weight:600;color:var(--text-2);display:block;margin-bottom:4px">Observaciones (opcional)</label>
-            <textarea id="cleaning-notes" rows="2" placeholder="Ej: falta producto, grifo gotea..." style="width:100%;border:1px solid var(--border);border-radius:10px;padding:10px;font-size:14px;resize:none;font-family:inherit"></textarea>
+            <div class="textarea-mic-wrap">
+                <textarea id="cleaning-notes" rows="2" placeholder="Ej: falta producto, grifo gotea..." style="width:100%;border:1px solid var(--border);border-radius:10px;padding:10px;font-size:14px;resize:none;font-family:inherit"></textarea>
+                <button type="button" class="voice-mic-btn" data-target="cleaning-notes" aria-label="Dictar">🎤</button>
+            </div>
+            <button type="button" class="ai-expand-btn" data-target="cleaning-notes" data-context="cleaning">✨ Expandir amb IA</button>
+            <div class="quick-phrases" data-target="cleaning-notes" data-context="cleaning"></div>
         </div>
         <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:12px;text-align:center">
             <button id="checklist-confirm" style="width:100%;padding:14px;border-radius:14px;border:none;background:var(--blue);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:'Outfit',system-ui,sans-serif">Confirmar y finalizar</button>
@@ -965,6 +985,17 @@
     .chat-typing{align-self:flex-start;padding:9px 13px;border-radius:14px;background:var(--bg);font-size:13px;color:var(--text-2)}
     #chat-mic.recording{background:var(--danger);color:#fff;border-color:var(--danger);animation:pulse-mic 1s infinite}
     @keyframes pulse-mic{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+    .voice-mic-btn{width:34px;height:34px;border-radius:50%;border:1.5px solid var(--border);background:var(--surface);font-size:14px;cursor:pointer;flex-shrink:0;transition:all .15s;position:absolute;right:6px;top:50%;transform:translateY(-50%)}
+    .voice-mic-btn.recording{background:var(--danger);color:#fff;border-color:var(--danger);animation:pulse-mic 1s infinite}
+    .voice-mic-btn.transcribing{opacity:.5;pointer-events:none}
+    .textarea-mic-wrap{position:relative}
+    .textarea-mic-wrap textarea{padding-right:44px}
+    .ai-expand-btn{display:none;font-size:11px;padding:4px 10px;border-radius:16px;border:1.5px solid #8b5cf6;background:#f5f3ff;color:#7c3aed;cursor:pointer;font-weight:600;font-family:inherit;margin-top:4px;transition:all .15s}
+    .ai-expand-btn:active{background:#7c3aed;color:#fff}
+    .ai-expand-btn.loading{opacity:.5;pointer-events:none}
+    .quick-phrases{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+    .quick-phrases button{font-size:11px;padding:4px 10px;border-radius:16px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-family:inherit;transition:all .12s}
+    .quick-phrases button:active{background:var(--blue);color:#fff;border-color:var(--blue)}
 </style>
 
 <script>
@@ -3715,6 +3746,152 @@ $('route-back').addEventListener('click', function() { show('screen-home'); });
         else if (recognition) { micEl.classList.add('recording'); recognition.start(); }
         else { audioFileInput.click(); } // fallback: open native recorder
     });
+})();
+
+// ── Voice-to-text for all note textareas ──
+(function() {
+    const micBtns = document.querySelectorAll('.voice-mic-btn');
+    if (!micBtns.length) return;
+
+    // Per-button state tracked via data attributes
+    micBtns.forEach(function(btn) {
+        let recorder = null;
+        let chunks = [];
+
+        btn.addEventListener('click', async function() {
+            if (btn.classList.contains('transcribing')) return;
+            const targetId = btn.getAttribute('data-target');
+            const textarea = $(targetId);
+            if (!textarea) return;
+
+            // If recording, stop
+            if (btn.classList.contains('recording')) {
+                if (recorder && recorder.state === 'recording') recorder.stop();
+                btn.classList.remove('recording');
+                return;
+            }
+
+            // Try MediaRecorder (Whisper)
+            if (navigator.mediaDevices) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    chunks = [];
+                    recorder = new MediaRecorder(stream, {
+                        mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
+                    });
+                    recorder.ondataavailable = function(e) { if (e.data.size > 0) chunks.push(e.data); };
+                    recorder.onstop = async function() {
+                        stream.getTracks().forEach(function(t) { t.stop(); });
+                        const blob = new Blob(chunks, { type: recorder.mimeType });
+                        btn.classList.remove('recording');
+                        btn.classList.add('transcribing');
+                        const fd = new FormData();
+                        fd.append('audio', blob, 'audio.webm');
+                        try {
+                            const resp = await fetch('/api/transcribe', {
+                                method: 'POST',
+                                headers: { 'Authorization': 'Bearer ' + S.token },
+                                body: fd,
+                            });
+                            const data = await resp.json();
+                            if (data.text) {
+                                textarea.value = textarea.value ? textarea.value + ' ' + data.text : data.text;
+                                textarea.dispatchEvent(new Event('input'));
+                            } else {
+                                toast(data.error || 'Error en transcripcion');
+                            }
+                        } catch(e) { toast('Error al enviar audio'); }
+                        btn.classList.remove('transcribing');
+                    };
+                    recorder.start();
+                    btn.classList.add('recording');
+                } catch(e) {
+                    toast('No se pudo acceder al microfono');
+                }
+            } else {
+                toast('Microfono no disponible (requiere HTTPS)');
+            }
+        });
+    });
+})();
+
+// ── AI Expand Notes ──
+(function() {
+    const expandBtns = document.querySelectorAll('.ai-expand-btn');
+    expandBtns.forEach(function(btn) {
+        const targetId = btn.getAttribute('data-target');
+        const textarea = $(targetId);
+        if (!textarea) return;
+
+        // Show button only when textarea has content
+        textarea.addEventListener('input', function() {
+            btn.style.display = textarea.value.trim().length >= 3 ? 'inline-block' : 'none';
+        });
+
+        btn.addEventListener('click', async function() {
+            if (btn.classList.contains('loading')) return;
+            const note = textarea.value.trim();
+            if (note.length < 3) return;
+
+            btn.classList.add('loading');
+            btn.textContent = '⏳ Expandint...';
+            try {
+                const resp = await fetch('/api/nfc/expand-note', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + S.token,
+                    },
+                    body: JSON.stringify({ note: note, context: btn.getAttribute('data-context') || '' }),
+                });
+                const data = await resp.json();
+                if (data.expanded) {
+                    textarea.value = data.expanded;
+                    textarea.dispatchEvent(new Event('input'));
+                    toast('Nota expandida');
+                } else {
+                    toast(data.error || 'Error al expandir');
+                }
+            } catch(e) { toast('Error de conexion'); }
+            btn.classList.remove('loading');
+            btn.textContent = '✨ Expandir amb IA';
+        });
+    });
+})();
+
+// ── Quick Phrases ──
+(function() {
+    const containers = document.querySelectorAll('.quick-phrases');
+    if (!containers.length) return;
+
+    // Fetch phrases once and populate all containers
+    fetch('/api/nfc/quick-phrases', {
+        headers: { 'Authorization': 'Bearer ' + S.token },
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(phrases) {
+        containers.forEach(function(container) {
+            const ctx = container.getAttribute('data-context');
+            const targetId = container.getAttribute('data-target');
+            const textarea = $(targetId);
+            const list = phrases[ctx] || [];
+            if (!list.length || !textarea) return;
+
+            list.forEach(function(phrase) {
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = phrase;
+                btn.addEventListener('click', function() {
+                    textarea.value = textarea.value
+                        ? textarea.value + '. ' + phrase
+                        : phrase;
+                    textarea.dispatchEvent(new Event('input'));
+                });
+                container.appendChild(btn);
+            });
+        });
+    })
+    .catch(function() { /* silent fail — phrases are optional */ });
 })();
 
 // ── Register Service Worker for PWA install ──

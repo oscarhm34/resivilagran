@@ -200,7 +200,156 @@ def _generate_notifications() -> int:
     except Exception:
         pass
 
+    # Auto shift handover (throttled, near shift boundaries)
+    try:
+        created += _generate_handover_notification()
+    except Exception:
+        pass
+
     return created
+
+
+# ── Auto shift handover ──────────────────────────────────────────────────────
+
+def _generate_handover_notification() -> int:
+    """Auto-generate handover report when a shift ends (within 30 min window). Throttled per shift."""
+    now = datetime.now()
+    current_time = now.time()
+
+    shift_types = ShiftType.query.filter_by(active=True).all() if hasattr(ShiftType, 'active') else ShiftType.query.all()
+
+    for st in shift_types:
+        if not st.end_time:
+            continue
+        # Check if we are within 30 minutes after this shift's end_time
+        shift_end = st.end_time
+        # Compute minutes since shift end
+        shift_end_minutes = shift_end.hour * 60 + shift_end.minute
+        current_minutes = current_time.hour * 60 + current_time.minute
+        diff = current_minutes - shift_end_minutes
+        if diff < 0 or diff > 30:
+            continue
+
+        # Throttle: check if handover notification already generated for this shift today
+        dedup_title = f'Traspaso automàtic — Torn {st.short_name} {now.strftime("%d/%m/%Y")}'
+        if _notif_exists('shift_handover', dedup_title, hours=12):
+            continue
+
+        # Compute shift duration in hours
+        start_minutes = st.start_time.hour * 60 + st.start_time.minute if st.start_time else 0
+        hours = (shift_end_minutes - start_minutes) / 60
+        if hours <= 0:
+            hours += 24  # overnight shift
+
+        # Generate handover using the same logic as the manual endpoint
+        try:
+            from .assessments import _call_claude, HANDOVER_SYSTEM
+            from ..models import (CareRecord as CR, CleaningRecord as CLR,
+                                  Incident as Inc, Activity as Act, Absence)
+
+            cutoff = now - timedelta(hours=hours)
+            lines = []
+
+            # Shift workers
+            today = now.date()
+            assignments = ShiftAssignment.query.filter(
+                ShiftAssignment.date == today,
+                ShiftAssignment.shift_type_id == st.id,
+            ).all()
+            absent_ids = {a.cleaner_id for a in Absence.query.filter(
+                Absence.start_date <= today, Absence.end_date >= today).all()}
+            on_shift = [a for a in assignments if a.cleaner_id not in absent_ids]
+            worker_names = []
+            for a in on_shift:
+                c = db.session.get(Cleaner, a.cleaner_id)
+                if c:
+                    worker_names.append(c.name)
+            lines.append(f"TRASPASO AUTOMÀTIC — Torn {st.short_name} ({st.name}) — {now.strftime('%d/%m/%Y %H:%M')}")
+            lines.append(f"Treballadors en torn: {len(on_shift)} ({', '.join(worker_names[:10])})")
+
+            # Care records during shift
+            from sqlalchemy.orm import joinedload
+            from ..models import VitalSignReading, VitalSignType
+            care_records = CR.query.options(
+                joinedload(CR.worker), joinedload(CR.resident),
+                joinedload(CR.care_types),
+                joinedload(CR.vital_sign_readings).joinedload(VitalSignReading.vital_sign_type),
+            ).filter(CR.start_time >= cutoff).order_by(CR.start_time.desc()).all()
+
+            lines.append(f"\nATENCIONS: {len(care_records)}")
+            notes_list = []
+            for cr in care_records:
+                w_name = cr.worker.name if cr.worker else '?'
+                r_name = cr.resident.name if cr.resident else '?'
+                types = ', '.join(ct.name for ct in cr.care_types) if cr.care_types else '?'
+                vitals_parts = []
+                for reading in cr.vital_sign_readings:
+                    vst = reading.vital_sign_type
+                    if vst:
+                        vitals_parts.append(f"{vst.name}: {reading.value}{vst.unit}")
+                vitals_str = f" | {', '.join(vitals_parts)}" if vitals_parts else ''
+                lines.append(f"  {cr.start_time.strftime('%H:%M')} {r_name}: {types} ({w_name}){vitals_str}")
+                if cr.notes:
+                    notes_list.append(f"  {r_name}: {cr.notes}")
+
+            # Cleanings
+            cleanings = CLR.query.filter(
+                CLR.start_time >= cutoff, CLR.end_time.isnot(None),
+            ).count()
+            lines.append(f"\nNETEJES: {cleanings}")
+
+            # Incidents
+            incidents = Inc.query.filter(Inc.created_at >= cutoff).all()
+            if incidents:
+                lines.append(f"\nINCIDÈNCIES: {len(incidents)}")
+                for inc in incidents:
+                    lines.append(f"  {inc.title} (sev: {inc.severity})")
+
+            if notes_list:
+                lines.append(f"\nNOTES:")
+                for n in notes_list[:15]:
+                    lines.append(n)
+
+            context = '\n'.join(lines)
+            html = _call_claude(HANDOVER_SYSTEM, f"Genera un informe de traspaso basado en:\n\n{context}")
+            html = html.strip()
+            if html.startswith('```'):
+                html = html.split('\n', 1)[1] if '\n' in html else html[3:]
+            if html.endswith('```'):
+                html = html.rsplit('```', 1)[0]
+
+            # Create notification for admin
+            db.session.add(Notification(
+                type='shift_handover',
+                title=dedup_title,
+                message=html[:500],
+                severity='info',
+                link='/admin/notifications',
+            ))
+
+            # Create notification for each incoming shift worker
+            # Find next shift type by start_time
+            next_shifts = ShiftAssignment.query.filter(
+                ShiftAssignment.date == today,
+                ShiftAssignment.shift_type_id != st.id,
+            ).all()
+            for ns in next_shifts:
+                if ns.cleaner_id not in absent_ids:
+                    db.session.add(Notification(
+                        type='shift_handover',
+                        title=f'Informe del torn anterior ({st.short_name})',
+                        message=html[:500],
+                        severity='info',
+                        worker_id=ns.cleaner_id,
+                        link='/worker',
+                    ))
+
+            db.session.commit()
+            return 1
+        except Exception:
+            return 0
+
+    return 0
 
 
 # ── AI-powered pattern detection ──────────────────────────────────────────────

@@ -1436,3 +1436,74 @@ def api_record_meal():
 
     db.session.commit()
     return jsonify({'ok': True})
+
+
+# ── AI Expand Note ─────────────────────────────────────────────────────────
+@nfc_bp.route('/api/nfc/expand-note', methods=['POST'])
+@jwt_required()
+def expand_note():
+    """Expand a terse worker note into professional clinical language."""
+    data = request.get_json(silent=True) or {}
+    note = (data.get('note') or '').strip()
+    if not note or len(note) < 3:
+        return jsonify({'error': 'Nota demasiado corta'}), 400
+
+    context = data.get('context', '')  # e.g. 'care', 'cleaning', 'mood', 'meal'
+
+    from .assessments import _call_claude
+    system = (
+        'Eres un asistente de documentación clínica en una residencia de ancianos. '
+        'Tu tarea es expandir notas breves de las cuidadoras en observaciones clínicas profesionales. '
+        'Reglas: '
+        '- Mantén el significado original, no inventes información. '
+        '- Usa lenguaje profesional pero claro, en español. '
+        '- Si la nota original es sobre limpieza, adapta el tono (no clínico). '
+        '- Genera solo el texto expandido, sin encabezados ni explicaciones. '
+        '- Máximo 2-3 frases.'
+    )
+    if context:
+        system += f'\nContexto: esta nota es de tipo "{context}".'
+
+    expanded = _call_claude(system, f'Nota original: "{note}"')
+    return jsonify({'expanded': expanded})
+
+
+# ── Quick Phrases ──────────────────────────────────────────────────────────
+_DEFAULT_QUICK_PHRASES = {
+    'care': [
+        'Sin incidencias', 'Residente tranquilo/a', 'Buen estado general',
+        'Inquieto/a, se ha calmado', 'Negativa parcial a la atención',
+        'Colaborador/a durante la atención', 'Se queja de dolor',
+        'Piel íntegra, sin lesiones',
+    ],
+    'cleaning': [
+        'Sin incidencias', 'Habitación en buen estado',
+        'Falta producto de limpieza', 'Grifo gotea',
+        'Bombilla fundida', 'Mal olor persistente',
+    ],
+    'mood': [
+        'Sin observaciones', 'Tranquilo/a y comunicativo/a',
+        'Apático/a, sin ganas de hablar', 'Llora sin motivo aparente',
+        'Agitado/a, cuesta calmarlo/a', 'Contento/a, participa en actividades',
+    ],
+    'meal': [
+        'Ha comido bien', 'Apetito normal', 'Ha rechazado la comida',
+        'Solo ha tomado líquidos', 'Dificultad para tragar',
+        'Ha comido con ayuda', 'Buena ingesta de líquidos',
+    ],
+}
+
+
+@nfc_bp.route('/api/nfc/quick-phrases')
+@jwt_required()
+def get_quick_phrases():
+    """Return quick phrases per context, from AppSetting or defaults."""
+    stored = AppSetting.get('quick_phrases', None)
+    if stored:
+        try:
+            phrases = _json.loads(stored)
+        except (ValueError, TypeError):
+            phrases = _DEFAULT_QUICK_PHRASES
+    else:
+        phrases = _DEFAULT_QUICK_PHRASES
+    return jsonify(phrases)
