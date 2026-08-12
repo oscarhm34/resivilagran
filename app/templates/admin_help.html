@@ -43,6 +43,10 @@
                         <li><a href="#activitats">16b. Activitats</a></li>
                         <li><a href="#mood">16d. Estat d'anim</a></li>
                         <li><a href="#darkmode">16e. Mode fosc</a></li>
+                        <li><a href="#digest">16f. Resums diaris IA</a></li>
+                        <li><a href="#pai">16g. PAI (Pla d'Atencio)</a></li>
+                        <li><a href="#pfeiffer">16h. Escala Pfeiffer</a></li>
+                        <li><a href="#falls">16i. Caigudes estructurades</a></li>
                         <li><a href="#kpis">16c. KPIs de qualitat</a></li>
                         <li><a href="#ia">17. Inteligencia artificial (IA)</a></li>
                         <li><a href="#config">18. Configuracion</a></li>
@@ -888,6 +892,85 @@
                 <li>Icona <strong><i class="bi bi-moon"></i></strong> a la barra de navegacio per activar/desactivar el mode fosc.</li>
                 <li>La preferencia es guarda al navegador i es recorda entre sessions.</li>
                 <li>Afecta tot el panel d'administracio (menus, taules, modals, formularis).</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 16f. Resums diaris IA -->
+    <div class="card mb-4" id="digest">
+        <div class="card-header">16f. Resums diaris IA <span class="badge bg-success">NOU</span></div>
+        <div class="card-body">
+            <p>Genera automaticament un breu resum diari per cada resident que hagi tingut activitat (atencions, constantes, incidencies, activitats, estat d'anim).</p>
+            <ul>
+                <li>Accessible des de <strong>Personas &rarr; Resums diaris IA</strong>.</li>
+                <li>Boto <strong>"Generar resums del dia"</strong> per llançar la generacio (un resum per resident amb dades del dia).</li>
+                <li>Cada resum es <strong>breu</strong> (maxim 150 paraules) i destaca nomes el que es RELLEVANT, no la rutina.</li>
+                <li>Els resums amb alertes (constantes fora de rang, caigudes, rebuig medicacio) es marquen amb <strong>badge vermell "ALERTA"</strong>.</li>
+                <li>Navegacio per dies amb fletxes &larr; &rarr; i boto "Avui".</li>
+                <li>Els resums es guarden a la base de dades — es poden consultar dies anteriors.</li>
+                <li>Clic al nom del resident per anar a la seva fitxa completa.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 16g. PAI (Pla d'Atencio Individualitzat) -->
+    <div class="card mb-4" id="pai">
+        <div class="card-header">16g. Pla d'Atencio Individualitzat (PAI) <span class="badge bg-success">NOU</span></div>
+        <div class="card-body">
+            <p>Genera i guarda plans d'atencio per resident amb seguiment automatic per IA.</p>
+
+            <h6 class="mt-3">Generar PAI</h6>
+            <ul>
+                <li>A la fitxa del resident, seccio "Informe IA", boto <strong><i class="bi bi-clipboard-pulse"></i> PAI</strong>.</li>
+                <li>La IA analitza les dades dels ultims 30 dies (atencions, constantes, valoracions, incidencies, activitats, anim) i genera un PAI estructurat.</li>
+                <li>El PAI inclou: <strong>objectius SMART</strong>, <strong>intervencions</strong> per area (assistencial, social, cognitiva, nutricional, mobilitat), <strong>indicadors de seguiment</strong> i <strong>data de revisio</strong> (3 mesos).</li>
+                <li>El PAI es guarda a la base de dades com a document persistent.</li>
+            </ul>
+
+            <h6 class="mt-3">Revisar PAI</h6>
+            <ul>
+                <li>Boto <strong><i class="bi bi-arrow-repeat"></i> Revisar PAI</strong> a la fitxa del resident.</li>
+                <li>La IA compara els objectius del PAI actiu amb les dades reals dels ultims 30 dies.</li>
+                <li>Per cada objectiu indica: <span style="color:green"><strong>ACONSEGUIT</strong></span>, <span style="color:orange"><strong>EN PROGRES</strong></span>, <span style="color:red"><strong>NO ACONSEGUIT</strong></span> o <strong>SENSE DADES</strong>.</li>
+                <li>Suggereix ajustos al pla si es necessari.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 16h. Escala de Pfeiffer -->
+    <div class="card mb-4" id="pfeiffer">
+        <div class="card-header">16h. Escala de Pfeiffer (SPMSQ) <span class="badge bg-success">NOU</span></div>
+        <div class="card-body">
+            <p>Valoracio cognitiva curta (Short Portable Mental Status Questionnaire). Complementa Barthel (funcional) i Norton (UPP).</p>
+            <ul>
+                <li>Accessible des de <strong>Valoraciones clinicas &rarr; Pfeiffer</strong>.</li>
+                <li><strong>10 preguntes</strong> sobre orientacio, memoria i calcul.</li>
+                <li>Es marca <strong>"Correcto"</strong> o <strong>"Error"</strong> per cada pregunta.</li>
+                <li>Puntuacio: nombre d'errors (0-10).</li>
+                <li>Interpretacio: 0-2 Normal, 3-4 Deteriorament lleu, 5-7 Moderat, 8-10 Sever.</li>
+                <li>Els resultats s'inclouen en els informes IA i a la fitxa del resident.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 16i. Caigudes estructurades -->
+    <div class="card mb-4" id="falls">
+        <div class="card-header">16i. Registre estructurat de caigudes <span class="badge bg-success">NOU</span></div>
+        <div class="card-body">
+            <p>Quan una incidencia es una caiguda, es pot registrar informacio estructurada addicional.</p>
+            <ul>
+                <li>Al crear una incidencia, checkbox <strong>"Es una caiguda"</strong>.</li>
+                <li>Si esta marcat, apareixen camps addicionals:</li>
+                <ul>
+                    <li><strong>Ubicacio</strong> de la caiguda</li>
+                    <li><strong>Activitat</strong> en el moment (caminant, dormint, transferencia...)</li>
+                    <li><strong>Calcat</strong> (descalc, sabatilles, sabates)</li>
+                    <li><strong>Testimonis</strong></li>
+                    <li><strong>Lesions</strong> (descripcio + gravetat: cap, lleu, moderada, greu)</li>
+                    <li><strong>Mesures preses</strong></li>
+                    <li><strong>Factors contribuents</strong> (medicacio, terra moll, etc.)</li>
+                </ul>
+                <li>Aquesta informacio estructura millora els <strong>KPIs de caigudes</strong> i el <strong>perfil de risc</strong> del resident (ja no depen de keywords en el titol).</li>
             </ul>
         </div>
     </div>

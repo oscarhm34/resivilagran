@@ -1089,10 +1089,12 @@ vitalData.forEach((chart, i) => {
 // ── PAI (Care Plan) ──
 document.getElementById('btn-generate-pai').addEventListener('click', function() {
     var btn = this;
+    var _container = document.getElementById('ai-report-container');
+    var _content = document.getElementById('ai-report-content');
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generant PAI...';
-    container.style.display = 'block';
-    content.innerHTML = '<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>Generant Pla d\'Atenció Individualitzat...</div>';
+    _container.style.display = 'block';
+    _content.innerHTML = '<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>Generant Pla d\'Atenció Individualitzat...</div>';
 
     fetch('/api/resident/{{ resident.id }}/care-plan/generate', {
         method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'
@@ -1100,26 +1102,28 @@ document.getElementById('btn-generate-pai').addEventListener('click', function()
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-clipboard-pulse me-1"></i>PAI';
         if (data.html) {
-            content.innerHTML = data.html;
+            _content.innerHTML = data.html;
             document.getElementById('rpt-name').textContent = '{{ resident.name }}';
             document.getElementById('rpt-period').textContent = 'Pla d\'Atenció Individualitzat';
             document.getElementById('rpt-date').textContent = data.review_date || '';
             if (typeof showToast === 'function') showToast(data.message || 'PAI generat', 'success');
         } else {
-            content.innerHTML = '<div class="alert alert-warning">' + (data.error || 'Error') + '</div>';
+            _content.innerHTML = '<div class="alert alert-warning">' + (data.error || 'Error') + '</div>';
         }
     }).catch(function() {
         btn.disabled = false; btn.innerHTML = '<i class="bi bi-clipboard-pulse me-1"></i>PAI';
-        content.innerHTML = '<div class="alert alert-danger">Error de connexio.</div>';
+        _content.innerHTML = '<div class="alert alert-danger">Error de connexio.</div>';
     });
 });
 
 document.getElementById('btn-review-pai').addEventListener('click', function() {
     var btn = this;
+    var _container = document.getElementById('ai-report-container');
+    var _content = document.getElementById('ai-report-content');
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Revisant PAI...';
-    container.style.display = 'block';
-    content.innerHTML = '<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>Comparant objectius amb dades reals...</div>';
+    _container.style.display = 'block';
+    _content.innerHTML = '<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>Comparant objectius amb dades reals...</div>';
 
     fetch('/api/resident/{{ resident.id }}/care-plan/review', {
         method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'
@@ -1127,16 +1131,16 @@ document.getElementById('btn-review-pai').addEventListener('click', function() {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Revisar PAI';
         if (data.html) {
-            content.innerHTML = data.html;
+            _content.innerHTML = data.html;
             document.getElementById('rpt-name').textContent = '{{ resident.name }}';
             document.getElementById('rpt-period').textContent = 'Revisió PAI';
             document.getElementById('rpt-date').textContent = data.review_date || '';
         } else {
-            content.innerHTML = '<div class="alert alert-warning">' + (data.error || 'Error') + '</div>';
+            _content.innerHTML = '<div class="alert alert-warning">' + (data.error || 'Error') + '</div>';
         }
     }).catch(function() {
         btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Revisar PAI';
-        content.innerHTML = '<div class="alert alert-danger">Error de connexio.</div>';
+        _content.innerHTML = '<div class="alert alert-danger">Error de connexio.</div>';
     });
 });
 
