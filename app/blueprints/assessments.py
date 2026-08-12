@@ -468,7 +468,10 @@ def _build_resident_context(resident_id: int, days: int = 7) -> dict:
     if not resident:
         return {}
 
-    cutoff = datetime.now() - timedelta(days=days)
+    if days == 0:
+        cutoff = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    else:
+        cutoff = datetime.now() - timedelta(days=days)
 
     # Profile
     dep_labels = {'autonomous': 'Autonomo', 'mild': 'Leve', 'moderate': 'Moderado',
@@ -700,7 +703,7 @@ def ai_summary(resident_id: int):
     """Generate AI clinical report for a resident."""
     data = request.get_json() or {}
     period = data.get('period', 'week')
-    days_map = {'today': 1, 'week': 7, 'month': 30}
+    days_map = {'today': 0, 'week': 7, 'month': 30}
     days = days_map.get(period, 7)
 
     ctx = _build_resident_context(resident_id, days)
@@ -824,9 +827,12 @@ def global_ai_report():
     """Generate AI report for the entire residence."""
     data = request.get_json() or {}
     period = data.get('period', 'week')
-    days_map = {'today': 1, 'week': 7, 'month': 30}
+    days_map = {'today': 0, 'week': 7, 'month': 30}
     days = days_map.get(period, 7)
-    cutoff = datetime.now() - timedelta(days=days)
+    if period == 'today':
+        cutoff = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    else:
+        cutoff = datetime.now() - timedelta(days=days)
 
     # Gather global data
     lines = []
@@ -834,7 +840,7 @@ def global_ai_report():
     # Active residents and workers
     residents = Resident.query.filter_by(active=True).all()
     workers = Cleaner.query.filter_by(active=True).all()
-    lines.append(f"RESIDENCIA LA VILA GRAN — {len(residents)} residentes activos, {len(workers)} trabajadores activos")
+    lines.append(f"RESIDENCIA LA VILA GRAN — Fecha: {datetime.now().strftime('%d/%m/%Y')} — {len(residents)} residentes activos, {len(workers)} trabajadores activos")
 
     # Care records summary
     care_records = CareRecord.query.filter(
