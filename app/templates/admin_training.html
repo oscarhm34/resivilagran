@@ -28,7 +28,11 @@
             {% set completed = pill.completions|selectattr('passed')|list|length %}
             {% set passed_pct = (completed / total_workers * 100)|round|int if total_workers else 0 %}
             <tr>
-                <td style="font-weight:600">{{ pill.title }}</td>
+                <td style="font-weight:600">
+                    {{ pill.title }}
+                    {% if pill.mandatory %}<span class="badge bg-danger ms-1" style="font-size:.6rem">OBLIGATÒRIA</span>{% endif %}
+                    {% if pill.assign_mode == 'selected' %}<span class="badge bg-info ms-1" style="font-size:.6rem">{{ pill.assignments|length }} assignats</span>{% endif %}
+                </td>
                 <td>{{ pill.questions|length }}</td>
                 <td>
                     <a href="{{ url_for('training.training_results', pill_id=pill.id) }}"
@@ -111,6 +115,39 @@
                     </div>
 
                     <hr>
+                    <h6 style="font-weight:700">Assignació</h6>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Assignar a</label>
+                            <select class="form-select form-select-sm" name="assign_mode" id="pill-assign-mode" onchange="toggleAssignWorkers()">
+                                <option value="all">Tots els treballadors</option>
+                                <option value="selected">Treballadors seleccionats</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="mandatory" id="pill-mandatory">
+                                <label class="form-check-label" for="pill-mandatory"><strong>Obligatòria</strong> <small class="text-muted">(bloqueja webapp)</small></label>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="assign-workers-section" style="display:none" class="mb-3">
+                        <label class="form-label">Selecciona treballadors</label>
+                        <div class="d-flex gap-1 mb-2">
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="document.querySelectorAll('#assign-workers input').forEach(c=>c.checked=true)">Tots</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.querySelectorAll('#assign-workers input').forEach(c=>c.checked=false)">Cap</button>
+                        </div>
+                        <div id="assign-workers" style="max-height:200px;overflow-y:auto;border:1px solid var(--color-border);border-radius:var(--radius-md);padding:8px">
+                            {% for w in workers %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="assigned_workers" value="{{ w.id }}" id="aw-{{ w.id }}">
+                                <label class="form-check-label" for="aw-{{ w.id }}" style="font-size:.85rem">{{ w.name }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <hr>
                     <h6 style="font-weight:700">Preguntas</h6>
                     <div id="questions-container"></div>
                     <button type="button" class="btn btn-outline-secondary btn-sm mt-2" onclick="addQuestion()">
@@ -160,6 +197,11 @@
         container.appendChild(div);
     };
 
+    window.toggleAssignWorkers = function() {
+        document.getElementById('assign-workers-section').style.display =
+            document.getElementById('pill-assign-mode').value === 'selected' ? '' : 'none';
+    };
+
     window.resetPillForm = function () {
         qIdx = 0;
         document.getElementById('pillForm').action = '{{ url_for("training.create_training") }}';
@@ -170,6 +212,10 @@
         document.getElementById('pill-video').value = '';
         document.getElementById('pill-duration').value = '';
         document.getElementById('pill-threshold').value = '80';
+        document.getElementById('pill-assign-mode').value = 'all';
+        document.getElementById('pill-mandatory').checked = false;
+        document.getElementById('assign-workers-section').style.display = 'none';
+        document.querySelectorAll('#assign-workers input').forEach(function(c) { c.checked = false; });
         document.getElementById('questions-container').innerHTML = '';
         addQuestion();
     };
@@ -187,6 +233,15 @@
         document.getElementById('pill-video').value = pill.video_url || '';
         document.getElementById('pill-duration').value = pill.video_duration_seconds || '';
         document.getElementById('pill-threshold').value = pill.pass_threshold || 80;
+        document.getElementById('pill-assign-mode').value = pill.assign_mode || 'all';
+        document.getElementById('pill-mandatory').checked = pill.mandatory || false;
+        toggleAssignWorkers();
+        // Set assigned worker checkboxes
+        document.querySelectorAll('#assign-workers input').forEach(function(c) { c.checked = false; });
+        (pill.assigned_worker_ids || []).forEach(function(wid) {
+            var cb = document.getElementById('aw-' + wid);
+            if (cb) cb.checked = true;
+        });
         document.getElementById('questions-container').innerHTML = '';
         if (pill.questions && pill.questions.length) {
             pill.questions.forEach(function (q) { addQuestion(q); });

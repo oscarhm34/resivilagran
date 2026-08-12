@@ -10,7 +10,7 @@ from flask_jwt_extended import jwt_required
 from sqlalchemy.orm import joinedload
 
 from .. import db
-from ..models import (Cleaner, TrainingPill, TrainingQuestion, TrainingCompletion)
+from ..models import (Cleaner, TrainingPill, TrainingQuestion, TrainingCompletion, TrainingAssignment)
 from ..utils import admin_required, _verify_worker_id
 
 bp = Blueprint('training', __name__)
@@ -28,6 +28,9 @@ def admin_training():
         'video_url': p.video_url or '',
         'video_duration_seconds': p.video_duration_seconds or '',
         'pass_threshold': p.pass_threshold,
+        'assign_mode': p.assign_mode or 'all',
+        'mandatory': p.mandatory or False,
+        'assigned_worker_ids': [a.cleaner_id for a in p.assignments],
         'questions': [{
             'question_text': q.question_text,
             'option_a': q.option_a, 'option_b': q.option_b,
@@ -35,8 +38,9 @@ def admin_training():
             'correct_option': q.correct_option,
         } for q in p.questions],
     } for p in pills}
+    workers = Cleaner.query.filter_by(active=True, is_admin=False).order_by(Cleaner.name).all()
     return render_template('admin_training.html', pills=pills,
-                           total_workers=total_workers, pills_json=pills_json)
+                           total_workers=total_workers, pills_json=pills_json, workers=workers)
 
 
 @bp.route('/admin/training/create', methods=['POST'])
@@ -50,10 +54,13 @@ def create_training():
     if not title:
         flash('El título es obligatorio.', 'error')
         return redirect(url_for('training.admin_training'))
+    assign_mode = request.form.get('assign_mode', 'all')
+    mandatory = request.form.get('mandatory') == 'on'
     pill = TrainingPill(
         title=title, description=description or None,
         video_url=video_url or None, video_duration_seconds=duration,
         pass_threshold=threshold, created_by=current_user.id,
+        assign_mode=assign_mode, mandatory=mandatory,
     )
     db.session.add(pill)
     db.session.flush()
@@ -71,6 +78,12 @@ def create_training():
         )
         db.session.add(q)
         idx += 1
+    # Assignments for selected mode
+    if assign_mode == 'selected':
+        worker_ids = request.form.getlist('assigned_workers')
+        for wid in worker_ids:
+            db.session.add(TrainingAssignment(
+                pill_id=pill.id, cleaner_id=int(wid), assigned_by=current_user.id))
     db.session.commit()
     flash('Píldora formativa creada.', 'success')
     return redirect(url_for('training.admin_training'))
@@ -87,6 +100,15 @@ def edit_training(pill_id: int):
     pill.video_url = request.form.get('video_url', '').strip() or None
     pill.video_duration_seconds = request.form.get('video_duration_seconds', type=int) or None
     pill.pass_threshold = request.form.get('pass_threshold', 80, type=int)
+    pill.assign_mode = request.form.get('assign_mode', 'all')
+    pill.mandatory = request.form.get('mandatory') == 'on'
+    # Update assignments
+    TrainingAssignment.query.filter_by(pill_id=pill.id).delete()
+    if pill.assign_mode == 'selected':
+        worker_ids = request.form.getlist('assigned_workers')
+        for wid in worker_ids:
+            db.session.add(TrainingAssignment(
+                pill_id=pill.id, cleaner_id=int(wid), assigned_by=current_user.id))
     TrainingQuestion.query.filter_by(pill_id=pill.id).delete()
     idx = 0
     while request.form.get(f'q_{idx}_text'):
@@ -142,7 +164,13 @@ def training_results(pill_id: int):
     completions = TrainingCompletion.query.filter_by(pill_id=pill_id)\
         .options(joinedload(TrainingCompletion.cleaner))\
         .order_by(TrainingCompletion.completed_at.desc()).all()
-    workers = Cleaner.query.filter_by(active=True, is_admin=False).order_by(Cleaner.name).all()
+    if pill.assign_mode == 'selected':
+        assigned_ids = {a.cleaner_id for a in pill.assignments}
+        workers = Cleaner.query.filter(
+            Cleaner.id.in_(assigned_ids), Cleaner.active == True
+        ).order_by(Cleaner.name).all()
+    else:
+        workers = Cleaner.query.filter_by(active=True, is_admin=False).order_by(Cleaner.name).all()
     completed_ids = {c.cleaner_id for c in completions if c.passed}
     pending = [w for w in workers if w.id not in completed_ids]
     return render_template('admin_training_results.html',
@@ -159,13 +187,25 @@ def pending_training():
         return jsonify({'error': 'worker_id requerido'}), 400
     passed = db.session.query(TrainingCompletion.pill_id)\
         .filter_by(cleaner_id=worker_id, passed=True).subquery()
-    pills = TrainingPill.query.filter_by(active=True)\
+    all_pending = TrainingPill.query.filter_by(active=True)\
         .filter(~TrainingPill.id.in_(passed))\
         .order_by(TrainingPill.created_at).all()
+
+    # Filter by assignment mode
+    assigned_pill_ids = {a.pill_id for a in
+        TrainingAssignment.query.filter_by(cleaner_id=worker_id).all()}
+    pills = []
+    for p in all_pending:
+        if p.assign_mode == 'all':
+            pills.append(p)
+        elif p.assign_mode == 'selected' and p.id in assigned_pill_ids:
+            pills.append(p)
+
     return jsonify([{
         'id': p.id, 'title': p.title,
         'description': p.description or '',
         'question_count': len(p.questions),
+        'mandatory': p.mandatory or False,
     } for p in pills])
 
 

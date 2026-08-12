@@ -288,12 +288,15 @@ class TrainingPill(db.Model):
     video_duration_seconds = db.Column(db.Integer, nullable=True)
     pass_threshold = db.Column(db.Integer, default=80)
     active = db.Column(db.Boolean, default=True)
+    assign_mode = db.Column(db.String(20), default='all')  # 'all' or 'selected'
+    mandatory = db.Column(db.Boolean, default=False)  # blocks webapp until completed
     created_at = db.Column(db.DateTime, default=datetime.now)
     created_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
 
     questions = db.relationship('TrainingQuestion', back_populates='pill', lazy=True,
                                 order_by='TrainingQuestion.sort_order')
     completions = db.relationship('TrainingCompletion', back_populates='pill', lazy=True)
+    assignments = db.relationship('TrainingAssignment', back_populates='pill', lazy=True, cascade='all, delete-orphan')
     creator = db.relationship('Cleaner', foreign_keys=[created_by])
 
 
@@ -328,6 +331,22 @@ class TrainingCompletion(db.Model):
 
     pill = db.relationship('TrainingPill', back_populates='completions')
     cleaner = db.relationship('Cleaner', backref=db.backref('training_completions', lazy=True))
+
+
+class TrainingAssignment(db.Model):
+    """Assigns a training pill to a specific worker."""
+    __tablename__ = 'training_assignment'
+    id = db.Column(db.Integer, primary_key=True)
+    pill_id = db.Column(db.Integer, db.ForeignKey('training_pill.id'), nullable=False)
+    cleaner_id = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=False)
+    assigned_at = db.Column(db.DateTime, default=datetime.now)
+    assigned_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
+
+    pill = db.relationship('TrainingPill', back_populates='assignments')
+    cleaner = db.relationship('Cleaner', foreign_keys=[cleaner_id])
+    assigner = db.relationship('Cleaner', foreign_keys=[assigned_by])
+
+    __table_args__ = (db.UniqueConstraint('pill_id', 'cleaner_id', name='uq_training_assignment'),)
 
 
 # ── TURNOS / CUADRANTES ──────────────────────────────────────────────────────

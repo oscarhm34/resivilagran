@@ -1108,9 +1108,36 @@ async function initHome() {
     show('screen-home');
     $('chat-fab').style.display = '';
     await Promise.all([loadConfig(), loadActiveSessions(), loadHistory(), loadCareTypes(), loadMyGroups(), loadPendingItems(), loadRoute()]);
+    // Check for mandatory training — block webapp if any
+    var mandatoryPills = (pendingTrains || []).filter(function(p) { return p.mandatory; });
+    if (mandatoryPills.length) {
+        showMandatoryTrainingBlock(mandatoryPills[0]);
+        return;
+    }
     if (S.config.allow_worker_activities) await loadTodayActivities();
     startGlobalTimer();
     startNotifPolling();
+}
+
+function showMandatoryTrainingBlock(pill) {
+    $('chat-fab').style.display = 'none';
+    var home = $('screen-home');
+    home.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:70vh;text-align:center;padding:20px">'
+        + '<div style="font-size:4rem;margin-bottom:16px">🎓</div>'
+        + '<h2 style="font-family:Outfit,system-ui,sans-serif;font-weight:700;font-size:22px;margin:0 0 8px">Formació obligatòria</h2>'
+        + '<p style="font-size:14px;color:var(--text-2);margin-bottom:24px">Has de completar aquesta formació abans de continuar treballant.</p>'
+        + '<div style="background:var(--bg);border-radius:16px;padding:20px;width:100%;max-width:320px;margin-bottom:24px">'
+        + '<div style="font-size:18px;font-weight:700">' + esc(pill.title) + '</div>'
+        + (pill.description ? '<div style="font-size:13px;color:var(--text-2);margin-top:6px">' + esc(pill.description) + '</div>' : '')
+        + '<div style="font-size:12px;color:var(--text-2);margin-top:8px">' + pill.question_count + ' preguntes</div>'
+        + '</div>'
+        + '<button id="btn-start-mandatory" style="background:var(--blue);color:#fff;border:none;border-radius:14px;padding:16px 40px;font-size:16px;font-weight:700;cursor:pointer;font-family:Outfit,system-ui,sans-serif">Començar formació</button>'
+        + '<div style="margin-top:16px"><button class="btn-logout" onclick="doLogout()">Cerrar sesión</button></div>'
+        + '</div>';
+    show('screen-home');
+    document.getElementById('btn-start-mandatory').addEventListener('click', function() {
+        startTraining(pill.id);
+    });
 }
 
 // ── Worker notification polling ──────────────────────────────────────────
@@ -3227,7 +3254,17 @@ $('quiz-back').addEventListener('click', () => {
     if (quizIndex > 0) { quizIndex--; renderQuizQuestion(); }
 });
 
-$('train-result-back').addEventListener('click', () => show('screen-home'));
+$('train-result-back').addEventListener('click', async () => {
+    // Reload home to re-check mandatory training
+    await loadPendingItems();
+    var mandatoryPills = (pendingTrains || []).filter(function(p) { return p.mandatory; });
+    if (mandatoryPills.length) {
+        // Still more mandatory training — reload full home to show block screen
+        location.reload();
+    } else {
+        show('screen-home');
+    }
+});
 
 // ── Cleaning Route ───────────────────────────────────────────────────────
 async function loadRoute() {
