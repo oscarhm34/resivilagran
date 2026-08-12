@@ -811,3 +811,20 @@ class Notification(db.Model):
 
     resident = db.relationship('Resident')
     worker = db.relationship('Cleaner')
+
+
+# ── AUDIT TRAIL ─────────────────────────────────────────────────────────────
+
+class AuditLog(db.Model):
+    """Records changes to important data for compliance."""
+    __tablename__ = 'audit_log'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
+    action = db.Column(db.String(20), nullable=False)  # create, update, delete
+    table_name = db.Column(db.String(50), nullable=False)
+    record_id = db.Column(db.Integer, nullable=True)
+    details = db.Column(db.Text, nullable=True)  # JSON: changed fields
+    ip_address = db.Column(db.String(45), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, index=True)
+
+    user = db.relationship('Cleaner', foreign_keys=[user_id])

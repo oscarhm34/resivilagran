@@ -268,6 +268,9 @@ def update_resident_inline(resident_id: int):
 
     try:
         db.session.commit()
+        from ..utils import log_audit
+        log_audit('update', 'resident', resident_id, {k: v for k, v in data.items() if k != 'photo'})
+        db.session.commit()
     except IntegrityError:
         db.session.rollback()
         return jsonify({'error': 'El codi NFC ja esta en us'}), 400

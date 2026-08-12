@@ -15,6 +15,9 @@
             <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-handover" data-bs-toggle="modal" data-bs-target="#handoverModal">
                 <i class="bi bi-arrow-repeat me-1"></i>Traspaso de turno
             </button>
+            <button type="button" class="btn btn-outline-danger btn-sm" id="btn-watchlist" data-bs-toggle="modal" data-bs-target="#watchlistModal">
+                <i class="bi bi-exclamation-diamond me-1"></i>Watchlist risc
+            </button>
         </div>
     </div>
 
@@ -429,6 +432,59 @@
         }, 500);
     });
 })();
+
+// ── Watchlist modal ──
+document.getElementById('btn-watchlist').addEventListener('click', function() {
+    var content = document.getElementById('wl-content');
+    var btn = document.getElementById('wl-generate');
+    content.innerHTML = '';
+    btn.style.display = '';
+});
+
+document.getElementById('wl-generate').addEventListener('click', function() {
+    var btn = this;
+    var content = document.getElementById('wl-content');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Analitzant tots els residents...';
+    content.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm me-2"></div>La IA esta analitzant els 30 dies de dades de cada resident...</div>';
+
+    fetch('/api/ai/risk-watchlist', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'
+    }).then(function(r) { return r.json(); }).then(function(data) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar watchlist';
+        if (data.html) {
+            content.innerHTML = '<div class="ai-report-content">' + data.html + '</div><div class="text-muted text-center mt-2" style="font-size:.75rem">Generat: ' + (data.generated_at || '') + '</div>';
+        } else {
+            content.innerHTML = '<div class="alert alert-warning">' + (data.error || 'Error') + '</div>';
+        }
+    }).catch(function() {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar watchlist';
+        content.innerHTML = '<div class="alert alert-danger">Error de connexio.</div>';
+    });
+});
 </script>
 {% endblock %}
+
+<!-- Watchlist modal -->
+<div class="modal fade" id="watchlistModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content" style="border-radius:var(--radius-lg)">
+            <div class="modal-header" style="background:rgba(220,53,69,.05);border-color:var(--color-border)">
+                <h5 class="modal-title"><i class="bi bi-exclamation-diamond me-2" style="color:var(--color-danger)"></i>Watchlist de risc</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <button type="button" class="btn btn-danger btn-sm" id="wl-generate">
+                        <i class="bi bi-stars me-1"></i>Generar watchlist
+                    </button>
+                    <p class="text-muted mt-1" style="font-size:.78rem">La IA analitzara els ultims 30 dies de tots els residents per detectar riscos.</p>
+                </div>
+                <div id="wl-content"></div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

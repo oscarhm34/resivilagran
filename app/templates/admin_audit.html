@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Audit trail{% endblock %}
+
+{% block content %}
+<div class="py-3">
+    <h1 class="h3 mb-3"><i class="bi bi-shield-check me-2"></i>Registre d'auditoria</h1>
+
+    <form method="GET" class="card p-3 mb-3">
+        <div class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label mb-1" style="font-size:.8rem">Taula</label>
+                <select name="table" class="form-select form-select-sm" style="min-width:140px">
+                    <option value="">Totes</option>
+                    {% for t in table_names %}
+                    <option value="{{ t }}" {% if table_filter == t %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label mb-1" style="font-size:.8rem">Accio</label>
+                <select name="action" class="form-select form-select-sm">
+                    <option value="">Totes</option>
+                    <option value="create" {% if action_filter == 'create' %}selected{% endif %}>Crear</option>
+                    <option value="update" {% if action_filter == 'update' %}selected{% endif %}>Modificar</option>
+                    <option value="delete" {% if action_filter == 'delete' %}selected{% endif %}>Eliminar</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel me-1"></i>Filtrar</button>
+            </div>
+        </div>
+    </form>
+
+    {% if logs %}
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0" style="font-size:.85rem">
+                <thead>
+                    <tr>
+                        <th>Data/hora</th>
+                        <th>Usuari</th>
+                        <th>Accio</th>
+                        <th>Taula</th>
+                        <th>ID</th>
+                        <th>Detalls</th>
+                        <th class="hide-mobile">IP</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr>
+                        <td style="white-space:nowrap">{{ log.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>{{ log.user.name if log.user else '—' }}</td>
+                        <td>
+                            {% if log.action == 'create' %}
+                            <span class="badge bg-success bg-opacity-10 text-success">Crear</span>
+                            {% elif log.action == 'update' %}
+                            <span class="badge bg-warning bg-opacity-10 text-warning">Modificar</span>
+                            {% elif log.action == 'delete' %}
+                            <span class="badge bg-danger bg-opacity-10 text-danger">Eliminar</span>
+                            {% else %}
+                            <span class="badge bg-secondary bg-opacity-10">{{ log.action }}</span>
+                            {% endif %}
+                        </td>
+                        <td><code>{{ log.table_name }}</code></td>
+                        <td>{{ log.record_id or '—' }}</td>
+                        <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ log.details or '' }}">{{ log.details or '—' }}</td>
+                        <td class="hide-mobile" style="color:var(--color-text-secondary)">{{ log.ip_address or '' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% if pagination.pages > 1 %}
+    <nav class="mt-3">
+        <ul class="pagination pagination-sm justify-content-center">
+            {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+            {% if p %}
+            <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                <a class="page-link" href="?page={{ p }}&table={{ table_filter }}&action={{ action_filter }}">{{ p }}</a>
+            </li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">…</span></li>
+            {% endif %}
+            {% endfor %}
+        </ul>
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="card p-4 text-center" style="color:var(--color-text-secondary)">
+        <i class="bi bi-shield-check" style="font-size:2rem"></i>
+        <p class="mt-2 mb-0">Sense registres d'auditoria.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

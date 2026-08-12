@@ -12,6 +12,7 @@ from . import app, db
 from .models import (
     Cleaner, Room, Resident, CleaningRecord, CareRecord,
     AppSetting, CleaningTargetTime, CleaningZoneAssignment,
+    AuditLog,
 )
 
 
@@ -176,3 +177,17 @@ def _compute_cleaning_stats(days_back: int = 90) -> dict:
         'transition_counts': transition_counts,
         'room_durations': room_durations,
     }
+
+
+def log_audit(action, table_name, record_id=None, details=None):
+    """Record an audit log entry."""
+    import json
+    user_id = current_user.id if current_user and hasattr(current_user, 'id') else None
+    ip = request.remote_addr if request else None
+    entry = AuditLog(
+        user_id=user_id, action=action,
+        table_name=table_name, record_id=record_id,
+        details=json.dumps(details, ensure_ascii=False) if details else None,
+        ip_address=ip,
+    )
+    db.session.add(entry)

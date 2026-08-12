@@ -162,6 +162,12 @@ def save_prescription():
     p.end_date = date.fromisoformat(end) if end else None
 
     db.session.commit()
+
+    from ..utils import log_audit
+    log_audit('update' if presc_id else 'create', 'medication_prescription', p.id,
+              {'drug': p.drug_name, 'dose': p.dose, 'resident_id': p.resident_id})
+    db.session.commit()
+
     flash(f'Prescripcion {"actualizada" if presc_id else "creada"}: {p.drug_name}', 'success')
     return redirect(url_for('medication.resident_prescriptions', resident_id=p.resident_id))
 

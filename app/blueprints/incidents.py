@@ -316,6 +316,8 @@ def worker_report_incident():
     except ValueError:
         occurred_at = datetime.now()
 
+    is_fall = data.get('is_fall', False)
+
     incident = Incident(
         title=title,
         description=(data.get('description') or '').strip() or None,
@@ -325,8 +327,26 @@ def worker_report_incident():
         location=(data.get('location') or '').strip() or None,
         severity=data.get('severity', 'medium'),
         occurred_at=occurred_at,
+        is_fall=is_fall,
     )
     db.session.add(incident)
+    db.session.flush()
+
+    if is_fall:
+        fall_data = data.get('fall_data', {})
+        fall = FallRecord(
+            incident_id=incident.id,
+            fall_location=(fall_data.get('fall_location') or '').strip() or None,
+            activity_at_time=(fall_data.get('activity_at_time') or '').strip() or None,
+            footwear=(fall_data.get('footwear') or '').strip() or None,
+            witnesses=(fall_data.get('witnesses') or '').strip() or None,
+            injuries=(fall_data.get('injuries') or '').strip() or None,
+            injury_severity=fall_data.get('injury_severity', 'none'),
+            measures_taken=(fall_data.get('measures_taken') or '').strip() or None,
+            contributing_factors=(fall_data.get('contributing_factors') or '').strip() or None,
+        )
+        db.session.add(fall)
+
     db.session.commit()
     return jsonify({'ok': True, 'id': incident.id}), 201
 

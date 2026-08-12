@@ -1742,3 +1742,75 @@ DADES RECENTS (ultims 30 dies):
         'plan_id': plan.id,
         'review_date': datetime.now().strftime('%d/%m/%Y %H:%M'),
     })
+
+
+# ── Predictive Risk Watchlist ────────────────────────────────────────────────
+
+WATCHLIST_SYSTEM = """Eres un profesional sociosanitario de la residencia La Vila Gran.
+Analiza los datos de todos los residentes y genera una LISTA DE VIGILANCIA priorizada.
+Para cada residente con riesgo, indica:
+- Nombre y habitacion
+- Nivel de riesgo: ALTO (rojo), MEDIO (naranja), BAJO (amarillo)
+- Motivos concretos basados en los datos (no inventes)
+- Acciones recomendadas
+
+FORMATO: HTML con una tabla ordenada por riesgo (alto primero).
+Columnas: Residente | Riesgo | Motivos | Acciones recomendadas
+Usa colores: <span style="color:red">ALTO</span>, <span style="color:orange">MEDIO</span>, <span style="color:#cc0">BAJO</span>
+Si un residente no tiene riesgo destacable, NO lo incluyas.
+Maximo 20 residentes. Escribe en espanol. Sin emojis."""
+
+
+@bp.route('/api/ai/risk-watchlist', methods=['POST'])
+@admin_required
+def ai_risk_watchlist():
+    """AI-generated weekly risk watchlist for all residents."""
+    residents = Resident.query.filter_by(active=True).order_by(Resident.name).all()
+
+    lines = [f"WATCHLIST DE RISC — {datetime.now().strftime('%d/%m/%Y')} — {len(residents)} residents actius\n"]
+
+    for r in residents:
+        ctx = _build_resident_context(r.id, days=30)
+        if not ctx:
+            continue
+
+        # Build compact summary per resident
+        summary_parts = [f"\n--- {r.name} (Hab.{r.room_number or '?'}, dep: {ctx['profile']['dependency']}) ---"]
+
+        if ctx['assessments']:
+            for a in ctx['assessments']:
+                summary_parts.append(f"  Valoracio: {a['scale']} {a['score']} ({a['interpretation']}) [{a['date']}]")
+
+        if ctx['incidents']:
+            falls = [i for i in ctx['incidents'] if 'caida' in i['title'].lower() or 'caiguda' in i['title'].lower()]
+            summary_parts.append(f"  Incidencies: {len(ctx['incidents'])} (caigudes: {len(falls)})")
+
+        if ctx.get('mood'):
+            avg_mood = sum(m['score'] for m in ctx['mood']) / len(ctx['mood'])
+            summary_parts.append(f"  Anim mitja: {avg_mood:.1f}/5 ({len(ctx['mood'])} registres)")
+
+        if ctx['vital_signs']:
+            out_of_range = [v for v in ctx['vital_signs'] if 'fuera' in str(v).lower()]
+            summary_parts.append(f"  Constantes: {len(ctx['vital_signs'])} lectures")
+
+        if ctx['care_records']:
+            summary_parts.append(f"  Atencions: {len(ctx['care_records'])}")
+
+        if ctx.get('activities'):
+            participated = sum(1 for a in ctx['activities'] if 'participat' in a.get('engagement', '').lower())
+            summary_parts.append(f"  Activitats: {participated}/{len(ctx['activities'])} participades")
+
+        lines.extend(summary_parts)
+
+    prompt = "Genera una llista de vigilancia basada en aquestes dades:\n" + '\n'.join(lines)
+
+    try:
+        html = _call_claude(WATCHLIST_SYSTEM, prompt)
+        html = html.strip()
+        if html.startswith('```'):
+            html = html.split('\n', 1)[1] if '\n' in html else html[3:]
+        if html.endswith('```'):
+            html = html.rsplit('```', 1)[0]
+        return jsonify({'html': html.strip(), 'generated_at': datetime.now().strftime('%d/%m/%Y %H:%M')})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

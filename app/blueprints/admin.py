@@ -16,7 +16,7 @@ from ..models import (Cleaner, Room, CleaningRecord, Floor, RoomType, Resident,
                       CareType, CareRecord, ResidentGroup,
                       VitalSignType, VitalSignReading,
                       ShiftAssignment, ChecklistItem,
-                      CleaningTargetTime)
+                      CleaningTargetTime, AuditLog)
 from ..utils import (admin_required, _format_duration,
                      _compute_cleaning_stats, _calculate_room_urgency)
 
@@ -1034,3 +1034,31 @@ def ai_worker_performance():
         return jsonify({'html': html.strip()})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/admin/audit')
+@admin_required
+def admin_audit():
+    """View audit trail."""
+    page = request.args.get('page', 1, type=int)
+    table_filter = request.args.get('table', '')
+    action_filter = request.args.get('action', '')
+
+    query = AuditLog.query.options(joinedload(AuditLog.user))
+
+    if table_filter:
+        query = query.filter(AuditLog.table_name == table_filter)
+    if action_filter:
+        query = query.filter(AuditLog.action == action_filter)
+
+    pagination = query.order_by(AuditLog.created_at.desc()).paginate(
+        page=page, per_page=50, error_out=False)
+
+    tables = db.session.query(AuditLog.table_name).distinct().order_by(AuditLog.table_name).all()
+    table_names = [t[0] for t in tables]
+
+    return render_template('admin_audit.html',
+        logs=pagination.items, pagination=pagination,
+        table_filter=table_filter, action_filter=action_filter,
+        table_names=table_names,
+    )
