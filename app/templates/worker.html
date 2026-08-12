@@ -692,6 +692,27 @@
             <label for="care-notes" style="font-size:12px;font-weight:600;color:var(--text-2);display:block;margin-bottom:4px">Observaciones (opcional)</label>
             <textarea id="care-notes" rows="2" placeholder="Ej: residente dormido, incidencia menor..." style="width:100%;border:1px solid var(--border);border-radius:10px;padding:10px;font-size:14px;resize:none;font-family:inherit"></textarea>
         </div>
+        <!-- Optional: mood inline -->
+        <div style="padding:8px 0">
+            <button type="button" id="ct-mood-toggle" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;cursor:pointer;font-weight:600;transition:all .15s;text-align:center">😊 Registrar estat d'ànim (opcional)</button>
+        </div>
+        <div id="ct-mood-section" style="display:none;padding:12px;border:1.5px solid #f59e0b;border-radius:12px;margin:4px 0;background:#fef3c720">
+            <div style="display:flex;justify-content:center;gap:8px;margin-bottom:8px">
+                <button class="ct-mood-btn" data-score="1" style="font-size:1.6rem;background:none;border:2px solid transparent;border-radius:12px;padding:4px 8px;cursor:pointer">😢</button>
+                <button class="ct-mood-btn" data-score="2" style="font-size:1.6rem;background:none;border:2px solid transparent;border-radius:12px;padding:4px 8px;cursor:pointer">😟</button>
+                <button class="ct-mood-btn" data-score="3" style="font-size:1.6rem;background:none;border:2px solid transparent;border-radius:12px;padding:4px 8px;cursor:pointer">😐</button>
+                <button class="ct-mood-btn" data-score="4" style="font-size:1.6rem;background:none;border:2px solid transparent;border-radius:12px;padding:4px 8px;cursor:pointer">🙂</button>
+                <button class="ct-mood-btn" data-score="5" style="font-size:1.6rem;background:none;border:2px solid transparent;border-radius:12px;padding:4px 8px;cursor:pointer">😊</button>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center">
+                <button class="ct-mood-flag" data-flag="Agitat" style="font-size:11px;padding:4px 10px;border-radius:16px;border:1px solid var(--border);background:var(--surface);cursor:pointer">Agitat</button>
+                <button class="ct-mood-flag" data-flag="Confos" style="font-size:11px;padding:4px 10px;border-radius:16px;border:1px solid var(--border);background:var(--surface);cursor:pointer">Confós</button>
+                <button class="ct-mood-flag" data-flag="Cooperatiu" style="font-size:11px;padding:4px 10px;border-radius:16px;border:1px solid var(--border);background:var(--surface);cursor:pointer">Cooperatiu</button>
+                <button class="ct-mood-flag" data-flag="Tranquil" style="font-size:11px;padding:4px 10px;border-radius:16px;border:1px solid var(--border);background:var(--surface);cursor:pointer">Tranquil</button>
+                <button class="ct-mood-flag" data-flag="Trist" style="font-size:11px;padding:4px 10px;border-radius:16px;border:1px solid var(--border);background:var(--surface);cursor:pointer">Trist</button>
+                <button class="ct-mood-flag" data-flag="Content" style="font-size:11px;padding:4px 10px;border-radius:16px;border:1px solid var(--border);background:var(--surface);cursor:pointer">Content</button>
+            </div>
+        </div>
         <div class="ct-footer" id="ct-footer" style="border-top:1px solid var(--border);padding-top:16px;margin-top:12px">
             <button class="btn-cam primary" id="ct-confirm" style="width:100%;padding:14px;border-radius:14px;border:none;background:var(--green);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:'Outfit',system-ui,sans-serif">Confirmar y finalizar</button>
         </div>
@@ -729,14 +750,7 @@
             <div class="result-time" id="result-time">00:00:00</div>
         </div>
         <div id="result-vital-alerts" style="display:none;width:100%;max-width:340px"></div>
-        <!-- Quick actions after care -->
-        <div id="result-quick-actions" style="display:none;width:100%;max-width:340px;margin-top:8px">
-            <div style="font-size:12px;color:var(--text-2);text-align:center;margin-bottom:8px">Registrar tambe:</div>
-            <div style="display:flex;gap:8px;justify-content:center">
-                <button id="result-btn-mood" style="flex:1;padding:12px;border-radius:12px;border:1.5px solid #f59e0b;background:#fef3c7;font-size:14px;font-weight:700;cursor:pointer;color:#92400e">😊 Estat d'anim</button>
-                <button id="result-btn-meal" style="flex:1;padding:12px;border-radius:12px;border:1.5px solid #16a34a;background:#dcfce7;font-size:14px;font-weight:700;cursor:pointer;color:#166534">🍽 Ingesta</button>
-            </div>
-        </div>
+        <!-- spacer -->
         <div class="spacer"></div>
         <div class="result-bar-wrap"><div class="result-bar cleaning" id="result-bar"></div></div>
         <p class="result-hint" id="result-hint">Volviendo al inicio…</p>
@@ -2509,6 +2523,13 @@ function showCareTypesEnd(data) {
     $('ct-vital-signs').style.display = 'none';
     $('ct-vital-fields').innerHTML = '';
     if ($('care-notes')) $('care-notes').value = '';
+    // Reset inline mood
+    S._ctMoodScore = null;
+    $('ct-mood-section').style.display = 'none';
+    $('ct-mood-toggle').style.borderColor = 'var(--border)';
+    $('ct-mood-toggle').style.background = 'var(--surface)';
+    document.querySelectorAll('.ct-mood-btn').forEach(b => { b.style.borderColor = 'transparent'; b.style.background = 'none'; });
+    document.querySelectorAll('.ct-mood-flag').forEach(b => { b.dataset.active = '0'; b.style.background = 'var(--surface)'; b.style.color = 'inherit'; b.style.borderColor = 'var(--border)'; });
 
     const photoEl = $('ct-resident-photo');
 
@@ -2773,6 +2794,37 @@ function collectVitalSigns() {
     return readings;
 }
 
+// ── Inline mood toggle on care-type screen ──
+S._ctMoodScore = null;
+
+$('ct-mood-toggle').addEventListener('click', function() {
+    var section = $('ct-mood-section');
+    var visible = section.style.display !== 'none';
+    section.style.display = visible ? 'none' : '';
+    this.style.borderColor = visible ? 'var(--border)' : '#f59e0b';
+    this.style.background = visible ? 'var(--surface)' : '#fef3c7';
+    if (visible) S._ctMoodScore = null;
+});
+
+document.querySelectorAll('.ct-mood-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        S._ctMoodScore = parseInt(btn.dataset.score);
+        document.querySelectorAll('.ct-mood-btn').forEach(b => { b.style.borderColor = 'transparent'; b.style.background = 'none'; });
+        btn.style.borderColor = '#f59e0b';
+        btn.style.background = '#fef3c7';
+    });
+});
+
+document.querySelectorAll('.ct-mood-flag').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var isActive = btn.dataset.active === '1';
+        btn.dataset.active = isActive ? '0' : '1';
+        btn.style.background = isActive ? 'var(--surface)' : '#f59e0b';
+        btn.style.color = isActive ? 'inherit' : '#fff';
+        btn.style.borderColor = isActive ? 'var(--border)' : '#f59e0b';
+    });
+});
+
 async function finalizeCare() {
     const selected = [];
     $('ct-grid').querySelectorAll('.ct-sub-btn.selected, .ct-btn.selected').forEach(btn => {
@@ -2817,6 +2869,20 @@ async function finalizeCare() {
     confirmBtn.textContent = 'Confirmar y finalizar';
 
     if (!ok) { toast(data.error || 'Error al finalizar'); return; }
+
+    // Send mood if selected
+    if (S._ctMoodScore && data.resident_id) {
+        var moodFlags = [];
+        document.querySelectorAll('.ct-mood-flag').forEach(function(b) {
+            if (b.dataset.active === '1') moodFlags.push(b.dataset.flag);
+        });
+        await api('/api/mood', 'POST', {
+            resident_id: data.resident_id,
+            mood_score: S._ctMoodScore,
+            behavior_flags: moodFlags,
+        });
+        S._ctMoodScore = null;
+    }
 
     // Check if this was part of a group
     if (S.groupStepData.length > 0 && S.groupStepIndex !== undefined) {
@@ -2952,22 +3018,12 @@ function showResult(mode, data) {
         check.style.background = '';
     }
 
-    // Show quick action buttons for care (not cleaning)
-    var quickActions = $('result-quick-actions');
-    if (isCare && data.resident_id) {
-        S.lastCareResidentId = data.resident_id;
-        S.lastCareResidentName = data.subject || '';
-        quickActions.style.display = '';
-    } else {
-        quickActions.style.display = 'none';
-    }
-
     show('screen-result');
     requestAnimationFrame(() => { bar.style.width = '100%'; });
     if (S.resultTimeout) clearTimeout(S.resultTimeout);
 
-    // If there are vital alerts or care quick actions, don't auto-dismiss
-    if (!hasAlerts && !isCare) {
+    // If there are vital alerts, don't auto-dismiss — worker needs to read them
+    if (!hasAlerts) {
         S.resultTimeout = setTimeout(async () => {
             await loadHistory();
             show('screen-home');
