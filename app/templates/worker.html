@@ -1473,16 +1473,6 @@ $('meal-save').addEventListener('click', async function() {
 
 $('meal-back').addEventListener('click', function() { show(S_mealReturnScreen); });
 
-// ── Result screen quick actions for mood/meal ──
-$('result-btn-mood').addEventListener('click', function() {
-    if (S.resultTimeout) clearTimeout(S.resultTimeout);
-    openMoodScreen(S.lastCareResidentId, S.lastCareResidentName, 'screen-home');
-});
-$('result-btn-meal').addEventListener('click', function() {
-    if (S.resultTimeout) clearTimeout(S.resultTimeout);
-    openMealScreen(S.lastCareResidentId, S.lastCareResidentName, 'screen-home');
-});
-
 function showWorkerToast(msg) {
     const t = $('worker-toast');
     t.textContent = '⚠ ' + msg;
