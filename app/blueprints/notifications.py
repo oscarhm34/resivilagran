@@ -20,13 +20,13 @@ bp = Blueprint('notifications', __name__)
 
 # ── Helper: duplicate check ────────────────────────────────────────────────
 
-def _notif_exists(notif_type: str, title: str, hours: int = 24) -> bool:
-    """Return True if a notification with same type+title exists in the last N hours."""
+def _notif_exists(notif_type: str, title: str, hours: float = 24) -> bool:
+    """Return True if a notification with same type+title (or message for dedup) exists in the last N hours."""
     cutoff = datetime.now() - timedelta(hours=hours)
     return db.session.query(
         Notification.query.filter(
             Notification.type == notif_type,
-            Notification.title == title,
+            db.or_(Notification.title == title, Notification.message == title),
             Notification.created_at >= cutoff,
         ).exists()
     ).scalar()
@@ -137,10 +137,14 @@ def _generate_notifications() -> int:
     for rec in stale_worker_cleanings:
         room_desc = f'Hab. {rec.room.number}' if rec.room else 'Habitación'
         mins = int((now - rec.start_time).total_seconds() / 60)
-        title = f"Limpieza en {room_desc} lleva {mins} min abierta"
-        if not _notif_exists('stale_session_worker', title, hours=0.25):
+        # Use fixed key (without minutes) to avoid duplicate every minute
+        dedup_key = f"stale_clean_{rec.id}"
+        if not _notif_exists('stale_session_worker', dedup_key, hours=0.25):
             db.session.add(Notification(
-                type='stale_session_worker', title=title, severity='warning',
+                type='stale_session_worker',
+                title=f"Limpieza en {room_desc} lleva {mins} min abierta",
+                message=dedup_key,
+                severity='warning',
                 worker_id=rec.cleaner_id, link='/worker',
             ))
             created += 1
@@ -152,10 +156,13 @@ def _generate_notifications() -> int:
     for rec in stale_worker_cares:
         resident_name = rec.resident.name if rec.resident else 'Residente'
         mins = int((now - rec.start_time).total_seconds() / 60)
-        title = f"Atención con {resident_name} lleva {mins} min abierta"
-        if not _notif_exists('stale_session_worker', title, hours=0.25):
+        dedup_key = f"stale_care_{rec.id}"
+        if not _notif_exists('stale_session_worker', dedup_key, hours=0.25):
             db.session.add(Notification(
-                type='stale_session_worker', title=title, severity='warning',
+                type='stale_session_worker',
+                title=f"Atención con {resident_name} lleva {mins} min abierta",
+                message=dedup_key,
+                severity='warning',
                 worker_id=rec.worker_id, link='/worker',
             ))
             created += 1
