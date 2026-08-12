@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Pfeiffer{% endblock %}
+
+{% block content %}
+<div class="py-3">
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a href="{{ url_for('assessments.admin_assessments') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>Valoraciones
+        </a>
+        <h1 class="h3 mb-0">Test de Pfeiffer (SPMSQ)</h1>
+        <span class="badge bg-info">Valoracion cognitiva</span>
+    </div>
+
+    <form method="POST" action="{{ url_for('assessments.admin_assessment_pfeiffer') }}">
+        {% if resident %}
+        <input type="hidden" name="resident_id" value="{{ resident.id }}">
+        <div class="alert alert-light border d-flex align-items-center gap-2 mb-4">
+            <i class="bi bi-person-fill"></i>
+            <strong>{{ resident.name }}</strong>
+            {% if resident.room_number %}<span class="text-muted">Hab. {{ resident.room_number }}</span>{% endif %}
+        </div>
+        {% else %}
+        <div class="card mb-4">
+            <div class="card-body">
+                <label for="resident_id" class="form-label fw-semibold">Seleccionar residente</label>
+                <select name="resident_id" id="resident_id" class="form-select" required>
+                    <option value="">-- Selecciona --</option>
+                    {% for r in residents %}
+                    <option value="{{ r.id }}">{{ r.name }}{% if r.room_number %} (Hab. {{ r.room_number }}){% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Score display -->
+        <div class="card mb-4" style="border-color:var(--color-info)">
+            <div class="card-body text-center py-3">
+                <div style="font-size:2.5rem;font-weight:800;color:var(--color-text)" id="score-errors">0</div>
+                <div class="text-muted" style="font-size:.85rem">errores de 10 (mas errores = mayor deterioro)</div>
+                <div class="mt-2">
+                    <span class="badge" id="score-badge" style="font-size:.85rem;padding:6px 16px;background:#e9ecef;color:#6c757d">Sin completar</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Questions -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <p class="text-muted" style="font-size:.85rem">Marca <strong>"Error"</strong> si el residente no responde correctamente. Marca <strong>"Correcto"</strong> si acierta.</p>
+                <div class="table-responsive">
+                    <table class="table mb-0" style="font-size:.9rem">
+                        <thead>
+                            <tr><th style="width:50%">Pregunta</th><th class="text-center">Correcto</th><th class="text-center">Error</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for q in questions %}
+                            <tr>
+                                <td class="align-middle">{{ loop.index }}. {{ q.question }}</td>
+                                <td class="text-center align-middle">
+                                    <input class="form-check-input pfeiffer-radio" type="radio" name="{{ q.key }}" value="0" required>
+                                </td>
+                                <td class="text-center align-middle">
+                                    <input class="form-check-input pfeiffer-radio" type="radio" name="{{ q.key }}" value="1">
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-body">
+                <label class="form-label">Observaciones</label>
+                <textarea class="form-control" name="notes" rows="2" placeholder="Notas adicionales..."></textarea>
+            </div>
+        </div>
+
+        <!-- Interpretation reference -->
+        <div class="card mb-4">
+            <div class="card-header"><strong>Tabla de interpretacion</strong></div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0" style="font-size:.85rem">
+                    <thead><tr><th>Errores</th><th>Interpretacion</th></tr></thead>
+                    <tbody>
+                        {% for lo, hi, key, label in interpret_table %}
+                        <tr><td>{{ lo }}-{{ hi }}</td><td>{{ label }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Guardar valoracion</button>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var interpretTable = {{ interpret_table|tojson }};
+    document.querySelectorAll('.pfeiffer-radio').forEach(function(r) {
+        r.addEventListener('change', function() {
+            var errors = 0;
+            document.querySelectorAll('.pfeiffer-radio:checked').forEach(function(c) {
+                errors += parseInt(c.value);
+            });
+            document.getElementById('score-errors').textContent = errors;
+            var badge = document.getElementById('score-badge');
+            for (var i = 0; i < interpretTable.length; i++) {
+                if (errors >= interpretTable[i][0] && errors <= interpretTable[i][1]) {
+                    badge.textContent = interpretTable[i][3];
+                    badge.style.background = errors <= 2 ? '#d1e7dd' : errors <= 4 ? '#fff3cd' : errors <= 7 ? '#f8d7da' : '#dc3545';
+                    badge.style.color = errors <= 7 ? '#333' : '#fff';
+                    break;
+                }
+            }
+        });
+    });
+})();
+</script>
+{% endblock %}

@@ -13,6 +13,7 @@ from ..models import (
     Resident, Cleaner, AssessmentRecord, Notification,
     VitalSignReading, VitalSignType, CareRecord, CleaningRecord,
     Incident, Room, Activity, ActivityParticipation,
+    CarePlan, DailyDigest, FallRecord,
 )
 from ..utils import admin_required
 
@@ -79,6 +80,26 @@ NORTON_INTERPRET = [
     (10, 12, 'alto', 'Riesgo alto'),
     (13, 14, 'medio', 'Riesgo medio'),
     (15, 20, 'minimo', 'Riesgo minimo / sin riesgo'),
+]
+
+PFEIFFER_QUESTIONS = [
+    {'key': 'q1', 'question': '¿Qué día de la semana es hoy?'},
+    {'key': 'q2', 'question': '¿Qué día del mes es hoy?'},
+    {'key': 'q3', 'question': '¿En qué mes estamos?'},
+    {'key': 'q4', 'question': '¿En qué año estamos?'},
+    {'key': 'q5', 'question': '¿En qué lugar estamos?'},
+    {'key': 'q6', 'question': '¿Cuál es su número de teléfono? (o dirección si no tiene)'},
+    {'key': 'q7', 'question': '¿Cuántos años tiene?'},
+    {'key': 'q8', 'question': '¿Dónde nació?'},
+    {'key': 'q9', 'question': '¿Cómo se llama el presidente del gobierno?'},
+    {'key': 'q10', 'question': '¿Puede restar de 3 en 3 desde 20? (20, 17, 14...)'},
+]
+
+PFEIFFER_INTERPRET = [
+    (0, 2, 'normal', 'Funcionamiento cognitivo normal'),
+    (3, 4, 'leve', 'Deterioro cognitivo leve'),
+    (5, 7, 'moderado', 'Deterioro cognitivo moderado'),
+    (8, 10, 'severo', 'Deterioro cognitivo severo'),
 ]
 
 DEPENDENCY_MAP = {
@@ -244,6 +265,49 @@ def assessment_norton():
     return render_template('admin_assessment_norton.html',
         resident=resident, residents=residents, items=NORTON_ITEMS,
         interpret_table=NORTON_INTERPRET,
+    )
+
+
+# ── Pfeiffer (SPMSQ) ────────────────────────────────────────────────────────
+
+@bp.route('/admin/assessments/pfeiffer', methods=['GET', 'POST'])
+@admin_required
+def admin_assessment_pfeiffer():
+    resident_id = request.args.get('resident_id', type=int) or request.form.get('resident_id', type=int)
+
+    if request.method == 'POST':
+        if not resident_id:
+            flash('Selecciona un residente.', 'danger')
+            return redirect(url_for('assessments.admin_assessments'))
+
+        answers = {}
+        errors = 0
+        for q in PFEIFFER_QUESTIONS:
+            val = request.form.get(q['key'])
+            # 1 = error, 0 = correct
+            is_error = 1 if val == '1' else 0
+            answers[q['key']] = is_error
+            errors += is_error
+
+        interp_key, interp_label = _interpret(errors, PFEIFFER_INTERPRET)
+
+        record = AssessmentRecord(
+            resident_id=resident_id, scale_type='pfeiffer',
+            score=errors, interpretation=interp_key,
+            answers_json=_json.dumps(answers, ensure_ascii=False),
+            notes=request.form.get('notes', '').strip() or None,
+            assessed_by=current_user.id,
+        )
+        db.session.add(record)
+        db.session.commit()
+        flash(f'Pfeiffer guardado: {errors}/10 errores — {interp_label}', 'success')
+        return redirect(url_for('residents.resident_detail', resident_id=resident_id))
+
+    resident = db.session.get(Resident, resident_id) if resident_id else None
+    residents = Resident.query.filter_by(active=True).order_by(Resident.name).all()
+    return render_template('admin_assessment_pfeiffer.html',
+        resident=resident, residents=residents, questions=PFEIFFER_QUESTIONS,
+        interpret_table=PFEIFFER_INTERPRET,
     )
 
 
@@ -1473,7 +1537,201 @@ def get_resident_assessment_data(resident_id: int) -> dict:
     barthel_records = [a for a in assessments if a.scale_type == 'barthel']
     norton_records = [a for a in assessments if a.scale_type == 'norton']
 
+    pfeiffer_records = [a for a in assessments if a.scale_type == 'pfeiffer']
+
     return {
         'barthel_records': barthel_records,
         'norton_records': norton_records,
+        'pfeiffer_records': pfeiffer_records,
     }
+
+
+# ── Daily Digest ─────────────────────────────────────────────────────────────
+
+DIGEST_SYSTEM = """Eres un asistente de la residencia de ancianos La Vila Gran.
+Genera un BREVE resumen diario del residente en HTML (maximo 150 palabras).
+Solo incluye lo RELEVANTE del dia: no repitas rutina normal.
+Si no ha pasado nada destacable, dilo en una frase.
+Marca con <strong> lo importante. No uses emojis.
+Si hay alertas (constantes fuera de rango, caidas, rechazo medicacion, cambios de animo), destácalas al inicio.
+FORMATO: Solo contenido HTML (sin <html>/<body>). Muy breve."""
+
+
+@bp.route('/api/daily-digest/generate', methods=['POST'])
+@admin_required
+def generate_daily_digest():
+    """Generate daily AI digest for all residents with activity today."""
+    from datetime import date as _date
+    today = _date.today()
+
+    # Check if already generated today
+    existing = DailyDigest.query.filter_by(date=today).count()
+    if existing > 0:
+        return jsonify({'message': f'Ja generat avui ({existing} resums)', 'count': existing})
+
+    residents = Resident.query.filter_by(active=True).all()
+    generated = 0
+
+    for resident in residents:
+        # Check if resident had any activity today
+        ctx = _build_resident_context(resident.id, days=0)  # today only
+        has_data = (ctx.get('care_records') or ctx.get('vital_signs') or
+                    ctx.get('incidents') or ctx.get('activities') or ctx.get('mood'))
+        if not has_data:
+            continue
+
+        context_text = _context_to_text(ctx, 0)
+        prompt = f"Resumen del dia de hoy para {resident.name}:\n\n{context_text}"
+
+        try:
+            html = _call_claude(DIGEST_SYSTEM, prompt)
+            html = html.strip()
+            if html.startswith('```'):
+                html = html.split('\n', 1)[1] if '\n' in html else html[3:]
+            if html.endswith('```'):
+                html = html.rsplit('```', 1)[0]
+            html = html.strip()
+
+            # Detect alerts
+            has_alerts = any(kw in html.lower() for kw in ['alerta', 'fuera de rango', 'caida', 'rechazo', 'urgente'])
+
+            digest = DailyDigest(
+                resident_id=resident.id, date=today,
+                html_content=html, has_alerts=has_alerts,
+            )
+            db.session.add(digest)
+            generated += 1
+        except Exception:
+            continue
+
+    db.session.commit()
+    return jsonify({'message': f'{generated} resums generats', 'count': generated})
+
+
+@bp.route('/admin/daily-digest')
+@admin_required
+def admin_daily_digest():
+    """View daily digests."""
+    from datetime import date as _date
+    target = request.args.get('date', '')
+    view_date = _date.fromisoformat(target) if target else _date.today()
+
+    digests = DailyDigest.query.filter_by(date=view_date).options(
+        joinedload(DailyDigest.resident),
+    ).order_by(DailyDigest.has_alerts.desc()).all()
+
+    return render_template('admin_daily_digest.html',
+        digests=digests, view_date=view_date,
+        prev_date=(view_date - timedelta(days=1)).isoformat(),
+        next_date=(view_date + timedelta(days=1)).isoformat(),
+        is_today=view_date == _date.today(),
+    )
+
+
+# ── Care Plan (PAI) ─────────────────────────────────────────────────────────
+
+PAI_GENERATE_SYSTEM = """Eres un profesional sociosanitario de la residencia La Vila Gran.
+Genera un Plan de Atencion Individualizado (PAI) estructurado en HTML.
+Basate SOLO en los datos proporcionados. No inventes.
+
+FORMATO (solo HTML, sin <html>/<body>):
+- <h3>Datos del residente</h3> (nombre, diagnosticos, dependencia)
+- <h3>Objetivos</h3> (lista de objetivos SMART medibles)
+- <h3>Intervenciones</h3> (acciones concretas por area: asistencial, social, cognitiva, nutricional, movilidad)
+- <h3>Indicadores de seguimiento</h3> (que medir y cuando)
+- <h3>Proxima revision</h3> (fecha sugerida, normalmente 3 meses)
+
+Usa <strong>, <ul>/<li>, <table> si es necesario. Escribe en espanol. No uses emojis."""
+
+PAI_REVIEW_SYSTEM = """Eres un profesional sociosanitario de la residencia La Vila Gran.
+Compara los objetivos del PAI con los datos reales del periodo.
+Indica para cada objetivo: CONSEGUIDO, EN PROGRESO, NO CONSEGUIDO o SIN DATOS.
+Sugiere ajustes al plan si es necesario.
+FORMATO: HTML breve (sin <html>/<body>). Usa <strong> y colores: verde=conseguido, naranja=en progreso, rojo=no conseguido."""
+
+
+@bp.route('/api/resident/<int:resident_id>/care-plan/generate', methods=['POST'])
+@admin_required
+def generate_care_plan(resident_id: int):
+    """Generate a new PAI using AI."""
+    ctx = _build_resident_context(resident_id, days=30)
+    if not ctx:
+        return jsonify({'error': 'Residente no encontrado'}), 404
+
+    resident = db.session.get(Resident, resident_id)
+    context_text = _context_to_text(ctx, 30)
+    prompt = f"Genera un PAI para {resident.name}:\n\n{context_text}"
+
+    try:
+        html = _call_claude(PAI_GENERATE_SYSTEM, prompt)
+        html = html.strip()
+        if html.startswith('```'):
+            html = html.split('\n', 1)[1] if '\n' in html else html[3:]
+        if html.endswith('```'):
+            html = html.rsplit('```', 1)[0]
+        html = html.strip()
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    # Save as new care plan
+    from datetime import date as _date
+    plan = CarePlan(
+        resident_id=resident_id,
+        html_content=html,
+        review_date=(_date.today() + timedelta(days=90)),
+        status='active',
+        created_by=current_user.id,
+    )
+    db.session.add(plan)
+    db.session.commit()
+
+    return jsonify({
+        'html': html,
+        'plan_id': plan.id,
+        'review_date': plan.review_date.isoformat(),
+        'message': 'PAI generat i guardat',
+    })
+
+
+@bp.route('/api/resident/<int:resident_id>/care-plan/review', methods=['POST'])
+@admin_required
+def review_care_plan(resident_id: int):
+    """AI reviews the active care plan against recent data."""
+    plan = CarePlan.query.filter_by(
+        resident_id=resident_id, status='active',
+    ).order_by(CarePlan.created_at.desc()).first()
+
+    if not plan:
+        return jsonify({'error': 'No hi ha PAI actiu per aquest resident'}), 404
+
+    ctx = _build_resident_context(resident_id, days=30)
+    context_text = _context_to_text(ctx, 30)
+
+    prompt = f"""Revisa el PAI actual d'aquest resident comparant objectius amb dades reals.
+
+PAI ACTUAL:
+{plan.html_content}
+
+DADES RECENTS (ultims 30 dies):
+{context_text}"""
+
+    try:
+        review_html = _call_claude(PAI_REVIEW_SYSTEM, prompt)
+        review_html = review_html.strip()
+        if review_html.startswith('```'):
+            review_html = review_html.split('\n', 1)[1] if '\n' in review_html else review_html[3:]
+        if review_html.endswith('```'):
+            review_html = review_html.rsplit('```', 1)[0]
+        review_html = review_html.strip()
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    plan.ai_review = review_html
+    plan.ai_review_date = datetime.now()
+    db.session.commit()
+
+    return jsonify({
+        'html': review_html,
+        'plan_id': plan.id,
+        'review_date': datetime.now().strftime('%d/%m/%Y %H:%M'),
+    })

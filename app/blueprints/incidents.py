@@ -8,7 +8,7 @@ from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
 
 from .. import app, db
-from ..models import Cleaner, Resident, IncidentType, Incident, AppSetting
+from ..models import Cleaner, Resident, IncidentType, Incident, AppSetting, FallRecord, Notification
 from ..utils import admin_required, _verify_worker_id
 
 bp = Blueprint('incidents', __name__)
@@ -89,6 +89,8 @@ def create_incident():
     incident_type_id = request.form.get('incident_type_id', type=int)
     resident_id = request.form.get('resident_id', type=int)
 
+    is_fall = request.form.get('is_fall') == 'on'
+
     incident = Incident(
         title=title,
         description=request.form.get('description', '').strip() or None,
@@ -98,8 +100,26 @@ def create_incident():
         location=request.form.get('location', '').strip() or None,
         severity=request.form.get('severity', 'medium'),
         occurred_at=occurred_at,
+        is_fall=is_fall,
     )
     db.session.add(incident)
+    db.session.flush()
+
+    # Save structured fall data
+    if is_fall:
+        fall = FallRecord(
+            incident_id=incident.id,
+            fall_location=request.form.get('fall_location', '').strip() or None,
+            activity_at_time=request.form.get('activity_at_time', '').strip() or None,
+            footwear=request.form.get('footwear', '').strip() or None,
+            witnesses=request.form.get('witnesses', '').strip() or None,
+            injuries=request.form.get('injuries', '').strip() or None,
+            injury_severity=request.form.get('injury_severity', 'none'),
+            measures_taken=request.form.get('measures_taken', '').strip() or None,
+            contributing_factors=request.form.get('contributing_factors', '').strip() or None,
+        )
+        db.session.add(fall)
+
     db.session.commit()
     flash('Incidencia creada correctamente.', 'success')
     return redirect(url_for('incidents.admin_incidents'))

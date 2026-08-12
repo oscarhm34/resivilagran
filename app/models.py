@@ -711,6 +711,86 @@ class Incident(db.Model):
                                backref=db.backref('reported_incidents', lazy=True))
     resident = db.relationship('Resident', backref=db.backref('incidents', lazy=True))
     resolver = db.relationship('Cleaner', foreign_keys=[resolved_by])
+    is_fall = db.Column(db.Boolean, default=False)
+    fall_record = db.relationship('FallRecord', backref='incident', uselist=False, cascade='all, delete-orphan')
+
+
+class FallRecord(db.Model):
+    """Structured fall data linked to an incident."""
+    __tablename__ = 'fall_record'
+    id = db.Column(db.Integer, primary_key=True)
+    incident_id = db.Column(db.Integer, db.ForeignKey('incident.id'), nullable=False, unique=True)
+    fall_location = db.Column(db.String(100), nullable=True)
+    activity_at_time = db.Column(db.String(100), nullable=True)  # walking, sleeping, transferring...
+    footwear = db.Column(db.String(50), nullable=True)  # barefoot, slippers, shoes
+    witnesses = db.Column(db.Text, nullable=True)
+    injuries = db.Column(db.Text, nullable=True)  # description of injuries
+    injury_severity = db.Column(db.String(20), nullable=True)  # none, minor, moderate, severe
+    measures_taken = db.Column(db.Text, nullable=True)
+    contributing_factors = db.Column(db.Text, nullable=True)  # medication, wet floor, etc
+    post_fall_vitals = db.Column(db.Text, nullable=True)
+
+
+# ── PLANS D'ATENCIÓ ─────────────────────────────────────────────────────────
+
+class CarePlan(db.Model):
+    """Individualized care plan (PAI) for a resident."""
+    __tablename__ = 'care_plan'
+    id = db.Column(db.Integer, primary_key=True)
+    resident_id = db.Column(db.Integer, db.ForeignKey('resident.id'), nullable=False, index=True)
+    objectives = db.Column(db.Text, nullable=True)  # JSON array
+    interventions = db.Column(db.Text, nullable=True)  # JSON array
+    html_content = db.Column(db.Text, nullable=True)  # Full AI-generated PAI
+    review_date = db.Column(db.Date, nullable=True)
+    status = db.Column(db.String(20), default='active')  # active, reviewed, archived
+    ai_review = db.Column(db.Text, nullable=True)  # Latest AI review of progress
+    ai_review_date = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
+    updated_at = db.Column(db.DateTime, nullable=True)
+
+    resident = db.relationship('Resident', backref=db.backref('care_plans', lazy=True))
+    creator = db.relationship('Cleaner', foreign_keys=[created_by])
+
+
+# ── RESUMS DIARIS ───────────────────────────────────────────────────────────
+
+class DailyDigest(db.Model):
+    """AI-generated daily summary for a resident."""
+    __tablename__ = 'daily_digest'
+    id = db.Column(db.Integer, primary_key=True)
+    resident_id = db.Column(db.Integer, db.ForeignKey('resident.id'), nullable=False, index=True)
+    date = db.Column(db.Date, nullable=False, index=True)
+    html_content = db.Column(db.Text, nullable=False)
+    highlights = db.Column(db.Text, nullable=True)  # JSON: key takeaways
+    has_alerts = db.Column(db.Boolean, default=False)
+    generated_at = db.Column(db.DateTime, default=datetime.now)
+
+    resident = db.relationship('Resident', backref=db.backref('daily_digests', lazy=True))
+
+    __table_args__ = (db.UniqueConstraint('resident_id', 'date', name='uq_daily_digest'),)
+
+
+# ── REGISTRE NUTRICIONAL ────────────────────────────────────────────────────
+
+class MealRecord(db.Model):
+    """Meal/fluid intake record for a resident."""
+    __tablename__ = 'meal_record'
+    id = db.Column(db.Integer, primary_key=True)
+    resident_id = db.Column(db.Integer, db.ForeignKey('resident.id'), nullable=False, index=True)
+    date = db.Column(db.Date, nullable=False, index=True)
+    meal_type = db.Column(db.String(20), nullable=False)  # breakfast, lunch, snack, dinner
+    intake_pct = db.Column(db.Integer, nullable=False)  # 0-100
+    fluid_ml = db.Column(db.Integer, nullable=True)
+    texture = db.Column(db.String(30), nullable=True)  # normal, soft, puree, liquid
+    notes = db.Column(db.Text, nullable=True)
+    recorded_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
+    recorded_at = db.Column(db.DateTime, default=datetime.now)
+
+    resident = db.relationship('Resident', backref=db.backref('meal_records', lazy=True))
+    worker = db.relationship('Cleaner', foreign_keys=[recorded_by])
+
+    __table_args__ = (db.UniqueConstraint('resident_id', 'date', 'meal_type', name='uq_meal_record'),)
 
 
 # ── NOTIFICACIONES ──────────────────────────────────────────────────────────

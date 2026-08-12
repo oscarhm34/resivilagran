@@ -12,6 +12,9 @@
             <a href="{{ url_for('assessments.assessment_norton') }}" class="btn btn-outline-warning btn-sm">
                 <i class="bi bi-plus-lg me-1"></i>Norton
             </a>
+            <a href="{{ url_for('assessments.admin_assessment_pfeiffer') }}" class="btn btn-outline-info btn-sm">
+                <i class="bi bi-plus-lg me-1"></i>Pfeiffer
+            </a>
         </div>
     </div>
 
@@ -48,6 +51,7 @@
                 <option value="">Todas las escalas</option>
                 <option value="barthel" {% if filters.scale_type == 'barthel' %}selected{% endif %}>Barthel</option>
                 <option value="norton" {% if filters.scale_type == 'norton' %}selected{% endif %}>Norton</option>
+                <option value="pfeiffer" {% if filters.scale_type == 'pfeiffer' %}selected{% endif %}>Pfeiffer</option>
             </select>
         </div>
         <div class="col-auto">
@@ -94,6 +98,8 @@
                                 <span class="badge bg-primary bg-opacity-10 text-primary">Barthel</span>
                                 {% else %}
                                 <span class="badge bg-warning bg-opacity-25 text-warning">Norton</span>
+                                {% elif a.scale_type == 'pfeiffer' %}
+                                <span class="badge bg-info bg-opacity-25 text-info">Pfeiffer</span>
                                 {% endif %}
                             </td>
                             <td>
