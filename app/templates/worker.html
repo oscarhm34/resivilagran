@@ -471,6 +471,19 @@
             </button>
         </div>
 
+        <!-- Registres ràpids -->
+        <div class="section-label" style="margin-top:16px">Registres ràpids</div>
+        <div class="mode-cards">
+            <button class="mode-card" id="btn-quick-mood" style="background:#fef3c7;border-color:#f59e0b">
+                <div class="mode-icon">😊</div>
+                <div class="mode-label" style="color:#92400e">Estat d'ànim</div>
+            </button>
+            <button class="mode-card" id="btn-quick-meal" style="background:#dcfce7;border-color:#16a34a">
+                <div class="mode-icon">🍽</div>
+                <div class="mode-label" style="color:#166534">Ingesta</div>
+            </button>
+        </div>
+
         <!-- Botón consulta grupo -->
         <div id="my-groups-btn-wrap" style="display:none;margin-bottom:20px">
             <button class="mode-card care" id="btn-my-group" style="grid-column:1/-1;flex-direction:row;padding:14px 18px;border-radius:14px;gap:12px">
@@ -1265,8 +1278,7 @@ function openActivityDetail(idx) {
             html += '<button class="act-btn-confirm" data-actid="' + act.id + '" data-rid="' + p.resident_id + '" data-status="absent" title="No ha vingut" style="margin-left:4px">✗</button>';
         } else if (p.engagement === 'participated') {
             html += '<div class="act-btn-confirm yes">✓</div>';
-            html += '<button class="mood-open-btn" data-rid="' + p.resident_id + '" data-rname="' + esc(p.name) + '" style="margin-left:4px;background:none;border:1.5px solid #f59e0b;border-radius:8px;padding:2px 6px;font-size:14px;cursor:pointer" title="Registrar estat d\'anim">😊</button>';
-            html += '<button class="meal-open-btn" data-rid="' + p.resident_id + '" data-rname="' + esc(p.name) + '" style="margin-left:2px;background:none;border:1.5px solid #16a34a;border-radius:8px;padding:2px 6px;font-size:14px;cursor:pointer" title="Registrar ingesta">🍽</button>';
+            html += '';
         } else {
             html += '<div class="act-btn-confirm no">✗</div>';
         }
@@ -1449,6 +1461,85 @@ $('meal-save').addEventListener('click', async function() {
 });
 
 $('meal-back').addEventListener('click', function() { show(S_mealReturnScreen); });
+
+// ── Quick access: resident picker for mood/meal ──
+var S_quickAction = null; // 'mood' or 'meal'
+
+$('btn-quick-mood').addEventListener('click', function() {
+    S_quickAction = 'mood';
+    showResidentPickerForQuick();
+});
+$('btn-quick-meal').addEventListener('click', function() {
+    S_quickAction = 'meal';
+    showResidentPickerForQuick();
+});
+
+function showResidentPickerForQuick() {
+    // Reuse the care resident list (already loaded in S.residents or S.myGroups)
+    var residents = [];
+    if (S.myGroups && S.myGroups.length) {
+        for (var g of S.myGroups) {
+            for (var r of (g.residents || [])) {
+                residents.push(r);
+            }
+        }
+    }
+    if (!residents.length && S.allResidents) {
+        residents = S.allResidents;
+    }
+
+    // Build a simple picker screen using the select screen
+    var title = S_quickAction === 'mood' ? '😊 Estat d\'ànim — Selecciona resident' : '🍽 Ingesta — Selecciona resident';
+    var list = $('select-list');
+    $('select-badge').textContent = title;
+    $('select-badge').style.background = S_quickAction === 'mood' ? '#fef3c7' : '#dcfce7';
+    $('select-badge').style.color = S_quickAction === 'mood' ? '#92400e' : '#166534';
+
+    // Fetch residents if not loaded
+    if (!residents.length) {
+        api('/api/residents?worker_id=' + S.workerId).then(function(res) {
+            if (res.ok && res.data.groups) {
+                var all = [];
+                for (var g of res.data.groups) {
+                    for (var r of g.residents) all.push(r);
+                }
+                renderQuickPicker(all);
+            }
+        });
+    } else {
+        renderQuickPicker(residents);
+    }
+    show('screen-select');
+}
+
+function renderQuickPicker(residents) {
+    var list = $('select-list');
+    var html = '';
+    for (var r of residents) {
+        html += '<div class="select-item quick-resident-pick" data-rid="' + r.id + '" data-rname="' + esc(r.name) + '" style="cursor:pointer">';
+        if (r.photo_url) {
+            html += '<img class="select-photo" data-auth-src="' + r.photo_url + '" alt="">';
+        } else {
+            html += '<div class="select-photo" style="background:#e9ecef;display:flex;align-items:center;justify-content:center;font-size:18px">👤</div>';
+        }
+        html += '<div class="select-info"><div class="select-name">' + esc(r.name) + '</div>';
+        html += '<div class="select-sub">Hab. ' + (r.room_number || '') + '</div></div>';
+        html += '</div>';
+    }
+    list.innerHTML = html;
+    list.querySelectorAll('img[data-auth-src]').forEach(function(img) { loadAuthImg(img, img.dataset.authSrc); });
+    list.querySelectorAll('.quick-resident-pick').forEach(function(item) {
+        item.addEventListener('click', function() {
+            var rid = parseInt(item.dataset.rid);
+            var rname = item.dataset.rname;
+            if (S_quickAction === 'mood') {
+                openMoodScreen(rid, rname, 'screen-home');
+            } else {
+                openMealScreen(rid, rname, 'screen-home');
+            }
+        });
+    });
+}
 
 function showWorkerToast(msg) {
     const t = $('worker-toast');
