@@ -1439,7 +1439,7 @@ def api_record_meal():
 
 
 # ── AI Expand Note ─────────────────────────────────────────────────────────
-@nfc_bp.route('/api/nfc/expand-note', methods=['POST'])
+@bp.route('/api/nfc/expand-note', methods=['POST'])
 @jwt_required()
 def expand_note():
     """Expand a terse worker note into professional clinical language."""
@@ -1494,7 +1494,7 @@ _DEFAULT_QUICK_PHRASES = {
 }
 
 
-@nfc_bp.route('/api/nfc/quick-phrases')
+@bp.route('/api/nfc/quick-phrases')
 @jwt_required()
 def get_quick_phrases():
     """Return quick phrases per context, from AppSetting or defaults."""
