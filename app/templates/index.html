@@ -432,15 +432,30 @@
         }, 500);
     });
 })();
+</script>
+{% endblock %}
 
-// ── Watchlist modal ──
-document.getElementById('btn-watchlist').addEventListener('click', function() {
-    var content = document.getElementById('wl-content');
-    var btn = document.getElementById('wl-generate');
-    content.innerHTML = '';
-    btn.style.display = '';
-});
-
+<!-- Watchlist modal -->
+<div class="modal fade" id="watchlistModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content" style="border-radius:var(--radius-lg)">
+            <div class="modal-header" style="background:rgba(220,53,69,.05);border-color:var(--color-border)">
+                <h5 class="modal-title"><i class="bi bi-exclamation-diamond me-2" style="color:var(--color-danger)"></i>Watchlist de risc</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <button type="button" class="btn btn-danger btn-sm" id="wl-generate">
+                        <i class="bi bi-stars me-1"></i>Generar watchlist
+                    </button>
+                    <p class="text-muted mt-1" style="font-size:.78rem">La IA analitzara els ultims 30 dies de tots els residents per detectar riscos.</p>
+                </div>
+                <div id="wl-content"></div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
 document.getElementById('wl-generate').addEventListener('click', function() {
     var btn = this;
     var content = document.getElementById('wl-content');
@@ -465,26 +480,4 @@ document.getElementById('wl-generate').addEventListener('click', function() {
     });
 });
 </script>
-{% endblock %}
-
-<!-- Watchlist modal -->
-<div class="modal fade" id="watchlistModal" tabindex="-1">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content" style="border-radius:var(--radius-lg)">
-            <div class="modal-header" style="background:rgba(220,53,69,.05);border-color:var(--color-border)">
-                <h5 class="modal-title"><i class="bi bi-exclamation-diamond me-2" style="color:var(--color-danger)"></i>Watchlist de risc</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="text-center mb-3">
-                    <button type="button" class="btn btn-danger btn-sm" id="wl-generate">
-                        <i class="bi bi-stars me-1"></i>Generar watchlist
-                    </button>
-                    <p class="text-muted mt-1" style="font-size:.78rem">La IA analitzara els ultims 30 dies de tots els residents per detectar riscos.</p>
-                </div>
-                <div id="wl-content"></div>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}
