@@ -40,16 +40,16 @@
                         <li><a href="#rendimiento">14. Rendimiento</a></li>
                         <li><a href="#valoraciones">15. Valoraciones clinicas</a></li>
                         <li><a href="#medicacion">16. Medicacion</a></li>
-                        <li><a href="#activitats">16b. Activitats</a></li>
-                        <li><a href="#mood">16d. Estat d'anim</a></li>
-                        <li><a href="#ingesta">16d2. Ingesta i hidratacio</a></li>
-                        <li><a href="#darkmode">16e. Mode fosc</a></li>
-                        <li><a href="#digest">16f. Resums diaris IA</a></li>
-                        <li><a href="#pai">16g. PAI (Pla d'Atencio)</a></li>
+                        <li><a href="#activitats">16b. Actividades</a></li>
+                        <li><a href="#mood">16d. Estado de animo</a></li>
+                        <li><a href="#ingesta">16d2. Ingesta e hidratacion</a></li>
+                        <li><a href="#darkmode">16e. Modo oscuro</a></li>
+                        <li><a href="#digest">16f. Resumenes diarios IA</a></li>
+                        <li><a href="#pai">16g. PAI (Plan de Atencion)</a></li>
                         <li><a href="#pfeiffer">16h. Escala Pfeiffer</a></li>
-                        <li><a href="#falls">16i. Caigudes estructurades</a></li>
-                        <li><a href="#kpis">16c. KPIs de qualitat</a></li>
-                        <li><a href="#ferides">16k. Mapa corporal de ferides</a></li>
+                        <li><a href="#falls">16i. Caidas estructuradas</a></li>
+                        <li><a href="#kpis">16c. KPIs de calidad</a></li>
+                        <li><a href="#ferides">16k. Mapa corporal de heridas</a></li>
                         <li><a href="#ia">17. Inteligencia artificial (IA)</a></li>
                         <li><a href="#config">18. Configuracion</a></li>
                         <li><a href="#changelog">19. Registro de cambios</a></li>
@@ -104,13 +104,13 @@
                 <li><strong>Aviso de sesion abierta:</strong> Si una sesion lleva demasiado tiempo abierta (configurable, por defecto 2h), la card se pone <strong>roja con animacion pulsante</strong> y aparece un toast de aviso para recordar al trabajador que la cierre.</li>
             </ul>
 
-            <h6 class="mt-3">Veu i IA a les notes</h6>
+            <h6 class="mt-3">Voz e IA en las notas</h6>
             <ul>
-                <li><strong>Dictar notes per veu:</strong> tots els camps de notes (cura, neteja, anim, ingesta) tenen un boto de microfon 🎤. Prem per gravar, torna a premer per aturar. La nota es transcriu automaticament amb Whisper (OpenAI).</li>
-                <li><strong>Expandir amb IA:</strong> despres d'escriure o dictar una nota curta, apareix el boto <strong>"✨ Expandir amb IA"</strong> que transforma la nota en una observacio clinica professional (ex: "inquiet no vol sopar" &rarr; "El residente ha presentado inquietud, mostrando resistencia a la ingesta durante la cena").</li>
-                <li><strong>Frases rapides:</strong> sota cada camp de notes hi ha <strong>botons de frases freqüents</strong> (ex: "Sin incidencias", "Buen apetito", "Inquieto/a"). Un tap afegeix la frase al camp.</li>
-                <li><strong>Escrivà de veu ambient:</strong> a la pantalla de finalitzacio d'atencio, boto <strong>"🎙 Escrivà de veu"</strong>. Activa'l per gravar audio durant la sessio. Quan l'atures o finalitzes l'atencio, la IA transcriu la gravacio i genera notes cliniques professionals automaticament. Pots <strong>acceptar</strong> les notes (s'afegeixen al camp d'observacions) o <strong>descartar</strong>-les.</li>
-                <li>El chatbot integrado tambe soporta entrada por voz: pulsar el icono del microfono para dictar preguntas.</li>
+                <li><strong>Dictar notas por voz:</strong> todos los campos de notas (cuidado, limpieza, animo, ingesta) tienen un boton de microfono 🎤. Pulsar para grabar, volver a pulsar para parar. La nota se transcribe automaticamente con Whisper (OpenAI).</li>
+                <li><strong>Expandir con IA:</strong> despues de escribir o dictar una nota corta, aparece el boton <strong>"✨ Expandir con IA"</strong> que transforma la nota en una observacion clinica profesional (ej: "inquieto no quiere cenar" &rarr; "El residente ha presentado inquietud, mostrando resistencia a la ingesta durante la cena").</li>
+                <li><strong>Frases rapidas:</strong> bajo cada campo de notas hay <strong>botones de frases frecuentes</strong> (ej: "Sin incidencias", "Buen apetito", "Inquieto/a"). Un toque anade la frase al campo.</li>
+                <li><strong>Escriba de voz ambiente:</strong> en la pantalla de finalizacion de atencion, boton <strong>"🎙 Escriba de voz"</strong>. Activalo para grabar audio durante la sesion. Cuando lo paras o finalizas la atencion, la IA transcribe la grabacion y genera notas clinicas profesionales automaticamente. Puedes <strong>aceptar</strong> las notas (se anaden al campo de observaciones) o <strong>descartarlas</strong>.</li>
+                <li>El chatbot integrado tambien soporta entrada por voz: pulsar el icono del microfono para dictar preguntas.</li>
                 <li>Funciona con Whisper (OpenAI) en cualquier navegador, o con Web Speech API como fallback en HTTPS.</li>
             </ul>
         </div>
@@ -255,27 +255,27 @@
                 <li>Se registra la puntuacion y el estado de completado.</li>
             </ul>
 
-            <h6 class="mt-3">Assignacio per treballador <span class="badge bg-success">NOU</span></h6>
+            <h6 class="mt-3">Asignacion por trabajador <span class="badge bg-success">NUEVO</span></h6>
             <ul>
-                <li>Al crear/editar una pildora, seleccionar <strong>"Tots els treballadors"</strong> o <strong>"Treballadors seleccionats"</strong>.</li>
-                <li>Si es "seleccionats", apareix un grid amb checkboxes per triar quins treballadors han de fer la formacio.</li>
-                <li>La vista de resultats mostra nomes els treballadors assignats (o tots si es mode global).</li>
+                <li>Al crear/editar una pildora, seleccionar <strong>"Todos los trabajadores"</strong> o <strong>"Trabajadores seleccionados"</strong>.</li>
+                <li>Si es "seleccionados", aparece un grid con checkboxes para elegir que trabajadores deben hacer la formacion.</li>
+                <li>La vista de resultados muestra solo los trabajadores asignados (o todos si es modo global).</li>
             </ul>
 
-            <h6 class="mt-3">Generacio de preguntes amb IA <span class="badge bg-success">NOU</span></h6>
+            <h6 class="mt-3">Generacion de preguntas con IA <span class="badge bg-success">NUEVO</span></h6>
             <ul>
-                <li>Al formulari de crear/editar pildora, boto <strong><i class="bi bi-stars"></i> Generar amb IA</strong>.</li>
-                <li>Introdueix el titol i descripcio de la formacio — la IA genera 5 preguntes amb 4 opcions i resposta correcta.</li>
-                <li>Les preguntes es poden editar, afegir o eliminar abans de guardar.</li>
+                <li>En el formulario de crear/editar pildora, boton <strong><i class="bi bi-stars"></i> Generar con IA</strong>.</li>
+                <li>Introduce el titulo y descripcion de la formacion — la IA genera 5 preguntas con 4 opciones y respuesta correcta.</li>
+                <li>Las preguntas se pueden editar, anadir o eliminar antes de guardar.</li>
             </ul>
 
-            <h6 class="mt-3">Formacio obligatoria <span class="badge bg-success">NOU</span></h6>
+            <h6 class="mt-3">Formacion obligatoria <span class="badge bg-success">NUEVO</span></h6>
             <ul>
                 <li>Marcar <strong>"Obligatoria"</strong> al crear/editar la pildora.</li>
-                <li>Quan un treballador inicia sessio a la webapp i te una formacio obligatoria pendent, <strong>NO pot fer cap altra accio</strong> (NFC, atencions, limpiezas...) fins completar-la.</li>
-                <li>Es mostra una pantalla de bloqueig amb el titol de la pildora i un boto per comecar.</li>
-                <li>Despres de completar, si queden mes formacions obligatories, es mostra la seguent.</li>
-                <li>Un cop totes completades, accedeix a la home normalment.</li>
+                <li>Cuando un trabajador inicia sesion en la webapp y tiene una formacion obligatoria pendiente, <strong>NO puede hacer ninguna otra accion</strong> (NFC, atenciones, limpiezas...) hasta completarla.</li>
+                <li>Se muestra una pantalla de bloqueo con el titulo de la pildora y un boton para empezar.</li>
+                <li>Despues de completar, si quedan mas formaciones obligatorias, se muestra la siguiente.</li>
+                <li>Una vez todas completadas, accede a la home normalmente.</li>
             </ul>
         </div>
     </div>
@@ -304,15 +304,15 @@
                 <li>"Resumen del dia"</li>
             </ul>
 
-            <h6 class="mt-3">Consultes de torns i cobertures</h6>
+            <h6 class="mt-3">Consultas de turnos y coberturas</h6>
             <ul>
-                <li>"Qui treballa avui?" / "Qui esta de tarda?"</li>
-                <li>"Qui treballa dilluns que ve?"</li>
-                <li>"La Maria esta de baixa, qui la pot substituir?"</li>
-                <li>"Qui pot cobrir dema pel mati?"</li>
-                <li>"Falta 1 persona per la nit del divendres"</li>
+                <li>"Quien trabaja hoy?" / "Quien esta de tarde?"</li>
+                <li>"Quien trabaja el lunes que viene?"</li>
+                <li>"Maria esta de baja, quien la puede sustituir?"</li>
+                <li>"Quien puede cubrir manana por la manana?"</li>
+                <li>"Falta 1 persona para la noche del viernes"</li>
             </ul>
-            <p>L'IA analitza hores treballades, dies consecutius, descansos legals i equitat per recomanar la millor candidata.</p>
+            <p>La IA analiza horas trabajadas, dias consecutivos, descansos legales y equidad para recomendar la mejor candidata.</p>
 
             <h6 class="mt-3">Documentos del residente</h6>
             <ul>
@@ -591,8 +591,8 @@
                 <li><strong>Nota del trabajador (info):</strong> cuando un trabajador anade una observacion al finalizar una atencion o limpieza, se genera una notificacion con el texto de la nota.</li>
                 <li><strong>Alerta IA (info/aviso):</strong> la inteligencia artificial analiza automaticamente los datos de los residentes cada 6 horas y detecta tendencias preocupantes: perdida de independencia, aumento de caidas, deterioro nutricional, constantes vitales con tendencias sostenidas, o residentes con pocas atenciones.</li>
                 <li><strong>Falta de cobertura (info):</strong> turnos de manana no tienen suficientes trabajadores segun los requisitos configurados.</li>
-                <li><strong>Traspas de torn (info):</strong> al final de cada torn, es genera automaticament un informe IA de traspas i es notifica a les treballadores del torn entrant. Fes clic al titol per expandir l'informe complet.</li>
-                <li><strong>Revisio PAI (aviso):</strong> quan un event significatiu (caiguda, empitjorament Barthel/Norton) afecta un resident amb PAI actiu, la IA revisa automaticament el pla i genera suggeriments. Fes clic al titol per veure l'analisi completa.</li>
+                <li><strong>Traspaso de turno (info):</strong> al final de cada turno, se genera automaticamente un informe IA de traspaso y se notifica a las trabajadoras del turno entrante. Haz clic en el titulo para expandir el informe completo.</li>
+                <li><strong>Revision PAI (aviso):</strong> cuando un evento significativo (caida, empeoramiento Barthel/Norton) afecta a un residente con PAI activo, la IA revisa automaticamente el plan y genera sugerencias. Haz clic en el titulo para ver el analisis completo.</li>
             </ul>
 
             <h6 class="mt-3">Como funciona</h6>
@@ -605,13 +605,13 @@
                 <li>Las notificaciones no se duplican: si ya existe una alerta similar en las ultimas 24h, no se crea otra.</li>
             </ul>
 
-            <h6 class="mt-3">Notificacions push (mobil)</h6>
+            <h6 class="mt-3">Notificaciones push (movil)</h6>
             <ul>
-                <li>Les treballadores reben <strong>notificacions push al mobil</strong> encara que tinguin l'app tancada.</li>
-                <li>La subscripcio es <strong>automatica</strong> al iniciar sessio a la webapp. El navegador demana permis la primera vegada.</li>
-                <li>Tipus d'alertes push: sessions estancades, alertes vitals, traspassos de torn, notes urgents.</li>
-                <li>Requereix <strong>HTTPS</strong> i un navegador compatible (Chrome, Edge, Firefox). Safari iOS te suport limitat.</li>
-                <li>Si una treballadora canvia de dispositiu, la subscripcio anterior es neteja automaticament.</li>
+                <li>Las trabajadoras reciben <strong>notificaciones push en el movil</strong> aunque tengan la app cerrada.</li>
+                <li>La suscripcion es <strong>automatica</strong> al iniciar sesion en la webapp. El navegador pide permiso la primera vez.</li>
+                <li>Tipos de alertas push: sesiones estancadas, alertas vitales, traspasos de turno, notas urgentes.</li>
+                <li>Requiere <strong>HTTPS</strong> y un navegador compatible (Chrome, Edge, Firefox). Safari iOS tiene soporte limitado.</li>
+                <li>Si una trabajadora cambia de dispositivo, la suscripcion anterior se limpia automaticamente.</li>
             </ul>
         </div>
     </div>
@@ -743,7 +743,7 @@
 
             <h6 class="mt-3">Pauta farmacologica</h6>
             <ul>
-                <li>Desde <strong>Personas &rarr; Medicacion</strong>, seleccionar un residente para ver y gestionar sus pautes.</li>
+                <li>Desde <strong>Personas &rarr; Medicacion</strong>, seleccionar un residente para ver y gestionar sus pautas.</li>
                 <li>Cada pauta incluye: <strong>medicamento</strong>, <strong>dosis</strong>, <strong>via</strong> (oral, sublingual, topica, inhalatoria, subcutanea, intramuscular, etc.), <strong>frecuencia</strong> y <strong>horarios programados</strong> (ej: 08:00, 14:00, 22:00).</li>
                 <li>Campos adicionales: instrucciones (ej: "tomar con comida"), prescrito por (nombre del medico), fecha de inicio y fecha de fin.</li>
                 <li>Las pautas se pueden <strong>activar o desactivar</strong> sin borrarlas.</li>
@@ -788,323 +788,323 @@
         </div>
     </div>
 
-    <!-- 16b. Activitats -->
+    <!-- 16b. Actividades -->
     <div class="card mb-4" id="activitats">
-        <div class="card-header">16b. Calendari d'activitats</div>
+        <div class="card-header">16b. Calendario de actividades</div>
         <div class="card-body">
-            <p>El modulo de <strong>Activitats</strong> (<i class="bi bi-calendar-event"></i>) permet planificar i registrar activitats per als residents (tallers, gimnasia, sortides, etc.).</p>
+            <p>El modulo de <strong>Actividades</strong> (<i class="bi bi-calendar-event"></i>) permite planificar y registrar actividades para los residentes (talleres, gimnasia, salidas, etc.).</p>
 
-            <h6 class="mt-3">Vista setmanal</h6>
+            <h6 class="mt-3">Vista semanal</h6>
             <ul>
-                <li>Accesible des de <strong>Personas &rarr; Activitats</strong>.</li>
-                <li>Vista de <strong>7 dies</strong> (dilluns a diumenge) amb les activitats programades per cada dia.</li>
-                <li>Cada activitat mostra l'hora, el titol i el nombre de participants.</li>
-                <li>Navegacio entre setmanes amb les fletxes.</li>
-                <li>Boto <strong>"+"</strong> a cada dia per crear una activitat rapida per aquell dia.</li>
+                <li>Accesible desde <strong>Personas &rarr; Actividades</strong>.</li>
+                <li>Vista de <strong>7 dias</strong> (lunes a domingo) con las actividades programadas para cada dia.</li>
+                <li>Cada actividad muestra la hora, el titulo y el numero de participantes.</li>
+                <li>Navegacion entre semanas con las flechas.</li>
+                <li>Boton <strong>"+"</strong> en cada dia para crear una actividad rapida para ese dia.</li>
             </ul>
 
-            <h6 class="mt-3">Crear/editar activitat</h6>
+            <h6 class="mt-3">Crear/editar actividad</h6>
             <ul>
-                <li>Boto <strong>"Nova activitat"</strong> o clic sobre una activitat existent.</li>
-                <li>Camps: titol, categoria, data, hora inici/fi, ubicacio, descripcio.</li>
-                <li>Categories amb colors: <strong>Estimulacio cognitiva</strong> (lila), <strong>Activitat fisica</strong> (vermell), <strong>Social</strong> (blau), <strong>Taller creatiu</strong> (taronja), <strong>Musica/cant</strong> (rosa), <strong>Relaxacio</strong> (verd), <strong>Sortida</strong> (groc), <strong>General</strong> (gris).</li>
+                <li>Boton <strong>"Nueva actividad"</strong> o clic sobre una actividad existente.</li>
+                <li>Campos: titulo, categoria, fecha, hora inicio/fin, ubicacion, descripcion.</li>
+                <li>Categorias con colores: <strong>Estimulacion cognitiva</strong> (lila), <strong>Actividad fisica</strong> (rojo), <strong>Social</strong> (azul), <strong>Taller creativo</strong> (naranja), <strong>Musica/canto</strong> (rosa), <strong>Relajacion</strong> (verde), <strong>Salida</strong> (amarillo), <strong>General</strong> (gris).</li>
             </ul>
 
-            <h6 class="mt-3">Convidar residents</h6>
+            <h6 class="mt-3">Invitar residentes</h6>
             <ul>
-                <li>A cada activitat del calendari, boto <strong>👤+</strong> per obrir el <strong>grid visual de residents</strong> amb fotos.</li>
-                <li>Click per seleccionar/deseleccionar residents. Botons "Tots" i "Cap" per seleccio rapida.</li>
-                <li>Filtre per <strong>grup</strong> per seleccionar nomes els d'un grup concret.</li>
-                <li>Al calendari, cada activitat mostra <strong>mini avatars</strong> dels convidats i badge de confirmacio (3/8).</li>
+                <li>En cada actividad del calendario, boton <strong>👤+</strong> para abrir el <strong>grid visual de residentes</strong> con fotos.</li>
+                <li>Click para seleccionar/deseleccionar residentes. Botones "Todos" y "Ninguno" para seleccion rapida.</li>
+                <li>Filtro por <strong>grupo</strong> para seleccionar solo los de un grupo concreto.</li>
+                <li>En el calendario, cada actividad muestra <strong>mini avatares</strong> de los invitados y badge de confirmacion (3/8).</li>
             </ul>
 
-            <h6 class="mt-3">Confirmacio d'assistencia (webapp)</h6>
+            <h6 class="mt-3">Confirmacion de asistencia (webapp)</h6>
             <ul>
-                <li>Activable des de <strong>Configuracio &rarr; Mostrar activitats a la webapp</strong>.</li>
-                <li>A la pantalla principal de la webapp apareixen <strong>cards compactes</strong> per cada activitat del dia.</li>
-                <li>Clic en una activitat obre la <strong>pantalla de detall</strong> amb la llista de residents convidats (foto + nom + habitacio).</li>
-                <li>Dos botons per resident: <strong>✓</strong> (ha vingut, verd) i <strong>✗</strong> (no ha vingut, vermell).</li>
-                <li>L'estat es refresca automaticament i es reflecteix al calendari admin.</li>
+                <li>Activable desde <strong>Configuracion &rarr; Mostrar actividades en la webapp</strong>.</li>
+                <li>En la pantalla principal de la webapp aparecen <strong>cards compactas</strong> para cada actividad del dia.</li>
+                <li>Clic en una actividad abre la <strong>pantalla de detalle</strong> con la lista de residentes invitados (foto + nombre + habitacion).</li>
+                <li>Dos botones por residente: <strong>✓</strong> (ha venido, verde) y <strong>✗</strong> (no ha venido, rojo).</li>
+                <li>El estado se refresca automaticamente y se refleja en el calendario admin.</li>
             </ul>
 
-            <h6 class="mt-3">Activitats recurrents <span class="badge bg-success">NOU</span></h6>
+            <h6 class="mt-3">Actividades recurrentes <span class="badge bg-success">NUEVO</span></h6>
             <ul>
-                <li>Al crear una activitat, marca <strong>"Recurrent"</strong> per generar instancies automatiques (setmanal, quinzenal o mensual).</li>
-                <li>Boto <strong><i class="bi bi-arrow-repeat"></i> Recurrents</strong> al calendari per gestionar les plantilles: activar/desactivar, generar mes instancies.</li>
-                <li>En eliminar una activitat recurrent, opcio de eliminar <strong>nomes aquesta</strong> o <strong>aquesta i totes les futures</strong>.</li>
+                <li>Al crear una actividad, marcar <strong>"Recurrente"</strong> para generar instancias automaticas (semanal, quincenal o mensual).</li>
+                <li>Boton <strong><i class="bi bi-arrow-repeat"></i> Recurrentes</strong> en el calendario para gestionar las plantillas: activar/desactivar, generar mas instancias.</li>
+                <li>Al eliminar una actividad recurrente, opcion de eliminar <strong>solo esta</strong> o <strong>esta y todas las futuras</strong>.</li>
             </ul>
 
-            <h6 class="mt-3">Estadistiques d'activitats <span class="badge bg-success">NOU</span></h6>
+            <h6 class="mt-3">Estadisticas de actividades <span class="badge bg-success">NUEVO</span></h6>
             <ul>
-                <li>Boto <strong><i class="bi bi-bar-chart-line"></i> Estadistiques</strong> al calendari.</li>
-                <li>Resum: nombre d'activitats, participacions totals, taxa de participacio global.</li>
-                <li>Desglossament per <strong>categoria</strong> amb barres de progres.</li>
-                <li>Taula per resident amb taxa individual. Alerta per residents amb <strong>participacio &lt;30%</strong>.</li>
-                <li><strong>Exportacio a Excel</strong> amb totes les participacions del periode.</li>
+                <li>Boton <strong><i class="bi bi-bar-chart-line"></i> Estadisticas</strong> en el calendario.</li>
+                <li>Resumen: numero de actividades, participaciones totales, tasa de participacion global.</li>
+                <li>Desglose por <strong>categoria</strong> con barras de progreso.</li>
+                <li>Tabla por residente con tasa individual. Alerta para residentes con <strong>participacion &lt;30%</strong>.</li>
+                <li><strong>Exportacion a Excel</strong> con todas las participaciones del periodo.</li>
             </ul>
 
-            <h6 class="mt-3">Suggerencies IA d'activitats <span class="badge bg-success">NOU</span></h6>
+            <h6 class="mt-3">Sugerencias IA de actividades <span class="badge bg-success">NUEVO</span></h6>
             <ul>
-                <li>Boto <strong><i class="bi bi-stars"></i> IA</strong> al calendari.</li>
-                <li>L'IA analitza perfils de residents (dependencia, diagnostics) i historial de participacio per suggerir 5 activitats per la setmana.</li>
-                <li>Cada suggerencia inclou: titol, categoria, dia recomanat, duracio i justificacio.</li>
+                <li>Boton <strong><i class="bi bi-stars"></i> IA</strong> en el calendario.</li>
+                <li>La IA analiza perfiles de residentes (dependencia, diagnosticos) e historial de participacion para sugerir 5 actividades para la semana.</li>
+                <li>Cada sugerencia incluye: titulo, categoria, dia recomendado, duracion y justificacion.</li>
             </ul>
 
-            <h6 class="mt-3">Resumen familiar IA <span class="badge bg-success">NOU</span></h6>
+            <h6 class="mt-3">Resumen familiar IA <span class="badge bg-success">NUEVO</span></h6>
             <ul>
-                <li>A la fitxa del resident, boto <strong><i class="bi bi-people"></i> Resumen familiar</strong>.</li>
-                <li>Genera un resum setmanal en to amable per enviar a les families (sense jerga clinica ni constantes en brut).</li>
-                <li>Permet imprimir, generar PDF o copiar al porta-retalls.</li>
+                <li>En la ficha del residente, boton <strong><i class="bi bi-people"></i> Resumen familiar</strong>.</li>
+                <li>Genera un resumen semanal en tono amable para enviar a las familias (sin jerga clinica ni constantes en bruto).</li>
+                <li>Permite imprimir, generar PDF o copiar al portapapeles.</li>
             </ul>
 
-            <h6 class="mt-3">Verificacio per codi de barres</h6>
+            <h6 class="mt-3">Verificacion por codigo de barras</h6>
             <ul>
-                <li>Cada prescripcio pot tenir un <strong>codi de barres</strong> (EAN/UPC) associat.</li>
-                <li>Al formulari de prescripcio, boto <strong><i class="bi bi-upc-scan"></i></strong> per <strong>escanejar amb la camera</strong> del dispositiu (Chrome 83+, Edge). Tambe es pot introduir manualment.</li>
-                <li>Endpoint <code>POST /api/medication/verify-barcode</code> permet verificar que el medicament escanejat coincideix amb la prescripcio correcta del resident.</li>
-                <li>Modes de verificacio: per prescripcio concreta, per resident (busca entre tots els actius), o global.</li>
+                <li>Cada prescripcion puede tener un <strong>codigo de barras</strong> (EAN/UPC) asociado.</li>
+                <li>En el formulario de prescripcion, boton <strong><i class="bi bi-upc-scan"></i></strong> para <strong>escanear con la camara</strong> del dispositivo (Chrome 83+, Edge). Tambien se puede introducir manualmente.</li>
+                <li>Endpoint <code>POST /api/medication/verify-barcode</code> permite verificar que el medicamento escaneado coincide con la prescripcion correcta del residente.</li>
+                <li>Modos de verificacion: por prescripcion concreta, por residente (busca entre todos los activos), o global.</li>
             </ul>
 
-            <h6 class="mt-3">Checker interaccions medicamentoses IA <span class="badge bg-success">NOU</span></h6>
+            <h6 class="mt-3">Checker interacciones medicamentosas IA <span class="badge bg-success">NUEVO</span></h6>
             <ul>
-                <li>Al crear/editar una prescripcio, boto <strong><i class="bi bi-exclamation-triangle"></i> Comprovar interaccions (IA)</strong>.</li>
-                <li>L'IA analitza el nou farmac contra tota la medicacio activa del resident.</li>
-                <li>Mostra possibles interaccions amb nivell de gravetat (lleu/moderada/greu).</li>
-                <li><em>Informacio orientativa — la decisio clinica es del professional.</em></li>
+                <li>Al crear/editar una prescripcion, boton <strong><i class="bi bi-exclamation-triangle"></i> Comprobar interacciones (IA)</strong>.</li>
+                <li>La IA analiza el nuevo farmaco contra toda la medicacion activa del residente.</li>
+                <li>Muestra posibles interacciones con nivel de gravedad (leve/moderada/grave).</li>
+                <li><em>Informacion orientativa — la decision clinica es del profesional.</em></li>
             </ul>
 
-            <h6 class="mt-3">Vista mensual <span class="badge bg-success">NOU</span></h6>
+            <h6 class="mt-3">Vista mensual <span class="badge bg-success">NUEVO</span></h6>
             <ul>
-                <li>Toggle <strong><i class="bi bi-calendar-week"></i> / <i class="bi bi-calendar-month"></i></strong> a la barra de navegacio per canviar entre vista setmanal i mensual.</li>
-                <li>La vista mensual mostra un grid compacte amb punts de color per categoria i les activitats resumides.</li>
-                <li>Clic sobre una activitat per editar-la (igual que a la vista setmanal).</li>
+                <li>Toggle <strong><i class="bi bi-calendar-week"></i> / <i class="bi bi-calendar-month"></i></strong> en la barra de navegacion para cambiar entre vista semanal y mensual.</li>
+                <li>La vista mensual muestra un grid compacto con puntos de color por categoria y las actividades resumidas.</li>
+                <li>Clic sobre una actividad para editarla (igual que en la vista semanal).</li>
             </ul>
 
-            <h6 class="mt-3">Fotos d'activitats <span class="badge bg-success">NOU</span></h6>
+            <h6 class="mt-3">Fotos de actividades <span class="badge bg-success">NUEVO</span></h6>
             <ul>
-                <li>A la vista setmanal, les activitats mostren <strong>thumbnails de fotos</strong> si en tenen.</li>
-                <li>Clic sobre un thumbnail per veure la foto a mida completa.</li>
-                <li>Els treballadors poden pujar fotos des de la webapp despres de confirmar assistencia.</li>
-                <li>L'admin pot pujar fotos des del formulari d'edicio de l'activitat.</li>
+                <li>En la vista semanal, las actividades muestran <strong>thumbnails de fotos</strong> si tienen.</li>
+                <li>Clic sobre un thumbnail para ver la foto a tamano completo.</li>
+                <li>Los trabajadores pueden subir fotos desde la webapp despues de confirmar asistencia.</li>
+                <li>El admin puede subir fotos desde el formulario de edicion de la actividad.</li>
             </ul>
 
-            <h6 class="mt-3">Informes IA amb activitats</h6>
+            <h6 class="mt-3">Informes IA con actividades</h6>
             <ul>
-                <li>Els informes IA (individual, global i traspas de torn) inclouen les activitats amb els <strong>noms dels residents</strong> que han participat i els que han estat absents.</li>
-                <li>L'informe de <strong>traspas de torn</strong> ara inclou els <strong>valors de constantes vitals</strong> en cada atencio (SpO2, TA, temperatura, etc.)</li>
+                <li>Los informes IA (individual, global y traspaso de turno) incluyen las actividades con los <strong>nombres de los residentes</strong> que han participado y los que han estado ausentes.</li>
+                <li>El informe de <strong>traspaso de turno</strong> ahora incluye los <strong>valores de constantes vitales</strong> en cada atencion (SpO2, TA, temperatura, etc.)</li>
             </ul>
         </div>
     </div>
 
-    <!-- 16d. Estat d'anim -->
+    <!-- 16d. Estado de animo -->
     <div class="card mb-4" id="mood">
-        <div class="card-header">16d. Seguiment d'estat d'anim <span class="badge bg-success">NOU</span></div>
+        <div class="card-header">16d. Seguimiento de estado de animo <span class="badge bg-success">NUEVO</span></div>
         <div class="card-body">
-            <p>Permet als treballadors registrar l'estat d'anim i la conducta dels residents.</p>
+            <p>Permite a los trabajadores registrar el estado de animo y la conducta de los residentes.</p>
 
-            <h6 class="mt-3">Registrar des de la webapp</h6>
+            <h6 class="mt-3">Registrar desde la webapp</h6>
             <ul>
-                <li>Despres de <strong>finalitzar una atencio</strong> amb un resident, a la pantalla de resultat ("¡Atencion completada!") apareix el boto <strong>😊 Estat d'anim</strong>.</li>
-                <li>Clic per obrir la pantalla de registre (ja sap amb quin resident estas, no cal tornar a seleccionar).</li>
-                <li>Seleccionar un dels <strong>5 nivells</strong>: 😢 Molt malament, 😟 Malament, 😐 Normal, 🙂 Be, 😊 Molt be.</li>
-                <li>Opcionalment, marcar <strong>chips de conducta</strong>: Agitat, Confos, Cooperatiu, Tranquil, Trist, Content, Agressiu, Somnolent.</li>
-                <li>Afegir observacions si cal i guardar.</li>
-                <li>Es un registre <strong>opcional</strong> — si no es polsa, es pot tornar a la home normalment.</li>
+                <li>Despues de <strong>finalizar una atencion</strong> con un residente, en la pantalla de resultado ("¡Atencion completada!") aparece el boton <strong>😊 Estado de animo</strong>.</li>
+                <li>Clic para abrir la pantalla de registro (ya sabe con que residente estas, no hace falta volver a seleccionar).</li>
+                <li>Seleccionar uno de los <strong>5 niveles</strong>: 😢 Muy mal, 😟 Mal, 😐 Normal, 🙂 Bien, 😊 Muy bien.</li>
+                <li>Opcionalmente, marcar <strong>chips de conducta</strong>: Agitado, Confuso, Cooperativo, Tranquilo, Triste, Contento, Agresivo, Somnoliento.</li>
+                <li>Anadir observaciones si es necesario y guardar.</li>
+                <li>Es un registro <strong>opcional</strong> — si no se pulsa, se puede volver a la home normalmente.</li>
             </ul>
 
-            <h6 class="mt-3">Consultar des de l'admin</h6>
+            <h6 class="mt-3">Consultar desde el admin</h6>
             <ul>
-                <li>A la <strong>fitxa del resident</strong> (pestanya Resum), apareix un <strong>grafic de tendencia</strong> amb els ultims 30 dies.</li>
-                <li>El grafic mostra el nivell d'anim amb colors (verd = be, groc = normal, vermell = malament).</li>
-                <li>Tooltip amb detalls: conducta, observacions i treballador que ho ha registrat.</li>
+                <li>En la <strong>ficha del residente</strong> (pestana Resumen), aparece un <strong>grafico de tendencia</strong> con los ultimos 30 dias.</li>
+                <li>El grafico muestra el nivel de animo con colores (verde = bien, amarillo = normal, rojo = mal).</li>
+                <li>Tooltip con detalles: conducta, observaciones y trabajador que lo ha registrado.</li>
             </ul>
 
-            <h6 class="mt-3">Integracio amb informes IA</h6>
+            <h6 class="mt-3">Integracion con informes IA</h6>
             <ul>
-                <li>Les dades d'estat d'anim s'inclouen automaticament en els informes IA del resident (individual, familiar i executiu).</li>
-                <li>L'IA pot detectar patrons d'anim (declivi, canvis sobtats) i mencionar-los als informes.</li>
+                <li>Los datos de estado de animo se incluyen automaticamente en los informes IA del residente (individual, familiar y ejecutivo).</li>
+                <li>La IA puede detectar patrones de animo (declive, cambios subitos) y mencionarlos en los informes.</li>
             </ul>
         </div>
     </div>
 
-    <!-- 16d2. Registre d'ingesta -->
+    <!-- 16d2. Registro de ingesta -->
     <div class="card mb-4" id="ingesta">
-        <div class="card-header">16d2. Registre d'ingesta i hidratacio <span class="badge bg-success">NOU</span></div>
+        <div class="card-header">16d2. Registro de ingesta e hidratacion <span class="badge bg-success">NUEVO</span></div>
         <div class="card-body">
-            <p>Permet als treballadors registrar la ingesta alimentaria i la hidratacio dels residents.</p>
+            <p>Permite a los trabajadores registrar la ingesta alimentaria y la hidratacion de los residentes.</p>
 
-            <h6 class="mt-3">Registrar des de la webapp</h6>
+            <h6 class="mt-3">Registrar desde la webapp</h6>
             <ul>
-                <li>Despres de <strong>finalitzar una atencio</strong> amb un resident, a la pantalla de resultat apareix el boto <strong>🍽 Ingesta</strong>.</li>
-                <li>Seleccionar l'<strong>apat</strong>: Esmorzar, Dinar, Berenar o Sopar.</li>
-                <li>Ajustar el <strong>percentatge d'ingesta</strong> amb el slider (0%, 25%, 50%, 75%, 100%).</li>
-                <li>Seleccionar els <strong>ml de liquids</strong> consumits (0, 100, 200, 300 ml).</li>
-                <li>Opcionalment, afegir observacions.</li>
-                <li>Si la ingesta es <strong>&lt;50%</strong>, es genera una <strong>notificacio d'alerta</strong> automaticament.</li>
+                <li>Despues de <strong>finalizar una atencion</strong> con un residente, en la pantalla de resultado aparece el boton <strong>🍽 Ingesta</strong>.</li>
+                <li>Seleccionar la <strong>comida</strong>: Desayuno, Almuerzo, Merienda o Cena.</li>
+                <li>Ajustar el <strong>porcentaje de ingesta</strong> con el slider (0%, 25%, 50%, 75%, 100%).</li>
+                <li>Seleccionar los <strong>ml de liquidos</strong> consumidos (0, 100, 200, 300 ml).</li>
+                <li>Opcionalmente, anadir observaciones.</li>
+                <li>Si la ingesta es <strong>&lt;50%</strong>, se genera una <strong>notificacion de alerta</strong> automaticamente.</li>
             </ul>
 
-            <h6 class="mt-3">Dades registrades</h6>
+            <h6 class="mt-3">Datos registrados</h6>
             <ul>
-                <li>Si es registra el mateix apat dues vegades el mateix dia per al mateix resident, s'<strong>actualitza</strong> en lloc de duplicar.</li>
-                <li>Les dades d'ingesta s'inclouen als <strong>informes IA</strong> del resident.</li>
+                <li>Si se registra la misma comida dos veces el mismo dia para el mismo residente, se <strong>actualiza</strong> en lugar de duplicar.</li>
+                <li>Los datos de ingesta se incluyen en los <strong>informes IA</strong> del residente.</li>
             </ul>
         </div>
     </div>
 
-    <!-- 16e. Mode fosc -->
+    <!-- 16e. Modo oscuro -->
     <div class="card mb-4" id="darkmode">
-        <div class="card-header">16e. Mode fosc <span class="badge bg-success">NOU</span></div>
+        <div class="card-header">16e. Modo oscuro <span class="badge bg-success">NUEVO</span></div>
         <div class="card-body">
             <ul>
-                <li>Icona <strong><i class="bi bi-moon"></i></strong> a la barra de navegacio per activar/desactivar el mode fosc.</li>
-                <li>La preferencia es guarda al navegador i es recorda entre sessions.</li>
-                <li>Afecta tot el panel d'administracio (menus, taules, modals, formularis).</li>
+                <li>Icono <strong><i class="bi bi-moon"></i></strong> en la barra de navegacion para activar/desactivar el modo oscuro.</li>
+                <li>La preferencia se guarda en el navegador y se recuerda entre sesiones.</li>
+                <li>Afecta a todo el panel de administracion (menus, tablas, modales, formularios).</li>
             </ul>
         </div>
     </div>
 
-    <!-- 16f. Resums diaris IA -->
+    <!-- 16f. Resumenes diarios IA -->
     <div class="card mb-4" id="digest">
-        <div class="card-header">16f. Resums diaris IA <span class="badge bg-success">NOU</span></div>
+        <div class="card-header">16f. Resumenes diarios IA <span class="badge bg-success">NUEVO</span></div>
         <div class="card-body">
-            <p>Genera automaticament un breu resum diari per cada resident que hagi tingut activitat (atencions, constantes, incidencies, activitats, estat d'anim).</p>
+            <p>Genera automaticamente un breve resumen diario para cada residente que haya tenido actividad (atenciones, constantes, incidencias, actividades, estado de animo).</p>
             <ul>
-                <li>Accessible des de <strong>Personas &rarr; Resums diaris IA</strong>.</li>
-                <li>Boto <strong>"Generar resums del dia"</strong> per llançar la generacio (un resum per resident amb dades del dia).</li>
-                <li>Cada resum es <strong>breu</strong> (maxim 150 paraules) i destaca nomes el que es RELLEVANT, no la rutina.</li>
-                <li>Els resums amb alertes (constantes fora de rang, caigudes, rebuig medicacio) es marquen amb <strong>badge vermell "ALERTA"</strong>.</li>
-                <li>Navegacio per dies amb fletxes &larr; &rarr; i boto "Avui".</li>
-                <li>Els resums es guarden a la base de dades — es poden consultar dies anteriors.</li>
-                <li>Clic al nom del resident per anar a la seva fitxa completa.</li>
+                <li>Accesible desde <strong>Personas &rarr; Resumenes diarios IA</strong>.</li>
+                <li>Boton <strong>"Generar resumenes del dia"</strong> para lanzar la generacion (un resumen por residente con datos del dia).</li>
+                <li>Cada resumen es <strong>breve</strong> (maximo 150 palabras) y destaca solo lo que es RELEVANTE, no la rutina.</li>
+                <li>Los resumenes con alertas (constantes fuera de rango, caidas, rechazo medicacion) se marcan con <strong>badge rojo "ALERTA"</strong>.</li>
+                <li>Navegacion por dias con flechas &larr; &rarr; y boton "Hoy".</li>
+                <li>Los resumenes se guardan en la base de datos — se pueden consultar dias anteriores.</li>
+                <li>Clic en el nombre del residente para ir a su ficha completa.</li>
             </ul>
         </div>
     </div>
 
-    <!-- 16g. PAI (Pla d'Atencio Individualitzat) -->
+    <!-- 16g. PAI (Plan de Atencion Individualizado) -->
     <div class="card mb-4" id="pai">
-        <div class="card-header">16g. Pla d'Atencio Individualitzat (PAI) <span class="badge bg-success">NOU</span></div>
+        <div class="card-header">16g. Plan de Atencion Individualizado (PAI) <span class="badge bg-success">NUEVO</span></div>
         <div class="card-body">
-            <p>Genera i guarda plans d'atencio per resident amb seguiment automatic per IA.</p>
+            <p>Genera y guarda planes de atencion por residente con seguimiento automatico por IA.</p>
 
             <h6 class="mt-3">Generar PAI</h6>
             <ul>
-                <li>A la fitxa del resident, seccio "Informe IA", boto <strong><i class="bi bi-clipboard-pulse"></i> PAI</strong>.</li>
-                <li>La IA analitza les dades dels ultims 30 dies (atencions, constantes, valoracions, incidencies, activitats, anim) i genera un PAI estructurat.</li>
-                <li>El PAI inclou: <strong>objectius SMART</strong>, <strong>intervencions</strong> per area (assistencial, social, cognitiva, nutricional, mobilitat), <strong>indicadors de seguiment</strong> i <strong>data de revisio</strong> (3 mesos).</li>
-                <li>El PAI es guarda a la base de dades com a document persistent.</li>
+                <li>En la ficha del residente, seccion "Informe IA", boton <strong><i class="bi bi-clipboard-pulse"></i> PAI</strong>.</li>
+                <li>La IA analiza los datos de los ultimos 30 dias (atenciones, constantes, valoraciones, incidencias, actividades, animo) y genera un PAI estructurado.</li>
+                <li>El PAI incluye: <strong>objetivos SMART</strong>, <strong>intervenciones</strong> por area (asistencial, social, cognitiva, nutricional, movilidad), <strong>indicadores de seguimiento</strong> y <strong>fecha de revision</strong> (3 meses).</li>
+                <li>El PAI se guarda en la base de datos como documento persistente.</li>
             </ul>
 
             <h6 class="mt-3">Revisar PAI</h6>
             <ul>
-                <li>Boto <strong><i class="bi bi-arrow-repeat"></i> Revisar PAI</strong> a la fitxa del resident.</li>
-                <li>La IA compara els objectius del PAI actiu amb les dades reals dels ultims 30 dies.</li>
-                <li>Per cada objectiu indica: <span style="color:green"><strong>ACONSEGUIT</strong></span>, <span style="color:orange"><strong>EN PROGRES</strong></span>, <span style="color:red"><strong>NO ACONSEGUIT</strong></span> o <strong>SENSE DADES</strong>.</li>
-                <li>Suggereix ajustos al pla si es necessari.</li>
+                <li>Boton <strong><i class="bi bi-arrow-repeat"></i> Revisar PAI</strong> en la ficha del residente.</li>
+                <li>La IA compara los objetivos del PAI activo con los datos reales de los ultimos 30 dias.</li>
+                <li>Para cada objetivo indica: <span style="color:green"><strong>CONSEGUIDO</strong></span>, <span style="color:orange"><strong>EN PROGRESO</strong></span>, <span style="color:red"><strong>NO CONSEGUIDO</strong></span> o <strong>SIN DATOS</strong>.</li>
+                <li>Sugiere ajustes al plan si es necesario.</li>
             </ul>
 
-            <h6 class="mt-3">Auto-revisio automatica</h6>
+            <h6 class="mt-3">Auto-revision automatica</h6>
             <ul>
-                <li>El sistema revisa automaticament el PAI actiu quan es detecta un <strong>event significatiu</strong>:</li>
+                <li>El sistema revisa automaticamente el PAI activo cuando se detecta un <strong>evento significativo</strong>:</li>
                 <ul>
-                    <li><strong>Caiguda:</strong> qualsevol incident de caiguda (des de l'admin o la webapp)</li>
-                    <li><strong>Barthel empitjora:</strong> puntuacio baixa mes de 5 punts respecte l'anterior</li>
-                    <li><strong>Norton empitjora:</strong> puntuacio baixa mes de 1 punt (augment de risc UPP)</li>
+                    <li><strong>Caida:</strong> cualquier incidente de caida (desde el admin o la webapp)</li>
+                    <li><strong>Barthel empeora:</strong> puntuacion baja mas de 5 puntos respecto a la anterior</li>
+                    <li><strong>Norton empeora:</strong> puntuacion baja mas de 1 punto (aumento de riesgo UPP)</li>
                 </ul>
-                <li>La IA analitza l'event i el seu <strong>impacte en els objectius del PAI</strong>.</li>
-                <li>Es genera una notificacio <strong>"Revisio PAI"</strong> (<i class="bi bi-clipboard2-pulse"></i>) amb l'analisi detallada i els canvis suggerits.</li>
-                <li>La revisio es guarda al PAI actiu (camp "Ultima revisio IA").</li>
-                <li>Maxim <strong>1 revisio automatica cada 24 hores</strong> per evitar repeticions.</li>
+                <li>La IA analiza el evento y su <strong>impacto en los objetivos del PAI</strong>.</li>
+                <li>Se genera una notificacion <strong>"Revision PAI"</strong> (<i class="bi bi-clipboard2-pulse"></i>) con el analisis detallado y los cambios sugeridos.</li>
+                <li>La revision se guarda en el PAI activo (campo "Ultima revision IA").</li>
+                <li>Maximo <strong>1 revision automatica cada 24 horas</strong> para evitar repeticiones.</li>
             </ul>
         </div>
     </div>
 
     <!-- 16h. Escala de Pfeiffer -->
     <div class="card mb-4" id="pfeiffer">
-        <div class="card-header">16h. Escala de Pfeiffer (SPMSQ) <span class="badge bg-success">NOU</span></div>
+        <div class="card-header">16h. Escala de Pfeiffer (SPMSQ) <span class="badge bg-success">NUEVO</span></div>
         <div class="card-body">
-            <p>Valoracio cognitiva curta (Short Portable Mental Status Questionnaire). Complementa Barthel (funcional) i Norton (UPP).</p>
+            <p>Valoracion cognitiva corta (Short Portable Mental Status Questionnaire). Complementa Barthel (funcional) y Norton (UPP).</p>
             <ul>
-                <li>Accessible des de <strong>Valoraciones clinicas &rarr; Pfeiffer</strong>.</li>
-                <li><strong>10 preguntes</strong> sobre orientacio, memoria i calcul.</li>
-                <li>Es marca <strong>"Correcto"</strong> o <strong>"Error"</strong> per cada pregunta.</li>
-                <li>Puntuacio: nombre d'errors (0-10).</li>
-                <li>Interpretacio: 0-2 Normal, 3-4 Deteriorament lleu, 5-7 Moderat, 8-10 Sever.</li>
-                <li>Els resultats s'inclouen en els informes IA i a la fitxa del resident.</li>
+                <li>Accesible desde <strong>Valoraciones clinicas &rarr; Pfeiffer</strong>.</li>
+                <li><strong>10 preguntas</strong> sobre orientacion, memoria y calculo.</li>
+                <li>Se marca <strong>"Correcto"</strong> o <strong>"Error"</strong> por cada pregunta.</li>
+                <li>Puntuacion: numero de errores (0-10).</li>
+                <li>Interpretacion: 0-2 Normal, 3-4 Deterioro leve, 5-7 Moderado, 8-10 Severo.</li>
+                <li>Los resultados se incluyen en los informes IA y en la ficha del residente.</li>
             </ul>
         </div>
     </div>
 
-    <!-- 16i. Caigudes estructurades -->
+    <!-- 16i. Caidas estructuradas -->
     <div class="card mb-4" id="falls">
-        <div class="card-header">16i. Registre estructurat de caigudes <span class="badge bg-success">NOU</span></div>
+        <div class="card-header">16i. Registro estructurado de caidas <span class="badge bg-success">NUEVO</span></div>
         <div class="card-body">
-            <p>Quan una incidencia es una caiguda, es pot registrar informacio estructurada addicional.</p>
+            <p>Cuando una incidencia es una caida, se puede registrar informacion estructurada adicional.</p>
             <ul>
-                <li>Al crear una incidencia, checkbox <strong>"Es una caiguda"</strong>.</li>
-                <li>Si esta marcat, apareixen camps addicionals:</li>
+                <li>Al crear una incidencia, checkbox <strong>"Es una caida"</strong>.</li>
+                <li>Si esta marcado, aparecen campos adicionales:</li>
                 <ul>
-                    <li><strong>Ubicacio</strong> de la caiguda</li>
-                    <li><strong>Activitat</strong> en el moment (caminant, dormint, transferencia...)</li>
-                    <li><strong>Calcat</strong> (descalc, sabatilles, sabates)</li>
-                    <li><strong>Testimonis</strong></li>
-                    <li><strong>Lesions</strong> (descripcio + gravetat: cap, lleu, moderada, greu)</li>
-                    <li><strong>Mesures preses</strong></li>
-                    <li><strong>Factors contribuents</strong> (medicacio, terra moll, etc.)</li>
+                    <li><strong>Ubicacion</strong> de la caida</li>
+                    <li><strong>Actividad</strong> en el momento (caminando, durmiendo, transferencia...)</li>
+                    <li><strong>Calzado</strong> (descalzo, zapatillas, zapatos)</li>
+                    <li><strong>Testigos</strong></li>
+                    <li><strong>Lesiones</strong> (descripcion + gravedad: ninguna, leve, moderada, grave)</li>
+                    <li><strong>Medidas tomadas</strong></li>
+                    <li><strong>Factores contribuyentes</strong> (medicacion, suelo mojado, etc.)</li>
                 </ul>
-                <li>Aquesta informacio estructura millora els <strong>KPIs de caigudes</strong> i el <strong>perfil de risc</strong> del resident (ja no depen de keywords en el titol).</li>
+                <li>Esta informacion estructurada mejora los <strong>KPIs de caidas</strong> y el <strong>perfil de riesgo</strong> del residente (ya no depende de keywords en el titulo).</li>
             </ul>
         </div>
     </div>
 
-    <!-- 16c. KPIs de qualitat -->
+    <!-- 16c. KPIs de calidad -->
     <div class="card mb-4" id="kpis">
-        <div class="card-header">16c. KPIs de qualitat assistencial</div>
+        <div class="card-header">16c. KPIs de calidad asistencial</div>
         <div class="card-body">
-            <p>Dashboard d'indicadors de qualitat per a inspeccions i seguiment intern, accessible des de <strong>Analitiques &rarr; KPIs de qualitat</strong>.</p>
+            <p>Dashboard de indicadores de calidad para inspecciones y seguimiento interno, accesible desde <strong>Analiticas &rarr; KPIs de calidad</strong>.</p>
 
-            <h6 class="mt-3">Indicadors</h6>
+            <h6 class="mt-3">Indicadores</h6>
             <ul>
-                <li><strong>Taxa de caigudes:</strong> nombre de caigudes per 1000 dies-resident. Objectiu: &lt;5.</li>
-                <li><strong>Residents amb risc UPP:</strong> percentatge de residents amb Norton &le;12. Objectiu: &lt;15%.</li>
-                <li><strong>Perdua de pes no planificada:</strong> percentatge de residents amb perdua &ge;5% en el periode. Objectiu: &lt;5%.</li>
-                <li><strong>Refus/omissio medicacio:</strong> percentatge de preses refusades o omeses. Objectiu: &lt;5%.</li>
-                <li><strong>Compliment valoracions:</strong> percentatge de residents amb Barthel + Norton en els ultims 6 mesos. Objectiu: &ge;90%.</li>
-                <li><strong>Compliment formatiu:</strong> percentatge de formacio completada pels treballadors. Objectiu: &ge;80%.</li>
-                <li><strong>Temps resolucio incidencies:</strong> dies promig per resoldre una incidencia. Objectiu: &lt;7 dies.</li>
-                <li><strong>Ocupacio:</strong> percentatge d'habitacions ocupades. Objectiu: &ge;85%.</li>
+                <li><strong>Tasa de caidas:</strong> numero de caidas por 1000 dias-residente. Objetivo: &lt;5.</li>
+                <li><strong>Residentes con riesgo UPP:</strong> porcentaje de residentes con Norton &le;12. Objetivo: &lt;15%.</li>
+                <li><strong>Perdida de peso no planificada:</strong> porcentaje de residentes con perdida &ge;5% en el periodo. Objetivo: &lt;5%.</li>
+                <li><strong>Rechazo/omision medicacion:</strong> porcentaje de tomas rechazadas u omitidas. Objetivo: &lt;5%.</li>
+                <li><strong>Cumplimiento valoraciones:</strong> porcentaje de residentes con Barthel + Norton en los ultimos 6 meses. Objetivo: &ge;90%.</li>
+                <li><strong>Cumplimiento formativo:</strong> porcentaje de formacion completada por los trabajadores. Objetivo: &ge;80%.</li>
+                <li><strong>Tiempo resolucion incidencias:</strong> dias promedio para resolver una incidencia. Objetivo: &lt;7 dias.</li>
+                <li><strong>Ocupacion:</strong> porcentaje de habitaciones ocupadas. Objetivo: &ge;85%.</li>
             </ul>
 
-            <h6 class="mt-3">Semafors</h6>
+            <h6 class="mt-3">Semaforos</h6>
             <ul>
-                <li><span style="color:#198754;font-weight:600">Verd:</span> dins de l'objectiu.</li>
-                <li><span style="color:#fd7e14;font-weight:600">Taronja:</span> prop del limit.</li>
-                <li><span style="color:#dc3545;font-weight:600">Vermell:</span> fora de l'objectiu, requereix accio.</li>
-                <li>Filtre per periode: 7, 14, 30 o 90 dies.</li>
+                <li><span style="color:#198754;font-weight:600">Verde:</span> dentro del objetivo.</li>
+                <li><span style="color:#fd7e14;font-weight:600">Naranja:</span> cerca del limite.</li>
+                <li><span style="color:#dc3545;font-weight:600">Rojo:</span> fuera del objetivo, requiere accion.</li>
+                <li>Filtro por periodo: 7, 14, 30 o 90 dias.</li>
             </ul>
         </div>
     </div>
 
-    <!-- 16k. Mapa corporal de ferides -->
+    <!-- 16k. Mapa corporal de heridas -->
     <div class="card mb-4" id="ferides">
-        <div class="card-header">16k. Mapa corporal de ferides <span class="badge bg-success">NOU</span></div>
+        <div class="card-header">16k. Mapa corporal de heridas <span class="badge bg-success">NUEVO</span></div>
         <div class="card-body">
-            <p>Registre visual de ferides i lesions amb seguiment d'evolucio.</p>
+            <p>Registro visual de heridas y lesiones con seguimiento de evolucion.</p>
 
-            <h6 class="mt-3">Registrar una ferida</h6>
+            <h6 class="mt-3">Registrar una herida</h6>
             <ul>
-                <li>A la fitxa del resident, pestanya <strong>Ferides</strong>.</li>
-                <li><strong>Fes clic al diagrama del cos</strong> (davant o darrere) on es localitza la ferida.</li>
-                <li>S'obre un formulari amb la zona auto-detectada. Selecciona: <strong>tipus</strong> (ulcera, hematoma, tall, cremada, erupcio), <strong>mida</strong> (cm), <strong>severitat</strong> (lleu, moderada, greu) i <strong>descripcio</strong>.</li>
-                <li>Les ferides actives es mostren com a <strong>cercles de color</strong> sobre el diagrama (verd=lleu, taronja=moderada, vermell=greu).</li>
+                <li>En la ficha del residente, pestana <strong>Heridas</strong>.</li>
+                <li><strong>Haz clic en el diagrama del cuerpo</strong> (delante o detras) donde se localiza la herida.</li>
+                <li>Se abre un formulario con la zona auto-detectada. Selecciona: <strong>tipo</strong> (ulcera, hematoma, corte, quemadura, erupcion), <strong>tamano</strong> (cm), <strong>severidad</strong> (leve, moderada, grave) y <strong>descripcion</strong>.</li>
+                <li>Las heridas activas se muestran como <strong>circulos de color</strong> sobre el diagrama (verde=leve, naranja=moderada, rojo=grave).</li>
             </ul>
 
-            <h6 class="mt-3">Seguiment d'evolucio</h6>
+            <h6 class="mt-3">Seguimiento de evolucion</h6>
             <ul>
-                <li>A la llista de ferides, botons per actualitzar l'estat: <strong>↗ Curant-se</strong>, <strong>✓ Curada</strong>, <strong>↘ Empitjorant</strong>.</li>
-                <li>Cada actualitzacio es guarda amb data, observacio i treballador.</li>
-                <li>Clic al cercle del diagrama per veure l'historial complet de la ferida.</li>
-                <li>Les ferides que <strong>empitjoren</strong> generen una <strong>alerta critica</strong> al panel de notificacions.</li>
-                <li>Les ferides curades desapareixen del diagrama pero es mantenen al registre.</li>
+                <li>En la lista de heridas, botones para actualizar el estado: <strong>↗ Curandose</strong>, <strong>✓ Curada</strong>, <strong>↘ Empeorando</strong>.</li>
+                <li>Cada actualizacion se guarda con fecha, observacion y trabajador.</li>
+                <li>Clic en el circulo del diagrama para ver el historial completo de la herida.</li>
+                <li>Las heridas que <strong>empeoran</strong> generan una <strong>alerta critica</strong> en el panel de notificaciones.</li>
+                <li>Las heridas curadas desaparecen del diagrama pero se mantienen en el registro.</li>
             </ul>
         </div>
     </div>
@@ -1156,14 +1156,14 @@
 
             <h6 class="mt-3">Sugerencias IA para Barthel/Norton</h6>
             <ul>
-                <li>Boton <strong>"Suggerir amb IA"</strong> en los formularios de Barthel y Norton.</li>
+                <li>Boton <strong>"Sugerir con IA"</strong> en los formularios de Barthel y Norton.</li>
                 <li>Analiza las notas de los trabajadores y el historial de atenciones de los ultimos 30 dias.</li>
                 <li>Pre-rellena las respuestas sugeridas. <strong>Siempre revisar y ajustar antes de guardar.</strong></li>
             </ul>
 
             <h6 class="mt-3">Clasificacion automatica de incidencias</h6>
             <ul>
-                <li>Boton <strong>"Classificar amb IA"</strong> en el formulario de nueva incidencia.</li>
+                <li>Boton <strong>"Clasificar con IA"</strong> en el formulario de nueva incidencia.</li>
                 <li>Analiza el titulo y descripcion y sugiere automaticamente el <strong>tipo</strong> y la <strong>severidad</strong>.</li>
             </ul>
 
@@ -1174,30 +1174,30 @@
                 <li>Los hallazgos aparecen como <strong>notificaciones</strong> tipo "Alerta IA" en la campana.</li>
             </ul>
 
-            <h6 class="mt-3">Perfil de risc del resident (ML + regles)</h6>
+            <h6 class="mt-3">Perfil de riesgo del residente (ML + reglas)</h6>
             <ul>
-                <li>En la fitxa del resident (pestanya Resum), badges de color amb <strong>puntuacio 0-100</strong>:</li>
-                <li><span style="background:#dc354520;color:#dc3545;padding:2px 8px;border-radius:12px;font-size:.8rem">Alt (≥50)</span> <span style="background:#fd7e1420;color:#fd7e14;padding:2px 8px;border-radius:12px;font-size:.8rem">Mig (25-49)</span> <span style="background:#19875420;color:#198754;padding:2px 8px;border-radius:12px;font-size:.8rem">Baix (&lt;25)</span></li>
-                <li><strong>4 tipus de risc:</strong></li>
+                <li>En la ficha del residente (pestana Resumen), badges de color con <strong>puntuacion 0-100</strong>:</li>
+                <li><span style="background:#dc354520;color:#dc3545;padding:2px 8px;border-radius:12px;font-size:.8rem">Alto (≥50)</span> <span style="background:#fd7e1420;color:#fd7e14;padding:2px 8px;border-radius:12px;font-size:.8rem">Medio (25-49)</span> <span style="background:#19875420;color:#198754;padding:2px 8px;border-radius:12px;font-size:.8rem">Bajo (&lt;25)</span></li>
+                <li><strong>4 tipos de riesgo:</strong></li>
                 <ul>
-                    <li><strong>Caigudes:</strong> Norton, Barthel, historial caigudes 90d, polifarmàcia, tendència funcional</li>
-                    <li><strong>UPP:</strong> Norton, dependència, pèrdua de pes, freqüència d'atencions</li>
-                    <li><strong>Cognitiu:</strong> Pfeiffer (errors), tendència Pfeiffer, estat d'ànim, dependència</li>
-                    <li><strong>Nutricional:</strong> pèrdua de pes, dependència, ànim, polifarmàcia</li>
+                    <li><strong>Caidas:</strong> Norton, Barthel, historial caidas 90d, polifarmacia, tendencia funcional</li>
+                    <li><strong>UPP:</strong> Norton, dependencia, perdida de peso, frecuencia de atenciones</li>
+                    <li><strong>Cognitivo:</strong> Pfeiffer (errores), tendencia Pfeiffer, estado de animo, dependencia</li>
+                    <li><strong>Nutricional:</strong> perdida de peso, dependencia, animo, polifarmacia</li>
                 </ul>
-                <li>Cada risc mostra els <strong>factors explicatius</strong> (per què te aquella puntuació).</li>
-                <li><strong>Machine Learning:</strong> amb prou dades historiques, es poden entrenar models Gradient Boosting amb <code>POST /api/ml/train</code>. Els models ML es combinen amb les regles (60% regles + 40% ML) per a prediccions mes precises.</li>
+                <li>Cada riesgo muestra los <strong>factores explicativos</strong> (por que tiene esa puntuacion).</li>
+                <li><strong>Machine Learning:</strong> con suficientes datos historicos, se pueden entrenar modelos Gradient Boosting con <code>POST /api/ml/train</code>. Los modelos ML se combinan con las reglas (60% reglas + 40% ML) para predicciones mas precisas.</li>
             </ul>
 
-            <h6 class="mt-3">Auditoria de compliment</h6>
+            <h6 class="mt-3">Auditoria de cumplimiento</h6>
             <ul>
-                <li>Pagina dedicada en <strong>Analiticas &rarr; Auditoria de compliment</strong>.</li>
-                <li><strong>Puntuacio global 0-100%</strong> amb barra de progres i color (verd ≥80%, taronja ≥50%, vermell &lt;50%).</li>
-                <li><strong>Puntuacio per area:</strong> valoracions cliniques, PAI, atencions, documents, incidencies, formacio.</li>
-                <li>Comprovacions automatiques: valoracions pendents (&gt;6 mesos), risc alt UPP, residents sense atencion (&gt;3 dies), documents sense signar, formacio pendent, incidencies obertes (&gt;7 dies), PAIs vencuts o inexistents, incidents urgents sense resoldre (&gt;3 dies).</li>
-                <li>Troballes classificades per categoria i severitat (critica, avis, info).</li>
-                <li>Cada troballa es un enllaç directe a la pagina corresponent per actuar.</li>
-                <li>Boto <strong><i class="bi bi-stars"></i> Informe IA</strong>: genera un informe narratiu amb resum executiu, arees de compliment, arees de millora i recomanacions concretes.</li>
+                <li>Pagina dedicada en <strong>Analiticas &rarr; Auditoria de cumplimiento</strong>.</li>
+                <li><strong>Puntuacion global 0-100%</strong> con barra de progreso y color (verde ≥80%, naranja ≥50%, rojo &lt;50%).</li>
+                <li><strong>Puntuacion por area:</strong> valoraciones clinicas, PAI, atenciones, documentos, incidencias, formacion.</li>
+                <li>Comprobaciones automaticas: valoraciones pendientes (&gt;6 meses), riesgo alto UPP, residentes sin atencion (&gt;3 dias), documentos sin firmar, formacion pendiente, incidencias abiertas (&gt;7 dias), PAIs vencidos o inexistentes, incidentes urgentes sin resolver (&gt;3 dias).</li>
+                <li>Hallazgos clasificados por categoria y severidad (critica, aviso, info).</li>
+                <li>Cada hallazgo es un enlace directo a la pagina correspondiente para actuar.</li>
+                <li>Boton <strong><i class="bi bi-stars"></i> Informe IA</strong>: genera un informe narrativo con resumen ejecutivo, areas de cumplimiento, areas de mejora y recomendaciones concretas.</li>
             </ul>
         </div>
     </div>
@@ -1227,49 +1227,49 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
-                    <tr><td>13/08</td><td><strong>Mapa corporal de ferides:</strong> nova pestanya "Ferides" a la fitxa del resident amb diagrama SVG interactiu (davant/darrere). Fes clic al cos per registrar una ferida (tipus, mida, severitat). Seguiment d'evolucio amb botons curant-se/curada/empitjorant. Alertes automatiques per ferides noves o que empitjoren. Historial d'actualitzacions.</td></tr>
-                    <tr><td>13/08</td><td><strong>Dashboard de compliment normatiu:</strong> puntuacio global 0-100% i per area (valoracions, PAI, atencions, documents, incidencies, formacio). Noves comprovacions: cobertura PAI i temps resposta incidents urgents. Boto "Informe IA" genera informe narratiu amb recomanacions.</td></tr>
-                    <tr><td>13/08</td><td><strong>Verificacio de medicaments per codi de barres:</strong> camp "Codi de barres" a les prescripcions amb boto d'escaneig per camera (BarcodeDetector API). Endpoint POST /api/medication/verify-barcode per verificar que el medicament escanejat coincideix amb la prescripcio del resident.</td></tr>
-                    <tr><td>13/08</td><td><strong>Models predictius ML:</strong> el perfil de risc dels residents ara utilitza scoring ponderat multifactor (Norton, Barthel, Pfeiffer, caigudes, medicació, pes, ànim) amb puntuació 0-100 i factors explicats. Amb prou dades históriques, es poden entrenar models scikit-learn (Gradient Boosting) que es combinen amb les regles (60% regles + 40% ML). Nou endpoint POST /api/ml/train per entrenar.</td></tr>
-                    <tr><td>13/08</td><td><strong>Assistent IA de torns:</strong> noves eines al chatbot per consultar torns ("qui treballa avui?", "qui esta de tarda dimarts?") i suggerir cobertures ("qui pot cobrir dema pel mati?", "la Maria esta de baixa"). L'IA analitza hores, descansos, dies consecutius i equitat per recomanar la millor substituta. Tambe disponible com a endpoint admin.</td></tr>
-                    <tr><td>13/08</td><td><strong>Auto-revisio PAI:</strong> quan es detecta un event significatiu (caiguda, Barthel baixa >5 punts, Norton empitjora), la IA revisa automaticament el PAI actiu del resident i suggereix actualitzacions. Genera notificacio "Revisio PAI" a l'admin amb l'analisi detallada.</td></tr>
-                    <tr><td>13/08</td><td><strong>Escrivà de veu ambient:</strong> a la pantalla de finalitzacio d'atencio, boto "🎙 Escrivà de veu" que grava audio durant tota la sessio. Al aturar, la IA transcriu i genera notes cliniques automatiques. L'usuari pot acceptar o descartar les notes.</td></tr>
-                    <tr><td>13/08</td><td><strong>Notificacions push reals:</strong> les treballadores reben notificacions push al mobil (fins i tot amb l'app tancada) per alertes vitals, sessions estancades, traspassos de torn i notes urgents. Subscripcio automatica al iniciar sessio a la webapp. Requereix HTTPS.</td></tr>
-                    <tr><td>12/08</td><td><strong>Veu-a-text per a totes les notes:</strong> boto de microfon a cada camp de notes de la webapp (cura, neteja, anim, ingesta). Les treballadores poden dictar en lloc d'escriure. Usa Whisper API per a transcripcio precisa.</td></tr>
-                    <tr><td>12/08</td><td><strong>Expansio IA de notes:</strong> boto "Expandir amb IA" que transforma notes curtes en observacions cliniques professionals (ex: "inquiet no vol sopar" &rarr; text clinic complet).</td></tr>
-                    <tr><td>12/08</td><td><strong>Frases rapides:</strong> panell de frases pre-configurades sota cada camp de notes per registrar observacions freqüents amb un sol tap (ex: "Sin incidencias", "Buen apetito").</td></tr>
-                    <tr><td>12/08</td><td><strong>Pre-ompliment IA d'incidents:</strong> al descriure un incident per text o veu, la IA auto-omple tots els camps del formulari (tipus, severitat, titol, dades de caiguda si aplica).</td></tr>
-                    <tr><td>12/08</td><td><strong>Traspas automatc de torn:</strong> l'informe de traspas es genera automaticament quan acaba un torn i es notifica a les treballadores del torn entrant.</td></tr>
-                    <tr><td>12/08</td><td><strong>Generacio preguntes IA per pildores:</strong> boto "Generar amb IA" al formulari de crear pildora. La IA genera 5 preguntes amb opcions basant-se en el titol i descripcio.</td></tr>
-                    <tr><td>12/08</td><td><strong>Registre d'ingesta/hidratacio:</strong> despres de finalitzar una atencio, botons 😊 Estat d'anim i 🍽 Ingesta a la pantalla de resultat per registrar opcionalament l'anim i la ingesta del resident. Alerta automatica si ingesta &lt;50%.</td></tr>
-                    <tr><td>12/08</td><td><strong>Analisi IA rendiment treballadors:</strong> boto "Analisi IA" a la pagina de Rendiment. La IA analitza productivitat, temps mitjos, absencies i dona recomanacions.</td></tr>
-                    <tr><td>12/08</td><td><strong>Detall limpiezas al traspas:</strong> l'informe de traspas de torn ara mostra cada neteja amb habitacio, planta i treballador.</td></tr>
-                    <tr><td>12/08</td><td><strong>Formacio obligatoria:</strong> les pildores formatives es poden marcar com "Obligatoria" i assignar a treballadors especifics. La webapp es bloqueja fins completar la formacio pendent.</td></tr>
-                    <tr><td>12/08</td><td><strong>Seguiment d'estat d'anim:</strong> els treballadors poden registrar l'estat d'anim dels residents (5 nivells + conducta). Grafic de tendencia a la fitxa del resident. Dades integrades als informes IA.</td></tr>
-                    <tr><td>12/08</td><td><strong>Fotos d'activitats:</strong> pujar fotos des de l'admin o la webapp. Thumbnails visibles al calendari setmanal.</td></tr>
-                    <tr><td>12/08</td><td><strong>Vista mensual d'activitats:</strong> toggle setmana/mes al calendari amb grid compacte.</td></tr>
-                    <tr><td>12/08</td><td><strong>Mode fosc:</strong> icona lluna a la navbar per activar mode fosc. Preferencia persistent.</td></tr>
-                    <tr><td>12/08</td><td><strong>Fix informes IA "Avui":</strong> corregit que l'informe de "Hoy" mostrava dades del dia anterior.</td></tr>
-                    <tr><td>12/08</td><td><strong>Activitats recurrents:</strong> al crear una activitat es pot marcar "Recurrent" (setmanal/quinzenal/mensual) per generar instancies automatiques. Gestio de plantilles des del boto "Recurrents".</td></tr>
-                    <tr><td>12/08</td><td><strong>Estadistiques d'activitats:</strong> nova pagina amb taxa de participacio per resident i categoria, alertes de baixa participacio, i exportacio a Excel.</td></tr>
-                    <tr><td>12/08</td><td><strong>Suggerencies IA d'activitats:</strong> l'IA analitza perfils i historial per suggerir 5 activitats setmanals adaptades als residents.</td></tr>
-                    <tr><td>12/08</td><td><strong>Resumen familiar IA:</strong> genera resums setmanals en to amable per enviar a les families, sense jerga clinica.</td></tr>
-                    <tr><td>12/08</td><td><strong>Checker interaccions medicamentoses:</strong> boto IA al formulari de prescripcio que analitza possibles interaccions amb la medicacio activa del resident.</td></tr>
-                    <tr><td>12/08</td><td><strong>Traspas de torn amb constantes:</strong> l'informe IA de traspas ara inclou els valors de constantes vitals (SpO2, TA, temperatura) en cada atencio.</td></tr>
-                    <tr><td>12/08</td><td><strong>PWA Service Worker:</strong> la webapp del treballador ara es pot instal·lar com a app al mobil (Android/iOS).</td></tr>
-                    <tr><td>12/08</td><td><strong>Polling intel·ligent:</strong> les notificacions es pausan automaticament quan la pestanya esta oculta per estalviar recursos.</td></tr>
-                    <tr><td>11/08</td><td><strong>Calendari d'activitats:</strong> vista setmanal amb categories de colors. Grid visual de fotos per convidar residents. Confirmacio d'assistencia des de la webapp amb cards compactes i pantalla de detall. Informes IA inclouen activitats amb noms de participants.</td></tr>
-                    <tr><td>11/08</td><td><strong>KPIs de qualitat assistencial:</strong> dashboard amb 8 indicadors per inspeccions: taxa caigudes, risc UPP, perdua pes, refus medicacio, compliment valoracions, compliment formatiu, resolucio incidencies, ocupacio. Semafors amb objectius.</td></tr>
-                    <tr><td>11/08</td><td><strong>Classificacio intel·ligent de notes:</strong> les notes dels treballadors es classifiquen automaticament per IA (urgent, clinica, conductual, logistica). Les urgents generen notificacio amb severitat warning.</td></tr>
-                    <tr><td>11/08</td><td><strong>Suggeriments IA per quadrants:</strong> boto "IA" als quadrants que analitza gaps de cobertura, distribucio d'hores i patrons d'absentisme i dona suggeriments.</td></tr>
-                    <tr><td>11/08</td><td><strong>Modul de medicacio:</strong> gestio completa de pautes farmacologiques per resident (medicament, dosi, via, frequencia, horaris). Dashboard diari amb control de preses pendents/administrades per resident, amb boto d'un clic per marcar. Registre d'administracio amb estat (donat, refusat, omes). Alertes automatiques si un medicament es refusat o omes. API per a la webapp del treballador.</td></tr>
-                    <tr><td>11/08</td><td><strong>Traspaso de turno IA:</strong> boto al dashboard que genera un informe IA de les ultimes 8/12/24 hores amb atencions, incidencies, alertes vitals, notes del personal i pendents pel torn seguent. Imprimible.</td></tr>
-                    <tr><td>11/08</td><td><strong>Auditoria de compliment:</strong> nova pagina (Analitiques &rarr; Auditoria) amb comprovacions automatiques: valoracions pendents, risc UPP, residents sense atencio, documents sense signar, formacio pendent, incidencies antigues obertes.</td></tr>
-                    <tr><td>11/08</td><td><strong>Perfil de risc del residente:</strong> badges de color a la fitxa del residente (Caigudes, UPP, Deteriorament funcional, Nutricional) calculats automaticament des de Norton, Barthel, incidencies i pes.</td></tr>
-                    <tr><td>11/08</td><td><strong>Classificacio automatica d'incidencies:</strong> boto "Classificar amb IA" al formulari d'incidencies que suggereix tipus i severitat basant-se en el text.</td></tr>
-                    <tr><td>11/08</td><td><strong>Chatbot millorat:</strong> ara respon "Com esta Maria?" amb perfil medic complet, valoracions, notes recents i incidencies.</td></tr>
-                    <tr><td>11/08</td><td><strong>Suggerencies IA per Barthel/Norton:</strong> boto "Suggerir amb IA" als formularis de valoracio que pre-omple les respostes basant-se en les notes dels treballadors i l'historial d'atencions. Cal revisar i ajustar abans de guardar.</td></tr>
-                    <tr><td>11/08</td><td><strong>Informes per inspeccion:</strong> des de la fitxa del residente (pestanya Valoraciones), botons per generar automaticament un Informe Mensual de Seguiment o un borrador de PAI (Pla d'Atencio Individualitzat) amb format professional, imprimible amb espai per firma.</td></tr>
+                    <tr><td>13/08</td><td><strong>Mapa corporal de heridas:</strong> nueva pestana "Heridas" en la ficha del residente con diagrama SVG interactivo (delante/detras). Haz clic en el cuerpo para registrar una herida (tipo, tamano, severidad). Seguimiento de evolucion con botones curandose/curada/empeorando. Alertas automaticas para heridas nuevas o que empeoran. Historial de actualizaciones.</td></tr>
+                    <tr><td>13/08</td><td><strong>Dashboard de cumplimiento normativo:</strong> puntuacion global 0-100% y por area (valoraciones, PAI, atenciones, documentos, incidencias, formacion). Nuevas comprobaciones: cobertura PAI y tiempo respuesta incidentes urgentes. Boton "Informe IA" genera informe narrativo con recomendaciones.</td></tr>
+                    <tr><td>13/08</td><td><strong>Verificacion de medicamentos por codigo de barras:</strong> campo "Codigo de barras" en las prescripciones con boton de escaneo por camara (BarcodeDetector API). Endpoint POST /api/medication/verify-barcode para verificar que el medicamento escaneado coincide con la prescripcion del residente.</td></tr>
+                    <tr><td>13/08</td><td><strong>Modelos predictivos ML:</strong> el perfil de riesgo de los residentes ahora utiliza scoring ponderado multifactor (Norton, Barthel, Pfeiffer, caidas, medicacion, peso, animo) con puntuacion 0-100 y factores explicados. Con suficientes datos historicos, se pueden entrenar modelos scikit-learn (Gradient Boosting) que se combinan con las reglas (60% reglas + 40% ML). Nuevo endpoint POST /api/ml/train para entrenar.</td></tr>
+                    <tr><td>13/08</td><td><strong>Asistente IA de turnos:</strong> nuevas herramientas en el chatbot para consultar turnos ("quien trabaja hoy?", "quien esta de tarde el martes?") y sugerir coberturas ("quien puede cubrir manana por la manana?", "Maria esta de baja"). La IA analiza horas, descansos, dias consecutivos y equidad para recomendar la mejor sustituta. Tambien disponible como endpoint admin.</td></tr>
+                    <tr><td>13/08</td><td><strong>Auto-revision PAI:</strong> cuando se detecta un evento significativo (caida, Barthel baja >5 puntos, Norton empeora), la IA revisa automaticamente el PAI activo del residente y sugiere actualizaciones. Genera notificacion "Revision PAI" al admin con el analisis detallado.</td></tr>
+                    <tr><td>13/08</td><td><strong>Escriba de voz ambiente:</strong> en la pantalla de finalizacion de atencion, boton "🎙 Escriba de voz" que graba audio durante toda la sesion. Al parar, la IA transcribe y genera notas clinicas automaticas. El usuario puede aceptar o descartar las notas.</td></tr>
+                    <tr><td>13/08</td><td><strong>Notificaciones push reales:</strong> las trabajadoras reciben notificaciones push en el movil (incluso con la app cerrada) para alertas vitales, sesiones estancadas, traspasos de turno y notas urgentes. Suscripcion automatica al iniciar sesion en la webapp. Requiere HTTPS.</td></tr>
+                    <tr><td>12/08</td><td><strong>Voz-a-texto para todas las notas:</strong> boton de microfono en cada campo de notas de la webapp (cuidado, limpieza, animo, ingesta). Las trabajadoras pueden dictar en lugar de escribir. Usa Whisper API para transcripcion precisa.</td></tr>
+                    <tr><td>12/08</td><td><strong>Expansion IA de notas:</strong> boton "Expandir con IA" que transforma notas cortas en observaciones clinicas profesionales (ej: "inquieto no quiere cenar" &rarr; texto clinico completo).</td></tr>
+                    <tr><td>12/08</td><td><strong>Frases rapidas:</strong> panel de frases preconfiguradas bajo cada campo de notas para registrar observaciones frecuentes con un solo toque (ej: "Sin incidencias", "Buen apetito").</td></tr>
+                    <tr><td>12/08</td><td><strong>Pre-relleno IA de incidentes:</strong> al describir un incidente por texto o voz, la IA auto-rellena todos los campos del formulario (tipo, severidad, titulo, datos de caida si aplica).</td></tr>
+                    <tr><td>12/08</td><td><strong>Traspaso automatico de turno:</strong> el informe de traspaso se genera automaticamente cuando acaba un turno y se notifica a las trabajadoras del turno entrante.</td></tr>
+                    <tr><td>12/08</td><td><strong>Generacion preguntas IA para pildoras:</strong> boton "Generar con IA" en el formulario de crear pildora. La IA genera 5 preguntas con opciones basandose en el titulo y descripcion.</td></tr>
+                    <tr><td>12/08</td><td><strong>Registro de ingesta/hidratacion:</strong> despues de finalizar una atencion, botones 😊 Estado de animo y 🍽 Ingesta en la pantalla de resultado para registrar opcionalmente el animo y la ingesta del residente. Alerta automatica si ingesta &lt;50%.</td></tr>
+                    <tr><td>12/08</td><td><strong>Analisis IA rendimiento trabajadores:</strong> boton "Analisis IA" en la pagina de Rendimiento. La IA analiza productividad, tiempos medios, ausencias y da recomendaciones.</td></tr>
+                    <tr><td>12/08</td><td><strong>Detalle limpiezas en el traspaso:</strong> el informe de traspaso de turno ahora muestra cada limpieza con habitacion, planta y trabajador.</td></tr>
+                    <tr><td>12/08</td><td><strong>Formacion obligatoria:</strong> las pildoras formativas se pueden marcar como "Obligatoria" y asignar a trabajadores especificos. La webapp se bloquea hasta completar la formacion pendiente.</td></tr>
+                    <tr><td>12/08</td><td><strong>Seguimiento de estado de animo:</strong> los trabajadores pueden registrar el estado de animo de los residentes (5 niveles + conducta). Grafico de tendencia en la ficha del residente. Datos integrados en los informes IA.</td></tr>
+                    <tr><td>12/08</td><td><strong>Fotos de actividades:</strong> subir fotos desde el admin o la webapp. Thumbnails visibles en el calendario semanal.</td></tr>
+                    <tr><td>12/08</td><td><strong>Vista mensual de actividades:</strong> toggle semana/mes en el calendario con grid compacto.</td></tr>
+                    <tr><td>12/08</td><td><strong>Modo oscuro:</strong> icono luna en la navbar para activar modo oscuro. Preferencia persistente.</td></tr>
+                    <tr><td>12/08</td><td><strong>Fix informes IA "Hoy":</strong> corregido que el informe de "Hoy" mostraba datos del dia anterior.</td></tr>
+                    <tr><td>12/08</td><td><strong>Actividades recurrentes:</strong> al crear una actividad se puede marcar "Recurrente" (semanal/quincenal/mensual) para generar instancias automaticas. Gestion de plantillas desde el boton "Recurrentes".</td></tr>
+                    <tr><td>12/08</td><td><strong>Estadisticas de actividades:</strong> nueva pagina con tasa de participacion por residente y categoria, alertas de baja participacion, y exportacion a Excel.</td></tr>
+                    <tr><td>12/08</td><td><strong>Sugerencias IA de actividades:</strong> la IA analiza perfiles e historial para sugerir 5 actividades semanales adaptadas a los residentes.</td></tr>
+                    <tr><td>12/08</td><td><strong>Resumen familiar IA:</strong> genera resumenes semanales en tono amable para enviar a las familias, sin jerga clinica.</td></tr>
+                    <tr><td>12/08</td><td><strong>Checker interacciones medicamentosas:</strong> boton IA en el formulario de prescripcion que analiza posibles interacciones con la medicacion activa del residente.</td></tr>
+                    <tr><td>12/08</td><td><strong>Traspaso de turno con constantes:</strong> el informe IA de traspaso ahora incluye los valores de constantes vitales (SpO2, TA, temperatura) en cada atencion.</td></tr>
+                    <tr><td>12/08</td><td><strong>PWA Service Worker:</strong> la webapp del trabajador ahora se puede instalar como app en el movil (Android/iOS).</td></tr>
+                    <tr><td>12/08</td><td><strong>Polling inteligente:</strong> las notificaciones se pausan automaticamente cuando la pestana esta oculta para ahorrar recursos.</td></tr>
+                    <tr><td>11/08</td><td><strong>Calendario de actividades:</strong> vista semanal con categorias de colores. Grid visual de fotos para invitar residentes. Confirmacion de asistencia desde la webapp con cards compactas y pantalla de detalle. Informes IA incluyen actividades con nombres de participantes.</td></tr>
+                    <tr><td>11/08</td><td><strong>KPIs de calidad asistencial:</strong> dashboard con 8 indicadores para inspecciones: tasa caidas, riesgo UPP, perdida peso, rechazo medicacion, cumplimiento valoraciones, cumplimiento formativo, resolucion incidencias, ocupacion. Semaforos con objetivos.</td></tr>
+                    <tr><td>11/08</td><td><strong>Clasificacion inteligente de notas:</strong> las notas de los trabajadores se clasifican automaticamente por IA (urgente, clinica, conductual, logistica). Las urgentes generan notificacion con severidad warning.</td></tr>
+                    <tr><td>11/08</td><td><strong>Sugerencias IA para cuadrantes:</strong> boton "IA" en los cuadrantes que analiza gaps de cobertura, distribucion de horas y patrones de absentismo y da sugerencias.</td></tr>
+                    <tr><td>11/08</td><td><strong>Modulo de medicacion:</strong> gestion completa de pautas farmacologicas por residente (medicamento, dosis, via, frecuencia, horarios). Dashboard diario con control de tomas pendientes/administradas por residente, con boton de un clic para marcar. Registro de administracion con estado (dado, rechazado, omitido). Alertas automaticas si un medicamento es rechazado u omitido. API para la webapp del trabajador.</td></tr>
+                    <tr><td>11/08</td><td><strong>Traspaso de turno IA:</strong> boton en el dashboard que genera un informe IA de las ultimas 8/12/24 horas con atenciones, incidencias, alertas vitales, notas del personal y pendientes para el turno siguiente. Imprimible.</td></tr>
+                    <tr><td>11/08</td><td><strong>Auditoria de cumplimiento:</strong> nueva pagina (Analiticas &rarr; Auditoria) con comprobaciones automaticas: valoraciones pendientes, riesgo UPP, residentes sin atencion, documentos sin firmar, formacion pendiente, incidencias antiguas abiertas.</td></tr>
+                    <tr><td>11/08</td><td><strong>Perfil de riesgo del residente:</strong> badges de color en la ficha del residente (Caidas, UPP, Deterioro funcional, Nutricional) calculados automaticamente desde Norton, Barthel, incidencias y peso.</td></tr>
+                    <tr><td>11/08</td><td><strong>Clasificacion automatica de incidencias:</strong> boton "Clasificar con IA" en el formulario de incidencias que sugiere tipo y severidad basandose en el texto.</td></tr>
+                    <tr><td>11/08</td><td><strong>Chatbot mejorado:</strong> ahora responde "Como esta Maria?" con perfil medico completo, valoraciones, notas recientes e incidencias.</td></tr>
+                    <tr><td>11/08</td><td><strong>Sugerencias IA para Barthel/Norton:</strong> boton "Sugerir con IA" en los formularios de valoracion que pre-rellena las respuestas basandose en las notas de los trabajadores y el historial de atenciones. Hay que revisar y ajustar antes de guardar.</td></tr>
+                    <tr><td>11/08</td><td><strong>Informes para inspeccion:</strong> desde la ficha del residente (pestana Valoraciones), botones para generar automaticamente un Informe Mensual de Seguimiento o un borrador de PAI (Plan de Atencion Individualizado) con formato profesional, imprimible con espacio para firma.</td></tr>
                     <tr><td>11/08</td><td><strong>Resumen IA y alertas inteligentes:</strong> boton "Generar resumen IA" en la ficha de cada residente (pestana Resumen) que genera un informe clinico automatico del dia, semana o mes usando Claude. Ademas, el sistema analiza automaticamente (cada 6h) los datos de todos los residentes y genera alertas de patrones preocupantes (perdida de independencia, caidas repetidas, deterioro nutricional, etc.).</td></tr>
                     <tr><td>11/08</td><td><strong>Valoraciones clinicas (Barthel + Norton):</strong> nuevo modulo de escalas de valoracion geriatrica. Barthel (independencia en AVDs, 0-100) con actualizacion automatica del nivel de dependencia. Norton (riesgo de ulceras, 5-20) con notificacion si riesgo alto. Puntuacion en tiempo real, graficos de evolucion, historial. Alertas automaticas de perdida de peso significativa al registrar el peso como constante vital.</td></tr>
                     <tr><td>11/08</td><td><strong>Notificacion por notas del trabajador:</strong> cuando un trabajador anade una observacion al finalizar una atencion o limpieza (ej: "cama mojada"), se genera automaticamente una notificacion visible en el centro de notificaciones del admin. Filtrable por tipo "Nota del trabajador".</td></tr>
@@ -1304,7 +1304,7 @@
                     <tr><td>07/08</td><td><strong>Plan de limpieza del dia:</strong> nueva vista admin (Espacios > Plan de limpieza hoy) con resumen de trabajadores, habitaciones por prioridad, progreso en tiempo real y auto-actualizacion.</td></tr>
                     <tr><td>07/08</td><td><strong>Prioridad inteligente:</strong> las habitaciones se priorizan por urgencia segun su frecuencia historica de limpieza. Las atrasadas aparecen primero en rojo.</td></tr>
                     <tr><td>07/08</td><td><strong>Habitaciones vacias:</strong> las habitaciones de residente sin residente asignado se limpian con 3x menos frecuencia.</td></tr>
-                    <tr><td>03/08</td><td>Constantes vitales: sistema extensible per registrar tension arterial, glucemia, temperatura, saturacion O2, frecuencia cardiaca durant les atencions.</td></tr>
+                    <tr><td>03/08</td><td>Constantes vitales: sistema extensible para registrar tension arterial, glucemia, temperatura, saturacion O2, frecuencia cardiaca durante las atenciones.</td></tr>
                     <tr><td>03/08</td><td>Alertas de constantes vitales: aviso rojo inmediato al trabajador y banner al dashboard admin cuando un valor esta fuera de rango.</td></tr>
                     <tr><td>03/08</td><td>Pagina de analiticas (<i class="bi bi-bar-chart-line"></i>) con graficos de actividad, productividad, duracion media y alertas vitales.</td></tr>
                     <tr><td>03/08</td><td>Exportacion a Excel de los registros de atencion (con constantes vitales).</td></tr>
@@ -1313,7 +1313,7 @@
                     <tr><td>03/08</td><td>Admin puede cerrar sesiones abiertas desde Registros de limpieza y atenciones.</td></tr>
                     <tr><td>03/08</td><td>Auto-cierre de sesiones estancadas (>24h abiertas) al entrar al panel admin.</td></tr>
                     <tr><td>03/08</td><td>Operaciones en bloque para residentes: seleccion multiple, asignar grupo y dar de baja en masa.</td></tr>
-                    <tr><td>03/08</td><td>Optimizacion de rendimiento: queries batch en lugar de N+1 per habitaciones, residentes y grups.</td></tr>
+                    <tr><td>03/08</td><td>Optimizacion de rendimiento: queries batch en lugar de N+1 para habitaciones, residentes y grupos.</td></tr>
                 </tbody>
             </table>
 
