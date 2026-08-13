@@ -27,18 +27,26 @@ for t in sorted(tables):
     rows = src.execute(f'SELECT * FROM {t}').fetchall()
     if not rows:
         continue
-    cols = [d[0] for d in src.execute(f'SELECT * FROM {t}').description]
-    # Get PostgreSQL column types to convert SQLite integers to booleans
+    src_cols = [d[0] for d in src.execute(f'SELECT * FROM {t}').description]
+    # Get PostgreSQL column info
     pg_cols = {c['name']: str(c['type']) for c in inspector.get_columns(t)}
     bool_cols = {name for name, typ in pg_cols.items() if 'BOOL' in typ.upper()}
+    # Only use columns that exist in both SQLite and PostgreSQL
+    cols = [c for c in src_cols if c in pg_cols]
+    if not cols:
+        print(f"  SKIP {t} (no matching columns)")
+        continue
+    skipped = [c for c in src_cols if c not in pg_cols]
+    if skipped:
+        print(f"  NOTE {t}: skipping columns {skipped}")
 
     with pg.connect() as conn:
         conn.execute(text("SET session_replication_role = 'replica'"))
         conn.execute(text(f'DELETE FROM "{t}"'))
         for row in rows:
             vals = {}
-            for i, c in enumerate(cols):
-                v = row[i]
+            for c in cols:
+                v = row[src_cols.index(c)]
                 if c in bool_cols and isinstance(v, int):
                     v = bool(v)
                 vals[c] = v
