@@ -197,6 +197,20 @@ def assessment_barthel():
             resident.dependency_level = DEPENDENCY_MAP[interp_key]
 
         db.session.commit()
+
+        # Auto-review PAI if score indicates decline
+        try:
+            prev = AssessmentRecord.query.filter(
+                AssessmentRecord.resident_id == resident_id,
+                AssessmentRecord.scale_type == 'barthel',
+                AssessmentRecord.id != record.id,
+            ).order_by(AssessmentRecord.assessed_at.desc()).first()
+            if prev and total < prev.score - 5:
+                auto_review_care_plan(resident_id,
+                    f'Barthel ha baixat de {prev.score} a {total}/100 ({interp_label})')
+        except Exception:
+            pass
+
         flash(f'Barthel guardado: {total}/100 — {interp_label}', 'success')
         return redirect(url_for('residents.resident_detail', resident_id=resident_id))
 
@@ -256,6 +270,20 @@ def assessment_norton():
             ))
 
         db.session.commit()
+
+        # Auto-review PAI if Norton worsened
+        try:
+            prev = AssessmentRecord.query.filter(
+                AssessmentRecord.resident_id == resident_id,
+                AssessmentRecord.scale_type == 'norton',
+                AssessmentRecord.id != record.id,
+            ).order_by(AssessmentRecord.assessed_at.desc()).first()
+            if prev and total < prev.score - 1:
+                auto_review_care_plan(resident_id,
+                    f'Norton ha baixat de {prev.score} a {total}/20 ({interp_label}). Risc UPP augmentat.')
+        except Exception:
+            pass
+
         flash(f'Norton guardado: {total}/20 — {interp_label}', 'success')
         return redirect(url_for('residents.resident_detail', resident_id=resident_id))
 
@@ -1742,6 +1770,82 @@ DADES RECENTS (ultims 30 dies):
         'plan_id': plan.id,
         'review_date': datetime.now().strftime('%d/%m/%Y %H:%M'),
     })
+
+
+# ── Auto PAI Review ────────────────────────────────────────────────────────
+
+PAI_AUTO_REVIEW_SYSTEM = """Eres un profesional sociosanitario de la residencia La Vila Gran.
+Se ha detectado un EVENTO SIGNIFICATIVO en un residente que tiene un PAI activo.
+Tu tarea es revisar si el PAI necesita actualizaciones en base al evento.
+
+Analiza:
+1. Si algún objetivo del PAI se ve afectado por el evento
+2. Si hacen falta nuevas intervenciones
+3. Si algún indicador ha cambiado significativamente
+
+FORMATO: HTML breve (sin <html>/<body>).
+- Empieza con <strong>Evento detectado:</strong> y descripcion del evento
+- Luego <strong>Impacto en el PAI:</strong> con lista de cambios sugeridos
+- Usa colores: rojo para cambios urgentes, naranja para ajustes recomendados
+- Si el PAI no necesita cambios, indícalo claramente
+Escribe en espanol. No inventes datos."""
+
+
+def auto_review_care_plan(resident_id, event_description):
+    """Auto-review PAI when a significant event occurs. Creates notification if changes suggested."""
+    plan = CarePlan.query.filter_by(
+        resident_id=resident_id, status='active',
+    ).order_by(CarePlan.created_at.desc()).first()
+
+    if not plan or not plan.html_content:
+        return  # No active PAI, nothing to review
+
+    # Throttle: don't review if already reviewed in last 24h
+    if plan.ai_review_date:
+        since_last = (datetime.now() - plan.ai_review_date).total_seconds()
+        if since_last < 24 * 3600:
+            return
+
+    ctx = _build_resident_context(resident_id, days=14)
+    if not ctx:
+        return
+    context_text = _context_to_text(ctx, 14)
+
+    prompt = f"""EVENTO: {event_description}
+
+PAI ACTUAL:
+{plan.html_content[:3000]}
+
+DADES RECENTS (14 dies):
+{context_text}"""
+
+    try:
+        review_html = _call_claude(PAI_AUTO_REVIEW_SYSTEM, prompt)
+        review_html = review_html.strip()
+        if review_html.startswith('```'):
+            review_html = review_html.split('\n', 1)[1] if '\n' in review_html else review_html[3:]
+        if review_html.endswith('```'):
+            review_html = review_html.rsplit('```', 1)[0]
+        review_html = review_html.strip()
+    except Exception:
+        return
+
+    # Update PAI with review
+    plan.ai_review = review_html
+    plan.ai_review_date = datetime.now()
+
+    # Create notification for admin
+    resident = db.session.get(Resident, resident_id)
+    r_name = resident.name if resident else 'Resident'
+    db.session.add(Notification(
+        type='pai_review',
+        title=f'Revisió automàtica PAI: {r_name}',
+        message=review_html,
+        severity='warning',
+        resident_id=resident_id,
+        link=f'/admin/resident/{resident_id}',
+    ))
+    db.session.commit()
 
 
 # ── Predictive Risk Watchlist ────────────────────────────────────────────────

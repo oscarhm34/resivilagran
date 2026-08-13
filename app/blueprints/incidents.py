@@ -121,6 +121,16 @@ def create_incident():
         db.session.add(fall)
 
     db.session.commit()
+
+    # Auto-review PAI if fall incident with resident
+    if is_fall and incident.resident_id:
+        try:
+            from .assessments import auto_review_care_plan
+            auto_review_care_plan(incident.resident_id,
+                f'Caiguda registrada: {incident.title}. Severitat: {incident.severity}.')
+        except Exception:
+            pass
+
     flash('Incidencia creada correctamente.', 'success')
     return redirect(url_for('incidents.admin_incidents'))
 
@@ -348,6 +358,17 @@ def worker_report_incident():
         db.session.add(fall)
 
     db.session.commit()
+
+    # Auto-review PAI if fall incident with resident
+    if is_fall and incident.resident_id:
+        try:
+            from .assessments import auto_review_care_plan
+            auto_review_care_plan(incident.resident_id,
+                f'Caiguda registrada: {incident.title or "sense detalls"}. '
+                f'Severitat: {incident.severity}.')
+        except Exception:
+            pass
+
     return jsonify({'ok': True, 'id': incident.id}), 201
 
 

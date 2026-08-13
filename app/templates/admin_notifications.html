@@ -34,6 +34,7 @@
                         <option value="worker_note" {% if filters.type == 'worker_note' %}selected{% endif %}>Nota del trabajador</option>
                         <option value="ai_insight" {% if filters.type == 'ai_insight' %}selected{% endif %}>Alerta IA</option>
                         <option value="shift_handover" {% if filters.type == 'shift_handover' %}selected{% endif %}>Traspas de torn</option>
+                        <option value="pai_review" {% if filters.type == 'pai_review' %}selected{% endif %}>Revisio PAI</option>
                     </select>
                 </div>
                 <div class="col-auto">
@@ -76,7 +77,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% set type_icons = {'vital_alert': 'bi-heart-pulse-fill', 'incident': 'bi-exclamation-triangle-fill', 'document_pending': 'bi-file-earmark-text', 'stale_session': 'bi-clock-history', 'stale_session_worker': 'bi-clock-history', 'coverage_gap': 'bi-people-fill', 'worker_note': 'bi-chat-left-text-fill', 'ai_insight': 'bi-stars', 'shift_handover': 'bi-arrow-left-right'} %}
+                    {% set type_icons = {'vital_alert': 'bi-heart-pulse-fill', 'incident': 'bi-exclamation-triangle-fill', 'document_pending': 'bi-file-earmark-text', 'stale_session': 'bi-clock-history', 'stale_session_worker': 'bi-clock-history', 'coverage_gap': 'bi-people-fill', 'worker_note': 'bi-chat-left-text-fill', 'ai_insight': 'bi-stars', 'shift_handover': 'bi-arrow-left-right', 'pai_review': 'bi-clipboard2-pulse'} %}
                     {% set sev_colors = {'critical': '#cf222e', 'warning': '#fd7e14', 'info': '#0069d9'} %}
                     {% set sev_labels = {'critical': 'Critica', 'warning': 'Aviso', 'info': 'Info'} %}
                     {% for n in notifications %}
@@ -89,7 +90,7 @@
                                 {% if n.message %}<span class="notif-toggle" style="cursor:pointer" data-id="{{ n.id }}">{{ n.title }}</span>{% elif n.link %}<a href="{{ n.link }}" style="color:inherit;text-decoration:none">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}
                             </div>
                             {% if n.message %}
-                            <div class="notif-message" id="msg-{{ n.id }}" style="display:none;margin-top:6px;padding:8px 12px;background:var(--color-bg);border-radius:8px;font-weight:400;font-size:.82rem;color:var(--color-text-secondary);{% if n.type != 'shift_handover' %}white-space:pre-wrap;{% endif %}line-height:1.5">{% if n.type == 'shift_handover' %}{{ n.message|safe }}{% else %}{{ n.message }}{% endif %}</div>
+                            <div class="notif-message" id="msg-{{ n.id }}" style="display:none;margin-top:6px;padding:8px 12px;background:var(--color-bg);border-radius:8px;font-weight:400;font-size:.82rem;color:var(--color-text-secondary);{% if n.type not in ('shift_handover', 'pai_review') %}white-space:pre-wrap;{% endif %}line-height:1.5">{% if n.type in ('shift_handover', 'pai_review') %}{{ n.message|safe }}{% else %}{{ n.message }}{% endif %}</div>
                             {% endif %}
                         </td>
                         <td style="white-space:nowrap;vertical-align:top;padding-top:12px">{{ n.created_at.strftime('%d/%m/%Y %H:%M') if n.created_at else '—' }}</td>
