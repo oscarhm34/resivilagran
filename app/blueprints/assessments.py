@@ -1507,8 +1507,8 @@ def risk_profile(resident_id: int):
     # Backward-compatible format
     risks = {k: v['level'] for k, v in predictions.items() if k != 'features'}
     risk_labels = {
-        'caidas': 'Caigudes', 'upp': 'UPP',
-        'cognitivo': 'Deteriorament cognitiu', 'nutricional': 'Nutricional',
+        'caidas': 'Caídas', 'upp': 'UPP',
+        'cognitivo': 'Deterioro cognitivo', 'nutricional': 'Nutricional',
     }
 
     return jsonify({
