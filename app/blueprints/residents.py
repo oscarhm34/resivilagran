@@ -841,15 +841,15 @@ def admin_mood_history(resident_id):
 # ── Wound Body Map ────────────────────────────────────────────────────────
 
 WOUND_TYPES = {
-    'ulcer': 'Úlcera', 'bruise': 'Hematoma', 'cut': 'Tall/ferida',
-    'burn': 'Cremada', 'rash': 'Erupció', 'other': 'Altra',
+    'ulcer': 'Úlcera', 'bruise': 'Hematoma', 'cut': 'Corte/herida',
+    'burn': 'Quemadura', 'rash': 'Erupción', 'other': 'Otra',
 }
 
 BODY_ZONES = {
-    'head': 'Cap', 'torso_front': 'Tronc (davant)', 'torso_back': 'Tronc (darrere)',
-    'left_arm': 'Braç esquerre', 'right_arm': 'Braç dret',
-    'left_leg': 'Cama esquerra', 'right_leg': 'Cama dreta',
-    'sacrum': 'Sacre', 'left_heel': 'Taló esquerre', 'right_heel': 'Taló dret',
+    'head': 'Cabeza', 'torso_front': 'Tronco (frente)', 'torso_back': 'Tronco (espalda)',
+    'left_arm': 'Brazo izquierdo', 'right_arm': 'Brazo derecho',
+    'left_leg': 'Pierna izquierda', 'right_leg': 'Pierna derecha',
+    'sacrum': 'Sacro', 'left_heel': 'Talón izquierdo', 'right_heel': 'Talón derecho',
 }
 
 

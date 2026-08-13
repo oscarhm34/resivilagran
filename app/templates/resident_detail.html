@@ -179,7 +179,7 @@
             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-documentos" type="button" role="tab" aria-selected="false">Documentos</button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-ferides" type="button" role="tab" aria-selected="false">Ferides <span class="badge bg-secondary" id="wound-count-badge" style="display:none">0</span></button>
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-ferides" type="button" role="tab" aria-selected="false">Heridas <span class="badge bg-secondary" id="wound-count-badge" style="display:none">0</span></button>
         </li>
     </ul>
 
@@ -682,7 +682,7 @@
             {% endif %}
         </div>
 
-        <!-- Tab Ferides (Body Map) -->
+        <!-- Tab Heridas (Body Map) -->
         <div class="tab-pane fade" id="tab-ferides" role="tabpanel">
             <div class="row g-3">
                 <!-- Body Map SVG -->
@@ -691,8 +691,8 @@
                         <div class="card-header d-flex align-items-center justify-content-between">
                             <strong>Mapa corporal</strong>
                             <div class="btn-group btn-group-sm">
-                                <button class="btn btn-outline-secondary active" id="body-front-btn" onclick="showBodySide('front')">Davant</button>
-                                <button class="btn btn-outline-secondary" id="body-back-btn" onclick="showBodySide('back')">Darrere</button>
+                                <button class="btn btn-outline-secondary active" id="body-front-btn" onclick="showBodySide('front')">Frente</button>
+                                <button class="btn btn-outline-secondary" id="body-back-btn" onclick="showBodySide('back')">Espalda</button>
                             </div>
                         </div>
                         <div class="card-body text-center" style="padding:10px">
@@ -709,11 +709,11 @@
                                 <rect x="76" y="205" width="22" height="70" rx="8" fill="#fde68a" stroke="#92400e" stroke-width="1.5"/>
                                 <rect x="102" y="205" width="22" height="70" rx="8" fill="#fde68a" stroke="#92400e" stroke-width="1.5"/>
                                 <!-- Zone labels -->
-                                <text x="100" y="33" text-anchor="middle" font-size="8" fill="#92400e">Cap</text>
-                                <text x="100" y="100" text-anchor="middle" font-size="8" fill="#92400e">Tronc</text>
-                                <text x="37" y="108" text-anchor="middle" font-size="7" fill="#92400e">B.E</text>
+                                <text x="100" y="33" text-anchor="middle" font-size="8" fill="#92400e">Cabeza</text>
+                                <text x="100" y="100" text-anchor="middle" font-size="8" fill="#92400e">Tronco</text>
+                                <text x="37" y="108" text-anchor="middle" font-size="7" fill="#92400e">B.I</text>
                                 <text x="163" y="108" text-anchor="middle" font-size="7" fill="#92400e">B.D</text>
-                                <text x="87" y="175" text-anchor="middle" font-size="7" fill="#92400e">C.E</text>
+                                <text x="87" y="175" text-anchor="middle" font-size="7" fill="#92400e">P.I</text>
                                 <text x="113" y="175" text-anchor="middle" font-size="7" fill="#92400e">C.D</text>
                                 <!-- Wound markers will be added dynamically -->
                                 <g id="wound-markers-front"></g>
@@ -732,12 +732,12 @@
                                 <rect x="102" y="205" width="22" height="70" rx="8" fill="#fde68a" stroke="#92400e" stroke-width="1.5"/>
                                 <!-- Sacrum marker area -->
                                 <ellipse cx="100" cy="130" rx="15" ry="10" fill="none" stroke="#92400e" stroke-width="0.5" stroke-dasharray="2"/>
-                                <text x="100" y="133" text-anchor="middle" font-size="7" fill="#92400e">Sacre</text>
-                                <text x="100" y="33" text-anchor="middle" font-size="8" fill="#92400e">Cap</text>
-                                <text x="100" y="100" text-anchor="middle" font-size="8" fill="#92400e">Esquena</text>
+                                <text x="100" y="133" text-anchor="middle" font-size="7" fill="#92400e">Sacro</text>
+                                <text x="100" y="33" text-anchor="middle" font-size="8" fill="#92400e">Cabeza</text>
+                                <text x="100" y="100" text-anchor="middle" font-size="8" fill="#92400e">Espalda</text>
                                 <g id="wound-markers-back"></g>
                             </svg>
-                            <div class="text-muted mt-2" style="font-size:.75rem">Fes clic al cos per registrar una ferida</div>
+                            <div class="text-muted mt-2" style="font-size:.75rem">Haz clic en el cuerpo para registrar una herida</div>
                         </div>
                     </div>
                 </div>
@@ -746,7 +746,7 @@
                 <div class="col-md-7">
                     <!-- New wound form (hidden until body click) -->
                     <div class="card mb-3" id="wound-form-card" style="display:none">
-                        <div class="card-header"><i class="bi bi-plus-circle me-1"></i>Nova ferida</div>
+                        <div class="card-header"><i class="bi bi-plus-circle me-1"></i>Nueva herida</div>
                         <div class="card-body">
                             <div class="row g-2">
                                 <div class="col-6">
@@ -754,33 +754,33 @@
                                     <select class="form-select form-select-sm" id="wound-zone"></select>
                                 </div>
                                 <div class="col-6">
-                                    <label class="form-label form-label-sm">Tipus</label>
+                                    <label class="form-label form-label-sm">Tipo</label>
                                     <select class="form-select form-select-sm" id="wound-type">
                                         <option value="ulcer">Úlcera</option>
                                         <option value="bruise">Hematoma</option>
-                                        <option value="cut">Tall/ferida</option>
-                                        <option value="burn">Cremada</option>
-                                        <option value="rash">Erupció</option>
-                                        <option value="other">Altra</option>
+                                        <option value="cut">Corte/herida</option>
+                                        <option value="burn">Quemadura</option>
+                                        <option value="rash">Erupción</option>
+                                        <option value="other">Otra</option>
                                     </select>
                                 </div>
                                 <div class="col-4">
-                                    <label class="form-label form-label-sm">Mida (cm)</label>
+                                    <label class="form-label form-label-sm">Tamaño (cm)</label>
                                     <input type="text" class="form-control form-control-sm" id="wound-size" placeholder="2x3">
                                 </div>
                                 <div class="col-4">
-                                    <label class="form-label form-label-sm">Severitat</label>
+                                    <label class="form-label form-label-sm">Severidad</label>
                                     <select class="form-select form-select-sm" id="wound-severity">
-                                        <option value="mild">Lleu</option>
+                                        <option value="mild">Leve</option>
                                         <option value="moderate" selected>Moderada</option>
-                                        <option value="severe">Greu</option>
+                                        <option value="severe">Grave</option>
                                     </select>
                                 </div>
                                 <div class="col-4 d-flex align-items-end">
                                     <button class="btn btn-primary btn-sm w-100" id="wound-save-btn" onclick="saveWound()">Guardar</button>
                                 </div>
                                 <div class="col-12">
-                                    <textarea class="form-control form-control-sm" id="wound-desc" rows="2" placeholder="Descripció..."></textarea>
+                                    <textarea class="form-control form-control-sm" id="wound-desc" rows="2" placeholder="Descripción..."></textarea>
                                 </div>
                             </div>
                             <input type="hidden" id="wound-body-x">
@@ -791,9 +791,9 @@
 
                     <!-- Wound list -->
                     <div class="card">
-                        <div class="card-header"><i class="bi bi-bandaid me-1"></i>Registre de ferides</div>
+                        <div class="card-header"><i class="bi bi-bandaid me-1"></i>Registro de heridas</div>
                         <div class="card-body p-0" id="wound-list">
-                            <div class="text-center text-muted py-3">Carregant...</div>
+                            <div class="text-center text-muted py-3">Cargando...</div>
                         </div>
                     </div>
                 </div>
@@ -1326,7 +1326,7 @@ document.getElementById('btn-review-pai').addEventListener('click', function() {
 var RESIDENT_ID = {{ resident.id }};
 var woundData = [];
 var SEV_COLORS = {mild: '#22c55e', moderate: '#f59e0b', severe: '#dc3545'};
-var STATUS_LABELS = {active: 'Activa', healing: 'Curant-se', healed: 'Curada', worsening: 'Empitjorant'};
+var STATUS_LABELS = {active: 'Activa', healing: 'Curando', healed: 'Curada', worsening: 'Empeorando'};
 var STATUS_COLORS = {active: '#dc3545', healing: '#f59e0b', healed: '#22c55e', worsening: '#7c3aed'};
 
 function showBodySide(side) {
@@ -1359,7 +1359,7 @@ function onBodyClick(evt, side) {
     var zone = detectZone(svgP.x, svgP.y, side);
     var sel = document.getElementById('wound-zone');
     sel.innerHTML = '';
-    var ZONES = {head:'Cap',torso_front:'Tronc (davant)',torso_back:'Tronc (darrere)',left_arm:'Braç esquerre',right_arm:'Braç dret',left_leg:'Cama esquerra',right_leg:'Cama dreta',sacrum:'Sacre',left_heel:'Taló esquerre',right_heel:'Taló dret'};
+    var ZONES = {head:'Cabeza',torso_front:'Tronco (frente)',torso_back:'Tronco (espalda)',left_arm:'Brazo izquierdo',right_arm:'Brazo derecho',left_leg:'Pierna izquierda',right_leg:'Pierna derecha',sacrum:'Sacro',left_heel:'Talon izquierdo',right_heel:'Talon derecho'};
     for (var k in ZONES) {
         var opt = document.createElement('option');
         opt.value = k; opt.textContent = ZONES[k];
@@ -1436,7 +1436,7 @@ function renderWoundMarkers() {
 
 function renderWoundList() {
     var el = document.getElementById('wound-list');
-    if (!woundData.length) { el.innerHTML = '<div class="text-center text-muted py-3">Cap ferida registrada</div>'; return; }
+    if (!woundData.length) { el.innerHTML = '<div class="text-center text-muted py-3">Sin heridas registradas</div>'; return; }
     var html = '<div class="list-group list-group-flush">';
     woundData.forEach(function(w) {
         var sc = STATUS_COLORS[w.status] || '#6c757d';
@@ -1450,9 +1450,9 @@ function renderWoundList() {
         html += '<span class="badge" style="background:' + sc + '">' + (STATUS_LABELS[w.status] || w.status) + '</span>';
         if (w.status !== 'healed') {
             html += '<div class="btn-group btn-group-sm ms-1">';
-            html += '<button class="btn btn-outline-success btn-sm" style="font-size:.7rem" onclick="updateWoundStatus(' + w.id + ',\'healing\')" title="Curant-se">↗</button>';
+            html += '<button class="btn btn-outline-success btn-sm" style="font-size:.7rem" onclick="updateWoundStatus(' + w.id + ',\'healing\')" title="Curando">↗</button>';
             html += '<button class="btn btn-outline-primary btn-sm" style="font-size:.7rem" onclick="updateWoundStatus(' + w.id + ',\'healed\')" title="Curada">✓</button>';
-            html += '<button class="btn btn-outline-danger btn-sm" style="font-size:.7rem" onclick="updateWoundStatus(' + w.id + ',\'worsening\')" title="Empitjorant">↘</button>';
+            html += '<button class="btn btn-outline-danger btn-sm" style="font-size:.7rem" onclick="updateWoundStatus(' + w.id + ',\'worsening\')" title="Empeorando">↘</button>';
             html += '</div>';
         }
         html += '</div>';
@@ -1462,7 +1462,7 @@ function renderWoundList() {
 }
 
 function updateWoundStatus(woundId, status) {
-    var desc = prompt('Observació (opcional):') || '';
+    var desc = prompt('Observación (opcional):') || '';
     fetch('/api/wound/' + woundId + '/update', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
