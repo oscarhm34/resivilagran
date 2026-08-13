@@ -56,7 +56,7 @@
                         </td>
                         <td class="text-end">
                             <button class="btn btn-outline-secondary btn-sm" style="font-size:.72rem"
-                                    onclick="editPresc({{ p.id }}, {{ p.drug_name|tojson }}, {{ p.dose|tojson }}, {{ (p.route or 'oral')|tojson }}, {{ (p.frequency or '')|tojson }}, {{ (p.schedule_times or '')|tojson }}, {{ (p.instructions or '')|tojson }}, {{ (p.prescribed_by or '')|tojson }}, '{{ p.start_date.isoformat() if p.start_date else '' }}', '{{ p.end_date.isoformat() if p.end_date else '' }}', {{ p.active|tojson }})">
+                                    onclick="editPresc({{ p.id }}, {{ p.drug_name|tojson }}, {{ p.dose|tojson }}, {{ (p.route or 'oral')|tojson }}, {{ (p.frequency or '')|tojson }}, {{ (p.schedule_times or '')|tojson }}, {{ (p.instructions or '')|tojson }}, {{ (p.prescribed_by or '')|tojson }}, '{{ p.start_date.isoformat() if p.start_date else '' }}', '{{ p.end_date.isoformat() if p.end_date else '' }}', {{ p.active|tojson }}, {{ (p.barcode or '')|tojson }})">
                                 <i class="bi bi-pencil"></i>
                             </button>
                             <form method="POST" action="{{ url_for('medication.delete_prescription', presc_id=p.id) }}"
@@ -119,9 +119,18 @@
                             <label class="form-label">Instruccions</label>
                             <textarea class="form-control" name="instructions" id="presc-instr" rows="2" placeholder="Ej: Tomar con comida"></textarea>
                         </div>
-                        <div class="col-6">
+                        <div class="col-3">
                             <label class="form-label">Prescrit per</label>
                             <input type="text" class="form-control" name="prescribed_by" id="presc-by" placeholder="Nom del metge">
+                        </div>
+                        <div class="col-3">
+                            <label class="form-label">Codi de barres</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" name="barcode" id="presc-barcode" placeholder="EAN/UPC">
+                                <button type="button" class="btn btn-outline-secondary" id="btn-scan-barcode" title="Escanejar amb càmera">
+                                    <i class="bi bi-upc-scan"></i>
+                                </button>
+                            </div>
                         </div>
                         <div class="col-3">
                             <label class="form-label">Data inici</label>
@@ -172,7 +181,7 @@ function resetPrescForm() {
     document.getElementById('presc-end').value = '';
     document.getElementById('presc-active').checked = true;
 }
-function editPresc(id, drug, dose, route, freq, times, instr, by, start, end, active) {
+function editPresc(id, drug, dose, route, freq, times, instr, by, start, end, active, barcode) {
     document.getElementById('presc-id').value = id;
     document.getElementById('prescModalTitle').textContent = 'Editar pauta';
     document.getElementById('presc-drug').value = drug;
@@ -185,6 +194,7 @@ function editPresc(id, drug, dose, route, freq, times, instr, by, start, end, ac
     document.getElementById('presc-start').value = start;
     document.getElementById('presc-end').value = end;
     document.getElementById('presc-active').checked = active;
+    document.getElementById('presc-barcode').value = barcode || '';
     document.getElementById('interaction-result').style.display = 'none';
     new bootstrap.Modal(document.getElementById('prescModal')).show();
 }
@@ -226,5 +236,69 @@ function checkInteractions() {
         resultDiv.style.display = '';
     });
 }
+
+// ── Barcode Scanner (BarcodeDetector API or manual input) ──
+(function() {
+    var scanBtn = document.getElementById('btn-scan-barcode');
+    if (!scanBtn) return;
+
+    scanBtn.addEventListener('click', async function() {
+        // Try BarcodeDetector API (Chrome 83+, Edge, Opera)
+        if ('BarcodeDetector' in window) {
+            try {
+                var stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                // Create video overlay
+                var overlay = document.createElement('div');
+                overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,.9);display:flex;flex-direction:column;align-items:center;justify-content:center';
+                var video = document.createElement('video');
+                video.style.cssText = 'width:90%;max-width:500px;border-radius:12px';
+                video.autoplay = true;
+                video.playsInline = true;
+                video.srcObject = stream;
+                var label = document.createElement('div');
+                label.style.cssText = 'color:#fff;font-size:14px;margin:16px 0;text-align:center';
+                label.textContent = 'Apunta al codi de barres del medicament...';
+                var cancelBtn = document.createElement('button');
+                cancelBtn.textContent = 'Cancel·lar';
+                cancelBtn.style.cssText = 'padding:10px 30px;border:none;border-radius:8px;background:#dc3545;color:#fff;font-size:14px;cursor:pointer;margin-top:8px';
+                overlay.appendChild(video);
+                overlay.appendChild(label);
+                overlay.appendChild(cancelBtn);
+                document.body.appendChild(overlay);
+
+                var detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39'] });
+                var scanning = true;
+
+                cancelBtn.addEventListener('click', function() {
+                    scanning = false;
+                    stream.getTracks().forEach(function(t) { t.stop(); });
+                    overlay.remove();
+                });
+
+                async function scanFrame() {
+                    if (!scanning) return;
+                    try {
+                        var barcodes = await detector.detect(video);
+                        if (barcodes.length > 0) {
+                            document.getElementById('presc-barcode').value = barcodes[0].rawValue;
+                            scanning = false;
+                            stream.getTracks().forEach(function(t) { t.stop(); });
+                            overlay.remove();
+                            return;
+                        }
+                    } catch(e) {}
+                    if (scanning) requestAnimationFrame(scanFrame);
+                }
+                video.onloadedmetadata = function() { scanFrame(); };
+            } catch(e) {
+                alert('No s\'ha pogut accedir a la càmera. Introdueix el codi manualment.');
+            }
+        } else {
+            // Fallback: prompt manual
+            var code = prompt('Introdueix el codi de barres del medicament:');
+            if (code) document.getElementById('presc-barcode').value = code.trim();
+        }
+    });
+})();
 </script>
 {% endblock %}

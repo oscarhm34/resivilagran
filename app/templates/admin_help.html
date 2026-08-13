@@ -856,6 +856,14 @@
                 <li>Permet imprimir, generar PDF o copiar al porta-retalls.</li>
             </ul>
 
+            <h6 class="mt-3">Verificacio per codi de barres</h6>
+            <ul>
+                <li>Cada prescripcio pot tenir un <strong>codi de barres</strong> (EAN/UPC) associat.</li>
+                <li>Al formulari de prescripcio, boto <strong><i class="bi bi-upc-scan"></i></strong> per <strong>escanejar amb la camera</strong> del dispositiu (Chrome 83+, Edge). Tambe es pot introduir manualment.</li>
+                <li>Endpoint <code>POST /api/medication/verify-barcode</code> permet verificar que el medicament escanejat coincideix amb la prescripcio correcta del resident.</li>
+                <li>Modes de verificacio: per prescripcio concreta, per resident (busca entre tots els actius), o global.</li>
+            </ul>
+
             <h6 class="mt-3">Checker interaccions medicamentoses IA <span class="badge bg-success">NOU</span></h6>
             <ul>
                 <li>Al crear/editar una prescripcio, boto <strong><i class="bi bi-exclamation-triangle"></i> Comprovar interaccions (IA)</strong>.</li>
@@ -1190,6 +1198,7 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>13/08</td><td><strong>Verificacio de medicaments per codi de barres:</strong> camp "Codi de barres" a les prescripcions amb boto d'escaneig per camera (BarcodeDetector API). Endpoint POST /api/medication/verify-barcode per verificar que el medicament escanejat coincideix amb la prescripcio del resident.</td></tr>
                     <tr><td>13/08</td><td><strong>Models predictius ML:</strong> el perfil de risc dels residents ara utilitza scoring ponderat multifactor (Norton, Barthel, Pfeiffer, caigudes, medicació, pes, ànim) amb puntuació 0-100 i factors explicats. Amb prou dades históriques, es poden entrenar models scikit-learn (Gradient Boosting) que es combinen amb les regles (60% regles + 40% ML). Nou endpoint POST /api/ml/train per entrenar.</td></tr>
                     <tr><td>13/08</td><td><strong>Assistent IA de torns:</strong> noves eines al chatbot per consultar torns ("qui treballa avui?", "qui esta de tarda dimarts?") i suggerir cobertures ("qui pot cobrir dema pel mati?", "la Maria esta de baixa"). L'IA analitza hores, descansos, dies consecutius i equitat per recomanar la millor substituta. Tambe disponible com a endpoint admin.</td></tr>
                     <tr><td>13/08</td><td><strong>Auto-revisio PAI:</strong> quan es detecta un event significatiu (caiguda, Barthel baixa >5 punts, Norton empitjora), la IA revisa automaticament el PAI actiu del resident i suggereix actualitzacions. Genera notificacio "Revisio PAI" a l'admin amb l'analisi detallada.</td></tr>

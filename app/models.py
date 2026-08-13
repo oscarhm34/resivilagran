@@ -635,6 +635,7 @@ class MedicationPrescription(db.Model):
     start_date = db.Column(db.Date, nullable=True)
     end_date = db.Column(db.Date, nullable=True)
     prescribed_by = db.Column(db.String(100), nullable=True)
+    barcode = db.Column(db.String(100), nullable=True)  # EAN/UPC barcode for verification
     created_at = db.Column(db.DateTime, default=datetime.now)
     created_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
 

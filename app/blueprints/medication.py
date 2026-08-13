@@ -154,6 +154,7 @@ def save_prescription():
     p.schedule_times = request.form.get('schedule_times', '').strip()
     p.instructions = request.form.get('instructions', '').strip() or None
     p.prescribed_by = request.form.get('prescribed_by', '').strip() or None
+    p.barcode = request.form.get('barcode', '').strip() or None
     p.active = bool(request.form.get('active'))
 
     start = request.form.get('start_date', '').strip()
@@ -284,6 +285,7 @@ def worker_resident_medications(resident_id: int):
             'route': ROUTE_LABELS.get(p.route, p.route),
             'frequency': p.frequency,
             'instructions': p.instructions or '',
+            'barcode': p.barcode or '',
             'times': times,
             'administered': [t for t in times if t in admin_times],
             'pending': [t for t in times if t not in admin_times],
@@ -332,6 +334,64 @@ def worker_administer():
 
     db.session.commit()
     return jsonify({'ok': True})
+
+
+# ── Barcode Verification ──────────────────────────────────────────────────────
+
+@bp.route('/api/medication/verify-barcode', methods=['POST'])
+@jwt_required()
+def verify_barcode():
+    """Verify a scanned barcode against a prescription."""
+    data = request.get_json(silent=True) or {}
+    scanned_code = (data.get('barcode') or '').strip()
+    prescription_id = data.get('prescription_id')
+    resident_id = data.get('resident_id')
+
+    if not scanned_code:
+        return jsonify({'error': 'Codi de barres buit'}), 400
+
+    # If prescription_id given, verify against that specific prescription
+    if prescription_id:
+        p = db.session.get(MedicationPrescription, prescription_id)
+        if not p:
+            return jsonify({'match': False, 'error': 'Prescripció no trobada'}), 404
+        if not p.barcode:
+            return jsonify({'match': False, 'message': 'Prescripció sense barcode registrat', 'drug_name': p.drug_name})
+        if p.barcode.strip() == scanned_code:
+            return jsonify({'match': True, 'drug_name': p.drug_name, 'dose': p.dose,
+                            'resident_name': p.resident.name if p.resident else ''})
+        else:
+            return jsonify({'match': False, 'expected': p.drug_name,
+                            'message': f'Barcode no coincideix amb {p.drug_name}'})
+
+    # If resident_id given, search all active prescriptions for this resident
+    if resident_id:
+        today = date.today()
+        prescriptions = MedicationPrescription.query.filter_by(
+            resident_id=resident_id, active=True,
+        ).all()
+        for p in prescriptions:
+            if p.end_date and p.end_date < today:
+                continue
+            if p.barcode and p.barcode.strip() == scanned_code:
+                return jsonify({
+                    'match': True, 'prescription_id': p.id,
+                    'drug_name': p.drug_name, 'dose': p.dose,
+                    'resident_name': p.resident.name if p.resident else '',
+                })
+        return jsonify({'match': False, 'message': 'Barcode no coincideix amb cap medicament actiu del resident'})
+
+    # Global search across all active prescriptions
+    match = MedicationPrescription.query.filter_by(barcode=scanned_code, active=True).first()
+    if match:
+        return jsonify({
+            'match': True, 'prescription_id': match.id,
+            'drug_name': match.drug_name, 'dose': match.dose,
+            'resident_id': match.resident_id,
+            'resident_name': match.resident.name if match.resident else '',
+        })
+
+    return jsonify({'match': False, 'message': 'Barcode no reconegut'})
 
 
 # ── AI Medication Interaction Checker ──────────────────────────────────────────
