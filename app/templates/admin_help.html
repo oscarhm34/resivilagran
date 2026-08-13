@@ -581,6 +581,7 @@
                 <li><strong>Alerta IA (info/aviso):</strong> la inteligencia artificial analiza automaticamente los datos de los residentes cada 6 horas y detecta tendencias preocupantes: perdida de independencia, aumento de caidas, deterioro nutricional, constantes vitales con tendencias sostenidas, o residentes con pocas atenciones.</li>
                 <li><strong>Falta de cobertura (info):</strong> turnos de manana no tienen suficientes trabajadores segun los requisitos configurados.</li>
                 <li><strong>Traspas de torn (info):</strong> al final de cada torn, es genera automaticament un informe IA de traspas i es notifica a les treballadores del torn entrant. Fes clic al titol per expandir l'informe complet.</li>
+                <li><strong>Revisio PAI (aviso):</strong> quan un event significatiu (caiguda, empitjorament Barthel/Norton) afecta un resident amb PAI actiu, la IA revisa automaticament el pla i genera suggeriments. Fes clic al titol per veure l'analisi completa.</li>
             </ul>
 
             <h6 class="mt-3">Como funciona</h6>
@@ -980,6 +981,20 @@
                 <li>La IA compara els objectius del PAI actiu amb les dades reals dels ultims 30 dies.</li>
                 <li>Per cada objectiu indica: <span style="color:green"><strong>ACONSEGUIT</strong></span>, <span style="color:orange"><strong>EN PROGRES</strong></span>, <span style="color:red"><strong>NO ACONSEGUIT</strong></span> o <strong>SENSE DADES</strong>.</li>
                 <li>Suggereix ajustos al pla si es necessari.</li>
+            </ul>
+
+            <h6 class="mt-3">Auto-revisio automatica</h6>
+            <ul>
+                <li>El sistema revisa automaticament el PAI actiu quan es detecta un <strong>event significatiu</strong>:</li>
+                <ul>
+                    <li><strong>Caiguda:</strong> qualsevol incident de caiguda (des de l'admin o la webapp)</li>
+                    <li><strong>Barthel empitjora:</strong> puntuacio baixa mes de 5 punts respecte l'anterior</li>
+                    <li><strong>Norton empitjora:</strong> puntuacio baixa mes de 1 punt (augment de risc UPP)</li>
+                </ul>
+                <li>La IA analitza l'event i el seu <strong>impacte en els objectius del PAI</strong>.</li>
+                <li>Es genera una notificacio <strong>"Revisio PAI"</strong> (<i class="bi bi-clipboard2-pulse"></i>) amb l'analisi detallada i els canvis suggerits.</li>
+                <li>La revisio es guarda al PAI actiu (camp "Ultima revisio IA").</li>
+                <li>Maxim <strong>1 revisio automatica cada 24 hores</strong> per evitar repeticions.</li>
             </ul>
         </div>
     </div>
