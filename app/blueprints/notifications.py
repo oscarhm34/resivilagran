@@ -322,7 +322,7 @@ def _generate_handover_notification() -> int:
             db.session.add(Notification(
                 type='shift_handover',
                 title=dedup_title,
-                message=html[:500],
+                message=html,
                 severity='info',
                 link='/admin/notifications',
             ))
@@ -338,7 +338,7 @@ def _generate_handover_notification() -> int:
                     db.session.add(Notification(
                         type='shift_handover',
                         title=f'Informe del torn anterior ({st.short_name})',
-                        message=html[:500],
+                        message=html,
                         severity='info',
                         worker_id=ns.cleaner_id,
                         link='/worker',
