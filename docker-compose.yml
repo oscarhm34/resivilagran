@@ -1,4 +1,21 @@
 services:
+  postgres:
+    image: postgres:15-alpine
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: cleaning_service
+      POSTGRES_USER: nfc_app
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-LaVilaGran2024!}
+      TZ: Europe/Madrid
+    restart: unless-stopped
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nfc_app -d cleaning_service"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   nfc:
     build: .
     ports:
@@ -9,5 +26,9 @@ services:
     env_file: .env
     environment:
       - TZ=Europe/Madrid
+      - DATABASE_URL=postgresql://nfc_app:${DB_PASSWORD:-LaVilaGran2024!}@postgres:5432/cleaning_service
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
     mem_limit: 512m
