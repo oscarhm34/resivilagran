@@ -103,9 +103,12 @@
                 <li><strong>Aviso de sesion abierta:</strong> Si una sesion lleva demasiado tiempo abierta (configurable, por defecto 2h), la card se pone <strong>roja con animacion pulsante</strong> y aparece un toast de aviso para recordar al trabajador que la cierre.</li>
             </ul>
 
-            <h6 class="mt-3">Voz</h6>
+            <h6 class="mt-3">Veu i IA a les notes</h6>
             <ul>
-                <li>El chatbot integrado soporta entrada por voz: pulsar el icono del microfono para dictar preguntas.</li>
+                <li><strong>Dictar notes per veu:</strong> tots els camps de notes (cura, neteja, anim, ingesta) tenen un boto de microfon 🎤. Prem per gravar, torna a premer per aturar. La nota es transcriu automaticament amb Whisper (OpenAI).</li>
+                <li><strong>Expandir amb IA:</strong> despres d'escriure o dictar una nota curta, apareix el boto <strong>"✨ Expandir amb IA"</strong> que transforma la nota en una observacio clinica professional (ex: "inquiet no vol sopar" &rarr; "El residente ha presentado inquietud, mostrando resistencia a la ingesta durante la cena").</li>
+                <li><strong>Frases rapides:</strong> sota cada camp de notes hi ha <strong>botons de frases freqüents</strong> (ex: "Sin incidencias", "Buen apetito", "Inquieto/a"). Un tap afegeix la frase al camp.</li>
+                <li>El chatbot integrado tambe soporta entrada por voz: pulsar el icono del microfono para dictar preguntas.</li>
                 <li>Funciona con Whisper (OpenAI) en cualquier navegador, o con Web Speech API como fallback en HTTPS.</li>
             </ul>
         </div>
@@ -576,6 +579,7 @@
                 <li><strong>Nota del trabajador (info):</strong> cuando un trabajador anade una observacion al finalizar una atencion o limpieza, se genera una notificacion con el texto de la nota.</li>
                 <li><strong>Alerta IA (info/aviso):</strong> la inteligencia artificial analiza automaticamente los datos de los residentes cada 6 horas y detecta tendencias preocupantes: perdida de independencia, aumento de caidas, deterioro nutricional, constantes vitales con tendencias sostenidas, o residentes con pocas atenciones.</li>
                 <li><strong>Falta de cobertura (info):</strong> turnos de manana no tienen suficientes trabajadores segun los requisitos configurados.</li>
+                <li><strong>Traspas de torn (info):</strong> al final de cada torn, es genera automaticament un informe IA de traspas i es notifica a les treballadores del torn entrant. Fes clic al titol per expandir l'informe complet.</li>
             </ul>
 
             <h6 class="mt-3">Como funciona</h6>
@@ -586,6 +590,15 @@
                 <li>Clic en la campana para ver la lista completa con filtros por tipo, severidad y estado.</li>
                 <li>Se pueden marcar como leidas individualmente o todas a la vez.</li>
                 <li>Las notificaciones no se duplican: si ya existe una alerta similar en las ultimas 24h, no se crea otra.</li>
+            </ul>
+
+            <h6 class="mt-3">Notificacions push (mobil)</h6>
+            <ul>
+                <li>Les treballadores reben <strong>notificacions push al mobil</strong> encara que tinguin l'app tancada.</li>
+                <li>La subscripcio es <strong>automatica</strong> al iniciar sessio a la webapp. El navegador demana permis la primera vegada.</li>
+                <li>Tipus d'alertes push: sessions estancades, alertes vitals, traspassos de torn, notes urgents.</li>
+                <li>Requereix <strong>HTTPS</strong> i un navegador compatible (Chrome, Edge, Firefox). Safari iOS te suport limitat.</li>
+                <li>Si una treballadora canvia de dispositiu, la subscripcio anterior es neteja automaticament.</li>
             </ul>
         </div>
     </div>
