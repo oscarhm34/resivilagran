@@ -4,13 +4,14 @@ from __future__ import annotations
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 
-from .. import app
+from .. import app, limiter
 from ..utils import admin_required
 
 bp = Blueprint('chat', __name__)
 
 
 @bp.route('/api/chat', methods=['POST'])
+@limiter.limit("10/minute")
 @jwt_required()
 def api_chat():
     from ..chatbot import chat
@@ -42,6 +43,7 @@ def admin_transcribe():
 
 
 @bp.route('/admin/chat', methods=['POST'])
+@limiter.limit("10/minute")
 @admin_required
 def admin_chat():
     from ..chatbot import chat

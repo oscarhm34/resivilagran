@@ -6,6 +6,7 @@ from flask_jwt_extended import JWTManager
 from flask_login import LoginManager
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_wtf.csrf import CSRFProtect
 from .config import Config
 
 app = Flask(__name__)
@@ -14,8 +15,27 @@ app.config['JWT_SECRET_KEY'] = Config.JWT_SECRET_KEY
 
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+
+# Enforce foreign keys in SQLite
+from sqlalchemy import event as sa_event
+from sqlalchemy.engine import Engine
+
+
+@sa_event.listens_for(Engine, "connect")
+def _set_sqlite_pragma(dbapi_conn, connection_record):
+    import sqlite3
+    if isinstance(dbapi_conn, sqlite3.Connection):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=5000")
+        cursor.close()
 jwt = JWTManager(app)
+csrf = CSRFProtect(app)
 limiter = Limiter(get_remote_address, app=app, default_limits=[], storage_uri="memory://")
+
+
+app.config['WTF_CSRF_TIME_LIMIT'] = 7200  # 2 hour token validity
 
 login_manager = LoginManager(app)
 login_manager.login_view = 'admin_bp.admin_login'
@@ -59,6 +79,11 @@ app.register_blueprint(notifications_bp)
 app.register_blueprint(assessments_bp)
 app.register_blueprint(medication_bp)
 app.register_blueprint(activities_bp)
+
+# Exempt API/JWT routes from CSRF (they use Bearer token auth instead)
+csrf.exempt(nfc_bp)       # All /api/nfc/*, /login, /worker endpoints use JWT
+csrf.exempt(chat_bp)      # /api/chat, /api/transcribe use JWT
+csrf.exempt(notifications_bp)  # /api/push/*, /api/worker/notifications use JWT
 
 
 @app.errorhandler(404)

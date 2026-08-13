@@ -1197,17 +1197,21 @@ def cancel_session():
 @bp.route('/uploads/<path:filename>')
 @login_required
 def serve_upload(filename: str):
-    if '..' in filename:
-        abort(400)
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    upload_dir = os.path.normpath(app.config['UPLOAD_FOLDER'])
+    safe_path = os.path.normpath(os.path.join(upload_dir, filename))
+    if not safe_path.startswith(upload_dir):
+        abort(403)
+    return send_from_directory(upload_dir, filename)
 
 
 @bp.route('/api/uploads/<path:filename>')
 @jwt_required()
 def api_serve_upload(filename: str):
-    if '..' in filename:
-        abort(400)
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    upload_dir = os.path.normpath(app.config['UPLOAD_FOLDER'])
+    safe_path = os.path.normpath(os.path.join(upload_dir, filename))
+    if not safe_path.startswith(upload_dir):
+        abort(403)
+    return send_from_directory(upload_dir, filename)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1440,6 +1444,7 @@ def api_record_meal():
 
 # ── AI Expand Note ─────────────────────────────────────────────────────────
 @bp.route('/api/nfc/expand-note', methods=['POST'])
+@limiter.limit("10/minute")
 @jwt_required()
 def expand_note():
     """Expand a terse worker note into professional clinical language."""
@@ -1511,6 +1516,7 @@ def get_quick_phrases():
 
 # ── Ambient Voice Scribe ───────────────────────────────────────────────────
 @bp.route('/api/nfc/scribe', methods=['POST'])
+@limiter.limit("5/minute")
 @jwt_required()
 def voice_scribe():
     """Transcribe audio recording from a care session and generate clinical notes."""

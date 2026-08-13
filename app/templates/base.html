@@ -4,6 +4,7 @@
     <script>if(localStorage.getItem('theme')==='dark')document.documentElement.setAttribute('data-theme','dark')</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}Gestión Residencial{% endblock %} - La Vila Gran</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -598,6 +599,39 @@
     })();
     </script>
 
+    <script>
+    // CSRF: auto-inject token into all forms and AJAX requests
+    (function() {
+        var meta = document.querySelector('meta[name="csrf-token"]');
+        if (!meta) return;
+        var token = meta.getAttribute('content');
+
+        // Inject hidden input into all POST forms
+        document.querySelectorAll('form[method="POST"],form[method="post"]').forEach(function(form) {
+            if (!form.querySelector('input[name="csrf_token"]')) {
+                var input = document.createElement('input');
+                input.type = 'hidden'; input.name = 'csrf_token'; input.value = token;
+                form.prepend(input);
+            }
+        });
+
+        // Override fetch to add X-CSRFToken header (skip JWT requests)
+        var origFetch = window.fetch;
+        window.fetch = function(url, opts) {
+            opts = opts || {};
+            if (opts.method && opts.method.toUpperCase() !== 'GET') {
+                opts.headers = opts.headers || {};
+                if (opts.headers instanceof Headers) {
+                    if (!opts.headers.has('X-CSRFToken') && !opts.headers.has('Authorization'))
+                        opts.headers.set('X-CSRFToken', token);
+                } else if (typeof opts.headers === 'object' && !opts.headers['X-CSRFToken'] && !opts.headers['Authorization']) {
+                    opts.headers['X-CSRFToken'] = token;
+                }
+            }
+            return origFetch.call(this, url, opts);
+        };
+    })();
+    </script>
     {% block scripts %}{% endblock %}
 
     {% if current_user.is_authenticated %}

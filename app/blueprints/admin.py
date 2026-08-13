@@ -39,7 +39,9 @@ def admin_login():
         if user and user.check_password(password) and user.is_admin:
             login_user(user)
             next_page = request.args.get('next', '')
-            if not next_page or not next_page.startswith('/') or next_page.startswith('//'):
+            # Validate: must be relative path, no protocol, no double-slash
+            if (not next_page or not next_page.startswith('/')
+                    or next_page.startswith('//') or ':' in next_page):
                 next_page = url_for('admin_bp.index')
             return redirect(next_page)
 
@@ -73,9 +75,9 @@ def index():
     ).all()
     stale_count = len(stale_cleanings) + len(stale_cares)
     for s in stale_cleanings:
-        s.end_time = s.start_time + timedelta(hours=1)
+        s.end_time = stale_cutoff  # Close at the 24h cutoff, not +1h from start
     for s in stale_cares:
-        s.end_time = s.start_time + timedelta(hours=1)
+        s.end_time = stale_cutoff
     if stale_count:
         db.session.commit()
 
