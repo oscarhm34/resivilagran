@@ -946,7 +946,7 @@ def finalize_group_care():
                 title=f"{worker_name} ha anotado en atención con {resident_name}",
                 message=note_text, severity='info',
                 worker_id=worker_id, resident_id=resident_id,
-                link='/admin/care-records',
+                link='/registros-atencion',
             ))
 
     ok, err = _safe_commit()
@@ -1057,7 +1057,7 @@ def finalize_care():
             message=worker_notes, severity=note_severity,
             worker_id=worker_id,
             resident_id=record.resident_id,
-            link='/admin/care-records',
+            link='/registros-atencion',
         ))
 
     ok, err = _safe_commit()

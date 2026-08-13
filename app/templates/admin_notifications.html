@@ -86,7 +86,7 @@
                         </td>
                         <td colspan="2">
                             <div>
-                                {% if n.link %}<a href="{{ n.link }}" style="color:inherit;text-decoration:none">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}
+                                {% if n.link and not n.message %}<a href="{{ n.link }}" style="color:inherit;text-decoration:none">{{ n.title }}</a>{% elif n.link and n.message %}<span style="cursor:pointer">{{ n.title }} <a href="{{ n.link }}" style="font-size:.75rem;color:var(--bs-primary)">[obrir]</a></span>{% else %}{{ n.title }}{% endif %}
                             </div>
                             {% if n.message %}
                             <div class="notif-message" id="msg-{{ n.id }}" style="display:none;margin-top:6px;padding:8px 12px;background:var(--color-bg);border-radius:8px;font-weight:400;font-size:.82rem;color:var(--color-text-secondary);{% if n.type != 'shift_handover' %}white-space:pre-wrap;{% endif %}line-height:1.5">{% if n.type == 'shift_handover' %}{{ n.message|safe }}{% else %}{{ n.message }}{% endif %}</div>
