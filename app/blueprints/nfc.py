@@ -1507,3 +1507,62 @@ def get_quick_phrases():
     else:
         phrases = _DEFAULT_QUICK_PHRASES
     return jsonify(phrases)
+
+
+# ── Ambient Voice Scribe ───────────────────────────────────────────────────
+@bp.route('/api/nfc/scribe', methods=['POST'])
+@jwt_required()
+def voice_scribe():
+    """Transcribe audio recording from a care session and generate clinical notes."""
+    audio_file = request.files.get('audio')
+    if not audio_file:
+        return jsonify({'error': 'No se recibió audio'}), 400
+
+    resident_name = request.form.get('resident_name', '')
+    care_duration = request.form.get('duration_minutes', '')
+
+    # Step 1: Transcribe with Whisper
+    openai_key = app.config.get('OPENAI_API_KEY')
+    if not openai_key:
+        return jsonify({'error': 'Transcripción no configurada'}), 503
+
+    import requests as req
+    try:
+        resp = req.post(
+            'https://api.openai.com/v1/audio/transcriptions',
+            headers={'Authorization': f'Bearer {openai_key}'},
+            files={'file': (audio_file.filename or 'audio.webm', audio_file.stream,
+                            audio_file.content_type or 'audio/webm')},
+            data={'model': 'whisper-1', 'language': 'es'},
+            timeout=60,
+        )
+        if resp.status_code != 200:
+            return jsonify({'error': 'Error en la transcripción'}), 500
+        transcript = resp.json().get('text', '').strip()
+    except Exception:
+        return jsonify({'error': 'Error en la transcripción'}), 500
+
+    if not transcript or len(transcript) < 5:
+        return jsonify({'transcript': transcript, 'notes': '', 'empty': True})
+
+    # Step 2: Generate clinical notes from transcript
+    from .assessments import _call_claude
+    system = (
+        'Eres un asistente de documentación clínica en la residencia de ancianos La Vila Gran. '
+        'Se te proporciona la transcripción de una conversación grabada durante una atención a un residente. '
+        'Tu tarea es extraer y redactar las observaciones clínicas relevantes en formato profesional. '
+        'Reglas: '
+        '- Ignora conversaciones triviales, saludos, o comentarios no relevantes. '
+        '- Extrae solo información clínicamente relevante: estado del residente, quejas, observaciones, acciones realizadas. '
+        '- Si no hay información clínica relevante, responde con "Sin observaciones clínicas relevantes." '
+        '- Escribe en español, máximo 3-4 frases concisas. '
+        '- No inventes información que no esté en la transcripción. '
+        '- No incluyas encabezados ni explicaciones, solo el texto de las notas.'
+    )
+    context = f'Residente: {resident_name}\n' if resident_name else ''
+    if care_duration:
+        context += f'Duración de la atención: {care_duration} minutos\n'
+    context += f'Transcripción:\n"{transcript}"'
+
+    notes = _call_claude(system, context)
+    return jsonify({'transcript': transcript, 'notes': notes})

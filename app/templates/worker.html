@@ -698,6 +698,22 @@
             <div style="font-size:13px;font-weight:600;color:var(--danger,#dc3545);text-align:center;margin-bottom:10px">Introduce las constantes vitales (obligatorio):</div>
             <div id="ct-vital-fields" style="display:flex;flex-direction:column;gap:10px"></div>
         </div>
+        <!-- Ambient Voice Scribe -->
+        <div id="scribe-section" style="padding:8px 0">
+            <button type="button" class="scribe-toggle" id="scribe-toggle">
+                <span class="scribe-dot"></span>
+                <span id="scribe-label">🎙 Escrivà de veu</span>
+                <span class="scribe-status" id="scribe-status"></span>
+            </button>
+            <div id="scribe-result" style="display:none;padding:10px;border:1.5px solid #8b5cf6;border-radius:10px;background:#f5f3ff;margin-top:6px">
+                <div style="font-size:11px;font-weight:600;color:#7c3aed;margin-bottom:4px">Notes generades per IA:</div>
+                <div id="scribe-notes-text" style="font-size:13px;line-height:1.5;color:var(--text)"></div>
+                <div style="display:flex;gap:6px;margin-top:8px">
+                    <button type="button" id="scribe-accept" style="flex:1;padding:8px;border-radius:8px;border:none;background:#7c3aed;color:#fff;font-size:12px;font-weight:600;cursor:pointer">Acceptar</button>
+                    <button type="button" id="scribe-discard" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);font-size:12px;cursor:pointer">Descartar</button>
+                </div>
+            </div>
+        </div>
         <div style="padding:8px 0">
             <label for="care-notes" style="font-size:12px;font-weight:600;color:var(--text-2);display:block;margin-bottom:4px">Observaciones (opcional)</label>
             <div class="textarea-mic-wrap">
@@ -993,6 +1009,11 @@
     .ai-expand-btn{display:none;font-size:11px;padding:4px 10px;border-radius:16px;border:1.5px solid #8b5cf6;background:#f5f3ff;color:#7c3aed;cursor:pointer;font-weight:600;font-family:inherit;margin-top:4px;transition:all .15s}
     .ai-expand-btn:active{background:#7c3aed;color:#fff}
     .ai-expand-btn.loading{opacity:.5;pointer-events:none}
+    .scribe-toggle{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;border:1.5px solid #8b5cf6;background:#f5f3ff;cursor:pointer;font-size:13px;font-weight:600;color:#7c3aed;margin:8px 0;transition:all .15s;font-family:inherit;width:100%}
+    .scribe-toggle.active{background:#7c3aed;color:#fff;border-color:#7c3aed;animation:pulse-mic 2s infinite}
+    .scribe-toggle .scribe-dot{width:10px;height:10px;border-radius:50%;background:#dc3545;display:none}
+    .scribe-toggle.active .scribe-dot{display:inline-block;animation:pulse-mic 1s infinite}
+    .scribe-status{font-size:11px;color:var(--text-2);margin-left:auto}
     .quick-phrases{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
     .quick-phrases button{font-size:11px;padding:4px 10px;border-radius:16px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-family:inherit;transition:all .12s}
     .quick-phrases button:active{background:var(--blue);color:#fff;border-color:var(--blue)}
@@ -3857,6 +3878,149 @@ $('route-back').addEventListener('click', function() { show('screen-home'); });
             btn.textContent = '✨ Expandir amb IA';
         });
     });
+})();
+
+// ── Ambient Voice Scribe ──
+(function() {
+    var scribeRecorder = null;
+    var scribeStream = null;
+    var scribeChunks = [];
+    var scribeActive = false;
+    var scribeStartTime = null;
+    var scribeTimerInt = null;
+    var toggleBtn = $('scribe-toggle');
+    var statusEl = $('scribe-status');
+    var labelEl = $('scribe-label');
+    var resultEl = $('scribe-result');
+    var notesTextEl = $('scribe-notes-text');
+
+    if (!toggleBtn) return;
+
+    toggleBtn.addEventListener('click', function() {
+        if (scribeActive) {
+            stopScribe();
+        } else {
+            startScribe();
+        }
+    });
+
+    async function startScribe() {
+        if (!navigator.mediaDevices) {
+            toast('Microfon no disponible (requereix HTTPS)');
+            return;
+        }
+        try {
+            scribeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            scribeChunks = [];
+            scribeRecorder = new MediaRecorder(scribeStream, {
+                mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
+            });
+            scribeRecorder.ondataavailable = function(e) {
+                if (e.data.size > 0) scribeChunks.push(e.data);
+            };
+            // Collect data every 10 seconds for reliability
+            scribeRecorder.start(10000);
+            scribeActive = true;
+            scribeStartTime = Date.now();
+            toggleBtn.classList.add('active');
+            labelEl.textContent = '🔴 Gravant...';
+            statusEl.textContent = '0:00';
+            resultEl.style.display = 'none';
+            scribeTimerInt = setInterval(function() {
+                var secs = Math.floor((Date.now() - scribeStartTime) / 1000);
+                var m = Math.floor(secs / 60);
+                var s = secs % 60;
+                statusEl.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+            }, 1000);
+        } catch(e) {
+            toast('No s\'ha pogut accedir al microfon');
+        }
+    }
+
+    function stopScribe() {
+        if (!scribeRecorder || scribeRecorder.state === 'inactive') return;
+        scribeRecorder.stop();
+        scribeActive = false;
+        clearInterval(scribeTimerInt);
+        toggleBtn.classList.remove('active');
+        labelEl.textContent = '⏳ Transcrivint i generant notes...';
+        statusEl.textContent = '';
+
+        scribeRecorder.onstop = async function() {
+            if (scribeStream) scribeStream.getTracks().forEach(function(t) { t.stop(); });
+
+            if (!scribeChunks.length) {
+                labelEl.textContent = '🎙 Escrivà de veu';
+                return;
+            }
+
+            var blob = new Blob(scribeChunks, { type: scribeRecorder.mimeType });
+            var durationMin = Math.round((Date.now() - scribeStartTime) / 60000);
+
+            // Send to scribe endpoint
+            var fd = new FormData();
+            fd.append('audio', blob, 'scribe.webm');
+            fd.append('resident_name', S.pendingRName || '');
+            fd.append('duration_minutes', String(durationMin));
+
+            try {
+                var resp = await fetch('/api/nfc/scribe', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + S.token },
+                    body: fd,
+                });
+                var data = await resp.json();
+                if (data.notes && !data.empty) {
+                    notesTextEl.textContent = data.notes;
+                    resultEl.style.display = 'block';
+                    labelEl.textContent = '🎙 Escrivà de veu';
+                } else if (data.empty) {
+                    labelEl.textContent = '🎙 Escrivà de veu';
+                    toast('Gravació massa curta o sense contingut');
+                } else {
+                    labelEl.textContent = '🎙 Escrivà de veu';
+                    toast(data.error || 'Error al processar audio');
+                }
+            } catch(e) {
+                labelEl.textContent = '🎙 Escrivà de veu';
+                toast('Error de connexió');
+            }
+        };
+    }
+
+    // Accept scribe notes → paste into care-notes
+    $('scribe-accept').addEventListener('click', function() {
+        var textarea = $('care-notes');
+        var notes = notesTextEl.textContent;
+        if (textarea && notes) {
+            textarea.value = textarea.value ? textarea.value + '\n' + notes : notes;
+            textarea.dispatchEvent(new Event('input'));
+        }
+        resultEl.style.display = 'none';
+        toast('Notes afegides');
+    });
+
+    // Discard scribe notes
+    $('scribe-discard').addEventListener('click', function() {
+        resultEl.style.display = 'none';
+    });
+
+    // Auto-stop scribe when navigating away from care-type screen
+    var origShow = window.show;
+    if (origShow) {
+        window.show = function(screenId) {
+            if (scribeActive && screenId !== 'screen-ct') {
+                stopScribe();
+            }
+            // Reset scribe UI when entering care-type screen
+            if (screenId === 'screen-ct') {
+                labelEl.textContent = '🎙 Escrivà de veu';
+                statusEl.textContent = '';
+                resultEl.style.display = 'none';
+            }
+            return origShow(screenId);
+        };
+    }
 })();
 
 // ── Quick Phrases ──
