@@ -303,6 +303,16 @@
                 <li>"Resumen del dia"</li>
             </ul>
 
+            <h6 class="mt-3">Consultes de torns i cobertures</h6>
+            <ul>
+                <li>"Qui treballa avui?" / "Qui esta de tarda?"</li>
+                <li>"Qui treballa dilluns que ve?"</li>
+                <li>"La Maria esta de baixa, qui la pot substituir?"</li>
+                <li>"Qui pot cobrir dema pel mati?"</li>
+                <li>"Falta 1 persona per la nit del divendres"</li>
+            </ul>
+            <p>L'IA analitza hores treballades, dies consecutius, descansos legals i equitat per recomanar la millor candidata.</p>
+
             <h6 class="mt-3">Documentos del residente</h6>
             <ul>
                 <li>Desde el <strong>panel admin</strong>, el chatbot puede leer el contenido de los documentos (PIAs, informes) y responder preguntas sobre ellos.</li>
@@ -1173,6 +1183,7 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>13/08</td><td><strong>Assistent IA de torns:</strong> noves eines al chatbot per consultar torns ("qui treballa avui?", "qui esta de tarda dimarts?") i suggerir cobertures ("qui pot cobrir dema pel mati?", "la Maria esta de baixa"). L'IA analitza hores, descansos, dies consecutius i equitat per recomanar la millor substituta. Tambe disponible com a endpoint admin.</td></tr>
                     <tr><td>13/08</td><td><strong>Auto-revisio PAI:</strong> quan es detecta un event significatiu (caiguda, Barthel baixa >5 punts, Norton empitjora), la IA revisa automaticament el PAI actiu del resident i suggereix actualitzacions. Genera notificacio "Revisio PAI" a l'admin amb l'analisi detallada.</td></tr>
                     <tr><td>13/08</td><td><strong>Escrivà de veu ambient:</strong> a la pantalla de finalitzacio d'atencio, boto "🎙 Escrivà de veu" que grava audio durant tota la sessio. Al aturar, la IA transcriu i genera notes cliniques automatiques. L'usuari pot acceptar o descartar les notes.</td></tr>
                     <tr><td>13/08</td><td><strong>Notificacions push reals:</strong> les treballadores reben notificacions push al mobil (fins i tot amb l'app tancada) per alertes vitals, sessions estancades, traspassos de torn i notes urgents. Subscripcio automatica al iniciar sessio a la webapp. Requereix HTTPS.</td></tr>

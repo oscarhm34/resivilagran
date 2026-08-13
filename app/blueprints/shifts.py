@@ -926,3 +926,40 @@ trabajadores sobrecargados o infrautilizados, y mejoras de distribucion."""
         return jsonify({'error': str(e)}), 500
 
     return jsonify({'suggestions': text})
+
+
+@bp.route('/api/shifts/ai-suggest-replacement', methods=['POST'])
+@admin_required
+def ai_suggest_replacement():
+    """AI suggests best replacement worker for a vacant shift."""
+    from .. import app
+    from ..chatbot import _sugerir_cobertura
+    import json as _json
+
+    data = request.get_json() or {}
+    fecha = data.get('date', '')
+    turno = data.get('shift_short_name', '')
+    motivo = data.get('reason', '')
+
+    if not fecha:
+        return jsonify({'error': 'Fecha requerida'}), 400
+
+    result = _json.loads(_sugerir_cobertura(fecha, turno, motivo))
+
+    # If we have candidates and AI key, get AI reasoning
+    api_key = app.config.get('ANTHROPIC_API_KEY')
+    if api_key and result.get('candidatos'):
+        try:
+            from anthropic import Anthropic
+            client = Anthropic(api_key=api_key)
+            resp = client.messages.create(
+                model='claude-haiku-4-5-20251001', max_tokens=400,
+                system='Eres un asistente de planificacion de turnos. Analiza los candidatos y recomienda el mejor, explicando brevemente por que. Responde en español, formato breve.',
+                messages=[{'role': 'user', 'content': f'Necesito cobertura para {fecha} turno {turno}. Motivo: {motivo}.\n\nCandidatos:\n{_json.dumps(result["candidatos"], ensure_ascii=False)}'}],
+            )
+            reasoning = ''.join(b.text for b in resp.content if hasattr(b, 'text'))
+            result['ai_reasoning'] = reasoning
+        except Exception:
+            pass
+
+    return jsonify(result)

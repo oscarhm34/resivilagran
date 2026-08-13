@@ -26,7 +26,10 @@ Capacidades importantes:
 - Puedes consultar constantes vitales (tensión arterial, glucemia, temperatura, etc.) de un residente con constantes_vitales_residente.
 - Para preguntas como "cuál es la tensión de María" o "glucemia de Juan", usa constantes_vitales_residente.
 - Para preguntas como "cómo está María" o "estado de Juan", usa info_residente — incluye perfil médico, valoraciones Barthel/Norton, notas recientes del personal e incidencias. Resume el estado del residente de forma clara.
-- Si preguntan sobre valoraciones, dependencia o riesgo de úlceras, la info ya viene en info_residente (campo valoraciones)."""
+- Si preguntan sobre valoraciones, dependencia o riesgo de úlceras, la info ya viene en info_residente (campo valoraciones).
+- Puedes consultar turnos de cualquier día con consultar_turnos. Para "quién trabaja hoy", "quién está de tarde", etc.
+- Si alguien falta o necesitan cobertura, usa sugerir_cobertura para encontrar al mejor candidato. Analiza horas, descansos y equidad.
+- Para preguntas como "quién puede cubrir mañana por la mañana" o "María está de baja, quién la sustituye", usa sugerir_cobertura."""
 
 TOOLS = [
     {
@@ -151,6 +154,29 @@ TOOLS = [
                 "tipo": {"type": "string", "description": "Filtrar por nombre del campo vital (ej: Sistólica, Glucosa). Vacío para todos."}
             },
             "required": ["residente_id"]
+        }
+    },
+    {
+        "name": "consultar_turnos",
+        "description": "Consulta los turnos asignados en una fecha. Muestra qué trabajadores trabajan, en qué turno, y quién está ausente. Si no se indica fecha se usa hoy.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "fecha": {"type": "string", "description": "Fecha en formato YYYY-MM-DD. Si no se indica, se usa hoy."}
+            },
+        }
+    },
+    {
+        "name": "sugerir_cobertura",
+        "description": "Sugiere el mejor trabajador para cubrir un turno vacante o sustituir a un ausente. Analiza horas trabajadas, descansos, competencias y equidad.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "fecha": {"type": "string", "description": "Fecha del turno a cubrir (YYYY-MM-DD)"},
+                "turno": {"type": "string", "description": "Nombre corto del turno (ej: M, T, N1). Si no se sabe, dejarlo vacío."},
+                "motivo": {"type": "string", "description": "Motivo de la búsqueda (ej: 'María está de baja', 'falta 1 persona por la tarde')"}
+            },
+            "required": ["fecha"]
         }
     },
 ]
@@ -542,6 +568,148 @@ def _constantes_vitales_residente(residente_id: int, dias: int = 7, tipo: str = 
     }, ensure_ascii=False)
 
 
+def _consultar_turnos(fecha_str: str = '') -> str:
+    from .models import ShiftType, ShiftAssignment, Absence
+    from datetime import date as _date
+    try:
+        target = _date.fromisoformat(fecha_str) if fecha_str else _date.today()
+    except ValueError:
+        target = _date.today()
+
+    shift_types = {st.id: st for st in ShiftType.query.filter_by(active=True).all()}
+    assignments = ShiftAssignment.query.filter_by(date=target).all()
+    absences = Absence.query.filter(
+        Absence.start_date <= target, Absence.end_date >= target
+    ).all()
+    absent_ids = {a.cleaner_id for a in absences}
+    absent_names = []
+    for a in absences:
+        w = db.session.get(Cleaner, a.cleaner_id)
+        reason = a.absence_type.name if a.absence_type else '?'
+        absent_names.append(f"{w.name if w else '?'} ({reason})")
+
+    turnos = {}
+    for a in assignments:
+        st = shift_types.get(a.shift_type_id)
+        if not st:
+            continue
+        key = f"{st.short_name} ({st.name})"
+        w = db.session.get(Cleaner, a.cleaner_id)
+        w_name = w.name if w else '?'
+        is_absent = a.cleaner_id in absent_ids
+        turnos.setdefault(key, []).append(f"{w_name}{'  ⚠️ABSENT' if is_absent else ''}")
+
+    return json.dumps({
+        "fecha": target.isoformat(),
+        "dia_semana": ['Dilluns','Dimarts','Dimecres','Dijous','Divendres','Dissabte','Diumenge'][target.weekday()],
+        "turnos": turnos,
+        "ausentes": absent_names,
+        "total_asignados": len(assignments),
+    }, ensure_ascii=False)
+
+
+def _sugerir_cobertura(fecha_str: str, turno: str = '', motivo: str = '') -> str:
+    from .models import ShiftType, ShiftAssignment, Absence
+    from datetime import date as _date
+    try:
+        target = _date.fromisoformat(fecha_str)
+    except ValueError:
+        target = _date.today()
+
+    shift_types = {st.short_name.lower(): st for st in ShiftType.query.filter_by(active=True).all()}
+    shift_types_by_id = {st.id: st for st in ShiftType.query.filter_by(active=True).all()}
+
+    # Find target shift type
+    target_st = None
+    if turno:
+        target_st = shift_types.get(turno.lower())
+
+    # All active workers
+    workers = Cleaner.query.filter_by(active=True).filter(Cleaner.role != 'gestion').all()
+
+    # Who is already assigned on that date
+    assigned_ids = {a.cleaner_id for a in ShiftAssignment.query.filter_by(date=target).all()}
+
+    # Who is absent
+    absences = Absence.query.filter(
+        Absence.start_date <= target, Absence.end_date >= target
+    ).all()
+    absent_ids = {a.cleaner_id for a in absences}
+
+    # Calculate hours worked this week
+    week_start = target - timedelta(days=target.weekday())
+    week_end = week_start + timedelta(days=6)
+    week_assignments = ShiftAssignment.query.filter(
+        ShiftAssignment.date >= week_start,
+        ShiftAssignment.date <= week_end,
+    ).all()
+    hours_this_week = {}
+    for a in week_assignments:
+        st = shift_types_by_id.get(a.shift_type_id)
+        if st:
+            h = ((datetime.combine(_date.today(), st.end_time) - datetime.combine(_date.today(), st.start_time)).total_seconds() / 3600)
+            if h < 0:
+                h += 24
+            hours_this_week[a.cleaner_id] = hours_this_week.get(a.cleaner_id, 0) + h
+
+    # Days worked consecutively before target date
+    def consecutive_days(worker_id):
+        count = 0
+        d = target - timedelta(days=1)
+        while count < 7:
+            has = ShiftAssignment.query.filter_by(date=d, cleaner_id=worker_id).first()
+            if not has:
+                break
+            count += 1
+            d -= timedelta(days=1)
+        return count
+
+    # Check rest between shifts (day before)
+    day_before = target - timedelta(days=1)
+    prev_assignments = {a.cleaner_id: shift_types_by_id.get(a.shift_type_id)
+                        for a in ShiftAssignment.query.filter_by(date=day_before).all()}
+
+    candidates = []
+    for w in workers:
+        if w.id in assigned_ids or w.id in absent_ids:
+            continue
+        h = hours_this_week.get(w.id, 0)
+        consec = consecutive_days(w.id)
+
+        # Check minimum rest
+        rest_ok = True
+        prev_st = prev_assignments.get(w.id)
+        if prev_st and target_st:
+            prev_end_h = prev_st.end_time.hour + prev_st.end_time.minute / 60
+            target_start_h = target_st.start_time.hour + target_st.start_time.minute / 60
+            rest_hours = target_start_h - prev_end_h + 24 if target_start_h <= prev_end_h else target_start_h - prev_end_h
+            if rest_hours < 11:
+                rest_ok = False
+
+        if consec >= 6:
+            continue  # Max 6 consecutive days
+
+        candidates.append({
+            "nombre": w.name,
+            "id": w.id,
+            "horas_semana": round(h, 1),
+            "dias_consecutivos": consec,
+            "descanso_suficiente": rest_ok,
+            "rol": w.role or 'mixto',
+        })
+
+    # Sort: fewer hours first, then fewer consecutive days
+    candidates.sort(key=lambda c: (not c['descanso_suficiente'], c['horas_semana'], c['dias_consecutivos']))
+
+    return json.dumps({
+        "fecha": target.isoformat(),
+        "turno_solicitado": turno or 'no especificado',
+        "motivo": motivo,
+        "candidatos": candidates[:5],
+        "total_disponibles": len(candidates),
+    }, ensure_ascii=False)
+
+
 def _get_tool_handlers(is_admin: bool = False):
     handlers = {
         "buscar_residente": lambda args: _buscar_residente(args["nombre"]),
@@ -555,6 +723,8 @@ def _get_tool_handlers(is_admin: bool = False):
         "buscar_trabajador": lambda args: _buscar_trabajador(args["nombre"]),
         "residentes_con_documentos": lambda args: _residentes_con_documentos(args.get("tipo")),
         "constantes_vitales_residente": lambda args: _constantes_vitales_residente(args["residente_id"], args.get("dias", 7), args.get("tipo", '')),
+        "consultar_turnos": lambda args: _consultar_turnos(args.get("fecha", '')),
+        "sugerir_cobertura": lambda args: _sugerir_cobertura(args["fecha"], args.get("turno", ''), args.get("motivo", '')),
     }
     if is_admin:
         handlers["leer_documento_residente"] = lambda args: _leer_documento_residente(args["documento_id"])
