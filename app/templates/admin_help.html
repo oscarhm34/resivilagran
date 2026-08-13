@@ -49,6 +49,7 @@
                         <li><a href="#pfeiffer">16h. Escala Pfeiffer</a></li>
                         <li><a href="#falls">16i. Caigudes estructurades</a></li>
                         <li><a href="#kpis">16c. KPIs de qualitat</a></li>
+                        <li><a href="#ferides">16k. Mapa corporal de ferides</a></li>
                         <li><a href="#ia">17. Inteligencia artificial (IA)</a></li>
                         <li><a href="#config">18. Configuracion</a></li>
                         <li><a href="#changelog">19. Registro de cambios</a></li>
@@ -1083,6 +1084,31 @@
         </div>
     </div>
 
+    <!-- 16k. Mapa corporal de ferides -->
+    <div class="card mb-4" id="ferides">
+        <div class="card-header">16k. Mapa corporal de ferides <span class="badge bg-success">NOU</span></div>
+        <div class="card-body">
+            <p>Registre visual de ferides i lesions amb seguiment d'evolucio.</p>
+
+            <h6 class="mt-3">Registrar una ferida</h6>
+            <ul>
+                <li>A la fitxa del resident, pestanya <strong>Ferides</strong>.</li>
+                <li><strong>Fes clic al diagrama del cos</strong> (davant o darrere) on es localitza la ferida.</li>
+                <li>S'obre un formulari amb la zona auto-detectada. Selecciona: <strong>tipus</strong> (ulcera, hematoma, tall, cremada, erupcio), <strong>mida</strong> (cm), <strong>severitat</strong> (lleu, moderada, greu) i <strong>descripcio</strong>.</li>
+                <li>Les ferides actives es mostren com a <strong>cercles de color</strong> sobre el diagrama (verd=lleu, taronja=moderada, vermell=greu).</li>
+            </ul>
+
+            <h6 class="mt-3">Seguiment d'evolucio</h6>
+            <ul>
+                <li>A la llista de ferides, botons per actualitzar l'estat: <strong>↗ Curant-se</strong>, <strong>✓ Curada</strong>, <strong>↘ Empitjorant</strong>.</li>
+                <li>Cada actualitzacio es guarda amb data, observacio i treballador.</li>
+                <li>Clic al cercle del diagrama per veure l'historial complet de la ferida.</li>
+                <li>Les ferides que <strong>empitjoren</strong> generen una <strong>alerta critica</strong> al panel de notificacions.</li>
+                <li>Les ferides curades desapareixen del diagrama pero es mantenen al registre.</li>
+            </ul>
+        </div>
+    </div>
+
     <!-- 17. Inteligencia artificial -->
     <div class="card mb-4" id="ia">
         <div class="card-header">17. Inteligencia artificial (IA)</div>
@@ -1201,6 +1227,7 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>13/08</td><td><strong>Mapa corporal de ferides:</strong> nova pestanya "Ferides" a la fitxa del resident amb diagrama SVG interactiu (davant/darrere). Fes clic al cos per registrar una ferida (tipus, mida, severitat). Seguiment d'evolucio amb botons curant-se/curada/empitjorant. Alertes automatiques per ferides noves o que empitjoren. Historial d'actualitzacions.</td></tr>
                     <tr><td>13/08</td><td><strong>Dashboard de compliment normatiu:</strong> puntuacio global 0-100% i per area (valoracions, PAI, atencions, documents, incidencies, formacio). Noves comprovacions: cobertura PAI i temps resposta incidents urgents. Boto "Informe IA" genera informe narratiu amb recomanacions.</td></tr>
                     <tr><td>13/08</td><td><strong>Verificacio de medicaments per codi de barres:</strong> camp "Codi de barres" a les prescripcions amb boto d'escaneig per camera (BarcodeDetector API). Endpoint POST /api/medication/verify-barcode per verificar que el medicament escanejat coincideix amb la prescripcio del resident.</td></tr>
                     <tr><td>13/08</td><td><strong>Models predictius ML:</strong> el perfil de risc dels residents ara utilitza scoring ponderat multifactor (Norton, Barthel, Pfeiffer, caigudes, medicació, pes, ànim) amb puntuació 0-100 i factors explicats. Amb prou dades históriques, es poden entrenar models scikit-learn (Gradient Boosting) que es combinen amb les regles (60% regles + 40% ML). Nou endpoint POST /api/ml/train per entrenar.</td></tr>

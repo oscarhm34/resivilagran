@@ -826,6 +826,46 @@ class PushSubscription(db.Model):
     worker = db.relationship('Cleaner')
 
 
+class WoundRecord(db.Model):
+    """Track wounds/injuries on a resident's body map."""
+    __tablename__ = 'wound_record'
+    id = db.Column(db.Integer, primary_key=True)
+    resident_id = db.Column(db.Integer, db.ForeignKey('resident.id'), nullable=False, index=True)
+    body_zone = db.Column(db.String(50), nullable=False)  # e.g. 'head', 'torso_front', 'left_arm', 'sacrum'
+    body_x = db.Column(db.Float, nullable=True)  # % position on SVG (0-100)
+    body_y = db.Column(db.Float, nullable=True)
+    wound_type = db.Column(db.String(30), nullable=False)  # ulcer, bruise, cut, burn, rash, other
+    description = db.Column(db.Text, nullable=True)
+    size_cm = db.Column(db.String(20), nullable=True)  # e.g. '2x3'
+    severity = db.Column(db.String(20), default='moderate')  # mild, moderate, severe
+    status = db.Column(db.String(20), default='active')  # active, healing, healed, worsening
+    photo_path = db.Column(db.String(255), nullable=True)
+    reported_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    updated_at = db.Column(db.DateTime, nullable=True)
+    healed_at = db.Column(db.DateTime, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+
+    resident = db.relationship('Resident', backref=db.backref('wounds', lazy=True))
+    reporter = db.relationship('Cleaner', foreign_keys=[reported_by])
+
+
+class WoundUpdate(db.Model):
+    """Track wound evolution over time."""
+    __tablename__ = 'wound_update'
+    id = db.Column(db.Integer, primary_key=True)
+    wound_id = db.Column(db.Integer, db.ForeignKey('wound_record.id'), nullable=False, index=True)
+    status = db.Column(db.String(20), nullable=False)  # active, healing, healed, worsening
+    size_cm = db.Column(db.String(20), nullable=True)
+    description = db.Column(db.Text, nullable=True)
+    photo_path = db.Column(db.String(255), nullable=True)
+    updated_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    wound = db.relationship('WoundRecord', backref=db.backref('updates', lazy=True, order_by='WoundUpdate.created_at.desc()'))
+    updater = db.relationship('Cleaner', foreign_keys=[updated_by])
+
+
 # ── AUDIT TRAIL ─────────────────────────────────────────────────────────────
 
 class AuditLog(db.Model):

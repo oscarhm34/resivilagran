@@ -16,6 +16,7 @@ from ..models import (
     Cleaner, Resident, ResidentGroup, CareRecord, CareType,
     CleaningRecord, Room, ResidentDocument,
     VitalSignType, VitalSignReading, MoodRecord,
+    WoundRecord, WoundUpdate, Notification,
 )
 from .assessments import get_resident_assessment_data
 from ..models import MedicationPrescription, MedicationAdministration
@@ -835,3 +836,154 @@ def admin_mood_history(resident_id):
         'recorded_at': r.recorded_at.strftime('%d/%m %H:%M'),
         'worker': r.worker.name if r.worker else '?',
     } for r in records]})
+
+
+# ── Wound Body Map ────────────────────────────────────────────────────────
+
+WOUND_TYPES = {
+    'ulcer': 'Úlcera', 'bruise': 'Hematoma', 'cut': 'Tall/ferida',
+    'burn': 'Cremada', 'rash': 'Erupció', 'other': 'Altra',
+}
+
+BODY_ZONES = {
+    'head': 'Cap', 'torso_front': 'Tronc (davant)', 'torso_back': 'Tronc (darrere)',
+    'left_arm': 'Braç esquerre', 'right_arm': 'Braç dret',
+    'left_leg': 'Cama esquerra', 'right_leg': 'Cama dreta',
+    'sacrum': 'Sacre', 'left_heel': 'Taló esquerre', 'right_heel': 'Taló dret',
+}
+
+
+@bp.route('/api/resident/<int:resident_id>/wounds')
+@login_required
+def get_wounds(resident_id: int):
+    """Get all wounds for a resident."""
+    wounds = WoundRecord.query.filter_by(resident_id=resident_id).order_by(
+        WoundRecord.status != 'healed', WoundRecord.created_at.desc()
+    ).all()
+    return jsonify({'wounds': [{
+        'id': w.id,
+        'body_zone': w.body_zone,
+        'body_zone_label': BODY_ZONES.get(w.body_zone, w.body_zone),
+        'body_x': w.body_x,
+        'body_y': w.body_y,
+        'wound_type': w.wound_type,
+        'wound_type_label': WOUND_TYPES.get(w.wound_type, w.wound_type),
+        'description': w.description or '',
+        'size_cm': w.size_cm or '',
+        'severity': w.severity,
+        'status': w.status,
+        'photo_path': w.photo_path,
+        'reported_by': w.reporter.name if w.reporter else '',
+        'created_at': w.created_at.strftime('%d/%m/%Y %H:%M'),
+        'updated_at': w.updated_at.strftime('%d/%m/%Y %H:%M') if w.updated_at else None,
+        'healed_at': w.healed_at.strftime('%d/%m/%Y') if w.healed_at else None,
+        'notes': w.notes or '',
+        'updates_count': len(w.updates),
+    } for w in wounds],
+    'wound_types': WOUND_TYPES,
+    'body_zones': BODY_ZONES,
+    })
+
+
+@bp.route('/api/resident/<int:resident_id>/wounds', methods=['POST'])
+@login_required
+def create_wound(resident_id: int):
+    """Register a new wound on the body map."""
+    data = request.get_json(silent=True) or {}
+
+    wound = WoundRecord(
+        resident_id=resident_id,
+        body_zone=data.get('body_zone', 'other'),
+        body_x=data.get('body_x'),
+        body_y=data.get('body_y'),
+        wound_type=data.get('wound_type', 'other'),
+        description=(data.get('description') or '').strip() or None,
+        size_cm=(data.get('size_cm') or '').strip() or None,
+        severity=data.get('severity', 'moderate'),
+        reported_by=current_user.id,
+        notes=(data.get('notes') or '').strip() or None,
+    )
+    db.session.add(wound)
+    db.session.commit()
+
+    # Notification
+    resident = db.session.get(Resident, resident_id)
+    r_name = resident.name if resident else 'Resident'
+    type_label = WOUND_TYPES.get(wound.wound_type, wound.wound_type)
+    zone_label = BODY_ZONES.get(wound.body_zone, wound.body_zone)
+    db.session.add(Notification(
+        type='wound_alert',
+        title=f'Nova ferida: {r_name} — {type_label} ({zone_label})',
+        severity='warning' if wound.severity in ('moderate', 'severe') else 'info',
+        resident_id=resident_id,
+        link=f'/admin/resident/{resident_id}',
+    ))
+    db.session.commit()
+
+    return jsonify({'ok': True, 'id': wound.id}), 201
+
+
+@bp.route('/api/wound/<int:wound_id>/update', methods=['POST'])
+@login_required
+def update_wound(wound_id: int):
+    """Add a follow-up update to a wound."""
+    wound = db.session.get(WoundRecord, wound_id)
+    if not wound:
+        return jsonify({'error': 'Ferida no trobada'}), 404
+
+    data = request.get_json(silent=True) or {}
+    new_status = data.get('status', wound.status)
+
+    update = WoundUpdate(
+        wound_id=wound_id,
+        status=new_status,
+        size_cm=(data.get('size_cm') or '').strip() or None,
+        description=(data.get('description') or '').strip() or None,
+        updated_by=current_user.id,
+    )
+    db.session.add(update)
+
+    wound.status = new_status
+    wound.updated_at = datetime.now()
+    if new_status == 'healed':
+        wound.healed_at = datetime.now()
+    if data.get('size_cm'):
+        wound.size_cm = data['size_cm'].strip()
+
+    # Alert if worsening
+    if new_status == 'worsening':
+        resident = db.session.get(Resident, wound.resident_id)
+        r_name = resident.name if resident else 'Resident'
+        db.session.add(Notification(
+            type='wound_alert',
+            title=f'Ferida empitjorant: {r_name} — {WOUND_TYPES.get(wound.wound_type, wound.wound_type)}',
+            severity='critical', resident_id=wound.resident_id,
+            link=f'/admin/resident/{wound.resident_id}',
+        ))
+
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@bp.route('/api/wound/<int:wound_id>/history')
+@login_required
+def wound_history(wound_id: int):
+    """Get evolution history for a wound."""
+    wound = db.session.get(WoundRecord, wound_id)
+    if not wound:
+        return jsonify({'error': 'No trobada'}), 404
+
+    updates = WoundUpdate.query.filter_by(wound_id=wound_id).order_by(WoundUpdate.created_at.desc()).all()
+    return jsonify({
+        'wound': {
+            'id': wound.id, 'wound_type': wound.wound_type, 'body_zone': wound.body_zone,
+            'status': wound.status, 'created_at': wound.created_at.strftime('%d/%m/%Y'),
+        },
+        'updates': [{
+            'status': u.status,
+            'size_cm': u.size_cm or '',
+            'description': u.description or '',
+            'updated_by': u.updater.name if u.updater else '',
+            'created_at': u.created_at.strftime('%d/%m/%Y %H:%M'),
+        } for u in updates],
+    })
