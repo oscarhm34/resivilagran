@@ -1332,26 +1332,160 @@ def compliance_audit():
                 'text': f'Formacion "{pill.title}": {len(pending)} trabajadores pendientes',
                 'link': '/admin/training'})
 
+    # 7. PAI coverage — residents with active care plan
+    for r in residents:
+        active_pai = CarePlan.query.filter_by(resident_id=r.id, status='active').first()
+        if not active_pai:
+            findings.append({'category': 'pai', 'severity': 'info',
+                'text': f'{r.name}: sense PAI actiu',
+                'link': f'/admin/resident/{r.id}'})
+        elif active_pai.review_date and active_pai.review_date < now.date():
+            days_overdue = (now.date() - active_pai.review_date).days
+            findings.append({'category': 'pai', 'severity': 'warning',
+                'text': f'{r.name}: PAI pendent de revisió (vençut fa {days_overdue} dies)',
+                'link': f'/admin/resident/{r.id}'})
+
+    # 8. Incident response time — open incidents severity high/critical
+    urgent_open = Incident.query.filter(
+        Incident.status.in_(['open', 'in_progress']),
+        Incident.severity.in_(['high', 'critical']),
+    ).all()
+    for inc in urgent_open:
+        days = (now - inc.created_at).days
+        if days >= 3:
+            findings.append({'category': 'incidencias', 'severity': 'critical',
+                'text': f'Incidència URGENT "{inc.title}" oberta fa {days} dies sense resoldre',
+                'link': '/admin/incidents'})
+
+    # ── Compliance scoring ──
+    total_residents = len(residents)
+    scores = {}
+
+    # Valoraciones score
+    assessed_b = sum(1 for r in residents if AssessmentRecord.query.filter(
+        AssessmentRecord.resident_id == r.id, AssessmentRecord.scale_type == 'barthel',
+        AssessmentRecord.assessed_at >= cutoff_6m).first())
+    assessed_n = sum(1 for r in residents if AssessmentRecord.query.filter(
+        AssessmentRecord.resident_id == r.id, AssessmentRecord.scale_type == 'norton',
+        AssessmentRecord.assessed_at >= cutoff_6m).first())
+    scores['valoraciones'] = round(((assessed_b + assessed_n) / (total_residents * 2)) * 100) if total_residents else 100
+
+    # PAI coverage score
+    pai_count = sum(1 for r in residents if CarePlan.query.filter_by(
+        resident_id=r.id, status='active').first())
+    scores['pai'] = round((pai_count / total_residents) * 100) if total_residents else 100
+
+    # Atenciones score (residents with care in last 3 days)
+    cared = sum(1 for r in residents if CareRecord.query.filter(
+        CareRecord.resident_id == r.id, CareRecord.start_time >= cutoff_3d).first())
+    scores['atenciones'] = round((cared / total_residents) * 100) if total_residents else 100
+
+    # Documentos score
+    if active_docs and total_workers:
+        total_sigs = sum(DocumentSignature.query.filter_by(document_id=d.id).count() for d in active_docs)
+        max_sigs = len(active_docs) * total_workers
+        scores['documentos'] = round((total_sigs / max_sigs) * 100) if max_sigs else 100
+    else:
+        scores['documentos'] = 100
+
+    # Incidencias score (no urgent open incidents)
+    open_count = Incident.query.filter(Incident.status.in_(['open', 'in_progress'])).count()
+    scores['incidencias'] = 100 if open_count == 0 else max(0, 100 - open_count * 15)
+
+    # Formacion score
+    if pills and workers:
+        total_completions = sum(TrainingCompletion.query.filter_by(
+            training_pill_id=p.id, passed=True).count() for p in pills)
+        max_completions = len(pills) * len(workers)
+        scores['formacion'] = round((total_completions / max_completions) * 100) if max_completions else 100
+    else:
+        scores['formacion'] = 100
+
+    # Global score (weighted average)
+    weights = {'valoraciones': 25, 'pai': 20, 'atenciones': 20, 'documentos': 10, 'incidencias': 15, 'formacion': 10}
+    global_score = sum(scores.get(k, 100) * w for k, w in weights.items()) / sum(weights.values())
+    global_score = round(global_score)
+
     # Group by category
     categories = {}
     for f in findings:
         cat = f['category']
         categories.setdefault(cat, []).append(f)
 
-    cat_labels = {'valoraciones': 'Valoraciones clinicas', 'clinico': 'Riesgos clinicos',
-                  'atenciones': 'Atenciones', 'documentos': 'Documentos legales',
-                  'incidencias': 'Incidencias', 'formacion': 'Formacion'}
+    cat_labels = {'valoraciones': 'Valoracions clíniques', 'clinico': 'Riscos clínics',
+                  'atenciones': 'Atencions', 'documentos': 'Documents legals',
+                  'incidencias': 'Incidències', 'formacion': 'Formació', 'pai': 'Plans de cura (PAI)'}
     cat_icons = {'valoraciones': 'bi-clipboard2-pulse', 'clinico': 'bi-heart-pulse',
                  'atenciones': 'bi-person-heart', 'documentos': 'bi-file-earmark-text',
-                 'incidencias': 'bi-exclamation-triangle', 'formacion': 'bi-mortarboard'}
+                 'incidencias': 'bi-exclamation-triangle', 'formacion': 'bi-mortarboard',
+                 'pai': 'bi-clipboard-check'}
 
     return render_template('admin_compliance_audit.html',
         findings=findings, categories=categories,
         cat_labels=cat_labels, cat_icons=cat_icons,
+        scores=scores, global_score=global_score,
         total_findings=len(findings),
         critical_count=sum(1 for f in findings if f['severity'] == 'critical'),
         warning_count=sum(1 for f in findings if f['severity'] == 'warning'),
     )
+
+
+@bp.route('/api/compliance/ai-report', methods=['POST'])
+@admin_required
+def compliance_ai_report():
+    """Generate AI narrative report of compliance status."""
+    from ..models import (ShiftAssignment, ShiftCoverageRequirement,
+                          LegalDocument, DocumentSignature, TrainingPill, TrainingCompletion)
+
+    now = datetime.now()
+    residents = Resident.query.filter_by(active=True).all()
+    total = len(residents)
+
+    # Gather key metrics
+    cutoff_6m = now - timedelta(days=180)
+    barthel_ok = sum(1 for r in residents if AssessmentRecord.query.filter(
+        AssessmentRecord.resident_id == r.id, AssessmentRecord.scale_type == 'barthel',
+        AssessmentRecord.assessed_at >= cutoff_6m).first())
+    norton_ok = sum(1 for r in residents if AssessmentRecord.query.filter(
+        AssessmentRecord.resident_id == r.id, AssessmentRecord.scale_type == 'norton',
+        AssessmentRecord.assessed_at >= cutoff_6m).first())
+    pai_ok = sum(1 for r in residents if CarePlan.query.filter_by(
+        resident_id=r.id, status='active').first())
+    open_incidents = Incident.query.filter(Incident.status.in_(['open', 'in_progress'])).count()
+    falls_30d = Incident.query.filter(Incident.is_fall == True, Incident.created_at >= now - timedelta(days=30)).count()
+
+    lines = [
+        f"INFORME DE COMPLIMENT — {now.strftime('%d/%m/%Y')}",
+        f"Residents actius: {total}",
+        f"Barthel al dia (<6 mesos): {barthel_ok}/{total}",
+        f"Norton al dia (<6 mesos): {norton_ok}/{total}",
+        f"PAIs actius: {pai_ok}/{total}",
+        f"Incidències obertes: {open_incidents}",
+        f"Caigudes últims 30 dies: {falls_30d}",
+    ]
+
+    context = '\n'.join(lines)
+    system = """Eres un consultor de calidad asistencial para la residencia de ancianos La Vila Gran.
+Genera un informe narrativo breve de cumplimiento normativo en HTML (sin <html>/<body>).
+Secciones con h4:
+- Resumen ejecutivo (puntuación general, estado)
+- Áreas de cumplimiento (qué va bien)
+- Áreas de mejora (qué necesita atención urgente)
+- Recomendaciones concretas (acciones a tomar)
+Usa colores: verde para bien, naranja para mejorable, rojo para urgente.
+Escribe en español. Sé breve y directo."""
+
+    try:
+        html = _call_claude(system, f"Datos de cumplimiento:\n\n{context}")
+        html = html.strip()
+        if html.startswith('```'):
+            html = html.split('\n', 1)[1] if '\n' in html else html[3:]
+        if html.endswith('```'):
+            html = html.rsplit('```', 1)[0]
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    return jsonify({'html': html.strip()})
 
 
 # ── Risk Profile per Resident ────────────────────────────────────────────────

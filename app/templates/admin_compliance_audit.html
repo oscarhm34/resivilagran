@@ -5,7 +5,21 @@
 <div class="py-3">
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
         <h1 class="h3 mb-0"><i class="bi bi-shield-check me-2"></i>Auditoria de compliment</h1>
-        <span class="text-muted" style="font-size:.85rem">{{ total_findings }} troballes</span>
+        <button class="btn btn-outline-primary btn-sm" id="btn-ai-report">
+            <i class="bi bi-stars me-1"></i>Informe IA
+        </button>
+    </div>
+
+    <!-- Global score -->
+    <div class="card mb-4">
+        <div class="card-body text-center py-4">
+            {% set score_color = '#198754' if global_score >= 80 else ('#fd7e14' if global_score >= 50 else '#dc3545') %}
+            <div style="font-size:3.5rem;font-weight:800;color:{{ score_color }}">{{ global_score }}%</div>
+            <div class="text-muted" style="font-size:.9rem">Puntuació global de compliment</div>
+            <div class="progress mt-3" style="height:8px;max-width:400px;margin:0 auto">
+                <div class="progress-bar" style="width:{{ global_score }}%;background:{{ score_color }}"></div>
+            </div>
+        </div>
     </div>
 
     <!-- Summary cards -->
@@ -22,7 +36,7 @@
             <div class="card h-100" {% if critical_count %}style="border-color:var(--color-danger)"{% endif %}>
                 <div class="card-body text-center py-3">
                     <div style="font-size:2rem;font-weight:800;color:{% if critical_count %}var(--color-danger){% else %}var(--color-text-secondary){% endif %}">{{ critical_count }}</div>
-                    <div class="text-muted" style="font-size:.82rem">Critiques</div>
+                    <div class="text-muted" style="font-size:.82rem">Crítiques</div>
                 </div>
             </div>
         </div>
@@ -33,6 +47,38 @@
                     <div class="text-muted" style="font-size:.82rem">Avisos</div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Category scores -->
+    <div class="card mb-4">
+        <div class="card-header"><i class="bi bi-speedometer2 me-2"></i>Puntuació per àrea</div>
+        <div class="card-body">
+            <div class="row g-3">
+                {% for key, label in cat_labels.items() %}
+                {% if key in scores %}
+                {% set s = scores[key] %}
+                {% set sc = '#198754' if s >= 80 else ('#fd7e14' if s >= 50 else '#dc3545') %}
+                <div class="col-6 col-md-4 col-lg-2">
+                    <div class="text-center">
+                        <div style="font-size:1.8rem;font-weight:800;color:{{ sc }}">{{ s }}%</div>
+                        <div style="font-size:.75rem;color:var(--color-text-secondary)">{{ label }}</div>
+                        <div class="progress mt-1" style="height:4px">
+                            <div class="progress-bar" style="width:{{ s }}%;background:{{ sc }}"></div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Report area -->
+    <div id="ai-report-area" class="card mb-4" style="display:none">
+        <div class="card-header"><i class="bi bi-stars me-2"></i>Informe IA de compliment</div>
+        <div class="card-body" id="ai-report-content">
+            <div class="text-center text-muted py-3">Generant informe...</div>
         </div>
     </div>
 
@@ -48,7 +94,13 @@
         <div class="card-header d-flex align-items-center gap-2">
             <i class="bi {{ cat_icons.get(cat_key, 'bi-flag') }}"></i>
             <strong>{{ cat_labels.get(cat_key, cat_key) }}</strong>
+            {% if cat_key in scores %}
+            {% set s = scores[cat_key] %}
+            {% set sc = '#198754' if s >= 80 else ('#fd7e14' if s >= 50 else '#dc3545') %}
+            <span class="badge ms-auto" style="background:{{ sc }}">{{ s }}%</span>
+            {% else %}
             <span class="badge bg-secondary ms-auto">{{ cat_findings|length }}</span>
+            {% endif %}
         </div>
         <div class="card-body p-0">
             <div class="list-group list-group-flush">
@@ -65,4 +117,35 @@
     </div>
     {% endfor %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('btn-ai-report').addEventListener('click', function() {
+    var btn = this;
+    var area = document.getElementById('ai-report-area');
+    var content = document.getElementById('ai-report-content');
+    area.style.display = '';
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Generant...';
+    content.innerHTML = '<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm me-2"></div>Generant informe IA de compliment...</div>';
+
+    fetch('/api/compliance/ai-report', { method: 'POST', headers: {'Content-Type': 'application/json'} })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-stars me-1"></i>Informe IA';
+        if (data.html) {
+            content.innerHTML = data.html;
+        } else {
+            content.innerHTML = '<div class="alert alert-warning">' + (data.error || 'Error') + '</div>';
+        }
+    })
+    .catch(function() {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-stars me-1"></i>Informe IA';
+        content.innerHTML = '<div class="alert alert-danger">Error de connexió.</div>';
+    });
+});
+</script>
 {% endblock %}
