@@ -12,8 +12,9 @@ from ..models import (Notification, VitalSignReading, VitalSignType,
                       CareRecord, CleaningRecord, Resident, Cleaner,
                       Incident, LegalDocument, DocumentSignature,
                       ShiftAssignment, ShiftCoverageRequirement, ShiftType,
-                      AppSetting)
+                      AppSetting, PushSubscription)
 from ..utils import admin_required
+import json as _json
 
 bp = Blueprint('notifications', __name__)
 
@@ -193,6 +194,8 @@ def _generate_notifications() -> int:
 
     if created:
         db.session.commit()
+        # Send push for worker-targeted notifications created in this batch
+        _send_pending_pushes()
 
     # AI insights (throttled, async-safe)
     try:
@@ -207,6 +210,21 @@ def _generate_notifications() -> int:
         pass
 
     return created
+
+
+def _send_pending_pushes():
+    """Send web push for recent unread worker notifications (last 2 minutes)."""
+    try:
+        cutoff = datetime.now() - timedelta(minutes=2)
+        recent = Notification.query.filter(
+            Notification.worker_id.isnot(None),
+            Notification.read == False,  # noqa: E712
+            Notification.created_at >= cutoff,
+        ).all()
+        for n in recent:
+            send_push_for_notification(n)
+    except Exception:
+        pass
 
 
 # ── Auto shift handover ──────────────────────────────────────────────────────
@@ -318,13 +336,12 @@ def _generate_handover_notification() -> int:
             if html.endswith('```'):
                 html = html.rsplit('```', 1)[0]
 
-            # Create notification for admin
+            # Create notification for admin (no link — content shown inline)
             db.session.add(Notification(
                 type='shift_handover',
                 title=dedup_title,
                 message=html,
                 severity='info',
-                link='/admin/notifications',
             ))
 
             # Create notification for each incoming shift worker
@@ -341,7 +358,6 @@ def _generate_handover_notification() -> int:
                         message=html,
                         severity='info',
                         worker_id=ns.cleaner_id,
-                        link='/worker',
                     ))
 
             db.session.commit()
@@ -582,3 +598,115 @@ def worker_mark_read(nid: int):
     notif.read = True
     db.session.commit()
     return jsonify({'ok': True})
+
+
+# ── Web Push API ──────────────────────────────────────────────────────────
+
+@bp.route('/api/push/vapid-public-key')
+@jwt_required()
+def vapid_public_key():
+    """Return the VAPID public key for client-side subscription."""
+    from flask import current_app
+    key = current_app.config.get('VAPID_PUBLIC_KEY')
+    if not key:
+        return jsonify({'error': 'Push no configurado'}), 503
+    return jsonify({'public_key': key})
+
+
+@bp.route('/api/push/subscribe', methods=['POST'])
+@jwt_required()
+def push_subscribe():
+    """Save a push subscription for the authenticated worker."""
+    identity = get_jwt_identity()
+    worker = Cleaner.query.filter_by(username=identity).first()
+    if not worker:
+        return jsonify({'error': 'No autorizado'}), 403
+
+    data = request.get_json(silent=True) or {}
+    endpoint = (data.get('endpoint') or '').strip()
+    keys = data.get('keys') or {}
+
+    if not endpoint or not keys.get('p256dh') or not keys.get('auth'):
+        return jsonify({'error': 'Datos de suscripcion incompletos'}), 400
+
+    # Upsert: update if endpoint exists, create if not
+    existing = PushSubscription.query.filter_by(endpoint=endpoint).first()
+    if existing:
+        existing.worker_id = worker.id
+        existing.keys_json = _json.dumps(keys)
+    else:
+        db.session.add(PushSubscription(
+            worker_id=worker.id,
+            endpoint=endpoint,
+            keys_json=_json.dumps(keys),
+        ))
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@bp.route('/api/push/unsubscribe', methods=['POST'])
+@jwt_required()
+def push_unsubscribe():
+    """Remove a push subscription."""
+    data = request.get_json(silent=True) or {}
+    endpoint = (data.get('endpoint') or '').strip()
+    if endpoint:
+        PushSubscription.query.filter_by(endpoint=endpoint).delete()
+        db.session.commit()
+    return jsonify({'ok': True})
+
+
+def send_push_to_worker(worker_id, title, body, url=None):
+    """Send a web push notification to all subscriptions of a worker."""
+    from flask import current_app
+    priv_key = current_app.config.get('VAPID_PRIVATE_KEY')
+    email = current_app.config.get('VAPID_CLAIMS_EMAIL', 'mailto:admin@lavilagran.com')
+    if not priv_key:
+        return
+
+    subs = PushSubscription.query.filter_by(worker_id=worker_id).all()
+    if not subs:
+        return
+
+    try:
+        from pywebpush import webpush, WebPushException
+    except ImportError:
+        return
+
+    payload = _json.dumps({
+        'title': title,
+        'body': body[:200] if body else '',
+        'url': url or '/worker',
+    })
+
+    for sub in subs:
+        try:
+            keys = _json.loads(sub.keys_json)
+            webpush(
+                subscription_info={
+                    'endpoint': sub.endpoint,
+                    'keys': keys,
+                },
+                data=payload,
+                vapid_private_key=priv_key,
+                vapid_claims={'sub': email},
+            )
+        except WebPushException as e:
+            # 410 Gone or 404 = subscription expired, remove it
+            if '410' in str(e) or '404' in str(e):
+                db.session.delete(sub)
+                db.session.commit()
+        except Exception:
+            pass
+
+
+def send_push_for_notification(notification):
+    """Send push for a newly created Notification if it has a worker_id."""
+    if not notification.worker_id:
+        return
+    send_push_to_worker(
+        worker_id=notification.worker_id,
+        title=notification.title,
+        body=notification.title,
+        url=notification.link,
+    )

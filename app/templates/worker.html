@@ -3894,9 +3894,47 @@ $('route-back').addEventListener('click', function() { show('screen-home'); });
     .catch(function() { /* silent fail — phrases are optional */ });
 })();
 
-// ── Register Service Worker for PWA install ──
+// ── Register Service Worker + Push Notifications ──
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(function() {});
+    navigator.serviceWorker.register('/sw.js').then(function(reg) {
+        // Subscribe to push notifications after SW is ready
+        if (!('PushManager' in window) || !S.token) return;
+        // Get VAPID public key from server
+        fetch('/api/push/vapid-public-key', {
+            headers: { 'Authorization': 'Bearer ' + S.token },
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.public_key) return;
+            // Convert base64 to Uint8Array
+            var padding = '='.repeat((4 - data.public_key.length % 4) % 4);
+            var base64 = (data.public_key + padding).replace(/-/g, '+').replace(/_/g, '/');
+            var raw = atob(base64);
+            var arr = new Uint8Array(raw.length);
+            for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+
+            return reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: arr,
+            });
+        })
+        .then(function(sub) {
+            if (!sub) return;
+            var subJson = sub.toJSON();
+            return fetch('/api/push/subscribe', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + S.token,
+                },
+                body: JSON.stringify({
+                    endpoint: subJson.endpoint,
+                    keys: subJson.keys,
+                }),
+            });
+        })
+        .catch(function() { /* Push not supported or denied — silent */ });
+    }).catch(function() {});
 }
 </script>
 </body>

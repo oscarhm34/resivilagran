@@ -28,6 +28,38 @@ self.addEventListener('activate', function(event) {
     self.clients.claim();
 });
 
+// ── Push Notifications ──
+self.addEventListener('push', function(event) {
+    var data = { title: 'La Vila Gran', body: 'Nova notificació', url: '/worker' };
+    try {
+        if (event.data) data = event.data.json();
+    } catch(e) {}
+
+    event.waitUntil(
+        self.registration.showNotification(data.title || 'La Vila Gran', {
+            body: data.body || '',
+            icon: '/static/icon-192.png',
+            badge: '/static/icon-192.png',
+            data: { url: data.url || '/worker' },
+            vibrate: [200, 100, 200],
+            tag: 'lavilagran-' + Date.now(),
+        })
+    );
+});
+
+self.addEventListener('notificationclick', function(event) {
+    event.notification.close();
+    var url = (event.notification.data && event.notification.data.url) || '/worker';
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+            for (var c of clientList) {
+                if (c.url.includes('/worker') && 'focus' in c) return c.focus();
+            }
+            return clients.openWindow(url);
+        })
+    );
+});
+
 self.addEventListener('fetch', function(event) {
     var url = new URL(event.request.url);
 

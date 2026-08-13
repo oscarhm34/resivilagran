@@ -813,6 +813,18 @@ class Notification(db.Model):
     worker = db.relationship('Cleaner')
 
 
+class PushSubscription(db.Model):
+    """Web Push API subscription for a worker's browser."""
+    __tablename__ = 'push_subscription'
+    id = db.Column(db.Integer, primary_key=True)
+    worker_id = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=False)
+    endpoint = db.Column(db.Text, nullable=False, unique=True)
+    keys_json = db.Column(db.Text, nullable=False)  # JSON: {p256dh, auth}
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    worker = db.relationship('Cleaner')
+
+
 # ── AUDIT TRAIL ─────────────────────────────────────────────────────────────
 
 class AuditLog(db.Model):
