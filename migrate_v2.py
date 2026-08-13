@@ -28,11 +28,20 @@ for t in sorted(tables):
     if not rows:
         continue
     cols = [d[0] for d in src.execute(f'SELECT * FROM {t}').description]
+    # Get PostgreSQL column types to convert SQLite integers to booleans
+    pg_cols = {c['name']: str(c['type']) for c in inspector.get_columns(t)}
+    bool_cols = {name for name, typ in pg_cols.items() if 'BOOL' in typ.upper()}
+
     with pg.connect() as conn:
         conn.execute(text("SET session_replication_role = 'replica'"))
         conn.execute(text(f'DELETE FROM "{t}"'))
         for row in rows:
-            vals = {cols[i]: row[i] for i in range(len(cols))}
+            vals = {}
+            for i, c in enumerate(cols):
+                v = row[i]
+                if c in bool_cols and isinstance(v, int):
+                    v = bool(v)
+                vals[c] = v
             placeholders = ', '.join([f':{c}' for c in cols])
             col_list = ', '.join([f'"{c}"' for c in cols])
             conn.execute(text(f'INSERT INTO "{t}" ({col_list}) VALUES ({placeholders})'), vals)
