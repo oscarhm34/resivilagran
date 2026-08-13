@@ -1140,12 +1140,19 @@
                 <li>Los hallazgos aparecen como <strong>notificaciones</strong> tipo "Alerta IA" en la campana.</li>
             </ul>
 
-            <h6 class="mt-3">Perfil de riesgo del residente</h6>
+            <h6 class="mt-3">Perfil de risc del resident (ML + regles)</h6>
             <ul>
-                <li>En la ficha del residente (pestana Resumen), badges de color:</li>
-                <li><span style="background:#dc354520;color:#dc3545;padding:2px 8px;border-radius:12px;font-size:.8rem">Alt</span> <span style="background:#fd7e1420;color:#fd7e14;padding:2px 8px;border-radius:12px;font-size:.8rem">Mig</span> <span style="background:#19875420;color:#198754;padding:2px 8px;border-radius:12px;font-size:.8rem">Baix</span></li>
-                <li>Riscos evaluados: <strong>Caidas</strong> (Norton + incidents), <strong>UPP</strong> (Norton), <strong>Deterioro funcional</strong> (tendencia Barthel), <strong>Nutricional</strong> (tendencia de pes).</li>
-                <li>Calculados automaticamente a partir de les dades existents.</li>
+                <li>En la fitxa del resident (pestanya Resum), badges de color amb <strong>puntuacio 0-100</strong>:</li>
+                <li><span style="background:#dc354520;color:#dc3545;padding:2px 8px;border-radius:12px;font-size:.8rem">Alt (≥50)</span> <span style="background:#fd7e1420;color:#fd7e14;padding:2px 8px;border-radius:12px;font-size:.8rem">Mig (25-49)</span> <span style="background:#19875420;color:#198754;padding:2px 8px;border-radius:12px;font-size:.8rem">Baix (&lt;25)</span></li>
+                <li><strong>4 tipus de risc:</strong></li>
+                <ul>
+                    <li><strong>Caigudes:</strong> Norton, Barthel, historial caigudes 90d, polifarmàcia, tendència funcional</li>
+                    <li><strong>UPP:</strong> Norton, dependència, pèrdua de pes, freqüència d'atencions</li>
+                    <li><strong>Cognitiu:</strong> Pfeiffer (errors), tendència Pfeiffer, estat d'ànim, dependència</li>
+                    <li><strong>Nutricional:</strong> pèrdua de pes, dependència, ànim, polifarmàcia</li>
+                </ul>
+                <li>Cada risc mostra els <strong>factors explicatius</strong> (per què te aquella puntuació).</li>
+                <li><strong>Machine Learning:</strong> amb prou dades historiques, es poden entrenar models Gradient Boosting amb <code>POST /api/ml/train</code>. Els models ML es combinen amb les regles (60% regles + 40% ML) per a prediccions mes precises.</li>
             </ul>
 
             <h6 class="mt-3">Auditoria de compliment</h6>
@@ -1183,6 +1190,7 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>13/08</td><td><strong>Models predictius ML:</strong> el perfil de risc dels residents ara utilitza scoring ponderat multifactor (Norton, Barthel, Pfeiffer, caigudes, medicació, pes, ànim) amb puntuació 0-100 i factors explicats. Amb prou dades históriques, es poden entrenar models scikit-learn (Gradient Boosting) que es combinen amb les regles (60% regles + 40% ML). Nou endpoint POST /api/ml/train per entrenar.</td></tr>
                     <tr><td>13/08</td><td><strong>Assistent IA de torns:</strong> noves eines al chatbot per consultar torns ("qui treballa avui?", "qui esta de tarda dimarts?") i suggerir cobertures ("qui pot cobrir dema pel mati?", "la Maria esta de baixa"). L'IA analitza hores, descansos, dies consecutius i equitat per recomanar la millor substituta. Tambe disponible com a endpoint admin.</td></tr>
                     <tr><td>13/08</td><td><strong>Auto-revisio PAI:</strong> quan es detecta un event significatiu (caiguda, Barthel baixa >5 punts, Norton empitjora), la IA revisa automaticament el PAI actiu del resident i suggereix actualitzacions. Genera notificacio "Revisio PAI" a l'admin amb l'analisi detallada.</td></tr>
                     <tr><td>13/08</td><td><strong>Escrivà de veu ambient:</strong> a la pantalla de finalitzacio d'atencio, boto "🎙 Escrivà de veu" que grava audio durant tota la sessio. Al aturar, la IA transcriu i genera notes cliniques automatiques. L'usuari pot acceptar o descartar les notes.</td></tr>

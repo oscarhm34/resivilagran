@@ -1359,80 +1359,39 @@ def compliance_audit():
 @bp.route('/api/resident/<int:resident_id>/risk-profile')
 @admin_required
 def risk_profile(resident_id: int):
-    """Calculate risk badges for a resident based on data analysis."""
+    """Calculate risk badges using ML + rule-based hybrid scoring."""
     resident = db.session.get(Resident, resident_id)
     if not resident:
         return jsonify({'error': 'No encontrado'}), 404
 
-    now = datetime.now()
-    risks = {}
+    from ..ml_models import predict_risks
+    predictions = predict_risks(resident_id)
 
-    # Fall risk: Norton + recent fall incidents + notes
-    latest_norton = AssessmentRecord.query.filter_by(
-        resident_id=resident_id, scale_type='norton',
-    ).order_by(AssessmentRecord.assessed_at.desc()).first()
+    if not predictions:
+        return jsonify({'risks': {}, 'labels': {}})
 
-    cutoff_90d = now - timedelta(days=90)
-    fall_incidents = Incident.query.filter(
-        Incident.resident_id == resident_id,
-        Incident.created_at >= cutoff_90d,
-    ).all()
-    fall_count = sum(1 for i in fall_incidents if 'ca' in (i.title or '').lower() or 'caida' in (i.title or '').lower())
+    # Backward-compatible format
+    risks = {k: v['level'] for k, v in predictions.items() if k != 'features'}
+    risk_labels = {
+        'caidas': 'Caigudes', 'upp': 'UPP',
+        'cognitivo': 'Deteriorament cognitiu', 'nutricional': 'Nutricional',
+    }
 
-    norton_score = latest_norton.score if latest_norton else None
-    if norton_score and norton_score <= 9:
-        risks['caidas'] = 'high'
-    elif norton_score and norton_score <= 12 or fall_count >= 2:
-        risks['caidas'] = 'medium'
-    elif fall_count >= 1:
-        risks['caidas'] = 'medium'
-    else:
-        risks['caidas'] = 'low'
+    return jsonify({
+        'risks': risks,
+        'labels': risk_labels,
+        'details': {k: v for k, v in predictions.items() if k != 'features'},
+        'features': predictions.get('features', {}),
+    })
 
-    # UPP risk: Norton
-    if norton_score and norton_score <= 9:
-        risks['upp'] = 'high'
-    elif norton_score and norton_score <= 14:
-        risks['upp'] = 'medium'
-    else:
-        risks['upp'] = 'low'
 
-    # Functional decline: Barthel trend
-    barthel_records = AssessmentRecord.query.filter_by(
-        resident_id=resident_id, scale_type='barthel',
-    ).order_by(AssessmentRecord.assessed_at.desc()).limit(3).all()
-    if len(barthel_records) >= 2 and barthel_records[0].score < barthel_records[1].score - 10:
-        risks['funcional'] = 'high'
-    elif len(barthel_records) >= 2 and barthel_records[0].score < barthel_records[1].score:
-        risks['funcional'] = 'medium'
-    else:
-        risks['funcional'] = 'low'
-
-    # Nutritional risk: weight trend via vitals
-    weight_readings = db.session.query(VitalSignReading.value, CareRecord.start_time).join(
-        CareRecord, VitalSignReading.care_record_id == CareRecord.id
-    ).join(VitalSignType, VitalSignReading.vital_sign_type_id == VitalSignType.id).filter(
-        CareRecord.resident_id == resident_id, VitalSignType.name.ilike('%peso%'),
-    ).order_by(CareRecord.start_time.desc()).limit(5).all()
-
-    if len(weight_readings) >= 2:
-        latest_w = weight_readings[0].value
-        oldest_w = weight_readings[-1].value
-        if oldest_w > 0:
-            loss_pct = ((oldest_w - latest_w) / oldest_w) * 100
-            if loss_pct >= 10:
-                risks['nutricional'] = 'high'
-            elif loss_pct >= 5:
-                risks['nutricional'] = 'medium'
-            else:
-                risks['nutricional'] = 'low'
-        else:
-            risks['nutricional'] = 'low'
-    else:
-        risks['nutricional'] = 'low'
-
-    risk_labels = {'caidas': 'Caidas', 'upp': 'UPP', 'funcional': 'Deterioro funcional', 'nutricional': 'Nutricional'}
-    return jsonify({'risks': risks, 'labels': risk_labels})
+@bp.route('/api/ml/train', methods=['POST'])
+@admin_required
+def train_ml_models():
+    """Train ML models on current historical data."""
+    from ..ml_models import train_models
+    report = train_models()
+    return jsonify(report)
 
 
 # ── Quality KPIs Dashboard ───────────────────────────────────────────────────
