@@ -744,6 +744,45 @@
                 <button class="ct-mood-flag" data-flag="Content" style="font-size:11px;padding:4px 10px;border-radius:16px;border:1px solid var(--border);background:var(--surface);cursor:pointer">Content</button>
             </div>
         </div>
+        <!-- Wound registration -->
+        <div style="padding:8px 0">
+            <button type="button" id="wound-toggle-btn" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;cursor:pointer;font-weight:600;transition:all .15s;text-align:center">🩹 Registrar herida (opcional)</button>
+        </div>
+        <div id="wound-form-section" style="display:none;padding:12px;border:1.5px solid #dc3545;border-radius:12px;margin:4px 0;background:#dc354510">
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+                <select id="w-zone" style="flex:1;min-width:120px;padding:8px;border-radius:8px;border:1px solid var(--border);font-size:13px;font-family:inherit">
+                    <option value="head">Cabeza</option>
+                    <option value="torso_front">Tronco (frente)</option>
+                    <option value="torso_back">Tronco (espalda)</option>
+                    <option value="left_arm">Brazo izq.</option>
+                    <option value="right_arm">Brazo der.</option>
+                    <option value="left_leg">Pierna izq.</option>
+                    <option value="right_leg">Pierna der.</option>
+                    <option value="sacrum">Sacro</option>
+                    <option value="left_heel">Talón izq.</option>
+                    <option value="right_heel">Talón der.</option>
+                </select>
+                <select id="w-type" style="flex:1;min-width:100px;padding:8px;border-radius:8px;border:1px solid var(--border);font-size:13px;font-family:inherit">
+                    <option value="ulcer">Úlcera</option>
+                    <option value="bruise">Hematoma</option>
+                    <option value="cut">Corte/herida</option>
+                    <option value="burn">Quemadura</option>
+                    <option value="rash">Erupción</option>
+                    <option value="other">Otra</option>
+                </select>
+            </div>
+            <div style="display:flex;gap:6px;margin-bottom:8px">
+                <input id="w-size" type="text" placeholder="Tamaño (ej: 2x3 cm)" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border);font-size:13px;font-family:inherit">
+                <select id="w-severity" style="width:110px;padding:8px;border-radius:8px;border:1px solid var(--border);font-size:13px;font-family:inherit">
+                    <option value="mild">Leve</option>
+                    <option value="moderate" selected>Moderada</option>
+                    <option value="severe">Grave</option>
+                </select>
+            </div>
+            <textarea id="w-desc" rows="2" placeholder="Descripción..." style="width:100%;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13px;resize:none;font-family:inherit;margin-bottom:8px"></textarea>
+            <button type="button" id="wound-save-btn" style="width:100%;padding:10px;border-radius:10px;border:none;background:#dc3545;color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Guardar herida</button>
+            <div id="wound-save-msg" style="display:none;text-align:center;font-size:12px;color:#198754;margin-top:6px;font-weight:600">✓ Herida registrada</div>
+        </div>
         <div class="ct-footer" id="ct-footer" style="border-top:1px solid var(--border);padding-top:16px;margin-top:12px">
             <button class="btn-cam primary" id="ct-confirm" style="width:100%;padding:14px;border-radius:14px;border:none;background:var(--green);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:'Outfit',system-ui,sans-serif">Confirmar y finalizar</button>
         </div>
@@ -2840,6 +2879,41 @@ function collectVitalSigns() {
 
 // ── Inline mood toggle on care-type screen ──
 S._ctMoodScore = null;
+
+// ── Wound registration from care screen ──
+$('wound-toggle-btn').addEventListener('click', function() {
+    var section = $('wound-form-section');
+    var visible = section.style.display !== 'none';
+    section.style.display = visible ? 'none' : '';
+    this.style.borderColor = visible ? 'var(--border)' : '#dc3545';
+    this.style.background = visible ? 'var(--surface)' : '#dc354510';
+});
+
+$('wound-save-btn').addEventListener('click', async function() {
+    var residentId = S.pendingResidentId;
+    if (!residentId) { toast('No se ha identificado al residente'); return; }
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = 'Guardando...';
+    var { ok } = await api('/api/worker/resident/' + residentId + '/wounds', 'POST', {
+        body_zone: $('w-zone').value,
+        wound_type: $('w-type').value,
+        size_cm: $('w-size').value,
+        severity: $('w-severity').value,
+        description: $('w-desc').value,
+    });
+    btn.disabled = false;
+    btn.textContent = 'Guardar herida';
+    if (ok) {
+        $('wound-save-msg').style.display = '';
+        $('w-size').value = '';
+        $('w-desc').value = '';
+        setTimeout(function() { $('wound-save-msg').style.display = 'none'; }, 3000);
+        toast('Herida registrada');
+    } else {
+        toast('Error al guardar');
+    }
+});
 
 $('ct-mood-toggle').addEventListener('click', function() {
     var section = $('ct-mood-section');
