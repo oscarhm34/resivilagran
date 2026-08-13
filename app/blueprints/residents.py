@@ -12,6 +12,7 @@ from io import BytesIO
 import os
 
 from .. import app, db
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..models import (
     Cleaner, Resident, ResidentGroup, CareRecord, CareType,
     CleaningRecord, Room, ResidentDocument,
@@ -987,3 +988,65 @@ def wound_history(wound_id: int):
             'created_at': u.created_at.strftime('%d/%m/%Y %H:%M'),
         } for u in updates],
     })
+
+
+# ── Worker API: Wounds (JWT) ──────────────────────────────────────────────
+
+@bp.route('/api/worker/resident/<int:resident_id>/wounds')
+@jwt_required()
+def worker_get_wounds(resident_id: int):
+    """Get wounds for a resident (worker view)."""
+    wounds = WoundRecord.query.filter_by(resident_id=resident_id).filter(
+        WoundRecord.status != 'healed'
+    ).order_by(WoundRecord.created_at.desc()).all()
+    return jsonify({'wounds': [{
+        'id': w.id,
+        'body_zone': w.body_zone,
+        'body_zone_label': BODY_ZONES.get(w.body_zone, w.body_zone),
+        'wound_type': w.wound_type,
+        'wound_type_label': WOUND_TYPES.get(w.wound_type, w.wound_type),
+        'description': w.description or '',
+        'size_cm': w.size_cm or '',
+        'severity': w.severity,
+        'status': w.status,
+        'body_x': w.body_x,
+        'body_y': w.body_y,
+        'created_at': w.created_at.strftime('%d/%m/%Y'),
+    } for w in wounds]})
+
+
+@bp.route('/api/worker/resident/<int:resident_id>/wounds', methods=['POST'])
+@jwt_required()
+def worker_create_wound(resident_id: int):
+    """Register a wound from the worker app."""
+    identity = get_jwt_identity()
+    worker = Cleaner.query.filter_by(username=identity).first()
+    if not worker:
+        return jsonify({'error': 'No autorizado'}), 403
+
+    data = request.get_json(silent=True) or {}
+    wound = WoundRecord(
+        resident_id=resident_id,
+        body_zone=data.get('body_zone', 'other'),
+        body_x=data.get('body_x'),
+        body_y=data.get('body_y'),
+        wound_type=data.get('wound_type', 'other'),
+        description=(data.get('description') or '').strip() or None,
+        size_cm=(data.get('size_cm') or '').strip() or None,
+        severity=data.get('severity', 'moderate'),
+        reported_by=worker.id,
+    )
+    db.session.add(wound)
+    db.session.commit()
+
+    resident = db.session.get(Resident, resident_id)
+    r_name = resident.name if resident else 'Residente'
+    db.session.add(Notification(
+        type='wound_alert',
+        title=f'Nueva herida: {r_name} — {WOUND_TYPES.get(wound.wound_type, wound.wound_type)} ({BODY_ZONES.get(wound.body_zone, wound.body_zone)})',
+        severity='warning' if wound.severity in ('moderate', 'severe') else 'info',
+        resident_id=resident_id,
+        link=f'/admin/resident/{resident_id}',
+    ))
+    db.session.commit()
+    return jsonify({'ok': True, 'id': wound.id}), 201

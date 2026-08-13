@@ -1128,24 +1128,35 @@ vitalData.forEach((chart, i) => {
         });
     });
 
-    // Risk badges
+    // Risk badges with scores and factors
     fetch('/api/resident/{{ resident.id }}/risk-profile')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.risks) return;
             var container = document.getElementById('risk-badges');
             var colorMap = {high: '#dc3545', medium: '#fd7e14', low: '#198754'};
-            var levelMap = {high: 'Alt', medium: 'Mig', low: 'Baix'};
-            var iconMap = {caidas: 'bi-exclamation-triangle', upp: 'bi-bandaid', funcional: 'bi-arrow-down-circle', nutricional: 'bi-cup-hot'};
+            var levelMap = {high: 'Alto', medium: 'Medio', low: 'Bajo'};
+            var iconMap = {caidas: 'bi-exclamation-triangle', upp: 'bi-bandaid', cognitivo: 'bi-brain', nutricional: 'bi-cup-hot'};
             var hasVisible = false;
+            var details = data.details || {};
             Object.keys(data.risks).forEach(function(key) {
                 var level = data.risks[key];
                 var label = data.labels[key] || key;
                 var color = colorMap[level];
+                var detail = details[key] || {};
+                var score = detail.score !== undefined ? Math.round(detail.score) : '';
+                var factors = detail.factors || [];
+
                 var badge = document.createElement('span');
                 badge.className = 'badge d-flex align-items-center gap-1';
-                badge.style.cssText = 'background:' + color + '20;color:' + color + ';font-size:.78rem;padding:6px 12px;border-radius:20px';
-                badge.innerHTML = '<i class="bi ' + (iconMap[key] || 'bi-shield') + '"></i> ' + label + ': ' + levelMap[level];
+                badge.style.cssText = 'background:' + color + '20;color:' + color + ';font-size:.78rem;padding:6px 12px;border-radius:20px;cursor:pointer';
+                badge.innerHTML = '<i class="bi ' + (iconMap[key] || 'bi-shield') + '"></i> ' + label + ': ' + levelMap[level] + (score ? ' (' + score + '%)' : '');
+                if (factors.length) {
+                    badge.title = factors.join('\n');
+                    badge.addEventListener('click', function() {
+                        alert(label + ' — ' + levelMap[level] + (score ? ' (' + score + '%)' : '') + '\n\nFactores:\n• ' + factors.join('\n• '));
+                    });
+                }
                 container.appendChild(badge);
                 if (level !== 'low') hasVisible = true;
             });
