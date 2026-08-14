@@ -13,7 +13,7 @@
 
     <!-- Add prescription button -->
     <button type="button" class="btn btn-primary btn-sm mb-3" data-bs-toggle="modal" data-bs-target="#prescModal" onclick="resetPrescForm()">
-        <i class="bi bi-plus-lg me-1"></i>Nova pauta
+        <i class="bi bi-plus-lg me-1"></i>Nueva pauta
     </button>
 
     <!-- Prescriptions list -->
@@ -85,7 +85,7 @@
                 <input type="hidden" name="prescription_id" id="presc-id" value="">
                 <input type="hidden" name="resident_id" value="{{ resident.id }}">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="prescModalTitle">Nova pauta</h5>
+                    <h5 class="modal-title" id="prescModalTitle">Nueva pauta</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
@@ -116,28 +116,28 @@
                             <div class="form-text">Cada horari en format HH:MM separats per coma</div>
                         </div>
                         <div class="col-12">
-                            <label class="form-label">Instruccions</label>
+                            <label class="form-label">Instrucciones</label>
                             <textarea class="form-control" name="instructions" id="presc-instr" rows="2" placeholder="Ej: Tomar con comida"></textarea>
                         </div>
                         <div class="col-3">
-                            <label class="form-label">Prescrit per</label>
-                            <input type="text" class="form-control" name="prescribed_by" id="presc-by" placeholder="Nom del metge">
+                            <label class="form-label">Prescrito por</label>
+                            <input type="text" class="form-control" name="prescribed_by" id="presc-by" placeholder="Nombre del médico">
                         </div>
                         <div class="col-3">
-                            <label class="form-label">Codi de barres</label>
+                            <label class="form-label">Código de barras</label>
                             <div class="input-group">
                                 <input type="text" class="form-control" name="barcode" id="presc-barcode" placeholder="EAN/UPC">
-                                <button type="button" class="btn btn-outline-secondary" id="btn-scan-barcode" title="Escanejar amb càmera">
+                                <button type="button" class="btn btn-outline-secondary" id="btn-scan-barcode" title="Escanear con cámara">
                                     <i class="bi bi-upc-scan"></i>
                                 </button>
                             </div>
                         </div>
                         <div class="col-3">
-                            <label class="form-label">Data inici</label>
+                            <label class="form-label">Fecha inicio</label>
                             <input type="date" class="form-control" name="start_date" id="presc-start">
                         </div>
                         <div class="col-3">
-                            <label class="form-label">Data fi</label>
+                            <label class="form-label">Fecha fin</label>
                             <input type="date" class="form-control" name="end_date" id="presc-end">
                         </div>
                         <div class="col-12">
@@ -169,7 +169,7 @@
 <script>
 function resetPrescForm() {
     document.getElementById('presc-id').value = '';
-    document.getElementById('prescModalTitle').textContent = 'Nova pauta';
+    document.getElementById('prescModalTitle').textContent = 'Nueva pauta';
     document.getElementById('presc-drug').value = '';
     document.getElementById('presc-dose').value = '';
     document.getElementById('presc-route').value = 'oral';

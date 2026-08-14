@@ -159,7 +159,7 @@
                                     <option value="biweekly">Quinzenal</option>
                                     <option value="monthly">Mensual</option>
                                 </select>
-                                <small class="text-muted d-block mt-1">Es generaran instancies automaticament per les properes setmanes.</small>
+                                <small class="text-muted d-block mt-1">Se generarán instancias automáticamente para las próximas semanas.</small>
                             </div>
                         </div>
                     </div>
@@ -187,9 +187,9 @@
             <div class="modal-body">
                 <div class="d-flex gap-2 mb-3">
                     <button type="button" class="btn btn-outline-primary btn-sm" id="btn-select-all"><i class="bi bi-check-all me-1"></i>Tots</button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-deselect-all"><i class="bi bi-x-lg me-1"></i>Cap</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-deselect-all"><i class="bi bi-x-lg me-1"></i>Ninguno</button>
                     <select class="form-select form-select-sm" id="invite-group-filter" style="width:auto">
-                        <option value="">Tots els grups</option>
+                        <option value="">Todos los grupos</option>
                         {% for g in residents|map(attribute='group')|select|unique %}
                         <option value="{{ g.id }}">{{ g.name }}</option>
                         {% endfor %}

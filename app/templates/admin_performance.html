@@ -231,7 +231,7 @@ document.getElementById('btn-ai-perf').addEventListener('click', function() {
     }
     container.style.display = '';
     var content = document.getElementById('ai-perf-content');
-    content.innerHTML = '<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>Analitzant rendiment dels treballadors...</div>';
+    content.innerHTML = '<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>Analizando rendimiento de los trabajadores...</div>';
 
     fetch('/api/worker-performance/ai-analysis', {
         method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'

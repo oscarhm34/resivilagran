@@ -22,7 +22,7 @@
         <span class="badge bg-secondary bg-opacity-10 text-secondary ms-1" style="font-size:.85rem">{{ digests|length }} resúmenes</span>
         {% set alerts = digests|selectattr('has_alerts')|list %}
         {% if alerts %}
-        <span class="badge bg-danger bg-opacity-10 text-danger ms-1" style="font-size:.85rem">{{ alerts|length }} amb alertes</span>
+        <span class="badge bg-danger bg-opacity-10 text-danger ms-1" style="font-size:.85rem">{{ alerts|length }} con alertas</span>
         {% endif %}
     </div>
 

@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}KPIs de qualitat{% endblock %}
+{% block title %}KPIs de calidad{% endblock %}
 
 {% block content %}
 <div class="py-3">
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
-        <h1 class="h3 mb-0"><i class="bi bi-graph-up me-2"></i>Indicadors de qualitat assistencial</h1>
+        <h1 class="h3 mb-0"><i class="bi bi-graph-up me-2"></i>Indicadores de calidad asistencial</h1>
         <div class="d-flex gap-2">
             {% for d in [7, 14, 30, 90] %}
             <a href="{{ url_for('assessments.quality_kpis', days=d) }}"
@@ -14,8 +14,8 @@
     </div>
 
     <p class="text-muted mb-4" style="font-size:.85rem">
-        Indicadors calculats sobre els ultims <strong>{{ days }} dies</strong> amb {{ total_residents }} residents actius.
-        Els objectius son orientatius basats en estandards del sector.
+        Indicadores calculados sobre los últimos <strong>{{ days }} días</strong> con {{ total_residents }} residentes activos.
+        Los objetivos son orientativos basados en estándares del sector.
     </p>
 
     <div class="row g-3">
@@ -50,23 +50,23 @@
             <div class="card">
                 <div class="card-header" style="font-size:.85rem"><i class="bi bi-exclamation-triangle me-1"></i>Caídas ({{ fall_count }})</div>
                 <div class="card-body" style="font-size:.82rem">
-                    <p class="mb-0">{{ fall_count }} caigudes registrades en {{ days }} dies sobre {{ total_residents }} residents.</p>
+                    <p class="mb-0">{{ fall_count }} caídas registradas en {{ days }} días sobre {{ total_residents }} residentes.</p>
                 </div>
             </div>
         </div>
         <div class="col-md-4">
             <div class="card">
-                <div class="card-header" style="font-size:.85rem"><i class="bi bi-bandaid me-1"></i>Risc UPP ({{ upp_count }})</div>
+                <div class="card-header" style="font-size:.85rem"><i class="bi bi-bandaid me-1"></i>Riesgo UPP ({{ upp_count }})</div>
                 <div class="card-body" style="font-size:.82rem">
-                    <p class="mb-0">{{ upp_count }} residents amb Norton &le;12 (risc alt o molt alt de ulceres per pressio).</p>
+                    <p class="mb-0">{{ upp_count }} residentes con Norton &le;12 (riesgo alto o muy alto de úlceras por presión).</p>
                 </div>
             </div>
         </div>
         <div class="col-md-4">
             <div class="card">
-                <div class="card-header" style="font-size:.85rem"><i class="bi bi-arrow-down-circle me-1"></i>Perdua de pes ({{ weight_loss_count }})</div>
+                <div class="card-header" style="font-size:.85rem"><i class="bi bi-arrow-down-circle me-1"></i>Pérdida de peso ({{ weight_loss_count }})</div>
                 <div class="card-body" style="font-size:.82rem">
-                    <p class="mb-0">{{ weight_loss_count }} residents amb perdua de pes &ge;5% en el periode.</p>
+                    <p class="mb-0">{{ weight_loss_count }} residentes con pérdida de peso &ge;5% en el periodo.</p>
                 </div>
             </div>
         </div>

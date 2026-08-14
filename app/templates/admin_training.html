@@ -151,7 +151,7 @@
                     <div class="d-flex align-items-center justify-content-between">
                         <h6 style="font-weight:700;margin:0">Preguntas</h6>
                         <button type="button" class="btn btn-outline-purple btn-sm" id="btn-ai-questions">
-                            <i class="bi bi-stars me-1"></i>Generar amb IA
+                            <i class="bi bi-stars me-1"></i>Generar con IA
                         </button>
                     </div>
                     <div id="ai-questions-status" class="text-muted mt-1 mb-2" style="font-size:.8rem;display:none"></div>
@@ -275,7 +275,7 @@
             body: JSON.stringify({title: title, description: desc, num_questions: 5})
         }).then(function(r) { return r.json(); }).then(function(data) {
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar amb IA';
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar con IA';
             if (data.questions && data.questions.length) {
                 qIdx = 0;
                 document.getElementById('questions-container').innerHTML = '';
@@ -288,7 +288,7 @@
             }
         }).catch(function() {
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar amb IA';
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar con IA';
             status.textContent = 'Error de connexió.';
             status.style.color = 'var(--color-danger)';
         });

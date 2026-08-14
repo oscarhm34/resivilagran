@@ -94,7 +94,7 @@
     <div class="alert alert-warning d-flex align-items-start gap-2 mb-4">
         <i class="bi bi-exclamation-triangle" style="font-size:1.2rem;margin-top:2px"></i>
         <div>
-            <strong>Residents amb baixa participacio (&lt;30%)</strong>
+            <strong>Residentes con baja participación (&lt;30%)</strong>
             <div class="mt-1" style="font-size:.85rem">
                 {% for r in low_engagement %}
                 <span class="badge bg-warning text-dark me-1 mb-1">{{ r.name }} ({{ '%d' | format(r.participated / r.invited * 100) if r.invited > 0 else 0 }}%)</span>

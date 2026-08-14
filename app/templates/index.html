@@ -448,7 +448,7 @@
                     <button type="button" class="btn btn-danger btn-sm" id="wl-generate">
                         <i class="bi bi-stars me-1"></i>Generar watchlist
                     </button>
-                    <p class="text-muted mt-1" style="font-size:.78rem">La IA analitzara els ultims 30 dies de tots els residents per detectar riscos.</p>
+                    <p class="text-muted mt-1" style="font-size:.78rem">La IA analizará los últimos 30 días de todos los residentes para detectar riesgos.</p>
                 </div>
                 <div id="wl-content"></div>
             </div>
@@ -460,8 +460,8 @@ document.getElementById('wl-generate').addEventListener('click', function() {
     var btn = this;
     var content = document.getElementById('wl-content');
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Analitzant tots els residents...';
-    content.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm me-2"></div>La IA esta analitzant els 30 dies de dades de cada resident...</div>';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Analizando todos los residentes...';
+    content.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm me-2"></div>La IA está analizando los 30 días de datos de cada residente...</div>';
 
     fetch('/api/ai/risk-watchlist', {
         method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'
