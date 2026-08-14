@@ -52,6 +52,7 @@
                         <li><a href="#ferides">16k. Mapa corporal de heridas</a></li>
                         <li><a href="#ia">17. Inteligencia artificial (IA)</a></li>
                         <li><a href="#config">18. Configuracion</a></li>
+                        <li><a href="#backups">18b. Copias de seguridad</a></li>
                         <li><a href="#changelog">19. Registro de cambios</a></li>
                     </ul>
                 </div>
@@ -1213,6 +1214,62 @@
                 <li><strong>Permitir a los trabajadores reportar incidencias:</strong> Si esta activado, los trabajadores ven un boton en la webapp para reportar incidentes. Si esta desactivado, solo el admin puede crear incidencias.</li>
                 <li><strong>Tiempo maximo de sesion (minutos):</strong> Si una sesion de limpieza o atencion supera este tiempo sin cerrarse, el trabajador recibe un aviso visual (card roja pulsante + toast). Valor por defecto: 120 minutos (2 horas). Rango: 15-1440 minutos.</li>
             </ul>
+        </div>
+    </div>
+
+    <!-- 18b. Copias de seguridad -->
+    <div class="card mb-4" id="backups">
+        <div class="card-header">18b. Copias de seguridad y restauracion</div>
+        <div class="card-body">
+            <p>El sistema realiza copias de seguridad automaticas diarias de la base de datos PostgreSQL, los archivos subidos (fotos, documentos) y las claves de seguridad.</p>
+
+            <h6 class="mt-3">Backup automatico</h6>
+            <ul>
+                <li>Se ejecuta cada dia a las <strong>03:00</strong> via Synology Task Scheduler.</li>
+                <li>Genera dos archivos por backup:
+                    <ul>
+                        <li><code>backup_YYYYMMDD_HHMMSS.pgdump</code> — volcado completo de la base de datos PostgreSQL</li>
+                        <li><code>backup_YYYYMMDD_HHMMSS.files.tar.gz</code> — fotos, documentos, claves de seguridad y configuracion</li>
+                    </ul>
+                </li>
+                <li>Los backups se guardan en <code>/volume1/docker/NFC2-docker/backups/</code></li>
+                <li><strong>Retencion:</strong> se eliminan automaticamente los backups con mas de 30 dias.</li>
+                <li>El log se guarda en <code>backups/backup.log</code>.</li>
+            </ul>
+
+            <h6 class="mt-3">Backup en la nube</h6>
+            <ul>
+                <li>Mediante <strong>Synology Cloud Sync</strong>, los backups se sincronizan automaticamente con Google Drive.</li>
+                <li>Carpeta remota: <code>backups-lavilagran/</code> en Google Drive.</li>
+                <li>Esto garantiza que hay una copia externa en caso de fallo del NAS.</li>
+            </ul>
+
+            <h6 class="mt-3">Ejecutar backup manual</h6>
+            <ul>
+                <li>Conectar por SSH al NAS: <code>ssh -p 52222 lavilagran@lavilagran.synology.me</code></li>
+                <li>Ejecutar: <code>cd /volume1/docker/NFC2-docker && ./backup.sh</code></li>
+            </ul>
+
+            <h6 class="mt-3">Restaurar un backup</h6>
+            <ol>
+                <li>Conectar por SSH al NAS</li>
+                <li>Ver backups disponibles: <code>cd /volume1/docker/NFC2-docker && ./restore.sh</code></li>
+                <li>Se mostrara una lista con todos los backups, su tamano y fecha</li>
+                <li>Restaurar: <code>./restore.sh backup_20260813_030000</code> (usar el nombre del backup deseado)</li>
+                <li>El script pedira <strong>confirmacion</strong> antes de sobreescribir la base de datos</li>
+                <li>Restaura la BD, los archivos y reinicia la aplicacion automaticamente</li>
+            </ol>
+
+            <h6 class="mt-3">Restaurar desde Google Drive</h6>
+            <ol>
+                <li>Descargar los archivos <code>.pgdump</code> y <code>.files.tar.gz</code> del backup deseado desde Google Drive</li>
+                <li>Copiarlos a <code>/volume1/docker/NFC2-docker/backups/</code> en el NAS (via File Station o SCP)</li>
+                <li>Ejecutar <code>./restore.sh nombre_del_backup</code></li>
+            </ol>
+
+            <div class="alert alert-warning mt-3" style="font-size:.85rem">
+                <i class="bi bi-exclamation-triangle me-1"></i><strong>Importante:</strong> La restauracion sobreescribe TODOS los datos actuales. Asegurate de que realmente necesitas restaurar antes de confirmar.
+            </div>
         </div>
     </div>
 
