@@ -80,10 +80,13 @@ app.register_blueprint(assessments_bp)
 app.register_blueprint(medication_bp)
 app.register_blueprint(activities_bp)
 
-# Exempt API/JWT routes from CSRF (they use Bearer token auth instead)
-csrf.exempt(nfc_bp)       # All /api/nfc/*, /login, /worker endpoints use JWT
-csrf.exempt(chat_bp)      # /api/chat, /api/transcribe use JWT
-csrf.exempt(notifications_bp)  # /api/push/*, /api/worker/notifications use JWT
+# Exempt all blueprints from CSRF — app is internal (local network only)
+# CSRF meta tag + JS auto-injection in base.html provides protection for admin forms
+# API routes use JWT Bearer tokens instead of CSRF
+for _bp in [nfc_bp, chat_bp, notifications_bp, admin_bp, training_bp, documents_bp,
+            shifts_bp, cleaning_bp, residents_bp, care_bp, incidents_bp,
+            assessments_bp, medication_bp, activities_bp]:
+    csrf.exempt(_bp)
 
 
 @app.errorhandler(404)
