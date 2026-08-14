@@ -1337,16 +1337,16 @@ def api_record_mood():
     identity = get_jwt_identity()
     worker = Cleaner.query.filter_by(username=identity).first()
     if not worker:
-        return jsonify({'error': 'No autoritzat'}), 403
+        return jsonify({'error': 'No autorizado'}), 403
 
     data = request.get_json() or {}
     resident_id = data.get('resident_id')
     mood_score = data.get('mood_score')
 
     if not resident_id or not mood_score:
-        return jsonify({'error': 'Falten dades'}), 400
+        return jsonify({'error': 'Faltan datos'}), 400
     if mood_score not in (1, 2, 3, 4, 5):
-        return jsonify({'error': 'Puntuacio invalida (1-5)'}), 400
+        return jsonify({'error': 'Puntuación inválida (1-5)'}), 400
 
     import json
     record = MoodRecord(
@@ -1392,7 +1392,7 @@ def api_record_meal():
     identity = get_jwt_identity()
     worker = Cleaner.query.filter_by(username=identity).first()
     if not worker:
-        return jsonify({'error': 'No autoritzat'}), 403
+        return jsonify({'error': 'No autorizado'}), 403
 
     data = request.get_json() or {}
     resident_id = data.get('resident_id')
@@ -1400,7 +1400,7 @@ def api_record_meal():
     intake_pct = data.get('intake_pct')
 
     if not resident_id or not meal_type or intake_pct is None:
-        return jsonify({'error': 'Falten dades'}), 400
+        return jsonify({'error': 'Faltan datos'}), 400
 
     from datetime import date as _date
     today = _date.today()
@@ -1430,10 +1430,10 @@ def api_record_meal():
     if intake_pct < 50:
         resident = db.session.get(Resident, resident_id)
         r_name = resident.name if resident else 'Resident'
-        meal_labels = {'breakfast': 'Esmorzar', 'lunch': 'Dinar', 'snack': 'Berenar', 'dinner': 'Sopar'}
+        meal_labels = {'breakfast': 'Desayuno', 'lunch': 'Almuerzo', 'snack': 'Merienda', 'dinner': 'Cena'}
         db.session.add(Notification(
             type='vital_alert',
-            title=f'Baixa ingesta: {r_name} — {meal_labels.get(meal_type, meal_type)} {intake_pct}%',
+            title=f'Baja ingesta: {r_name} — {meal_labels.get(meal_type, meal_type)} {intake_pct}%',
             severity='warning', resident_id=resident_id,
             link=f'/admin/resident/{resident_id}',
         ))

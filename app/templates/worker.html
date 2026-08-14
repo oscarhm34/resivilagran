@@ -447,7 +447,7 @@
             </button>
         </div>
 
-        <!-- Activitats d'avui (compact card) -->
+        <!-- Actividades de hoy (compact card) -->
         <div id="today-activities" style="display:none">
             <div id="activities-cards"></div>
         </div>
@@ -523,8 +523,8 @@
     <!-- ══ ACTIVITY DETAIL ══ -->
     <div id="screen-activity" class="screen">
         <div class="scan-header">
-            <button class="btn-back" id="activity-back" aria-label="Tornar">←</button>
-            <span class="mode-badge" id="activity-badge" style="background:var(--blue-lt);color:var(--blue)">📋 Activitat</span>
+            <button class="btn-back" id="activity-back" aria-label="Volver">←</button>
+            <span class="mode-badge" id="activity-badge" style="background:var(--blue-lt);color:var(--blue)">📋 Actividad</span>
         </div>
         <div style="padding:12px 0">
             <h3 id="act-detail-title" style="font-size:18px;font-weight:700;margin:0"></h3>
@@ -536,7 +536,7 @@
     <!-- ══ MOOD CHECK-IN ══ -->
     <div id="screen-mood" class="screen">
         <div class="scan-header">
-            <button class="btn-back" id="mood-back" aria-label="Tornar">←</button>
+            <button class="btn-back" id="mood-back" aria-label="Volver">←</button>
             <span class="mode-badge" style="background:#fef3c7;color:#92400e">😊 Estado de ánimo</span>
         </div>
         <div style="padding:12px 0;text-align:center">
@@ -577,7 +577,7 @@
     <!-- ══ MEAL INTAKE ══ -->
     <div id="screen-meal" class="screen">
         <div class="scan-header">
-            <button class="btn-back" id="meal-back" aria-label="Tornar">←</button>
+            <button class="btn-back" id="meal-back" aria-label="Volver">←</button>
             <span class="mode-badge" style="background:#dcfce7;color:#166534">🍽 Ingesta</span>
         </div>
         <div style="padding:12px 0;text-align:center">
@@ -1280,14 +1280,14 @@ function showMandatoryTrainingBlock(pill) {
     var home = $('screen-home');
     home.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:70vh;text-align:center;padding:20px">'
         + '<div style="font-size:4rem;margin-bottom:16px">🎓</div>'
-        + '<h2 style="font-family:Outfit,system-ui,sans-serif;font-weight:700;font-size:22px;margin:0 0 8px">Formació obligatòria</h2>'
-        + '<p style="font-size:14px;color:var(--text-2);margin-bottom:24px">Has de completar aquesta formació abans de continuar treballant.</p>'
+        + '<h2 style="font-family:Outfit,system-ui,sans-serif;font-weight:700;font-size:22px;margin:0 0 8px">Formación obligatoria</h2>'
+        + '<p style="font-size:14px;color:var(--text-2);margin-bottom:24px">Debes completar esta formación antes de continuar trabajando.</p>'
         + '<div style="background:var(--bg);border-radius:16px;padding:20px;width:100%;max-width:320px;margin-bottom:24px">'
         + '<div style="font-size:18px;font-weight:700">' + esc(pill.title) + '</div>'
         + (pill.description ? '<div style="font-size:13px;color:var(--text-2);margin-top:6px">' + esc(pill.description) + '</div>' : '')
-        + '<div style="font-size:12px;color:var(--text-2);margin-top:8px">' + pill.question_count + ' preguntes</div>'
+        + '<div style="font-size:12px;color:var(--text-2);margin-top:8px">' + pill.question_count + ' preguntas</div>'
         + '</div>'
-        + '<button id="btn-start-mandatory" style="background:var(--blue);color:#fff;border:none;border-radius:14px;padding:16px 40px;font-size:16px;font-weight:700;cursor:pointer;font-family:Outfit,system-ui,sans-serif">Començar formació</button>'
+        + '<button id="btn-start-mandatory" style="background:var(--blue);color:#fff;border:none;border-radius:14px;padding:16px 40px;font-size:16px;font-weight:700;cursor:pointer;font-family:Outfit,system-ui,sans-serif">Comenzar formación</button>'
         + '<div style="margin-top:16px"><button class="btn-logout" onclick="doLogout()">Cerrar sesión</button></div>'
         + '</div>';
     show('screen-home');
@@ -1389,7 +1389,7 @@ function openActivityDetail(idx) {
         html += '</div>';
     }
     if (!act.participants.length) {
-        html += '<div style="text-align:center;color:var(--text-2);font-size:13px;padding:20px">Sense residents convidats</div>';
+        html += '<div style="text-align:center;color:var(--text-2);font-size:13px;padding:20px">Sin residentes invitados</div>';
     }
     list.innerHTML = html;
     list.querySelectorAll('img[data-auth-src]').forEach(function(img) { loadAuthImg(img, img.dataset.authSrc); });

@@ -37,8 +37,8 @@ CAT_COLORS = {
     'salida': '#ffc107', 'general': '#6c757d',
 }
 ENGAGEMENT_LABELS = {
-    'participated': 'Ha participat', 'passive': 'Passiu/observador',
-    'refused': 'Ha refusat', 'absent': 'Absent',
+    'participated': 'Ha participado', 'passive': 'Pasivo/observador',
+    'refused': 'Ha rechazado', 'absent': 'Ausente',
 }
 
 
@@ -132,7 +132,7 @@ def save_activity():
     if act_id:
         a = db.session.get(Activity, act_id)
         if not a:
-            flash('Activitat no trobada.', 'danger')
+            flash('Actividad no encontrada.', 'danger')
             return redirect(url_for('activities.admin_activities'))
     else:
         a = Activity(created_by=current_user.id)
@@ -185,9 +185,9 @@ def save_activity():
             db.session.add(inst)
 
         db.session.commit()
-        flash(f'Activitat recurrent creada: {a.title} ({count + 1} instancies)', 'success')
+        flash(f'Actividad recurrente creada: {a.title} ({count + 1} instancias)', 'success')
     else:
-        flash(f'Activitat {"actualitzada" if act_id else "creada"}: {a.title}', 'success')
+        flash(f'Actividad {"actualizada" if act_id else "creada"}: {a.title}', 'success')
 
     return redirect(url_for('activities.admin_activities', date=a.activity_date.isoformat()))
 
@@ -212,11 +212,11 @@ def delete_activity(act_id: int):
                 if tmpl:
                     tmpl.active = False
             db.session.commit()
-            flash('Activitat i futures instancies eliminades.', 'success')
+            flash('Actividad y futuras instancias eliminadas.', 'success')
         else:
             db.session.delete(a)
             db.session.commit()
-            flash('Activitat eliminada.', 'success')
+            flash('Actividad eliminada.', 'success')
         return redirect(url_for('activities.admin_activities', date=act_date))
     return redirect(url_for('activities.admin_activities'))
 
@@ -227,7 +227,7 @@ def generate_template_instances(tmpl_id: int):
     """Generate more future instances from a recurring template."""
     tmpl = db.session.get(ActivityTemplate, tmpl_id)
     if not tmpl:
-        return jsonify({'error': 'Plantilla no trobada'}), 404
+        return jsonify({'error': 'Plantilla no encontrada'}), 404
 
     weeks = request.form.get('weeks', 4, type=int)
 
@@ -261,7 +261,7 @@ def generate_template_instances(tmpl_id: int):
             created += 1
 
     db.session.commit()
-    flash(f'{created} noves instancies generades per "{tmpl.title}".', 'success')
+    flash(f'{created} nuevas instancias generadas para "{tmpl.title}".', 'success')
     return redirect(url_for('activities.admin_activities'))
 
 
@@ -270,8 +270,8 @@ def generate_template_instances(tmpl_id: int):
 def admin_activity_templates():
     """List recurring activity templates."""
     templates = ActivityTemplate.query.order_by(ActivityTemplate.title).all()
-    day_names = ['Dilluns', 'Dimarts', 'Dimecres', 'Dijous', 'Divendres', 'Dissabte', 'Diumenge']
-    recurrence_labels = {'weekly': 'Setmanal', 'biweekly': 'Quinzenal', 'monthly': 'Mensual'}
+    day_names = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+    recurrence_labels = {'weekly': 'Semanal', 'biweekly': 'Quincenal', 'monthly': 'Mensual'}
     for t in templates:
         t.day_name = day_names[t.weekday] if 0 <= t.weekday <= 6 else '?'
         t.recurrence_label = recurrence_labels.get(t.recurrence, t.recurrence)
@@ -394,18 +394,18 @@ def export_activity_stats():
         for p in a.participations:
             r = p.resident
             rows.append({
-                'Data': a.activity_date.strftime('%d/%m/%Y'),
-                'Activitat': a.title,
-                'Categoria': CATEGORIES.get(a.category, a.category),
-                'Resident': r.name if r else '?',
-                'Habitacio': r.room_number if r else '',
-                'Estat': ENGAGEMENT_LABELS.get(p.engagement, p.engagement or 'Convidat'),
+                'Fecha': a.activity_date.strftime('%d/%m/%Y'),
+                'Actividad': a.title,
+                'Categoría': CATEGORIES.get(a.category, a.category),
+                'Residente': r.name if r else '?',
+                'Habitación': r.room_number if r else '',
+                'Estado': ENGAGEMENT_LABELS.get(p.engagement, p.engagement or 'Invitado'),
             })
 
     df = pd.DataFrame(rows)
     buf = BytesIO()
     with pd.ExcelWriter(buf, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Participacio')
+        df.to_excel(writer, index=False, sheet_name='Participación')
     buf.seek(0)
     fname = f'activitats_{start_date}_{end_date}.xlsx'
     return send_file(buf, download_name=fname, as_attachment=True,
@@ -448,22 +448,22 @@ def ai_suggest_activities():
 
         profiles.append(
             f"- {r.name} (hab.{r.room_number or '?'}, "
-            f"dependencia: {r.dependency_level or 'no indicat'}, "
-            f"diagnostics: {r.diagnoses or 'no indicats'}): "
-            f"{participated}/{total} participacions, "
-            f"{refused} refusos, "
-            f"categories preferides: {', '.join(f'{CATEGORIES.get(k,k)}({v})' for k,v in sorted(cat_counts.items(), key=lambda x: -x[1])[:3]) or 'cap dada'}"
+            f"dependencia: {r.dependency_level or 'no indicado'}, "
+            f"diagnósticos: {r.diagnoses or 'no indicados'}): "
+            f"{participated}/{total} participaciones, "
+            f"{refused} rechazos, "
+            f"categorías preferidas: {', '.join(f'{CATEGORIES.get(k,k)}({v})' for k,v in sorted(cat_counts.items(), key=lambda x: -x[1])[:3]) or 'sin datos'}"
         )
 
     system = (
-        "Ets un terapeuta ocupacional expert en residencies geriatriques. "
-        "Suggereix 5 activitats per a la propera setmana basant-te en els perfils dels residents, "
-        "el seu nivell de dependencia i historial de participacio. "
-        "Per cada activitat inclou: titol, categoria (cognitiva/fisica/social/creativa/musical/relajacion/salida/general), "
-        "dia de la setmana recomanat, duracio estimada, i una breu justificacio. "
-        "Respon en JSON amb format: [{\"title\": \"..\", \"category\": \"..\", \"weekday\": \"Dilluns\", \"duration_min\": 45, \"reason\": \"...\"}]"
+        "Eres un terapeuta ocupacional experto en residencias geriátricas. "
+        "Sugiere 5 actividades para la próxima semana basándote en los perfiles de los residentes, "
+        "su nivel de dependencia e historial de participación. "
+        "Para cada actividad incluye: título, categoría (cognitiva/fisica/social/creativa/musical/relajacion/salida/general), "
+        "día de la semana recomendado, duración estimada, y una breve justificación. "
+        "Responde en JSON con formato: [{\"title\": \"..\", \"category\": \"..\", \"weekday\": \"Lunes\", \"duration_min\": 45, \"reason\": \"...\"}]"
     )
-    prompt = f"Perfils dels {len(profiles)} residents:\n" + '\n'.join(profiles)
+    prompt = f"Perfiles de {len(profiles)} residentes:\n" + '\n'.join(profiles)
 
     try:
         response = _call_claude(system, prompt)
@@ -539,11 +539,11 @@ def upload_activity_photo(act_id: int):
 
     a = db.session.get(Activity, act_id)
     if not a:
-        return jsonify({'error': 'Activitat no trobada'}), 404
+        return jsonify({'error': 'Actividad no encontrada'}), 404
 
     file = request.files.get('photo')
     if not file:
-        return jsonify({'error': 'No s\'ha enviat cap foto'}), 400
+        return jsonify({'error': 'No se ha enviado ninguna foto'}), 400
 
     upload_dir = os.path.join(current_app.config.get('UPLOAD_FOLDER', 'uploads'))
     os.makedirs(upload_dir, exist_ok=True)
@@ -577,7 +577,7 @@ def delete_activity_photo(photo_id: int):
 
     photo = db.session.get(ActivityPhoto, photo_id)
     if not photo:
-        return jsonify({'error': 'Foto no trobada'}), 404
+        return jsonify({'error': 'Foto no encontrada'}), 404
 
     filepath = os.path.join(current_app.config.get('UPLOAD_FOLDER', 'uploads'), photo.photo_path)
     if os.path.exists(filepath):
@@ -637,7 +637,7 @@ def api_confirm_attendance(act_id: int):
     identity = get_jwt_identity()
     worker = Cleaner.query.filter_by(username=identity).first()
     if not worker:
-        return jsonify({'error': 'No autoritzat'}), 403
+        return jsonify({'error': 'No autorizado'}), 403
 
     data = request.get_json()
     resident_id = data.get('resident_id')
@@ -673,11 +673,11 @@ def api_upload_activity_photo(act_id: int):
     identity = get_jwt_identity()
     worker = Cleaner.query.filter_by(username=identity).first()
     if not worker:
-        return jsonify({'error': 'No autoritzat'}), 403
+        return jsonify({'error': 'No autorizado'}), 403
 
     a = db.session.get(Activity, act_id)
     if not a:
-        return jsonify({'error': 'Activitat no trobada'}), 404
+        return jsonify({'error': 'Actividad no encontrada'}), 404
 
     file = request.files.get('photo')
     if not file:

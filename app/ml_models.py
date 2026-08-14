@@ -143,10 +143,10 @@ def _score_fall_risk(f: dict) -> tuple[float, str, list[str]]:
     if norton is not None:
         if norton <= 9:
             score += 35
-            factors.append(f'Norton molt baix ({norton}/20)')
+            factors.append(f'Norton muy bajo ({norton}/20)')
         elif norton <= 12:
             score += 25
-            factors.append(f'Norton baix ({norton}/20)')
+            factors.append(f'Norton bajo ({norton}/20)')
         elif norton <= 14:
             score += 10
 
@@ -154,29 +154,29 @@ def _score_fall_risk(f: dict) -> tuple[float, str, list[str]]:
     if barthel is not None:
         if barthel <= 20:
             score += 20
-            factors.append(f'Barthel total dependència ({barthel}/100)')
+            factors.append(f'Barthel dependencia total ({barthel}/100)')
         elif barthel <= 40:
             score += 15
-            factors.append(f'Barthel dependència severa ({barthel}/100)')
+            factors.append(f'Barthel dependencia severa ({barthel}/100)')
         elif barthel <= 60:
             score += 10
 
     falls_90 = f.get('falls_90d', 0)
     if falls_90 >= 3:
         score += 25
-        factors.append(f'{falls_90} caigudes en 90 dies')
+        factors.append(f'{falls_90} caídas en 90 días')
     elif falls_90 >= 1:
         score += 15
-        factors.append(f'{falls_90} caiguda(es) en 90 dies')
+        factors.append(f'{falls_90} caída(s) en 90 días')
 
     if f.get('polypharmacy'):
         score += 10
-        factors.append(f'{f["medication_count"]} medicaments actius (polifarmàcia)')
+        factors.append(f'{f["medication_count"]} medicamentos activos (polifarmacia)')
 
     barthel_delta = f.get('barthel_delta', 0)
     if barthel_delta < -10:
         score += 10
-        factors.append(f'Barthel empitjorant ({barthel_delta} punts)')
+        factors.append(f'Barthel empeorando ({barthel_delta} puntos)')
 
     level = 'high' if score >= 50 else ('medium' if score >= 25 else 'low')
     return min(score, 100), level, factors
@@ -191,33 +191,33 @@ def _score_upp_risk(f: dict) -> tuple[float, str, list[str]]:
     if norton is not None:
         if norton <= 9:
             score += 40
-            factors.append(f'Norton risc molt alt ({norton}/20)')
+            factors.append(f'Norton riesgo muy alto ({norton}/20)')
         elif norton <= 12:
             score += 30
-            factors.append(f'Norton risc alt ({norton}/20)')
+            factors.append(f'Norton riesgo alto ({norton}/20)')
         elif norton <= 14:
             score += 15
-            factors.append(f'Norton risc mitjà ({norton}/20)')
+            factors.append(f'Norton riesgo medio ({norton}/20)')
 
     dep = f.get('dependency_numeric', 2)
     if dep >= 4:
         score += 20
-        factors.append('Dependència total')
+        factors.append('Dependencia total')
     elif dep >= 3:
         score += 15
-        factors.append('Dependència severa')
+        factors.append('Dependencia severa')
 
     wl = f.get('weight_loss_pct', 0)
     if wl >= 10:
         score += 20
-        factors.append(f'Pèrdua de pes significativa ({wl:.1f}%)')
+        factors.append(f'Pérdida de peso significativa ({wl:.1f}%)')
     elif wl >= 5:
         score += 10
-        factors.append(f'Pèrdua de pes moderada ({wl:.1f}%)')
+        factors.append(f'Pérdida de peso moderada ({wl:.1f}%)')
 
     if f.get('care_records_30d', 0) < 10:
         score += 10
-        factors.append('Poques atencions registrades (< 10 en 30 dies)')
+        factors.append('Pocas atenciones registradas (< 10 en 30 días)')
 
     level = 'high' if score >= 50 else ('medium' if score >= 25 else 'low')
     return min(score, 100), level, factors
@@ -232,26 +232,26 @@ def _score_cognitive_risk(f: dict) -> tuple[float, str, list[str]]:
     if pfeiffer is not None:
         if pfeiffer >= 8:
             score += 40
-            factors.append(f'Pfeiffer deteriorament sever ({pfeiffer} errors)')
+            factors.append(f'Pfeiffer deterioro severo ({pfeiffer} errores)')
         elif pfeiffer >= 5:
             score += 25
-            factors.append(f'Pfeiffer deteriorament moderat ({pfeiffer} errors)')
+            factors.append(f'Pfeiffer deterioro moderado ({pfeiffer} errores)')
         elif pfeiffer >= 3:
             score += 10
-            factors.append(f'Pfeiffer deteriorament lleu ({pfeiffer} errors)')
+            factors.append(f'Pfeiffer deterioro leve ({pfeiffer} errores)')
 
     pfeiffer_delta = f.get('pfeiffer_delta', 0)
     if pfeiffer_delta >= 3:
         score += 25
-        factors.append(f'Pfeiffer empitjorant ràpidament (+{pfeiffer_delta} errors)')
+        factors.append(f'Pfeiffer empeorando rápidamente (+{pfeiffer_delta} errores)')
     elif pfeiffer_delta >= 1:
         score += 10
-        factors.append(f'Pfeiffer empitjorant (+{pfeiffer_delta} errors)')
+        factors.append(f'Pfeiffer empeorando (+{pfeiffer_delta} errores)')
 
     mood = f.get('avg_mood_14d', 3)
     if mood < 2:
         score += 15
-        factors.append(f'Ànim molt baix (mitjana {mood:.1f}/5)')
+        factors.append(f'Ánimo muy bajo (media {mood:.1f}/5)')
     elif mood < 2.5:
         score += 5
 
@@ -271,26 +271,26 @@ def _score_nutritional_risk(f: dict) -> tuple[float, str, list[str]]:
     wl = f.get('weight_loss_pct', 0)
     if wl >= 10:
         score += 45
-        factors.append(f'Pèrdua de pes greu ({wl:.1f}%)')
+        factors.append(f'Pérdida de peso grave ({wl:.1f}%)')
     elif wl >= 5:
         score += 25
-        factors.append(f'Pèrdua de pes moderada ({wl:.1f}%)')
+        factors.append(f'Pérdida de peso moderada ({wl:.1f}%)')
     elif wl >= 3:
         score += 10
 
     dep = f.get('dependency_numeric', 2)
     if dep >= 4:
         score += 15
-        factors.append('Dependència total (risc de desnutrició)')
+        factors.append('Dependencia total (riesgo de desnutrición)')
 
     mood = f.get('avg_mood_14d', 3)
     if mood < 2:
         score += 15
-        factors.append('Ànim molt baix (possible inapetència)')
+        factors.append('Ánimo muy bajo (posible inapetencia)')
 
     if f.get('polypharmacy'):
         score += 10
-        factors.append('Polifarmàcia (pot afectar apetit)')
+        factors.append('Polifarmacia (puede afectar apetito)')
 
     level = 'high' if score >= 50 else ('medium' if score >= 25 else 'low')
     return min(score, 100), level, factors
@@ -351,7 +351,7 @@ def train_models() -> dict:
     if len(X_dicts) < 10:
         return {
             'status': 'insufficient_data',
-            'message': f'Nomes {len(X_dicts)} residents amb dades suficients (minim 10)',
+            'message': f'Solo {len(X_dicts)} residentes con datos suficientes (mínimo 10)',
             'sample_size': len(X_dicts),
         }
 
@@ -401,7 +401,7 @@ def train_models() -> dict:
 
     except ImportError:
         report['status'] = 'sklearn_not_available'
-        report['message'] = 'scikit-learn no instal·lat'
+        report['message'] = 'scikit-learn no instalado'
 
     return report
 
@@ -444,14 +444,14 @@ def predict_risks(resident_id: int) -> dict:
     if ml_fall is not None:
         combined_fall = fall_score * 0.6 + (ml_fall * 100) * 0.4
         fall_level = 'high' if combined_fall >= 50 else ('medium' if combined_fall >= 25 else 'low')
-        fall_factors.append(f'Model ML: {ml_fall*100:.0f}% probabilitat')
+        fall_factors.append(f'Model ML: {ml_fall*100:.0f}% probabilidad')
     else:
         combined_fall = fall_score
 
     if ml_upp is not None:
         combined_upp = upp_score * 0.6 + (ml_upp * 100) * 0.4
         upp_level = 'high' if combined_upp >= 50 else ('medium' if combined_upp >= 25 else 'low')
-        upp_factors.append(f'Model ML: {ml_upp*100:.0f}% probabilitat')
+        upp_factors.append(f'Model ML: {ml_upp*100:.0f}% probabilidad')
     else:
         combined_upp = upp_score
 

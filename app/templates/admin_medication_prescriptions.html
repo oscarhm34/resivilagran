@@ -202,12 +202,12 @@ function editPresc(id, drug, dose, route, freq, times, instr, by, start, end, ac
 function checkInteractions() {
     var drug = document.getElementById('presc-drug').value.trim();
     var dose = document.getElementById('presc-dose').value.trim();
-    if (!drug) { alert('Introdueix primer el nom del medicament.'); return; }
+    if (!drug) { alert('Introduce primero el nombre del medicamento.'); return; }
 
     var btn = document.getElementById('btn-check-interactions');
     var resultDiv = document.getElementById('interaction-result');
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Analitzant...';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Analizando...';
     resultDiv.style.display = 'none';
 
     fetch('/api/medication/interaction-check', {

@@ -22,7 +22,7 @@
             <div class="card h-100" {% if total_pending %}style="border-color:var(--color-warning)"{% endif %}>
                 <div class="card-body text-center py-3">
                     <div style="font-size:1.8rem;font-weight:800;color:{% if total_pending %}var(--color-warning){% else %}var(--color-text-secondary){% endif %}">{{ total_pending }}</div>
-                    <div class="text-muted" style="font-size:.82rem">Preses pendents</div>
+                    <div class="text-muted" style="font-size:.82rem">Tomas pendientes</div>
                 </div>
             </div>
         </div>
@@ -77,11 +77,11 @@
             </div>
             <div class="d-flex gap-2">
                 {% if rm.total_pending %}
-                <span class="badge bg-warning text-dark">{{ rm.total_pending }} pendent{{ 's' if rm.total_pending != 1 }}</span>
+                <span class="badge bg-warning text-dark">{{ rm.total_pending }} pendiente{{ 's' if rm.total_pending != 1 }}</span>
                 {% endif %}
-                <span class="badge bg-success bg-opacity-10 text-success">{{ rm.total_completed }} feta{{ 's' if rm.total_completed != 1 }}</span>
+                <span class="badge bg-success bg-opacity-10 text-success">{{ rm.total_completed }} hecha{{ 's' if rm.total_completed != 1 }}</span>
                 <a href="{{ url_for('medication.resident_prescriptions', resident_id=rm.resident.id) }}" class="btn btn-outline-secondary btn-sm" style="font-size:.72rem">
-                    <i class="bi bi-pencil"></i> Pautes
+                    <i class="bi bi-pencil"></i> Pautas
                 </a>
             </div>
         </div>
@@ -110,11 +110,11 @@
                         </td>
                         <td>
                             {% if med.pending_times %}
-                            <span class="text-warning fw-semibold">{{ med.pending_times|length }} pendent</span>
+                            <span class="text-warning fw-semibold">{{ med.pending_times|length }} pendiente</span>
                             {% elif not med.upcoming_times %}
-                            <span class="text-success"><i class="bi bi-check-lg"></i> Tot fet</span>
+                            <span class="text-success"><i class="bi bi-check-lg"></i> Todo hecho</span>
                             {% else %}
-                            <span class="text-muted">Proper: {{ med.upcoming_times[0] }}</span>
+                            <span class="text-muted">Próximo: {{ med.upcoming_times[0] }}</span>
                             {% endif %}
                         </td>
                         <td>

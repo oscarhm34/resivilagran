@@ -348,21 +348,21 @@ def verify_barcode():
     resident_id = data.get('resident_id')
 
     if not scanned_code:
-        return jsonify({'error': 'Codi de barres buit'}), 400
+        return jsonify({'error': 'Código de barras vacío'}), 400
 
     # If prescription_id given, verify against that specific prescription
     if prescription_id:
         p = db.session.get(MedicationPrescription, prescription_id)
         if not p:
-            return jsonify({'match': False, 'error': 'Prescripció no trobada'}), 404
+            return jsonify({'match': False, 'error': 'Prescripción no encontrada'}), 404
         if not p.barcode:
-            return jsonify({'match': False, 'message': 'Prescripció sense barcode registrat', 'drug_name': p.drug_name})
+            return jsonify({'match': False, 'message': 'Prescripción sin barcode registrado', 'drug_name': p.drug_name})
         if p.barcode.strip() == scanned_code:
             return jsonify({'match': True, 'drug_name': p.drug_name, 'dose': p.dose,
                             'resident_name': p.resident.name if p.resident else ''})
         else:
             return jsonify({'match': False, 'expected': p.drug_name,
-                            'message': f'Barcode no coincideix amb {p.drug_name}'})
+                            'message': f'Barcode no coincide con {p.drug_name}'})
 
     # If resident_id given, search all active prescriptions for this resident
     if resident_id:
@@ -379,7 +379,7 @@ def verify_barcode():
                     'drug_name': p.drug_name, 'dose': p.dose,
                     'resident_name': p.resident.name if p.resident else '',
                 })
-        return jsonify({'match': False, 'message': 'Barcode no coincideix amb cap medicament actiu del resident'})
+        return jsonify({'match': False, 'message': 'Barcode no coincide con ningún medicamento activo del residente'})
 
     # Global search across all active prescriptions
     match = MedicationPrescription.query.filter_by(barcode=scanned_code, active=True).first()
@@ -391,7 +391,7 @@ def verify_barcode():
             'resident_name': match.resident.name if match.resident else '',
         })
 
-    return jsonify({'match': False, 'message': 'Barcode no reconegut'})
+    return jsonify({'match': False, 'message': 'Barcode no reconocido'})
 
 
 # ── AI Medication Interaction Checker ──────────────────────────────────────────

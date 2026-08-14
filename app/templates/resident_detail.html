@@ -206,10 +206,10 @@
                         <button type="button" class="btn btn-outline-info btn-sm" id="btn-family-summary" title="Resumen para familias">
                             <i class="bi bi-people me-1"></i>Resumen familiar
                         </button>
-                        <button type="button" class="btn btn-outline-success btn-sm" id="btn-generate-pai" title="Generar PAI amb IA">
+                        <button type="button" class="btn btn-outline-success btn-sm" id="btn-generate-pai" title="Generar PAI con IA">
                             <i class="bi bi-clipboard-pulse me-1"></i>PAI
                         </button>
-                        <button type="button" class="btn btn-outline-warning btn-sm" id="btn-review-pai" title="Revisar PAI actual amb IA">
+                        <button type="button" class="btn btn-outline-warning btn-sm" id="btn-review-pai" title="Revisar PAI actual con IA">
                             <i class="bi bi-arrow-repeat me-1"></i>Revisar PAI
                         </button>
                     </div>
@@ -440,10 +440,10 @@
             <!-- Informes per inspecció -->
             <div class="card mb-4" style="border-color:var(--color-primary);border-style:dashed">
                 <div class="card-header d-flex align-items-center justify-content-between" style="background:rgba(13,110,253,.04)">
-                    <div><i class="bi bi-file-earmark-medical me-1" style="color:var(--color-primary)"></i><strong>Informes per inspeccion</strong></div>
+                    <div><i class="bi bi-file-earmark-medical me-1" style="color:var(--color-primary)"></i><strong>Informes para inspección</strong></div>
                     <div class="d-flex gap-2">
                         <button type="button" class="btn btn-outline-primary btn-sm btn-insp-report" data-type="monthly">
-                            <i class="bi bi-calendar-month me-1"></i>Seguiment mensual
+                            <i class="bi bi-calendar-month me-1"></i>Seguimiento mensual
                         </button>
                         <button type="button" class="btn btn-outline-primary btn-sm btn-insp-report" data-type="pai">
                             <i class="bi bi-file-earmark-text me-1"></i>Borrador PAI
@@ -540,8 +540,8 @@
             </div>
             {% else %}
             <div class="alert alert-info">
-                <i class="bi bi-info-circle me-1"></i>{{ resident.name }} no te pautes farmacologiques.
-                <a href="{{ url_for('medication.resident_prescriptions', resident_id=resident.id) }}">Afegir pautes</a>
+                <i class="bi bi-info-circle me-1"></i>{{ resident.name }} no tiene pautas farmacológicas.
+                <a href="{{ url_for('medication.resident_prescriptions', resident_id=resident.id) }}">Añadir pautas</a>
             </div>
             {% endif %}
         </div>
@@ -1171,9 +1171,9 @@ vitalData.forEach((chart, i) => {
             var contentEl = document.getElementById('insp-content');
             btn.disabled = true;
             var origHtml = btn.innerHTML;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generant...';
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generando...';
             container.style.display = 'block';
-            contentEl.innerHTML = '<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>Generant informe...</div>';
+            contentEl.innerHTML = '<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>Generando informe...</div>';
 
             fetch('/api/resident/{{ resident.id }}/inspection-report', {
                 method: 'POST',
@@ -1238,7 +1238,7 @@ document.getElementById('btn-generate-pai').addEventListener('click', function()
             document.getElementById('rpt-name').textContent = '{{ resident.name }}';
             document.getElementById('rpt-period').textContent = 'Plan de Atención Individualizado';
             document.getElementById('rpt-date').textContent = data.review_date || '';
-            if (typeof showToast === 'function') showToast(data.message || 'PAI generat', 'success');
+            if (typeof showToast === 'function') showToast(data.message || 'PAI generado', 'success');
         } else {
             _content.innerHTML = '<div class="alert alert-warning">' + (data.error || 'Error') + '</div>';
         }
@@ -1253,9 +1253,9 @@ document.getElementById('btn-review-pai').addEventListener('click', function() {
     var _container = document.getElementById('ai-report-container');
     var _content = document.getElementById('ai-report-content');
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Revisant PAI...';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Revisando PAI...';
     _container.style.display = 'block';
-    _content.innerHTML = '<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>Comparant objectius amb dades reals...</div>';
+    _content.innerHTML = '<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>Comparando objetivos con datos reales...</div>';
 
     fetch('/api/resident/{{ resident.id }}/care-plan/review', {
         method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'
@@ -1489,7 +1489,7 @@ function showWoundDetail(woundId) {
         if (data.updates.length) {
             msg += 'Historial:\n';
             data.updates.forEach(function(u) { msg += '  ' + u.created_at + ': ' + (STATUS_LABELS[u.status]||u.status) + (u.description ? ' — ' + u.description : '') + '\n'; });
-        } else { msg += 'Sense actualitzacions'; }
+        } else { msg += 'Sin actualizaciones'; }
         alert(msg);
     });
 }

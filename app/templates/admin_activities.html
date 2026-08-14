@@ -8,30 +8,30 @@
         <div class="d-flex flex-wrap gap-2">
             <a href="{{ url_for('activities.admin_activities', date=prev_date, view=view) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-left"></i></a>
             {% if not is_current %}
-            <a href="{{ url_for('activities.admin_activities', view=view) }}" class="btn btn-outline-primary btn-sm">Avui</a>
+            <a href="{{ url_for('activities.admin_activities', view=view) }}" class="btn btn-outline-primary btn-sm">Hoy</a>
             {% endif %}
             <a href="{{ url_for('activities.admin_activities', date=next_date, view=view) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-right"></i></a>
             <div class="btn-group btn-group-sm">
                 <a href="{{ url_for('activities.admin_activities', date=view_date.isoformat(), view='week') }}" class="btn btn-outline-secondary {% if view == 'week' %}active{% endif %}"><i class="bi bi-calendar-week"></i></a>
                 <a href="{{ url_for('activities.admin_activities', date=view_date.isoformat(), view='month') }}" class="btn btn-outline-secondary {% if view == 'month' %}active{% endif %}"><i class="bi bi-calendar-month"></i></a>
             </div>
-            <a href="{{ url_for('activities.activity_stats') }}" class="btn btn-outline-info btn-sm" title="Estadistiques"><i class="bi bi-bar-chart-line me-1"></i><span class="hide-mobile">Estadistiques</span></a>
-            <a href="{{ url_for('activities.admin_activity_templates') }}" class="btn btn-outline-secondary btn-sm" title="Plantilles recurrents"><i class="bi bi-arrow-repeat me-1"></i><span class="hide-mobile">Recurrents</span></a>
-            <button type="button" class="btn btn-outline-purple btn-sm" id="btn-ai-suggest" title="Suggerencies IA"><i class="bi bi-stars me-1"></i><span class="hide-mobile">IA</span></button>
+            <a href="{{ url_for('activities.activity_stats') }}" class="btn btn-outline-info btn-sm" title="Estadísticas"><i class="bi bi-bar-chart-line me-1"></i><span class="hide-mobile">Estadísticas</span></a>
+            <a href="{{ url_for('activities.admin_activity_templates') }}" class="btn btn-outline-secondary btn-sm" title="Plantillas recurrentes"><i class="bi bi-arrow-repeat me-1"></i><span class="hide-mobile">Recurrentes</span></a>
+            <button type="button" class="btn btn-outline-purple btn-sm" id="btn-ai-suggest" title="Sugerencias IA"><i class="bi bi-stars me-1"></i><span class="hide-mobile">IA</span></button>
             <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#actModal" onclick="resetActForm()">
                 <i class="bi bi-plus-lg me-1"></i>Nueva actividad
             </button>
         </div>
     </div>
 
-    {% set day_names = ['Dl','Dm','Dc','Dj','Dv','Ds','Dg'] %}
-    {% set day_names_long = ['Dilluns','Dimarts','Dimecres','Dijous','Divendres','Dissabte','Diumenge'] %}
+    {% set day_names = ['Lu','Ma','Mi','Ju','Vi','Sa','Do'] %}
+    {% set day_names_long = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'] %}
     {% set today = view_date.__class__.today() %}
 
     {% if view == 'month' %}
     <!-- Month grid -->
     <div class="card">
-        <div class="card-header text-center py-2"><strong>{{ ['Gener','Febrer','Marc','Abril','Maig','Juny','Juliol','Agost','Setembre','Octubre','Novembre','Desembre'][month - 1] }} {{ year }}</strong></div>
+        <div class="card-header text-center py-2"><strong>{{ ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][month - 1] }} {{ year }}</strong></div>
         <div style="display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--color-border)">
             {% for dn in day_names %}
             <div class="text-center py-1" style="font-size:.7rem;font-weight:700;color:var(--color-text-secondary);border-right:1px solid var(--color-border)">{{ dn }}</div>
@@ -143,20 +143,20 @@
                                 {% for k, v in categories.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
                             </select>
                         </div>
-                        <div class="col-4"><label class="form-label">Data <span class="text-danger">*</span></label><input type="date" class="form-control" name="activity_date" id="act-date" required></div>
-                        <div class="col-4"><label class="form-label">Hora inici</label><input type="time" class="form-control" name="start_time" id="act-start"></div>
-                        <div class="col-4"><label class="form-label">Hora fi</label><input type="time" class="form-control" name="end_time" id="act-end"></div>
-                        <div class="col-12"><label class="form-label">Ubicacio</label><input type="text" class="form-control" name="location" id="act-loc" placeholder="Ej: Sala d'actes, Jardi..."></div>
-                        <div class="col-12"><label class="form-label">Descripcio</label><textarea class="form-control" name="description" id="act-desc" rows="2"></textarea></div>
+                        <div class="col-4"><label class="form-label">Fecha <span class="text-danger">*</span></label><input type="date" class="form-control" name="activity_date" id="act-date" required></div>
+                        <div class="col-4"><label class="form-label">Hora inicio</label><input type="time" class="form-control" name="start_time" id="act-start"></div>
+                        <div class="col-4"><label class="form-label">Hora fin</label><input type="time" class="form-control" name="end_time" id="act-end"></div>
+                        <div class="col-12"><label class="form-label">Ubicación</label><input type="text" class="form-control" name="location" id="act-loc" placeholder="Ej: Sala de actos, Jardín..."></div>
+                        <div class="col-12"><label class="form-label">Descripción</label><textarea class="form-control" name="description" id="act-desc" rows="2"></textarea></div>
                         <div class="col-12" id="recurring-section">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="recurring" id="act-recurring">
-                                <label class="form-check-label" for="act-recurring">Recurrent <i class="bi bi-arrow-repeat"></i></label>
+                                <label class="form-check-label" for="act-recurring">Recurrente <i class="bi bi-arrow-repeat"></i></label>
                             </div>
                             <div id="recurrence-options" class="mt-2" style="display:none">
                                 <select class="form-select form-select-sm" name="recurrence" id="act-recurrence" style="width:auto">
-                                    <option value="weekly">Setmanal</option>
-                                    <option value="biweekly">Quinzenal</option>
+                                    <option value="weekly">Semanal</option>
+                                    <option value="biweekly">Quincenal</option>
                                     <option value="monthly">Mensual</option>
                                 </select>
                                 <small class="text-muted d-block mt-1">Se generarán instancias automáticamente para las próximas semanas.</small>
@@ -212,7 +212,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" id="btn-save-invites"><i class="bi bi-check-lg me-1"></i>Guardar convidats (<span id="invite-count">0</span>)</button>
+                <button type="button" class="btn btn-primary" id="btn-save-invites"><i class="bi bi-check-lg me-1"></i>Guardar invitados (<span id="invite-count">0</span>)</button>
             </div>
         </div>
     </div>
@@ -229,7 +229,7 @@
             <div class="modal-body">
                 <div id="ai-suggest-loading" class="text-center py-4">
                     <div class="spinner-border text-primary" role="status"></div>
-                    <p class="mt-2 text-muted">Analitzant perfils de residents i historial de participacio...</p>
+                    <p class="mt-2 text-muted">Analizando perfiles de residentes e historial de participación...</p>
                 </div>
                 <div id="ai-suggest-results" style="display:none"></div>
                 <div id="ai-suggest-error" class="alert alert-danger" style="display:none"></div>
@@ -301,7 +301,7 @@
         var tmplId = document.getElementById('act-delete-btn').dataset.tmpl;
         var scope = 'single';
         if (tmplId) {
-            var choice = confirm('Eliminar también todas las futuras instancias?\n\nOK = Eliminar aquesta i futures\nCancel = Eliminar nomes aquesta');
+            var choice = confirm('Eliminar también todas las futuras instancias?\n\nOK = Eliminar esta y futuras\nCancel = Eliminar solo esta');
             scope = choice ? 'future' : 'single';
         } else {
             if (!confirm('¿Eliminar esta actividad?')) return;
@@ -374,7 +374,7 @@
         }).then(function(r) { return r.json(); }).then(function(data) {
             if (data.ok) {
                 bootstrap.Modal.getInstance(document.getElementById('inviteModal')).hide();
-                if (typeof showToast === 'function') showToast(data.count + ' residents convidats', 'success');
+                if (typeof showToast === 'function') showToast(data.count + ' residentes invitados', 'success');
                 setTimeout(function() { location.reload(); }, 500);
             }
         });
@@ -413,7 +413,7 @@
                     + '<div style="font-size:.85rem;color:var(--color-text-secondary)">' + (s.reason || '') + '</div>'
                     + '</div>';
             });
-            if (!html) html = '<p class="text-muted text-center">No s\'han pogut generar suggerencies.</p>';
+            if (!html) html = '<p class="text-muted text-center">No se han podido generar sugerencias.</p>';
             document.getElementById('ai-suggest-results').innerHTML = html;
             document.getElementById('ai-suggest-results').style.display = '';
         }).catch(function(err) {

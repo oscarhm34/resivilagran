@@ -158,7 +158,7 @@
         var btn = this;
         var status = document.getElementById('ai-suggest-status');
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Analitzant...';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Analizando...';
         status.textContent = '';
 
         fetch('/api/resident/' + residentId.value + '/ai-suggest-assessment', {
@@ -176,10 +176,10 @@
                     if (radio) radio.checked = true;
                 });
                 updateScore();
-                status.textContent = 'Suggerencies aplicades. Revisa i ajusta abans de guardar.';
+                status.textContent = 'Sugerencias aplicadas. Revisa y ajusta antes de guardar.';
                 status.style.color = 'var(--color-success, #198754)';
             } else {
-                status.textContent = data.error || 'No s\'han pogut generar suggerencies.';
+                status.textContent = data.error || 'No se han podido generar sugerencias.';
                 status.style.color = 'var(--color-danger, #dc3545)';
             }
         }).catch(function() {

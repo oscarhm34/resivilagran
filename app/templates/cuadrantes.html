@@ -1092,7 +1092,7 @@
     document.getElementById('btn-ai-shifts').addEventListener('click', function() {
         var btn = this;
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Analitzant...';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Analizando...';
         fetch('/api/shifts/ai-suggestions', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},

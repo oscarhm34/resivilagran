@@ -207,7 +207,7 @@ def assessment_barthel():
             ).order_by(AssessmentRecord.assessed_at.desc()).first()
             if prev and total < prev.score - 5:
                 auto_review_care_plan(resident_id,
-                    f'Barthel ha baixat de {prev.score} a {total}/100 ({interp_label})')
+                    f'Barthel ha bajado de {prev.score} a {total}/100 ({interp_label})')
         except Exception:
             pass
 
@@ -280,7 +280,7 @@ def assessment_norton():
             ).order_by(AssessmentRecord.assessed_at.desc()).first()
             if prev and total < prev.score - 1:
                 auto_review_care_plan(resident_id,
-                    f'Norton ha baixat de {prev.score} a {total}/20 ({interp_label}). Risc UPP augmentat.')
+                    f'Norton ha bajado de {prev.score} a {total}/20 ({interp_label}). Riesgo UPP aumentado.')
         except Exception:
             pass
 
@@ -665,7 +665,7 @@ def _build_resident_context(resident_id: int, days: int = 7) -> dict:
     for p in participations:
         a = p.activity
         if a:
-            eng_label = {'participated': 'Ha participat', 'passive': 'Passiu', 'refused': 'Ha refusat', 'absent': 'Absent'}.get(p.engagement, 'Pendent')
+            eng_label = {'participated': 'Ha participado', 'passive': 'Pasivo', 'refused': 'Ha rechazado', 'absent': 'Ausente'}.get(p.engagement, 'Pendiente')
             activity_data.append({
                 'date': a.activity_date.strftime('%d/%m/%Y'),
                 'title': a.title,
@@ -748,7 +748,7 @@ def _context_to_text(ctx: dict, days: int) -> str:
             lines.append(f"  {cl['date']}{dur}")
 
     if ctx.get('activities'):
-        lines.append(f"\nACTIVITATS ({len(ctx['activities'])}):")
+        lines.append(f"\nACTIVIDADES ({len(ctx['activities'])}):")
         for act in ctx['activities'][:10]:
             lines.append(f"  {act['date']} - {act['title']} ({act['category']}) — {act['engagement']}")
 
@@ -1018,7 +1018,7 @@ def global_ai_report():
         Activity.activity_date >= cutoff.date(),
     ).options(joinedload(Activity.participations)).all()
     if period_activities:
-        lines.append(f"\nACTIVITATS ({len(period_activities)}):")
+        lines.append(f"\nACTIVIDADES ({len(period_activities)}):")
         for a in period_activities:
             confirmed = sum(1 for p in a.participations if p.engagement == 'participated')
             total = len(a.participations)
@@ -1198,14 +1198,14 @@ def shift_handover_report():
         joinedload(Activity.participations),
     ).all()
     if today_activities:
-        lines.append(f"\nACTIVITATS D'AVUI ({len(today_activities)}):")
+        lines.append(f"\nACTIVIDADES DE HOY ({len(today_activities)}):")
         for a in today_activities:
             confirmed = sum(1 for p in a.participations if p.engagement == 'participated')
             total = len(a.participations)
             time_str = a.start_time.strftime('%H:%M') if a.start_time else ''
             names = [p.resident.name for p in a.participations if p.engagement == 'participated' and p.resident]
             absent = [p.resident.name for p in a.participations if p.engagement == 'absent' and p.resident]
-            lines.append(f"  {time_str} {a.title} ({a.category}) — {confirmed}/{total} confirmats")
+            lines.append(f"  {time_str} {a.title} ({a.category}) — {confirmed}/{total} confirmados")
             if names:
                 lines.append(f"    Participants: {', '.join(names)}")
             if absent:
@@ -1337,12 +1337,12 @@ def compliance_audit():
         active_pai = CarePlan.query.filter_by(resident_id=r.id, status='active').first()
         if not active_pai:
             findings.append({'category': 'pai', 'severity': 'info',
-                'text': f'{r.name}: sense PAI actiu',
+                'text': f'{r.name}: sin PAI activo',
                 'link': f'/admin/resident/{r.id}'})
         elif active_pai.review_date and active_pai.review_date < now.date():
             days_overdue = (now.date() - active_pai.review_date).days
             findings.append({'category': 'pai', 'severity': 'warning',
-                'text': f'{r.name}: PAI pendent de revisió (vençut fa {days_overdue} dies)',
+                'text': f'{r.name}: PAI pendiente de revisión (vencido hace {days_overdue} días)',
                 'link': f'/admin/resident/{r.id}'})
 
     # 8. Incident response time — open incidents severity high/critical
@@ -1354,7 +1354,7 @@ def compliance_audit():
         days = (now - inc.created_at).days
         if days >= 3:
             findings.append({'category': 'incidencias', 'severity': 'critical',
-                'text': f'Incidència URGENT "{inc.title}" oberta fa {days} dies sense resoldre',
+                'text': f'Incidencia URGENTE "{inc.title}" abierta hace {days} días sin resolver',
                 'link': '/admin/incidents'})
 
     # ── Compliance scoring ──
@@ -1412,9 +1412,9 @@ def compliance_audit():
         cat = f['category']
         categories.setdefault(cat, []).append(f)
 
-    cat_labels = {'valoraciones': 'Valoracions clíniques', 'clinico': 'Riscos clínics',
-                  'atenciones': 'Atencions', 'documentos': 'Documents legals',
-                  'incidencias': 'Incidències', 'formacion': 'Formació', 'pai': 'Plans de cura (PAI)'}
+    cat_labels = {'valoraciones': 'Valoraciones clínicas', 'clinico': 'Riesgos clínicos',
+                  'atenciones': 'Atenciones', 'documentos': 'Documentos legales',
+                  'incidencias': 'Incidencias', 'formacion': 'Formación', 'pai': 'Planes de cuidado (PAI)'}
     cat_icons = {'valoraciones': 'bi-clipboard2-pulse', 'clinico': 'bi-heart-pulse',
                  'atenciones': 'bi-person-heart', 'documentos': 'bi-file-earmark-text',
                  'incidencias': 'bi-exclamation-triangle', 'formacion': 'bi-mortarboard',
@@ -1455,13 +1455,13 @@ def compliance_ai_report():
     falls_30d = Incident.query.filter(Incident.is_fall == True, Incident.created_at >= now - timedelta(days=30)).count()
 
     lines = [
-        f"INFORME DE COMPLIMENT — {now.strftime('%d/%m/%Y')}",
-        f"Residents actius: {total}",
-        f"Barthel al dia (<6 mesos): {barthel_ok}/{total}",
-        f"Norton al dia (<6 mesos): {norton_ok}/{total}",
-        f"PAIs actius: {pai_ok}/{total}",
-        f"Incidències obertes: {open_incidents}",
-        f"Caigudes últims 30 dies: {falls_30d}",
+        f"INFORME DE CUMPLIMIENTO — {now.strftime('%d/%m/%Y')}",
+        f"Residentes activos: {total}",
+        f"Barthel al día (<6 meses): {barthel_ok}/{total}",
+        f"Norton al día (<6 meses): {norton_ok}/{total}",
+        f"PAIs activos: {pai_ok}/{total}",
+        f"Incidencias abiertas: {open_incidents}",
+        f"Caídas últimos 30 días: {falls_30d}",
     ]
 
     context = '\n'.join(lines)
@@ -1622,21 +1622,21 @@ def quality_kpis():
     occupancy_pct = round((occupied / total_rooms_resident) * 100, 1) if total_rooms_resident else 0
 
     kpis = [
-        {'name': 'Taxa de caigudes', 'value': falls_rate, 'unit': 'per 1000 dies-resident',
+        {'name': 'Tasa de caídas', 'value': falls_rate, 'unit': 'por 1000 días-residente',
          'target': 5.0, 'icon': 'bi-exclamation-triangle', 'good': 'low'},
-        {'name': 'Residents amb risc UPP', 'value': upp_pct, 'unit': '%',
+        {'name': 'Residentes con riesgo UPP', 'value': upp_pct, 'unit': '%',
          'target': 15, 'icon': 'bi-bandaid', 'good': 'low'},
-        {'name': 'Perdua de pes no planificada', 'value': weight_loss_pct, 'unit': '%',
+        {'name': 'Pérdida de peso no planificada', 'value': weight_loss_pct, 'unit': '%',
          'target': 5, 'icon': 'bi-arrow-down-circle', 'good': 'low'},
-        {'name': 'Refus/omissio medicacio', 'value': med_refusal_pct, 'unit': '%',
+        {'name': 'Rechazo/omisión medicación', 'value': med_refusal_pct, 'unit': '%',
          'target': 5, 'icon': 'bi-capsule', 'good': 'low'},
-        {'name': 'Compliment valoracions (B+N)', 'value': assess_pct, 'unit': '%',
+        {'name': 'Cumplimiento valoraciones (B+N)', 'value': assess_pct, 'unit': '%',
          'target': 90, 'icon': 'bi-clipboard2-pulse', 'good': 'high'},
-        {'name': 'Compliment formatiu', 'value': training_pct, 'unit': '%',
+        {'name': 'Cumplimiento formativo', 'value': training_pct, 'unit': '%',
          'target': 80, 'icon': 'bi-mortarboard', 'good': 'high'},
-        {'name': 'Temps resolucio incidencies', 'value': round(avg_resolution, 1), 'unit': 'dies',
+        {'name': 'Tiempo resolución incidencias', 'value': round(avg_resolution, 1), 'unit': 'días',
          'target': 7, 'icon': 'bi-clock-history', 'good': 'low'},
-        {'name': 'Ocupacio', 'value': occupancy_pct, 'unit': '%',
+        {'name': 'Ocupación', 'value': occupancy_pct, 'unit': '%',
          'target': 85, 'icon': 'bi-house', 'good': 'high'},
     ]
 
@@ -1695,7 +1695,7 @@ def generate_daily_digest():
     # Check if already generated today
     existing = DailyDigest.query.filter_by(date=today).count()
     if existing > 0:
-        return jsonify({'message': f'Ja generat avui ({existing} resums)', 'count': existing})
+        return jsonify({'message': f'Ya generado hoy ({existing} resúmenes)', 'count': existing})
 
     residents = Resident.query.filter_by(active=True).all()
     generated = 0
@@ -1733,7 +1733,7 @@ def generate_daily_digest():
             continue
 
     db.session.commit()
-    return jsonify({'message': f'{generated} resums generats', 'count': generated})
+    return jsonify({'message': f'{generated} resúmenes generados', 'count': generated})
 
 
 @bp.route('/admin/daily-digest')
@@ -1817,7 +1817,7 @@ def generate_care_plan(resident_id: int):
         'html': html,
         'plan_id': plan.id,
         'review_date': plan.review_date.isoformat(),
-        'message': 'PAI generat i guardat',
+        'message': 'PAI generado y guardado',
     })
 
 
@@ -1830,17 +1830,17 @@ def review_care_plan(resident_id: int):
     ).order_by(CarePlan.created_at.desc()).first()
 
     if not plan:
-        return jsonify({'error': 'No hi ha PAI actiu per aquest resident'}), 404
+        return jsonify({'error': 'No hay PAI activo para este residente'}), 404
 
     ctx = _build_resident_context(resident_id, days=30)
     context_text = _context_to_text(ctx, 30)
 
-    prompt = f"""Revisa el PAI actual d'aquest resident comparant objectius amb dades reals.
+    prompt = f"""Revisa el PAI actual de este residente comparando objetivos con datos reales.
 
 PAI ACTUAL:
 {plan.html_content}
 
-DADES RECENTS (ultims 30 dies):
+DATOS RECIENTES (últimos 30 días):
 {context_text}"""
 
     try:
@@ -1909,7 +1909,7 @@ def auto_review_care_plan(resident_id, event_description):
 PAI ACTUAL:
 {plan.html_content[:3000]}
 
-DADES RECENTS (14 dies):
+DATOS RECIENTES (14 días):
 {context_text}"""
 
     try:
@@ -1932,7 +1932,7 @@ DADES RECENTS (14 dies):
     r_name = resident.name if resident else 'Resident'
     db.session.add(Notification(
         type='pai_review',
-        title=f'Revisió automàtica PAI: {r_name}',
+        title=f'Revisión automática PAI: {r_name}',
         message=review_html,
         severity='warning',
         resident_id=resident_id,
@@ -1964,7 +1964,7 @@ def ai_risk_watchlist():
     """AI-generated weekly risk watchlist for all residents."""
     residents = Resident.query.filter_by(active=True).order_by(Resident.name).all()
 
-    lines = [f"WATCHLIST DE RISC — {datetime.now().strftime('%d/%m/%Y')} — {len(residents)} residents actius\n"]
+    lines = [f"WATCHLIST DE RIESGO — {datetime.now().strftime('%d/%m/%Y')} — {len(residents)} residentes activos\n"]
 
     for r in residents:
         ctx = _build_resident_context(r.id, days=30)
@@ -1976,30 +1976,30 @@ def ai_risk_watchlist():
 
         if ctx['assessments']:
             for a in ctx['assessments']:
-                summary_parts.append(f"  Valoracio: {a['scale']} {a['score']} ({a['interpretation']}) [{a['date']}]")
+                summary_parts.append(f"  Valoración: {a['scale']} {a['score']} ({a['interpretation']}) [{a['date']}]")
 
         if ctx['incidents']:
             falls = [i for i in ctx['incidents'] if 'caida' in i['title'].lower() or 'caiguda' in i['title'].lower()]
-            summary_parts.append(f"  Incidencies: {len(ctx['incidents'])} (caigudes: {len(falls)})")
+            summary_parts.append(f"  Incidencias: {len(ctx['incidents'])} (caídas: {len(falls)})")
 
         if ctx.get('mood'):
             avg_mood = sum(m['score'] for m in ctx['mood']) / len(ctx['mood'])
-            summary_parts.append(f"  Anim mitja: {avg_mood:.1f}/5 ({len(ctx['mood'])} registres)")
+            summary_parts.append(f"  Ánimo medio: {avg_mood:.1f}/5 ({len(ctx['mood'])} registros)")
 
         if ctx['vital_signs']:
             out_of_range = [v for v in ctx['vital_signs'] if 'fuera' in str(v).lower()]
-            summary_parts.append(f"  Constantes: {len(ctx['vital_signs'])} lectures")
+            summary_parts.append(f"  Constantes: {len(ctx['vital_signs'])} lecturas")
 
         if ctx['care_records']:
-            summary_parts.append(f"  Atencions: {len(ctx['care_records'])}")
+            summary_parts.append(f"  Atenciones: {len(ctx['care_records'])}")
 
         if ctx.get('activities'):
             participated = sum(1 for a in ctx['activities'] if 'participat' in a.get('engagement', '').lower())
-            summary_parts.append(f"  Activitats: {participated}/{len(ctx['activities'])} participades")
+            summary_parts.append(f"  Actividades: {participated}/{len(ctx['activities'])} participadas")
 
         lines.extend(summary_parts)
 
-    prompt = "Genera una llista de vigilancia basada en aquestes dades:\n" + '\n'.join(lines)
+    prompt = "Genera una lista de vigilancia basada en estos datos:\n" + '\n'.join(lines)
 
     try:
         html = _call_claude(WATCHLIST_SYSTEM, prompt)

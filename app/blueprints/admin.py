@@ -991,7 +991,7 @@ def ai_worker_performance():
     cutoff = datetime.now() - timedelta(days=days)
 
     workers = Cleaner.query.filter_by(active=True, is_admin=False).order_by(Cleaner.name).all()
-    lines = [f"ANALISIS RENDIMENT TREBALLADORS — Ultims {days} dies\n"]
+    lines = [f"ANÁLISIS RENDIMIENTO TRABAJADORES — Últimos {days} días\n"]
 
     for w in workers:
         cares = CareRecord.query.filter(
@@ -1014,9 +1014,9 @@ def ai_worker_performance():
         clean_durations = [c.calculate_duration() for c in cleans if c.calculate_duration()]
         avg_clean = round(sum(clean_durations) / len(clean_durations) / 60, 1) if clean_durations else 0
 
-        lines.append(f"- {w.name} (rol: {w.role}): {len(cares)} atencions (mitja {avg_care}min), "
-                     f"{len(cleans)} neteges (mitja {avg_clean}min), {shifts} torns, "
-                     f"{absences} absencies, {trainings} formacions aprovades")
+        lines.append(f"- {w.name} (rol: {w.role}): {len(cares)} atenciones (media {avg_care}min), "
+                     f"{len(cleans)} limpiezas (media {avg_clean}min), {shifts} turnos, "
+                     f"{absences} ausencias, {trainings} formaciones aprobadas")
 
     system = (
         "Eres un gestor de recursos humanos de una residencia geriatrica. "

@@ -275,7 +275,7 @@ def update_resident_inline(resident_id: int):
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        return jsonify({'error': 'El codi NFC ja esta en us'}), 400
+        return jsonify({'error': 'El código NFC ya está en uso'}), 400
 
     return jsonify({'ok': True})
 
@@ -914,7 +914,7 @@ def create_wound(resident_id: int):
     zone_label = BODY_ZONES.get(wound.body_zone, wound.body_zone)
     db.session.add(Notification(
         type='wound_alert',
-        title=f'Nova ferida: {r_name} — {type_label} ({zone_label})',
+        title=f'Nueva herida: {r_name} — {type_label} ({zone_label})',
         severity='warning' if wound.severity in ('moderate', 'severe') else 'info',
         resident_id=resident_id,
         link=f'/admin/resident/{resident_id}',
@@ -930,7 +930,7 @@ def update_wound(wound_id: int):
     """Add a follow-up update to a wound."""
     wound = db.session.get(WoundRecord, wound_id)
     if not wound:
-        return jsonify({'error': 'Ferida no trobada'}), 404
+        return jsonify({'error': 'Herida no encontrada'}), 404
 
     data = request.get_json(silent=True) or {}
     new_status = data.get('status', wound.status)
@@ -957,7 +957,7 @@ def update_wound(wound_id: int):
         r_name = resident.name if resident else 'Resident'
         db.session.add(Notification(
             type='wound_alert',
-            title=f'Ferida empitjorant: {r_name} — {WOUND_TYPES.get(wound.wound_type, wound.wound_type)}',
+            title=f'Herida empeorando: {r_name} — {WOUND_TYPES.get(wound.wound_type, wound.wound_type)}',
             severity='critical', resident_id=wound.resident_id,
             link=f'/admin/resident/{wound.resident_id}',
         ))
@@ -972,7 +972,7 @@ def wound_history(wound_id: int):
     """Get evolution history for a wound."""
     wound = db.session.get(WoundRecord, wound_id)
     if not wound:
-        return jsonify({'error': 'No trobada'}), 404
+        return jsonify({'error': 'No encontrada'}), 404
 
     updates = WoundUpdate.query.filter_by(wound_id=wound_id).order_by(WoundUpdate.created_at.desc()).all()
     return jsonify({

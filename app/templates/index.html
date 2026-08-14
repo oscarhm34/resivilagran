@@ -322,7 +322,7 @@
                         <option value="24">Ultimas 24 horas</option>
                     </select>
                     <button type="button" class="btn btn-primary btn-sm" id="btn-ho-generate">
-                        <i class="bi bi-stars me-1"></i>Generar resum
+                        <i class="bi bi-stars me-1"></i>Generar resumen
                     </button>
                     <button type="button" class="btn btn-outline-secondary btn-sm no-print" id="btn-ho-print" style="display:none">
                         <i class="bi bi-printer me-1"></i>Imprimir
@@ -336,11 +336,11 @@
                         </div>
                     </div>
                     <div id="ho-content" class="gr-content">
-                        <div class="text-center text-muted py-5">Pulsa "Generar resum" per crear l'informe de traspas</div>
+                        <div class="text-center text-muted py-5">Pulsa 'Generar resumen' para crear el informe de traspaso</div>
                     </div>
                     <div class="ho-print-footer" style="display:none">
                         <div style="border-top:1px solid #ccc;padding-top:8px;margin-top:24px;font-size:11px;color:#999;text-align:center">
-                            Informe generat automaticament per IA.
+                            Informe generado automáticamente por IA.
                         </div>
                     </div>
                 </div>
@@ -358,8 +358,8 @@
         var hours = parseInt(document.getElementById('ho-hours').value);
         var content = document.getElementById('ho-content');
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generant...';
-        content.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm me-2"></div>Analitzant dades del torn...</div>';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generando...';
+        content.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm me-2"></div>Analizando datos del turno...</div>';
         document.getElementById('btn-ho-print').style.display = 'none';
 
         fetch('/api/shift-handover-report', {
@@ -368,7 +368,7 @@
             body: JSON.stringify({hours: hours})
         }).then(function(r) { return r.json(); }).then(function(data) {
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar resum';
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar resumen';
             if (data.html) {
                 content.innerHTML = data.html;
                 document.getElementById('btn-ho-print').style.display = '';
@@ -378,8 +378,8 @@
             }
         }).catch(function() {
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar resum';
-            content.innerHTML = '<div class="alert alert-danger">Error de connexio</div>';
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar resumen';
+            content.innerHTML = '<div class="alert alert-danger">Error de conexión</div>';
         });
     });
 
@@ -476,7 +476,7 @@ document.getElementById('wl-generate').addEventListener('click', function() {
     }).catch(function() {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar watchlist';
-        content.innerHTML = '<div class="alert alert-danger">Error de connexio.</div>';
+        content.innerHTML = '<div class="alert alert-danger">Error de conexión.</div>';
     });
 });
 </script>

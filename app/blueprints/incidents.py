@@ -127,7 +127,7 @@ def create_incident():
         try:
             from .assessments import auto_review_care_plan
             auto_review_care_plan(incident.resident_id,
-                f'Caiguda registrada: {incident.title}. Severitat: {incident.severity}.')
+                f'Caída registrada: {incident.title}. Severidad: {incident.severity}.')
         except Exception:
             pass
 
@@ -364,8 +364,8 @@ def worker_report_incident():
         try:
             from .assessments import auto_review_care_plan
             auto_review_care_plan(incident.resident_id,
-                f'Caiguda registrada: {incident.title or "sense detalls"}. '
-                f'Severitat: {incident.severity}.')
+                f'Caída registrada: {incident.title or "sin detalles"}. '
+                f'Severidad: {incident.severity}.')
         except Exception:
             pass
 
