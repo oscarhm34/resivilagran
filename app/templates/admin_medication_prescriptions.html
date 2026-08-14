@@ -72,7 +72,7 @@
     </div>
     {% else %}
     <div class="alert alert-info">
-        <i class="bi bi-info-circle me-1"></i>{{ resident.name }} no te pautes farmacologiques. Pulsa "Nova pauta" per afegir.
+        <i class="bi bi-info-circle me-1"></i>{{ resident.name }} no tiene pautas farmacológicas. Pulsa "Nueva pauta" para añadir.
     </div>
     {% endif %}
 </div>
@@ -149,7 +149,7 @@
                         <!-- AI Interaction check -->
                         <div class="col-12">
                             <button type="button" class="btn btn-outline-warning btn-sm" id="btn-check-interactions" onclick="checkInteractions()">
-                                <i class="bi bi-exclamation-triangle me-1"></i>Comprovar interaccions (IA)
+                                <i class="bi bi-exclamation-triangle me-1"></i>Comprobar interacciones (IA)
                             </button>
                             <div id="interaction-result" class="mt-2" style="display:none"></div>
                         </div>
@@ -216,23 +216,23 @@ function checkInteractions() {
         body: JSON.stringify({resident_id: {{ resident.id }}, drug_name: drug, dose: dose})
     }).then(function(r) { return r.json(); }).then(function(data) {
         btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>Comprovar interaccions (IA)';
+        btn.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>Comprobar interacciones (IA)';
         if (data.error) {
             resultDiv.innerHTML = '<div class="alert alert-danger py-2" style="font-size:.85rem">' + data.error + '</div>';
         } else if (data.message) {
             resultDiv.innerHTML = '<div class="alert alert-success py-2" style="font-size:.85rem"><i class="bi bi-check-circle me-1"></i>' + data.message + '</div>';
         } else {
             resultDiv.innerHTML = '<div class="alert alert-warning py-2" style="font-size:.85rem">'
-                + '<div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle me-1"></i>Analisi IA de interaccions: ' + (data.drug || drug) + '</div>'
-                + '<div style="white-space:pre-wrap">' + (data.analysis || 'Sense resultats.') + '</div>'
-                + '<div class="mt-2" style="font-size:.75rem;color:var(--color-text-secondary)"><i class="bi bi-info-circle me-1"></i>Informacio orientativa. La decisio clinica es del professional.</div>'
+                + '<div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle me-1"></i>Análisis IA de interacciones: ' + (data.drug || drug) + '</div>'
+                + '<div style="white-space:pre-wrap">' + (data.analysis || 'Sin resultados.') + '</div>'
+                + '<div class="mt-2" style="font-size:.75rem;color:var(--color-text-secondary)"><i class="bi bi-info-circle me-1"></i>Información orientativa. La decisión clínica es del profesional.</div>'
                 + '</div>';
         }
         resultDiv.style.display = '';
     }).catch(function() {
         btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>Comprovar interaccions (IA)';
-        resultDiv.innerHTML = '<div class="alert alert-danger py-2" style="font-size:.85rem">Error de connexio.</div>';
+        btn.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>Comprobar interacciones (IA)';
+        resultDiv.innerHTML = '<div class="alert alert-danger py-2" style="font-size:.85rem">Error de conexión.</div>';
         resultDiv.style.display = '';
     });
 }

@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Activitats{% endblock %}
+{% block title %}Actividades{% endblock %}
 
 {% block content %}
 <div class="py-3">
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-        <h1 class="h3 mb-0"><i class="bi bi-calendar-event me-2"></i>Calendari d'activitats</h1>
+        <h1 class="h3 mb-0"><i class="bi bi-calendar-event me-2"></i>Calendario de actividades</h1>
         <div class="d-flex flex-wrap gap-2">
             <a href="{{ url_for('activities.admin_activities', date=prev_date, view=view) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-left"></i></a>
             {% if not is_current %}
@@ -19,7 +19,7 @@
             <a href="{{ url_for('activities.admin_activity_templates') }}" class="btn btn-outline-secondary btn-sm" title="Plantilles recurrents"><i class="bi bi-arrow-repeat me-1"></i><span class="hide-mobile">Recurrents</span></a>
             <button type="button" class="btn btn-outline-purple btn-sm" id="btn-ai-suggest" title="Suggerencies IA"><i class="bi bi-stars me-1"></i><span class="hide-mobile">IA</span></button>
             <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#actModal" onclick="resetActForm()">
-                <i class="bi bi-plus-lg me-1"></i>Nova activitat
+                <i class="bi bi-plus-lg me-1"></i>Nueva actividad
             </button>
         </div>
     </div>
@@ -132,7 +132,7 @@
             <form method="POST" action="{{ url_for('activities.save_activity') }}" id="actForm">
                 <input type="hidden" name="activity_id" id="act-id" value="">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="actModalTitle">Nova activitat</h5>
+                    <h5 class="modal-title" id="actModalTitle">Nueva actividad</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
@@ -181,7 +181,7 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content" style="border-radius:var(--radius-lg)">
             <div class="modal-header">
-                <h5 class="modal-title" id="inviteModalTitle">Convidar residents</h5>
+                <h5 class="modal-title" id="inviteModalTitle">Invitar residentes</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -223,7 +223,7 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content" style="border-radius:var(--radius-lg)">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-stars me-2" style="color:#6f42c1"></i>Suggerencies IA d'activitats</h5>
+                <h5 class="modal-title"><i class="bi bi-stars me-2" style="color:#6f42c1"></i>Sugerencias IA de actividades</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -256,7 +256,7 @@
 
     window.resetActForm = function() {
         document.getElementById('act-id').value = '';
-        document.getElementById('actModalTitle').textContent = 'Nova activitat';
+        document.getElementById('actModalTitle').textContent = 'Nueva actividad';
         document.getElementById('act-title').value = '';
         document.getElementById('act-cat').value = 'general';
         document.getElementById('act-date').value = todayStr;
@@ -279,7 +279,7 @@
     document.querySelectorAll('.act-item').forEach(function(item) {
         item.addEventListener('click', function() {
             document.getElementById('act-id').value = item.dataset.id;
-            document.getElementById('actModalTitle').textContent = 'Editar activitat';
+            document.getElementById('actModalTitle').textContent = 'Editar actividad';
             document.getElementById('act-title').value = item.dataset.title;
             document.getElementById('act-cat').value = item.dataset.cat;
             document.getElementById('act-date').value = item.dataset.date;
@@ -301,10 +301,10 @@
         var tmplId = document.getElementById('act-delete-btn').dataset.tmpl;
         var scope = 'single';
         if (tmplId) {
-            var choice = confirm('Eliminar tambe totes les futures instancies?\n\nOK = Eliminar aquesta i futures\nCancel = Eliminar nomes aquesta');
+            var choice = confirm('Eliminar también todas las futuras instancias?\n\nOK = Eliminar aquesta i futures\nCancel = Eliminar nomes aquesta');
             scope = choice ? 'future' : 'single';
         } else {
-            if (!confirm('Eliminar aquesta activitat?')) return;
+            if (!confirm('¿Eliminar esta actividad?')) return;
         }
         var form = document.createElement('form');
         form.method = 'POST'; form.action = '/admin/activities/' + id + '/delete';
@@ -334,7 +334,7 @@
     document.querySelectorAll('.btn-invite-open').forEach(function(btn) {
         btn.addEventListener('click', function() {
             currentInviteActId = parseInt(btn.dataset.actId);
-            document.getElementById('inviteModalTitle').textContent = 'Convidar residents: ' + btn.dataset.actTitle;
+            document.getElementById('inviteModalTitle').textContent = 'Invitar residentes: ' + btn.dataset.actTitle;
             // Reset selections
             document.querySelectorAll('.invite-card').forEach(function(c) { c.classList.remove('selected'); c.style.display = ''; });
             updateInviteCount();

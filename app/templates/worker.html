@@ -537,7 +537,7 @@
     <div id="screen-mood" class="screen">
         <div class="scan-header">
             <button class="btn-back" id="mood-back" aria-label="Tornar">←</button>
-            <span class="mode-badge" style="background:#fef3c7;color:#92400e">😊 Estat d'anim</span>
+            <span class="mode-badge" style="background:#fef3c7;color:#92400e">😊 Estado de ánimo</span>
         </div>
         <div style="padding:12px 0;text-align:center">
             <h3 id="mood-resident-name" style="font-size:18px;font-weight:700;margin:0"></h3>
@@ -1469,7 +1469,7 @@ $('mood-save').addEventListener('click', async function() {
         notes: $('mood-notes').value.trim(),
     });
     if (ok) {
-        toast('Estat d\'anim registrat');
+        toast('Estado de ánimo registrado');
         show(S_moodReturnScreen);
     } else {
         $('mood-save').disabled = false;

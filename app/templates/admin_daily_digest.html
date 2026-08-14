@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Resums diaris{% endblock %}
+{% block title %}Resúmenes diarios{% endblock %}
 
 {% block content %}
 <div class="py-3">
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-        <h1 class="h3 mb-0"><i class="bi bi-journal-text me-2"></i>Resums diaris IA</h1>
+        <h1 class="h3 mb-0"><i class="bi bi-journal-text me-2"></i>Resúmenes diarios IA</h1>
         <div class="d-flex gap-2">
             <a href="{{ url_for('assessments.admin_daily_digest', date=prev_date) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-left"></i></a>
             {% if not is_today %}
@@ -12,14 +12,14 @@
             {% endif %}
             <a href="{{ url_for('assessments.admin_daily_digest', date=next_date) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-right"></i></a>
             <button type="button" class="btn btn-primary btn-sm" id="btn-generate" {% if digests %}disabled{% endif %}>
-                <i class="bi bi-stars me-1"></i>Generar resums del dia
+                <i class="bi bi-stars me-1"></i>Generar resúmenes del día
             </button>
         </div>
     </div>
 
     <div class="mb-3">
         <span class="badge bg-primary bg-opacity-10 text-primary" style="font-size:.85rem">{{ view_date.strftime('%A %d/%m/%Y') }}</span>
-        <span class="badge bg-secondary bg-opacity-10 text-secondary ms-1" style="font-size:.85rem">{{ digests|length }} resums</span>
+        <span class="badge bg-secondary bg-opacity-10 text-secondary ms-1" style="font-size:.85rem">{{ digests|length }} resúmenes</span>
         {% set alerts = digests|selectattr('has_alerts')|list %}
         {% if alerts %}
         <span class="badge bg-danger bg-opacity-10 text-danger ms-1" style="font-size:.85rem">{{ alerts|length }} amb alertes</span>
@@ -53,8 +53,8 @@
     {% else %}
     <div class="card p-4 text-center" style="color:var(--color-text-secondary)">
         <i class="bi bi-journal-text" style="font-size:2rem"></i>
-        <p class="mt-2 mb-0">No hi ha resums per a aquest dia.</p>
-        <p style="font-size:.85rem">Clica <strong>"Generar resums del dia"</strong> per crear-los amb IA.</p>
+        <p class="mt-2 mb-0">No hay resúmenes para este día.</p>
+        <p style="font-size:.85rem">Haz clic en <strong>"Generar resúmenes del día"</strong> para crearlos con IA.</p>
     </div>
     {% endif %}
 </div>
@@ -71,7 +71,7 @@
 document.getElementById('btn-generate').addEventListener('click', function() {
     var btn = this;
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generant resums...';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generando resúmenes...';
 
     fetch('/api/daily-digest/generate', {
         method: 'POST',
@@ -83,12 +83,12 @@ document.getElementById('btn-generate').addEventListener('click', function() {
             setTimeout(function() { location.reload(); }, 1000);
         } else {
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar resums del dia';
-            if (typeof showToast === 'function') showToast(data.message || 'Sense dades per generar resums', 'info');
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar resúmenes del día';
+            if (typeof showToast === 'function') showToast(data.message || 'Sin datos para generar resúmenes', 'info');
         }
     }).catch(function() {
         btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar resums del dia';
+        btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar resúmenes del día';
         if (typeof showToast === 'function') showToast('Error de connexio', 'danger');
     });
 });

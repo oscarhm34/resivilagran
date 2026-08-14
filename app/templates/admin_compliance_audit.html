@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Auditoria de compliment{% endblock %}
+{% block title %}Auditoría de cumplimiento{% endblock %}
 
 {% block content %}
 <div class="py-3">
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
-        <h1 class="h3 mb-0"><i class="bi bi-shield-check me-2"></i>Auditoria de compliment</h1>
+        <h1 class="h3 mb-0"><i class="bi bi-shield-check me-2"></i>Auditoría de cumplimiento</h1>
         <button class="btn btn-outline-primary btn-sm" id="btn-ai-report">
             <i class="bi bi-stars me-1"></i>Informe IA
         </button>
@@ -15,7 +15,7 @@
         <div class="card-body text-center py-4">
             {% set score_color = '#198754' if global_score >= 80 else ('#fd7e14' if global_score >= 50 else '#dc3545') %}
             <div style="font-size:3.5rem;font-weight:800;color:{{ score_color }}">{{ global_score }}%</div>
-            <div class="text-muted" style="font-size:.9rem">Puntuació global de compliment</div>
+            <div class="text-muted" style="font-size:.9rem">Puntuación global de cumplimiento</div>
             <div class="progress mt-3" style="height:8px;max-width:400px;margin:0 auto">
                 <div class="progress-bar" style="width:{{ global_score }}%;background:{{ score_color }}"></div>
             </div>
@@ -76,15 +76,15 @@
 
     <!-- AI Report area -->
     <div id="ai-report-area" class="card mb-4" style="display:none">
-        <div class="card-header"><i class="bi bi-stars me-2"></i>Informe IA de compliment</div>
+        <div class="card-header"><i class="bi bi-stars me-2"></i>Informe IA de cumplimiento</div>
         <div class="card-body" id="ai-report-content">
-            <div class="text-center text-muted py-3">Generant informe...</div>
+            <div class="text-center text-muted py-3">Generando informe...</div>
         </div>
     </div>
 
     {% if not findings %}
     <div class="alert alert-success">
-        <i class="bi bi-check-circle me-1"></i>No s'han trobat problemes de compliment. Tot al dia!
+        <i class="bi bi-check-circle me-1"></i>No se han encontrado problemas de cumplimiento. ¡Todo al día!
     </div>
     {% endif %}
 
@@ -127,8 +127,8 @@ document.getElementById('btn-ai-report').addEventListener('click', function() {
     var content = document.getElementById('ai-report-content');
     area.style.display = '';
     btn.disabled = true;
-    btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Generant...';
-    content.innerHTML = '<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm me-2"></div>Generant informe IA de compliment...</div>';
+    btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Generando...';
+    content.innerHTML = '<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm me-2"></div>Generando informe IA de cumplimiento...</div>';
 
     fetch('/api/compliance/ai-report', { method: 'POST', headers: {'Content-Type': 'application/json'} })
     .then(function(r) { return r.json(); })

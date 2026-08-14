@@ -36,7 +36,7 @@
         <!-- AI suggest button -->
         <div class="mb-3">
             <button type="button" class="btn btn-outline-primary btn-sm" id="btn-ai-suggest">
-                <i class="bi bi-stars me-1"></i>Suggerir amb IA (basant-se en les notes dels treballadors)
+                <i class="bi bi-stars me-1"></i>Sugerir con IA (basándose en las notas de los trabajadores)
             </button>
             <span id="ai-suggest-status" class="ms-2 text-muted" style="font-size:.8rem"></span>
         </div>
@@ -151,7 +151,7 @@
             body: JSON.stringify({scale: 'barthel'})
         }).then(function(r) { return r.json(); }).then(function(data) {
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Suggerir amb IA (basant-se en les notes dels treballadors)';
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Sugerir con IA (basándose en las notas de los trabajadores)';
             if (data.suggestions) {
                 var keys = Object.keys(data.suggestions);
                 keys.forEach(function(key) {
@@ -168,7 +168,7 @@
             }
         }).catch(function() {
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Suggerir amb IA (basant-se en les notes dels treballadors)';
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Sugerir con IA (basándose en las notas de los trabajadores)';
             status.textContent = 'Error de connexio.';
             status.style.color = 'var(--color-danger, #dc3545)';
         });

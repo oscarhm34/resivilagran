@@ -243,27 +243,27 @@
                         <div class="col-12">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="is_fall" id="inc-is-fall" onchange="document.getElementById('fall-fields').style.display=this.checked?'':'none'">
-                                <label class="form-check-label fw-bold" for="inc-is-fall">🩹 Es una caiguda</label>
+                                <label class="form-check-label fw-bold" for="inc-is-fall">🩹 Es una caída</label>
                             </div>
                         </div>
                         <div id="fall-fields" style="display:none" class="col-12">
                             <div class="card" style="border-color:var(--color-warning);background:rgba(255,193,7,.04)">
                                 <div class="card-body">
-                                    <h6 class="fw-bold mb-3" style="color:var(--color-warning)">Dades de la caiguda</h6>
+                                    <h6 class="fw-bold mb-3" style="color:var(--color-warning)">Datos de la caída</h6>
                                     <div class="row g-2">
                                         <div class="col-md-6">
-                                            <label class="form-label" style="font-size:.85rem">Ubicació de la caiguda</label>
-                                            <input type="text" class="form-control form-control-sm" name="fall_location" placeholder="Habitació, passadís, bany...">
+                                            <label class="form-label" style="font-size:.85rem">Ubicación de la caída</label>
+                                            <input type="text" class="form-control form-control-sm" name="fall_location" placeholder="Habitación, pasillo, baño...">
                                         </div>
                                         <div class="col-md-6">
                                             <label class="form-label" style="font-size:.85rem">Activitat en el moment</label>
                                             <select class="form-select form-select-sm" name="activity_at_time">
                                                 <option value="">-- Selecciona --</option>
-                                                <option value="caminant">Caminant</option>
-                                                <option value="transferencia">Transferència (llit/cadira)</option>
-                                                <option value="dormint">Dormint / aixecant-se</option>
-                                                <option value="bany">Al bany</option>
-                                                <option value="menjant">Menjant</option>
+                                                <option value="caminant">Caminando</option>
+                                                <option value="transferencia">Transferencia (cama/silla)</option>
+                                                <option value="dormint">Durmiendo / levantándose</option>
+                                                <option value="bany">En el baño</option>
+                                                <option value="menjant">Comiendo</option>
                                                 <option value="altre">Altre</option>
                                             </select>
                                         </div>
@@ -271,19 +271,19 @@
                                             <label class="form-label" style="font-size:.85rem">Calçat</label>
                                             <select class="form-select form-select-sm" name="footwear">
                                                 <option value="">-- Selecciona --</option>
-                                                <option value="descalc">Descalç</option>
-                                                <option value="sabatilles">Sabatilles</option>
-                                                <option value="sabates">Sabates</option>
-                                                <option value="mitjons">Mitjons</option>
+                                                <option value="descalc">Descalzo</option>
+                                                <option value="sabatilles">Zapatillas</option>
+                                                <option value="sabates">Zapatos</option>
+                                                <option value="mitjons">Calcetines</option>
                                             </select>
                                         </div>
                                         <div class="col-md-4">
                                             <label class="form-label" style="font-size:.85rem">Gravetat lesions</label>
                                             <select class="form-select form-select-sm" name="injury_severity">
                                                 <option value="none">Cap lesió</option>
-                                                <option value="minor">Lleu (rascada, blau)</option>
-                                                <option value="moderate">Moderada (ferida, inflamació)</option>
-                                                <option value="severe">Greu (fractura, cop al cap)</option>
+                                                <option value="minor">Leve (rasguño, moratón)</option>
+                                                <option value="moderate">Moderada (herida, inflamación)</option>
+                                                <option value="severe">Grave (fractura, golpe en la cabeza)</option>
                                             </select>
                                         </div>
                                         <div class="col-md-4">
@@ -310,7 +310,7 @@
                 </div>
                 <div class="modal-footer d-flex justify-content-between" style="border-color:var(--color-border)!important">
                     <button type="button" class="btn btn-outline-primary btn-sm" id="btn-ai-classify">
-                        <i class="bi bi-stars me-1"></i>Classificar amb IA
+                        <i class="bi bi-stars me-1"></i>Clasificar con IA
                     </button>
                     <div class="d-flex gap-2">
                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -404,7 +404,7 @@
             body: JSON.stringify({title: title, description: desc})
         }).then(function(r) { return r.json(); }).then(function(data) {
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Classificar amb IA';
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Clasificar con IA';
             if (data.incident_type_id) {
                 document.getElementById('inc-type').value = data.incident_type_id;
             }
@@ -420,7 +420,7 @@
             if (typeof showToast === 'function') showToast(msg, 'success');
         }).catch(function() {
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Classificar amb IA';
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Clasificar con IA';
             if (typeof showToast === 'function') showToast('Error de connexio', 'error');
         });
     });

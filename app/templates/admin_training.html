@@ -120,8 +120,8 @@
                         <div class="col-md-6">
                             <label class="form-label">Assignar a</label>
                             <select class="form-select form-select-sm" name="assign_mode" id="pill-assign-mode" onchange="toggleAssignWorkers()">
-                                <option value="all">Tots els treballadors</option>
-                                <option value="selected">Treballadors seleccionats</option>
+                                <option value="all">Todos los trabajadores</option>
+                                <option value="selected">Trabajadores seleccionados</option>
                             </select>
                         </div>
                         <div class="col-md-6 d-flex align-items-end">
@@ -132,7 +132,7 @@
                         </div>
                     </div>
                     <div id="assign-workers-section" style="display:none" class="mb-3">
-                        <label class="form-label">Selecciona treballadors</label>
+                        <label class="form-label">Selecciona trabajadores</label>
                         <div class="d-flex gap-1 mb-2">
                             <button type="button" class="btn btn-outline-primary btn-sm" onclick="document.querySelectorAll('#assign-workers input').forEach(c=>c.checked=true)">Tots</button>
                             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.querySelectorAll('#assign-workers input').forEach(c=>c.checked=false)">Cap</button>
@@ -265,7 +265,7 @@
         var btn = this;
         var status = document.getElementById('ai-questions-status');
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generant...';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generando...';
         status.style.display = '';
         status.textContent = 'La IA està generant preguntes basades en el títol i descripció...';
 

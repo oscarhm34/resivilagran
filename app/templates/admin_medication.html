@@ -41,7 +41,7 @@
         <div class="card-body">
             <div class="d-flex gap-2 align-items-end">
                 <div style="flex:1;max-width:300px">
-                    <label class="form-label" style="font-size:.82rem">Gestionar pautes d'un resident</label>
+                    <label class="form-label" style="font-size:.82rem">Gestionar pautas de un residente</label>
                     <select id="select-resident-med" class="form-select form-select-sm">
                         <option value="">-- Selecciona un resident --</option>
                         {% for r in residents %}
@@ -50,7 +50,7 @@
                     </select>
                 </div>
                 <button type="button" class="btn btn-primary btn-sm" id="btn-go-prescriptions">
-                    <i class="bi bi-capsule me-1"></i>Veure/afegir pautes
+                    <i class="bi bi-capsule me-1"></i>Ver/añadir pautas
                 </button>
             </div>
         </div>
@@ -58,7 +58,7 @@
 
     {% if not resident_meds %}
     <div class="alert alert-info">
-        <i class="bi bi-info-circle me-1"></i>No hi ha medicacio activa. Selecciona un resident a dalt per afegir pautes.
+        <i class="bi bi-info-circle me-1"></i>No hay medicación activa. Selecciona un residente arriba para añadir pautas.
     </div>
     {% endif %}
 
