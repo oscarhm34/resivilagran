@@ -369,7 +369,7 @@
                 <li><strong>Cuadricula mensual:</strong> filas = trabajadores, columnas = dias del mes.</li>
                 <li>Cada celda muestra la letra del turno asignado (M/T/N) con su color.</li>
                 <li>Los fines de semana se marcan con un fondo sutil para identificarlos rapidamente.</li>
-                <li><strong>Fila de cobertura:</strong> al final de la cuadricula muestra cuantos trabajadores hay por turno cada dia (ej: M:12 T:10 N:8).</li>
+                <li><strong>Fila de cobertura:</strong> al final de la cuadricula muestra cuantos trabajadores hay por turno cada dia (ej: M:12 T:10 N:8). Colores: <strong>verde</strong> = cumple el ideal, <strong>naranja</strong> = entre minimo e ideal, <strong>rojo parpadeante</strong> = por debajo del minimo critico. Se configura desde <strong>Cobertura</strong> (minimo e ideal por turno y tipo de dia).</li>
                 <li><strong>Columna de horas:</strong> a la derecha se muestra el total de horas planificadas del mes para cada trabajador. Se marca en rojo si supera el maximo mensual.</li>
             </ul>
 
@@ -1284,6 +1284,7 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>17/08</td><td><strong>Mejoras en cuadrantes de turnos:</strong> la fila de cobertura ahora muestra colores (verde = cumple ideal, naranja = entre minimo e ideal, rojo parpadeante = por debajo del minimo). Nuevo campo "ideal" en la configuracion de cobertura para diferenciar cobertura minima de la optima. El generador intenta cubrir hasta el nivel ideal. Los resultados de "Generar mes" se muestran en un modal visual con tarjetas de estadisticas, tabla de distribucion y lista de gaps pendientes (en vez del alert anterior).</td></tr>
                     <tr><td>13/08</td><td><strong>Mapa corporal de heridas:</strong> nueva pestana "Heridas" en la ficha del residente con diagrama SVG interactivo (delante/detras). Haz clic en el cuerpo para registrar una herida (tipo, tamano, severidad). Seguimiento de evolucion con botones curandose/curada/empeorando. Alertas automaticas para heridas nuevas o que empeoran. Historial de actualizaciones.</td></tr>
                     <tr><td>13/08</td><td><strong>Dashboard de cumplimiento normativo:</strong> puntuacion global 0-100% y por area (valoraciones, PAI, atenciones, documentos, incidencias, formacion). Nuevas comprobaciones: cobertura PAI y tiempo respuesta incidentes urgentes. Boton "Informe IA" genera informe narrativo con recomendaciones.</td></tr>
                     <tr><td>13/08</td><td><strong>Verificacion de medicamentos por codigo de barras:</strong> campo "Codigo de barras" en las prescripciones con boton de escaneo por camara (BarcodeDetector API). Endpoint POST /api/medication/verify-barcode para verificar que el medicamento escaneado coincide con la prescripcion del residente.</td></tr>

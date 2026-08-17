@@ -104,7 +104,7 @@ def cuadrantes():
         workers=workers, shift_types=shift_types,
         assign_map=assign_map, coverage=coverage,
         absence_map=absence_map, worker_configs=worker_configs,
-        coverage_reqs={f'{r.shift_type_id}_{r.day_type}': r.min_workers for r in ShiftCoverageRequirement.query.all()},
+        coverage_reqs={f'{r.shift_type_id}_{r.day_type}': {'min': r.min_workers, 'ideal': r.ideal_workers or 0} for r in ShiftCoverageRequirement.query.all()},
         patterns=RotationPattern.query.filter_by(active=True).order_by(RotationPattern.name).all(),
         groups=groups, group_id=group_id, role_filter=role_filter,
         prev_year=prev_year, prev_month=prev_month,
@@ -586,17 +586,19 @@ def save_coverage_settings():
     shift_types = ShiftType.query.filter_by(active=True).all()
     for st in shift_types:
         for day_type in ['weekday', 'weekend']:
-            field_name = f'min_{st.id}_{day_type}'
-            val = request.form.get(field_name, '', type=int)
+            min_val = request.form.get(f'min_{st.id}_{day_type}', '', type=int)
+            ideal_val = request.form.get(f'ideal_{st.id}_{day_type}', '', type=int)
             existing = ShiftCoverageRequirement.query.filter_by(
                 shift_type_id=st.id, day_type=day_type
             ).first()
-            if val and val > 0:
+            if min_val and min_val > 0:
                 if existing:
-                    existing.min_workers = val
+                    existing.min_workers = min_val
+                    existing.ideal_workers = ideal_val if ideal_val and ideal_val > 0 else None
                 else:
                     db.session.add(ShiftCoverageRequirement(
-                        shift_type_id=st.id, day_type=day_type, min_workers=val,
+                        shift_type_id=st.id, day_type=day_type, min_workers=min_val,
+                        ideal_workers=ideal_val if ideal_val and ideal_val > 0 else None,
                     ))
             elif existing:
                 db.session.delete(existing)

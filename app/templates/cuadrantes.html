@@ -123,6 +123,20 @@
         color: #fff;
         margin: 1px 0;
     }
+    .coverage-pill.cov-ok {
+        box-shadow: 0 0 0 2px #198754;
+    }
+    .coverage-pill.cov-warn {
+        box-shadow: 0 0 0 2px #fd7e14;
+    }
+    .coverage-pill.cov-danger {
+        box-shadow: 0 0 0 2px #dc3545;
+        animation: pulse-danger 1.5s infinite;
+    }
+    @keyframes pulse-danger {
+        0%, 100% { box-shadow: 0 0 0 2px #dc3545; }
+        50% { box-shadow: 0 0 0 3px #dc3545, 0 0 6px rgba(220,53,69,.4); }
+    }
 
     /* ── Shift picker popup ─────────────────────────────────── */
     .shift-picker {
@@ -583,6 +597,46 @@
     </div>
 </div>
 
+<!-- Modal de resultados de generación -->
+<div class="modal fade" id="generateResultsModal" tabindex="-1" aria-labelledby="generateResultsLabel" aria-modal="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content" style="border-radius:var(--radius-lg);border:1px solid var(--color-border)">
+            <div class="modal-header" style="border-color:var(--color-border)">
+                <h5 class="modal-title" id="generateResultsLabel">
+                    <i class="bi bi-check-circle me-2 text-success"></i>Generación completada
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3 mb-3" id="gen-stats-cards"></div>
+                <div id="gen-fairness" class="d-none">
+                    <h6 class="mb-2"><i class="bi bi-bar-chart me-1"></i>Distribución</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered mb-0">
+                            <thead><tr><th></th><th>Mín</th><th>Máx</th><th>Media</th></tr></thead>
+                            <tbody id="gen-fairness-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="gen-uncovered" class="d-none mt-3">
+                    <h6 class="mb-2 text-danger"><i class="bi bi-exclamation-triangle me-1"></i>Gaps sin cubrir</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead><tr><th>Fecha</th><th>Turno</th><th>Tienen</th><th>Necesitan</th></tr></thead>
+                            <tbody id="gen-uncovered-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="border-color:var(--color-border)">
+                <button type="button" class="btn btn-primary" onclick="bootstrap.Modal.getInstance(document.getElementById('generateResultsModal')).hide(); location.reload();">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Actualizar cuadrante
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -829,15 +883,24 @@
                 var cnt = countsBySn[sn].count;
                 var stId = countsBySn[sn].id;
                 var reqKey = stId + '_' + daySuffix;
-                var minReq = (COVERAGE_REQS && COVERAGE_REQS[reqKey]) ? COVERAGE_REQS[reqKey] : 0;
-                var pillStyle = 'background:' + countsBySn[sn].color;
-                if (minReq > 0 && cnt < minReq) {
-                    pillStyle += ';outline:2px solid #dc3545;outline-offset:1px';
+                var minReq = (COVERAGE_REQS && COVERAGE_REQS[reqKey]) ? COVERAGE_REQS[reqKey].min : 0;
+                var idealReq = (COVERAGE_REQS && COVERAGE_REQS[reqKey]) ? COVERAGE_REQS[reqKey].ideal : 0;
+                var covClass = '';
+                if (minReq > 0) {
+                    if (cnt < minReq) {
+                        covClass = ' cov-danger';
+                    } else if (idealReq > 0 && cnt < idealReq) {
+                        covClass = ' cov-warn';
+                    } else {
+                        covClass = ' cov-ok';
+                    }
                 }
-                html += '<span class="coverage-pill" style="' + pillStyle + '">' +
+                html += '<span class="coverage-pill' + covClass + '" style="background:' + countsBySn[sn].color + '">' +
                     sn + cnt;
                 if (minReq > 0) {
-                    html += '<small style="opacity:.7">/' + minReq + '</small>';
+                    html += '<small style="opacity:.7">/' + minReq;
+                    if (idealReq > 0) html += '-' + idealReq;
+                    html += '</small>';
                 }
                 html += '</span>';
             }
@@ -877,8 +940,9 @@
         });
     }
 
-    // Calculate hours on page load
+    // Calculate hours and coverage on page load
     updateWorkerHours();
+    updateCoverage();
 
     /* ── Worker config offcanvas ──────────────────────────── */
     var wcPanel = document.getElementById('workerConfigPanel');
@@ -1037,23 +1101,7 @@
             btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-magic me-1"></i>Generar mes';
             if (data.ok) {
-                var msg = 'Generación completada:\n\n' +
-                    '• ' + data.generated_from_patterns + ' turnos desde patrones\n' +
-                    '• ' + data.absences_skipped + ' días de ausencia saltados\n' +
-                    '• ' + data.overrides_preserved + ' asignaciones existentes conservadas\n' +
-                    '• ' + data.invalid_removed + ' asignaciones inválidas eliminadas\n' +
-                    '• ' + data.gaps_filled + ' gaps de cobertura rellenados\n';
-                if (data.gaps_remaining > 0) {
-                    msg += '• ⚠ ' + data.gaps_remaining + ' gaps sin cubrir\n';
-                }
-                if (data.fairness) {
-                    msg += '\nDistribución:\n' +
-                        '• Turnos totales: mín ' + data.fairness.total_shifts.min + ', máx ' + data.fairness.total_shifts.max + ', media ' + data.fairness.total_shifts.avg + '\n' +
-                        '• Fines de semana: mín ' + data.fairness.weekend_shifts.min + ', máx ' + data.fairness.weekend_shifts.max + '\n';
-                }
-                showToast('Cuadrante generado correctamente', 'success');
-                alert(msg);
-                location.reload();
+                showGenerateResults(data);
             } else {
                 showToast(data.error || 'Error al generar', 'error');
             }
@@ -1062,6 +1110,69 @@
             btn.innerHTML = '<i class="bi bi-magic me-1"></i>Generar mes';
             showToast('Error de conexión', 'error');
         });
+    }
+
+    function showGenerateResults(data) {
+        var cards = document.getElementById('gen-stats-cards');
+        var stats = [
+            {icon: 'bi-calendar-check', color: 'success', label: 'Desde patrones', value: data.generated_from_patterns},
+            {icon: 'bi-calendar-x', color: 'secondary', label: 'Ausencias saltadas', value: data.absences_skipped},
+            {icon: 'bi-shield-check', color: 'info', label: 'Conservadas', value: data.overrides_preserved},
+            {icon: 'bi-x-circle', color: 'warning', label: 'Inválidas eliminadas', value: data.invalid_removed},
+            {icon: 'bi-puzzle', color: 'primary', label: 'Gaps rellenados', value: data.gaps_filled},
+            {icon: 'bi-exclamation-triangle', color: data.gaps_remaining > 0 ? 'danger' : 'success', label: 'Gaps pendientes', value: data.gaps_remaining},
+        ];
+        cards.innerHTML = stats.map(function(s) {
+            return '<div class="col-6 col-md-4"><div class="card border-' + s.color + '" style="border-left:3px solid">' +
+                '<div class="card-body py-2 px-3"><div class="d-flex align-items-center gap-2">' +
+                '<i class="bi ' + s.icon + ' text-' + s.color + '" style="font-size:1.2rem"></i>' +
+                '<div><div style="font-size:1.3rem;font-weight:700;line-height:1">' + s.value + '</div>' +
+                '<div style="font-size:.7rem;color:var(--color-text-secondary)">' + s.label + '</div></div>' +
+                '</div></div></div></div>';
+        }).join('');
+
+        // Fairness table
+        var fairnessDiv = document.getElementById('gen-fairness');
+        var fairnessBody = document.getElementById('gen-fairness-body');
+        if (data.fairness) {
+            fairnessDiv.classList.remove('d-none');
+            var rows = [
+                {label: 'Turnos totales', data: data.fairness.total_shifts},
+                {label: 'Fines de semana', data: data.fairness.weekend_shifts},
+                {label: 'Noches', data: data.fairness.night_shifts},
+            ];
+            fairnessBody.innerHTML = rows.map(function(r) {
+                return '<tr><td class="fw-semibold">' + r.label + '</td>' +
+                    '<td>' + r.data.min + '</td><td>' + r.data.max + '</td><td>' + r.data.avg + '</td></tr>';
+            }).join('');
+        } else {
+            fairnessDiv.classList.add('d-none');
+        }
+
+        // Uncovered gaps
+        var uncovDiv = document.getElementById('gen-uncovered');
+        var uncovBody = document.getElementById('gen-uncovered-body');
+        if (data.uncovered && data.uncovered.length > 0) {
+            uncovDiv.classList.remove('d-none');
+            uncovBody.innerHTML = data.uncovered.map(function(g) {
+                return '<tr><td>' + new Date(g.date).toLocaleDateString('es-ES', {weekday:'short', day:'numeric', month:'short'}) +
+                    '</td><td><strong>' + g.shift + '</strong></td>' +
+                    '<td>' + g.have + '</td><td>' + g.need + '</td></tr>';
+            }).join('');
+        } else {
+            uncovDiv.classList.add('d-none');
+        }
+
+        // Update title based on result
+        var titleEl = document.getElementById('generateResultsLabel');
+        if (data.gaps_remaining > 0) {
+            titleEl.innerHTML = '<i class="bi bi-exclamation-triangle me-2 text-warning"></i>Generación completada con gaps';
+        } else {
+            titleEl.innerHTML = '<i class="bi bi-check-circle me-2 text-success"></i>Generación completada';
+        }
+
+        var modal = new bootstrap.Modal(document.getElementById('generateResultsModal'));
+        modal.show();
     }
 
     document.getElementById('btn-generate').addEventListener('click', function() {

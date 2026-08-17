@@ -47,10 +47,12 @@ class SmartScheduler:
                 self.absent_days.add((ab.cleaner_id, d))
                 d += timedelta(days=1)
 
-        # Coverage requirements: {(shift_type_id, day_type): min_workers}
-        self.coverage_reqs: dict[tuple[int, str], int] = {}
+        # Coverage requirements: {(shift_type_id, day_type): (min_workers, ideal_workers)}
+        self.coverage_reqs: dict[tuple[int, str], tuple[int, int]] = {}
         for req in ShiftCoverageRequirement.query.all():
-            self.coverage_reqs[(req.shift_type_id, req.day_type)] = req.min_workers
+            self.coverage_reqs[(req.shift_type_id, req.day_type)] = (
+                req.min_workers, req.ideal_workers or req.min_workers
+            )
 
         # Working state: {(cleaner_id, date): shift_type_id or None}
         self.schedule: dict[tuple[int, date], int | None] = {}
@@ -150,11 +152,21 @@ class SmartScheduler:
                     1 for (wid, dd), sid in self.schedule.items()
                     if dd == target_date and sid == st_id
                 )
-                req = self._get_coverage_min(st_id, is_weekend)
-                if req > current_count:
-                    gap_size = req - current_count
+                # Use ideal as target to try to fill up to optimal coverage
+                ideal = self._get_coverage_ideal(st_id, is_weekend)
+                if ideal > current_count:
+                    gap_size = ideal - current_count
                     gaps.append((target_date, st_id, gap_size))
-        gaps.sort(key=lambda g: -g[2])
+        # Prioritize: gaps below minimum first, then below ideal
+        def gap_priority(g):
+            target_date, st_id, gap_size = g
+            is_weekend = target_date.weekday() >= 5
+            min_req = self._get_coverage_min(st_id, is_weekend)
+            current = sum(1 for (wid, dd), sid in self.schedule.items()
+                          if dd == target_date and sid == st_id)
+            below_min = max(0, min_req - current)
+            return (-below_min, -gap_size)
+        gaps.sort(key=gap_priority)
         return gaps
 
     def _phase4_fill_gaps(self, gaps: list[tuple[date, int, int]]):
@@ -184,7 +196,12 @@ class SmartScheduler:
                     self.schedule[(best_worker, target_date)] = st_id
                     self.stats['gaps_filled'] += 1
                 else:
-                    self.stats['gaps_remaining'] += 1
+                    # Only count as remaining gap if still below minimum
+                    is_weekend = target_date.weekday() >= 5
+                    current = sum(1 for (wid, dd), sid in self.schedule.items()
+                                  if dd == target_date and sid == st_id)
+                    if current < self._get_coverage_min(st_id, is_weekend):
+                        self.stats['gaps_remaining'] += 1
 
     def _persist(self, created_by_id: int | None, keep_all_existing: bool = False):
         if not keep_all_existing:
@@ -231,7 +248,7 @@ class SmartScheduler:
             vals = list(d.values()) if d else [0]
             return {'min': min(vals), 'max': max(vals), 'avg': round(sum(vals)/len(vals), 1)} if vals else {'min': 0, 'max': 0, 'avg': 0}
 
-        # Coverage check
+        # Coverage check (report gaps below minimum)
         coverage_status = []
         for d in range(1, self.num_days + 1):
             target_date = date(self.year, self.month, d)
@@ -239,13 +256,13 @@ class SmartScheduler:
             for st_id, st in self.shift_types.items():
                 current = sum(1 for (wid, dd), sid in self.schedule.items()
                               if dd == target_date and sid == st_id)
-                req = self._get_coverage_min(st_id, is_weekend)
-                if req > 0 and current < req:
+                min_req = self._get_coverage_min(st_id, is_weekend)
+                if min_req > 0 and current < min_req:
                     coverage_status.append({
                         'date': target_date.isoformat(),
                         'shift': st.short_name,
                         'have': current,
-                        'need': req,
+                        'need': min_req,
                     })
 
         return {
@@ -264,9 +281,18 @@ class SmartScheduler:
     def _get_coverage_min(self, shift_type_id: int, is_weekend: bool) -> int:
         specific_key = (shift_type_id, 'weekend' if is_weekend else 'weekday')
         if specific_key in self.coverage_reqs:
-            return self.coverage_reqs[specific_key]
+            return self.coverage_reqs[specific_key][0]
         all_key = (shift_type_id, 'all')
-        return self.coverage_reqs.get(all_key, 0)
+        val = self.coverage_reqs.get(all_key)
+        return val[0] if val else 0
+
+    def _get_coverage_ideal(self, shift_type_id: int, is_weekend: bool) -> int:
+        specific_key = (shift_type_id, 'weekend' if is_weekend else 'weekday')
+        if specific_key in self.coverage_reqs:
+            return self.coverage_reqs[specific_key][1]
+        all_key = (shift_type_id, 'all')
+        val = self.coverage_reqs.get(all_key)
+        return val[1] if val else 0
 
     def _shift_hours(self, st_id: int) -> float:
         st = self.shift_types.get(st_id)

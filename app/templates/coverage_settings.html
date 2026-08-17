@@ -14,8 +14,9 @@
     <div class="card-body">
         <p class="mb-0" style="color:var(--color-text-secondary);font-size:.9rem">
             <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
-            Define el número mínimo de trabajadores necesarios por turno.
-            El sistema usará estos valores para detectar gaps de cobertura y rellenarlos automáticamente al generar el cuadrante.
+            Define el número <strong>mínimo</strong> e <strong>ideal</strong> de trabajadores por turno.
+            El mínimo marca el umbral crítico (rojo). El ideal es la cobertura óptima (naranja si no se alcanza, verde si se cumple).
+            El generador intentará cubrir ambos niveles.
         </p>
     </div>
 </div>
@@ -26,13 +27,21 @@
             <table class="table table-hover mb-0">
                 <thead>
                     <tr>
-                        <th>Turno</th>
-                        <th>Entre semana (L-V)</th>
-                        <th>Fin de semana (S-D)</th>
+                        <th rowspan="2" class="align-middle">Turno</th>
+                        <th colspan="2" class="text-center">Entre semana (L-V)</th>
+                        <th colspan="2" class="text-center">Fin de semana (S-D)</th>
+                    </tr>
+                    <tr>
+                        <th style="font-size:.8rem">Mínimo</th>
+                        <th style="font-size:.8rem">Ideal</th>
+                        <th style="font-size:.8rem">Mínimo</th>
+                        <th style="font-size:.8rem">Ideal</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for st in shift_types %}
+                    {% set wd = req_map.get((st.id, 'weekday')) %}
+                    {% set we = req_map.get((st.id, 'weekend')) %}
                     <tr>
                         <td>
                             <span class="d-inline-block rounded-circle me-2" style="width:10px;height:10px;background:{{ st.color }}"></span>
@@ -41,18 +50,36 @@
                         <td>
                             <input type="number"
                                    class="form-control form-control-sm"
-                                   style="max-width:100px"
+                                   style="max-width:80px"
                                    name="min_{{ st.id }}_weekday"
                                    min="0"
-                                   value="{{ req_map.get((st.id, 'weekday'), {}).min_workers|default(0) }}">
+                                   value="{{ wd.min_workers if wd else 0 }}">
                         </td>
                         <td>
                             <input type="number"
                                    class="form-control form-control-sm"
-                                   style="max-width:100px"
+                                   style="max-width:80px"
+                                   name="ideal_{{ st.id }}_weekday"
+                                   min="0"
+                                   placeholder="Opcional"
+                                   value="{{ wd.ideal_workers if wd and wd.ideal_workers else '' }}">
+                        </td>
+                        <td>
+                            <input type="number"
+                                   class="form-control form-control-sm"
+                                   style="max-width:80px"
                                    name="min_{{ st.id }}_weekend"
                                    min="0"
-                                   value="{{ req_map.get((st.id, 'weekend'), {}).min_workers|default(0) }}">
+                                   value="{{ we.min_workers if we else 0 }}">
+                        </td>
+                        <td>
+                            <input type="number"
+                                   class="form-control form-control-sm"
+                                   style="max-width:80px"
+                                   name="ideal_{{ st.id }}_weekend"
+                                   min="0"
+                                   placeholder="Opcional"
+                                   value="{{ we.ideal_workers if we and we.ideal_workers else '' }}">
                         </td>
                     </tr>
                     {% endfor %}
