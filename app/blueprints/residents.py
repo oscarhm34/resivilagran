@@ -612,7 +612,7 @@ def registros_atencion():
         'registros_atencion.html',
         records=pagination.items,
         pagination=pagination,
-        workers=Cleaner.query.order_by(Cleaner.name).all(),
+        workers=Cleaner.query.filter_by(active=True).order_by(Cleaner.name).all(),
         residents=Resident.query.order_by(Resident.name).all(),
         care_types=CareType.query.order_by(CareType.name).all(),
         filters=filters,
@@ -815,7 +815,7 @@ def delete_care_record(record_id: int):
     db.session.delete(record)
     db.session.commit()
     flash('Registro de atención eliminado.', 'success')
-    return redirect(url_for('residents.registros_atencion'))
+    return redirect(request.referrer or url_for('residents.registros_atencion'))
 
 
 @bp.route('/api/resident/<int:resident_id>/mood-history')

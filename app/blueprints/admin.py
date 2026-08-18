@@ -551,7 +551,7 @@ def registros_limpieza():
         records=pagination.items,
         pagination=pagination,
         rooms=Room.query.all(),
-        cleaners=Cleaner.query.all(),
+        cleaners=Cleaner.query.filter_by(active=True).order_by(Cleaner.name).all(),
         filters=filters,
     )
 
