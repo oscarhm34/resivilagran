@@ -1282,6 +1282,7 @@ document.addEventListener('visibilitychange', () => {
         hiddenTimer = setTimeout(() => doLogout(), ms);
     } else {
         if (hiddenTimer) { clearTimeout(hiddenTimer); hiddenTimer = null; }
+        if (S.token) loadActiveSessions();
     }
 });
 
@@ -1310,6 +1311,7 @@ async function initHome() {
     if (S.config.allow_worker_activities) await loadTodayActivities();
     startGlobalTimer();
     startNotifPolling();
+    setInterval(() => { if (S.token && S.sessions.length) loadActiveSessions(); }, 2 * 60 * 1000);
 
     // Show one-time announcement about NFC-only closing
     if (S.config.nfc_only && !localStorage.getItem('announce_nfc_close_v1')) {
@@ -3778,15 +3780,6 @@ $('route-back').addEventListener('click', function() { show('screen-home'); });
 // ── Boot ───────────────────────────────────────────────────────────────────
 (async function boot() {
     if (!S.token) { show('screen-login'); return; }
-    // Check identity
-    const idRes = await api(`/api/worker/identity-status?worker_id=${localStorage.getItem('wid')}`);
-    if (idRes.ok && !idRes.data.verified) {
-        S.token      = localStorage.getItem('wt');
-        S.workerId   = localStorage.getItem('wid');
-        S.workerName = localStorage.getItem('wname');
-        await showSelfieEnroll();
-        return;
-    }
     await initHome();
 })();
 
