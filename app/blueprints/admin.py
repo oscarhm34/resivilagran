@@ -190,12 +190,22 @@ def index():
         Notification.created_at >= week_ago,
     ).count()
 
-    # Online workers (active in last 5 minutes)
-    online_cutoff = datetime.now() - timedelta(minutes=5)
+    # Online workers (active in last 10 minutes)
+    online_cutoff = datetime.now() - timedelta(minutes=10)
     online_workers = Cleaner.query.filter(
         Cleaner.last_active >= online_cutoff,
         Cleaner.active == True,
     ).order_by(Cleaner.last_active.desc()).all()
+
+    # Workers with active sessions (cleaning or care)
+    working_now_ids = set()
+    for r in CleaningRecord.query.filter(CleaningRecord.end_time.is_(None)).all():
+        working_now_ids.add(r.cleaner_id)
+    for r in CareRecord.query.filter(CareRecord.end_time.is_(None)).all():
+        working_now_ids.add(r.worker_id)
+    working_now = Cleaner.query.filter(
+        Cleaner.id.in_(working_now_ids),
+    ).order_by(Cleaner.name).all() if working_now_ids else []
 
     return render_template(
         'index.html',
@@ -216,6 +226,7 @@ def index():
         pending_signatures=pending_signatures,
         unread_notifs=unread_notifs,
         online_workers=online_workers,
+        working_now=working_now,
     )
 
 

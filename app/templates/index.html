@@ -108,10 +108,11 @@
         </div>
     </div>
 
-    {# ── Usuarios conectados ─────────────────────────────────────── #}
-    {% if online_workers %}
+    {# ── Usuarios conectados + trabajando ────────────────────────── #}
+    {% if online_workers or working_now %}
     <div class="card mb-4" style="border:none;box-shadow:var(--shadow-sm)">
-        <div class="card-body py-2 px-3">
+        <div class="card-body py-2 px-3 d-flex flex-column gap-2">
+            {% if online_workers %}
             <div class="d-flex align-items-center gap-2 flex-wrap">
                 <span style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--color-text-secondary)">
                     <i class="bi bi-circle-fill text-success" style="font-size:.45rem;vertical-align:middle"></i>
@@ -123,6 +124,20 @@
                 </span>
                 {% endfor %}
             </div>
+            {% endif %}
+            {% if working_now %}
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--color-text-secondary)">
+                    <i class="bi bi-briefcase-fill text-primary" style="font-size:.45rem;vertical-align:middle"></i>
+                    Trabajando ahora ({{ working_now|length }})
+                </span>
+                {% for w in working_now %}
+                <span class="badge bg-primary bg-opacity-10 text-primary" style="font-weight:500;font-size:.78rem">
+                    {{ w.name }}
+                </span>
+                {% endfor %}
+            </div>
+            {% endif %}
         </div>
     </div>
     {% endif %}
