@@ -688,16 +688,28 @@ def nfc_scan():
     if not mode:
         room, resident = _resolve_nfc_code(nfc_code)
         if room and resident:
-            return jsonify({
-                'action': 'select_mode',
-                'room': {'number': room.number, 'description': room.description or ''},
-                'resident': {'id': resident.id, 'name': resident.name, 'room_number': resident.room_number or ''},
-            }), 200
-        if room:
+            # If there's an active session for this code, auto-detect mode instead of asking
+            active_cleaning = CleaningRecord.query.filter_by(
+                cleaner_id=worker_id, room_id=room.id, end_time=None
+            ).first() if room else None
+            active_care = CareRecord.query.filter_by(
+                worker_id=worker_id, resident_id=resident.id, end_time=None
+            ).first() if resident else None
+            if active_cleaning:
+                mode = 'cleaning'
+            elif active_care:
+                mode = 'care'
+            else:
+                return jsonify({
+                    'action': 'select_mode',
+                    'room': {'number': room.number, 'description': room.description or ''},
+                    'resident': {'id': resident.id, 'name': resident.name, 'room_number': resident.room_number or ''},
+                }), 200
+        if not mode and room:
             mode = 'cleaning'
-        elif resident:
+        elif not mode and resident:
             mode = 'care'
-        else:
+        elif not mode:
             return jsonify({'error': f'Código NFC "{nfc_code}" no reconocido', 'code': 'NFC_NOT_FOUND'}), 404
 
     if mode == 'cleaning':

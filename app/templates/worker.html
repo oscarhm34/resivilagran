@@ -2569,11 +2569,11 @@ function stopNfc() { if (nfcAbort) { nfcAbort.abort(); nfcAbort = null; } }
 // ── NFC handler ────────────────────────────────────────────────────────────
 let nfcProcessing = false;
 async function handleCode(code) {
-    // Debounce: prevent duplicate scans from rapid NFC readings
+    // Lock: prevent concurrent/duplicate scans
     if (nfcProcessing) return;
     nfcProcessing = true;
-    setTimeout(() => { nfcProcessing = false; }, 2000);
 
+    try {
     // NFC group scan mode: look up resident and add to list instead of starting session
     if (S.nfcGroupMode) {
         $('scan-sub').textContent = 'Buscando residente…';
@@ -2651,6 +2651,7 @@ async function handleCode(code) {
         S._smdResident = data.resident;
         $('select-mode-dialog').showModal();
     }
+    } finally { nfcProcessing = false; }
 }
 
 // Select mode dialog handlers
