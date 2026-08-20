@@ -76,14 +76,14 @@ def _track_last_active(response):
         pass
     try:
         from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
-        verify_jwt_in_request(optional=True)
+        verify_jwt_in_request(optional=True, locations=['headers'])
         identity = get_jwt_identity()
         if identity:
             cleaner = Cleaner.query.filter_by(username=identity).first()
             if cleaner:
                 _update_if_stale(cleaner)
     except Exception:
-        pass
+        db.session.rollback()
     return response
 
 
