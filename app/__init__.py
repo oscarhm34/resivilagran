@@ -50,6 +50,43 @@ def load_user(user_id: str) -> Cleaner | None:
     return Cleaner.query.get(int(user_id))
 
 
+# ── Track last_active for workers (JWT) and admins (Flask-Login) ───────────
+from datetime import datetime as _dt, timedelta as _td
+
+_ACTIVE_THROTTLE = _td(seconds=60)
+
+
+def _update_if_stale(cleaner):
+    """Update last_active only if more than 60s since last update."""
+    now = _dt.now()
+    if cleaner.last_active and (now - cleaner.last_active) < _ACTIVE_THROTTLE:
+        return
+    cleaner.last_active = now
+    db.session.commit()
+
+
+@app.after_request
+def _track_last_active(response):
+    try:
+        from flask_login import current_user as _cu
+        if _cu and getattr(_cu, 'is_authenticated', False):
+            _update_if_stale(_cu)
+            return response
+    except Exception:
+        pass
+    try:
+        from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
+        verify_jwt_in_request(optional=True)
+        identity = get_jwt_identity()
+        if identity:
+            cleaner = Cleaner.query.filter_by(username=identity).first()
+            if cleaner:
+                _update_if_stale(cleaner)
+    except Exception:
+        pass
+    return response
+
+
 from . import routes, models  # noqa: E402, F401
 from .blueprints.nfc import bp as nfc_bp  # noqa: E402
 from .blueprints.training import bp as training_bp  # noqa: E402

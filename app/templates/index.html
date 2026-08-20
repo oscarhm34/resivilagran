@@ -108,6 +108,25 @@
         </div>
     </div>
 
+    {# ── Usuarios conectados ─────────────────────────────────────── #}
+    {% if online_workers %}
+    <div class="card mb-4" style="border:none;box-shadow:var(--shadow-sm)">
+        <div class="card-body py-2 px-3">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--color-text-secondary)">
+                    <i class="bi bi-circle-fill text-success" style="font-size:.45rem;vertical-align:middle"></i>
+                    Conectados ahora ({{ online_workers|length }})
+                </span>
+                {% for w in online_workers %}
+                <span class="badge {% if w.is_admin %}bg-primary{% else %}bg-success{% endif %} bg-opacity-10 text-{% if w.is_admin %}primary{% else %}success{% endif %}" style="font-weight:500;font-size:.78rem">
+                    {{ w.name }}{% if w.is_admin %} <i class="bi bi-shield-check" style="font-size:.65rem"></i>{% endif %}
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     {# ── Avisos rapidos ──────────────────────────────────────────── #}
     {% if pending_signatures > 0 or unread_notifs > 0 %}
     <div class="row g-3 mb-4">

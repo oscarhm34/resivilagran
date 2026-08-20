@@ -190,6 +190,13 @@ def index():
         Notification.created_at >= week_ago,
     ).count()
 
+    # Online workers (active in last 5 minutes)
+    online_cutoff = datetime.now() - timedelta(minutes=5)
+    online_workers = Cleaner.query.filter(
+        Cleaner.last_active >= online_cutoff,
+        Cleaner.active == True,
+    ).order_by(Cleaner.last_active.desc()).all()
+
     return render_template(
         'index.html',
         limpiezas_hoy=limpiezas_hoy,
@@ -208,6 +215,7 @@ def index():
         shift_summary=shift_summary,
         pending_signatures=pending_signatures,
         unread_notifs=unread_notifs,
+        online_workers=online_workers,
     )
 
 

@@ -29,6 +29,7 @@ class Cleaner(UserMixin, db.Model):
     active = db.Column(db.Boolean, nullable=False, default=True)
     identity_verified = db.Column(db.Boolean, nullable=False, default=False)
     role = db.Column(db.String(20), nullable=False, default='atenciones')  # 'limpieza', 'atenciones', 'mixto', 'gestion'
+    last_active = db.Column(db.DateTime, nullable=True, index=True)
 
     groups = db.relationship('ResidentGroup', secondary=cleaner_groups, back_populates='workers', lazy=True)
 
