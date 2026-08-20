@@ -75,10 +75,18 @@ def login():
 
     user = Cleaner.query.filter_by(username=username).first()
     if user and user.check_password(password):
-        access_token = create_access_token(identity=username, expires_delta=timedelta(hours=12))
+        access_token = create_access_token(identity=username, expires_delta=timedelta(days=7))
         return jsonify(access_token=access_token, id_cleaner=user.id, cleaner_name=user.name, role=user.role), 200
 
     return jsonify({'error': 'Credenciales incorrectas'}), 401
+
+
+@bp.route('/api/nfc/refresh-token', methods=['POST'])
+@jwt_required()
+def refresh_token():
+    identity = get_jwt_identity()
+    new_token = create_access_token(identity=identity, expires_delta=timedelta(days=7))
+    return jsonify(access_token=new_token), 200
 
 
 @bp.route('/start_cleaning', methods=['POST'])
@@ -787,6 +795,11 @@ def end_session():
     worker_id = data.get('worker_id')
     if worker_id and not _verify_worker_id(worker_id):
         return jsonify({'error': 'No autorizado'}), 403
+
+    nfc_only = AppSetting.get('nfc_only', 'true') == 'true'
+    if nfc_only:
+        return jsonify({'error': 'Modo Solo NFC: escanea la etiqueta NFC para finalizar la sesión'}), 403
+
     record_id = data.get('record_id')
     mode = data.get('mode')
 
@@ -1159,6 +1172,11 @@ def cancel_session():
     worker_id = data.get('worker_id')
     if worker_id and not _verify_worker_id(worker_id):
         return jsonify({'error': 'No autorizado'}), 403
+
+    nfc_only = AppSetting.get('nfc_only', 'true') == 'true'
+    if nfc_only:
+        return jsonify({'error': 'Modo Solo NFC: no se pueden cancelar sesiones manualmente'}), 403
+
     record_id = data.get('record_id')
     record_ids = data.get('record_ids')
     mode = data.get('mode')
@@ -1303,6 +1321,12 @@ def admin_settings():
         except (ValueError, TypeError):
             session_max = '120'
         AppSetting.set('session_max_minutes', session_max)
+        hidden_logout = request.form.get('hidden_logout_minutes', '30')
+        try:
+            hidden_logout = str(max(0, min(1440, int(hidden_logout))))
+        except (ValueError, TypeError):
+            hidden_logout = '30'
+        AppSetting.set('hidden_logout_minutes', hidden_logout)
         flash('Configuración guardada.', 'success')
         return redirect(url_for('nfc.admin_settings'))
     return render_template('admin_settings.html',
@@ -1312,6 +1336,7 @@ def admin_settings():
         allow_worker_incidents=AppSetting.get('allow_worker_incidents', 'false') == 'true',
         allow_worker_activities=AppSetting.get('allow_worker_activities', 'false') == 'true',
         session_max_minutes=int(AppSetting.get('session_max_minutes', '120')),
+        hidden_logout_minutes=int(AppSetting.get('hidden_logout_minutes', '30')),
     )
 
 
@@ -1325,6 +1350,7 @@ def api_config():
         'allow_worker_incidents': AppSetting.get('allow_worker_incidents', 'false') == 'true',
         'allow_worker_activities': AppSetting.get('allow_worker_activities', 'false') == 'true',
         'session_max_minutes': int(AppSetting.get('session_max_minutes', '120')),
+        'hidden_logout_minutes': int(AppSetting.get('hidden_logout_minutes', '30')),
     }), 200
 
 

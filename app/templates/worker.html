@@ -87,6 +87,7 @@
 
         .btn-asc-cancel { padding:10px 14px; min-height:44px; border-radius:20px; border:1.5px solid var(--border); background:none; font-size:12px; color:var(--text-2); cursor:pointer; font-family:inherit; transition:border-color .15s, color .15s; }
         .btn-asc-cancel:hover { border-color:var(--danger); color:var(--danger); }
+        .nfc-hint { font-size:11px; color:var(--text-2); font-style:italic; text-align:center; padding:6px 0; white-space:nowrap; }
 
         .asc.stale { border-color:var(--danger) !important; animation:stale-pulse 2s ease-in-out infinite; }
         .asc.stale .asc-timer { color:var(--danger) !important; }
@@ -1009,6 +1010,19 @@
         </div>
     </dialog>
 
+    <!-- Aviso informativo -->
+    <dialog id="info-announce" style="border:none;border-radius:20px;padding:0;max-width:340px;width:90vw;background:var(--surface);box-shadow:0 20px 60px rgba(0,0,0,.3)">
+        <div style="padding:28px 24px;text-align:center">
+            <div style="font-size:3rem;margin-bottom:12px">📱</div>
+            <h3 style="font-family:'Outfit',system-ui,sans-serif;font-weight:700;font-size:18px;margin:0 0 12px;color:var(--text)">Cambio importante</h3>
+            <p style="font-size:14px;color:var(--text-2);line-height:1.5;margin:0 0 20px">
+                A partir de ahora, para <strong>finalizar</strong> una limpieza o atencion, debes <strong>escanear de nuevo el NFC</strong> de la habitacion o residente.<br><br>
+                <span style="color:var(--blue);font-weight:600">Escanear para abrir → Escanear para cerrar</span>
+            </p>
+            <button id="btn-announce-ok" style="background:var(--blue);color:#fff;border:none;border-radius:14px;padding:14px 40px;font-size:15px;font-weight:700;cursor:pointer;font-family:'Outfit',system-ui,sans-serif;width:100%">Entendido</button>
+        </div>
+    </dialog>
+
 </div>
 
 <div class="toast" id="toast" aria-live="assertive"></div>
@@ -1157,6 +1171,11 @@ async function api(path, method = 'GET', body = null) {
     if (body)    opts.body = JSON.stringify(body);
     try {
         const res  = await fetch(path, opts);
+        if (res.status === 401 && path !== '/login') {
+            doLogout();
+            toast('Sesión expirada. Inicia sesión de nuevo.');
+            return { ok: false, data: { error: 'Sesión expirada' } };
+        }
         const data = await res.json().catch(() => ({}));
         return { ok: res.ok, data };
     } catch {
@@ -1241,10 +1260,27 @@ function doLogout() {
 }
 $('btn-logout').addEventListener('click', doLogout);
 
-// Auto-logout when page is hidden or closed (shared device support)
+// Refresh JWT token every 6 hours to prevent expiration
+async function refreshToken() {
+    if (!S.token) return;
+    const { ok, data } = await api('/api/nfc/refresh-token', 'POST');
+    if (ok && data.access_token) {
+        S.token = data.access_token;
+        localStorage.setItem('wt', S.token);
+    }
+}
+setInterval(refreshToken, 6 * 60 * 60 * 1000);
+
+// Auto-logout after inactivity in background (shared device support)
+let hiddenTimer = null;
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden' && S.token) {
-        doLogout();
+        const minutes = S.config.hidden_logout_minutes;
+        if (minutes === 0) return; // 0 = never auto-logout
+        const ms = (minutes || 30) * 60 * 1000;
+        hiddenTimer = setTimeout(() => doLogout(), ms);
+    } else {
+        if (hiddenTimer) { clearTimeout(hiddenTimer); hiddenTimer = null; }
     }
 });
 
@@ -1273,6 +1309,15 @@ async function initHome() {
     if (S.config.allow_worker_activities) await loadTodayActivities();
     startGlobalTimer();
     startNotifPolling();
+
+    // Show one-time announcement about NFC-only closing
+    if (S.config.nfc_only && !localStorage.getItem('announce_nfc_close_v1')) {
+        $('info-announce').showModal();
+        $('btn-announce-ok').addEventListener('click', () => {
+            localStorage.setItem('announce_nfc_close_v1', '1');
+            $('info-announce').close();
+        });
+    }
 }
 
 function showMandatoryTrainingBlock(pill) {
@@ -1668,12 +1713,13 @@ function renderActiveSessions() {
             <div class="asc-right">
                 <div class="asc-timer" id="timer-group-${gk}">${timeStr}</div>
                 <div class="asc-btns">
+                    ${S.config.nfc_only ? '<span class="nfc-hint">Escanea NFC</span>' : `
                     <button class="btn-asc-end btn-group-end"
                             data-group-key="${gk}"
                             data-record-ids="${recordIds}">Finalizar</button>
                     <button class="btn-asc-cancel btn-group-cancel"
                             data-group-key="${gk}"
-                            data-record-ids="${recordIds}">✕</button>
+                            data-record-ids="${recordIds}">✕</button>`}
                 </div>
             </div>
         </div>`;
@@ -1702,12 +1748,13 @@ function renderActiveSessions() {
             <div class="asc-right">
                 <div class="asc-timer" id="timer-${sess.record_id}">${timeStr}</div>
                 <div class="asc-btns">
+                    ${S.config.nfc_only ? '<span class="nfc-hint">Escanea NFC</span>' : `
                     <button class="btn-asc-end"
                             data-id="${sess.record_id}"
                             data-mode="${sess.type}">Finalizar</button>
                     <button class="btn-asc-cancel"
                             data-id="${sess.record_id}"
-                            data-mode="${sess.type}">✕</button>
+                            data-mode="${sess.type}">✕</button>`}
                 </div>
             </div>
         </div>`;

@@ -68,6 +68,16 @@
                            min="15" max="1440" style="max-width:120px">
                 </div>
 
+                <div class="mb-0 mt-3">
+                    <label for="hidden_logout_minutes" class="form-label">
+                        <strong>Cierre de sesion por inactividad (minutos)</strong>
+                        <br><small class="text-body-secondary">Cuando el trabajador cambia de app o bloquea la pantalla, se cerrara su sesion tras este tiempo de inactividad. Valor 0 = nunca cerrar sesion automaticamente (se usara solo la expiracion del token). Valor por defecto: 30 minutos.</small>
+                    </label>
+                    <input type="number" class="form-control" id="hidden_logout_minutes"
+                           name="hidden_logout_minutes" value="{{ hidden_logout_minutes }}"
+                           min="0" max="1440" style="max-width:120px">
+                </div>
+
             </div>
         </div>
 
