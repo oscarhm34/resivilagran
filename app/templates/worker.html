@@ -2525,12 +2525,10 @@ let nfcAbort = null;
 
 function maybeStartHomeNfc() {
     const onHome = document.querySelector('.screen.active')?.id === 'screen-home';
-    if (S.config.nfc_only && S.sessions.length > 0 && onHome) {
-        startNfc();
-        $('home-nfc-status').style.display = '';
-    } else {
-        $('home-nfc-status').style.display = 'none';
-    }
+    const showNfc = S.config.nfc_only && S.sessions.length > 0 && onHome;
+    $('home-nfc-status').style.display = showNfc ? '' : 'none';
+    // NFC reader stays alive from the scan screen gesture — no need to call startNfc here
+    // (Web NFC requires a user gesture to start, which only happens on the scan screen)
 }
 
 async function startNfc() {
@@ -2569,7 +2567,13 @@ async function startNfc() {
 function stopNfc() { if (nfcAbort) { nfcAbort.abort(); nfcAbort = null; } }
 
 // ── NFC handler ────────────────────────────────────────────────────────────
+let nfcProcessing = false;
 async function handleCode(code) {
+    // Debounce: prevent duplicate scans from rapid NFC readings
+    if (nfcProcessing) return;
+    nfcProcessing = true;
+    setTimeout(() => { nfcProcessing = false; }, 2000);
+
     // NFC group scan mode: look up resident and add to list instead of starting session
     if (S.nfcGroupMode) {
         $('scan-sub').textContent = 'Buscando residente…';
@@ -2606,9 +2610,9 @@ async function handleCode(code) {
 
     if (!ok) { toast(data.error || 'No se pudo procesar el código'); return; }
 
-    // Only stop NFC if on scan screen; on home screen it stays active
-    const onScanScreen = document.querySelector('.screen.active')?.id === 'screen-scan';
-    if (onScanScreen) stopNfc();
+    // When nfc_only is active, keep NFC reader alive (so user can scan from any screen)
+    // Otherwise, stop it after each scan (original behavior)
+    if (!S.config.nfc_only) stopNfc();
 
     const detectedMode = data.type || S.mode;
 
