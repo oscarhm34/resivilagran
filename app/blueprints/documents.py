@@ -9,7 +9,7 @@ from sqlalchemy.orm import joinedload
 
 from .. import app, db
 from ..models import Cleaner, LegalDocument, DocumentSignature
-from ..utils import admin_required, _verify_worker_id, _current_worker_id
+from ..utils import admin_required, _verify_worker_id, _current_worker_id, _safe_commit
 
 bp = Blueprint('documents', __name__)
 
@@ -31,14 +31,17 @@ def create_document():
     content = request.form.get('content', '').strip()
     doc_type = request.form.get('doc_type', '').strip()
     if not title or not content:
-        flash('El título y el contenido son obligatorios.', 'error')
+        flash('El título y el contenido son obligatorios.', 'danger')
         return redirect(url_for('documents.admin_documents'))
     doc = LegalDocument(
         title=title, content=content, doc_type=doc_type or None,
         created_by=current_user.id,
     )
     db.session.add(doc)
-    db.session.commit()
+    ok, err = _safe_commit('No se pudo crear el documento.')
+    if not ok:
+        flash(err, 'danger')
+        return redirect(url_for('documents.admin_documents'))
     flash('Documento creado correctamente.', 'success')
     return redirect(url_for('documents.admin_documents'))
 
@@ -50,12 +53,15 @@ def edit_document(doc_id: int):
     if not doc:
         abort(404)
     if doc.signatures:
-        flash('No se puede editar un documento que ya tiene firmas.', 'error')
+        flash('No se puede editar un documento que ya tiene firmas.', 'danger')
         return redirect(url_for('documents.admin_documents'))
     doc.title = request.form.get('title', '').strip() or doc.title
     doc.content = request.form.get('content', '').strip() or doc.content
     doc.doc_type = request.form.get('doc_type', '').strip() or doc.doc_type
-    db.session.commit()
+    ok, err = _safe_commit('No se pudo actualizar el documento.')
+    if not ok:
+        flash(err, 'danger')
+        return redirect(url_for('documents.admin_documents'))
     flash('Documento actualizado.', 'success')
     return redirect(url_for('documents.admin_documents'))
 
@@ -67,10 +73,13 @@ def delete_document(doc_id: int):
     if not doc:
         abort(404)
     if doc.signatures:
-        flash('No se puede eliminar un documento que ya tiene firmas.', 'error')
+        flash('No se puede eliminar un documento que ya tiene firmas.', 'danger')
         return redirect(url_for('documents.admin_documents'))
     db.session.delete(doc)
-    db.session.commit()
+    ok, err = _safe_commit('No se pudo eliminar el documento.')
+    if not ok:
+        flash(err, 'danger')
+        return redirect(url_for('documents.admin_documents'))
     flash('Documento eliminado.', 'success')
     return redirect(url_for('documents.admin_documents'))
 
@@ -82,7 +91,10 @@ def toggle_document(doc_id: int):
     if not doc:
         abort(404)
     doc.active = not doc.active
-    db.session.commit()
+    ok, err = _safe_commit('No se pudo cambiar el estado del documento.')
+    if not ok:
+        flash(err, 'danger')
+        return redirect(url_for('documents.admin_documents'))
     flash(f'Documento {"activado" if doc.active else "desactivado"}.', 'success')
     return redirect(url_for('documents.admin_documents'))
 
@@ -165,5 +177,7 @@ def sign_document(doc_id: int):
         selfie_path=selfie_path, content_hash=content_hash,
     )
     db.session.add(sig)
-    db.session.commit()
+    ok, err = _safe_commit('No se pudo registrar la firma.')
+    if not ok:
+        return jsonify({'error': err}), 500
     return jsonify({'ok': True})

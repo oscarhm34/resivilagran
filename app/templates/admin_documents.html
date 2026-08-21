@@ -42,8 +42,11 @@
                 </td>
                 <td class="text-end">
                     {% if not doc.signatures %}
-                    <button class="btn btn-sm btn-outline-secondary me-1"
-                            onclick="editDoc({{ doc.id }}, {{ doc.title|tojson }}, {{ doc.content|tojson }}, {{ (doc.doc_type or '')|tojson }})">Editar</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary me-1 btn-editar-doc"
+                            data-id="{{ doc.id }}"
+                            data-titulo="{{ doc.title }}"
+                            data-tipo="{{ doc.doc_type or '' }}"
+                            data-contenido="{{ doc.content }}">Editar</button>
                     {% endif %}
                     <form method="post" action="{{ url_for('documents.toggle_document', doc_id=doc.id) }}"
                           class="d-inline">
@@ -107,18 +110,43 @@
     </div>
 </div>
 
-<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+{#
+   Build de codigo abierto de TinyMCE servido por jsDelivr. El CDN propio de
+   Tiny (cdn.tiny.cloud) exige clave de API y, sin ella, muestra un aviso
+   sobre el editor y acaba dejando de funcionar. Este build no la necesita.
+#}
+<script src="https://cdn.jsdelivr.net/npm/tinymce@6.8.3/tinymce.min.js" referrerpolicy="origin"></script>
 <script>
 (function () {
-    tinymce.init({
-        selector: '#doc-content',
-        height: 350,
-        menubar: false,
-        plugins: 'lists link',
-        toolbar: 'undo redo | bold italic underline | bullist numlist | link',
-        branding: false,
-        promotion: false,
-    });
+    var hayEditor = typeof tinymce !== 'undefined';
+
+    if (hayEditor) {
+        tinymce.init({
+            selector: '#doc-content',
+            height: 350,
+            menubar: false,
+            plugins: 'lists link',
+            toolbar: 'undo redo | bold italic underline | bullist numlist | link',
+            branding: false,
+            promotion: false,
+            language: 'es',
+            language_url: 'https://cdn.jsdelivr.net/npm/tinymce-i18n@23.11.20/langs6/es.js',
+        });
+    }
+
+    /*
+     * Si el CDN no responde —la residencia se queda sin internet, por ejemplo—
+     * el <textarea> sigue siendo un campo del formulario y el documento se
+     * puede escribir y guardar igual, solo que sin formato.
+     */
+    function ponerContenido(html) {
+        var editor = hayEditor ? tinymce.get('doc-content') : null;
+        if (editor) {
+            editor.setContent(html);
+        } else {
+            document.getElementById('doc-content').value = html;
+        }
+    }
 
     window.resetDocForm = function () {
         document.getElementById('docForm').action = '{{ url_for("documents.create_document") }}';
@@ -126,18 +154,20 @@
         document.getElementById('doc-submit-btn').textContent = 'Crear documento';
         document.getElementById('doc-title').value = '';
         document.getElementById('doc-type').value = '';
-        tinymce.get('doc-content').setContent('');
+        ponerContenido('');
     };
 
-    window.editDoc = function (id, title, content, docType) {
-        document.getElementById('docForm').action = '/admin/documents/' + id + '/edit';
-        document.getElementById('docModalTitle').textContent = 'Editar documento';
-        document.getElementById('doc-submit-btn').textContent = 'Guardar cambios';
-        document.getElementById('doc-title').value = title;
-        document.getElementById('doc-type').value = docType;
-        tinymce.get('doc-content').setContent(content);
-        new bootstrap.Modal(document.getElementById('docModal')).show();
-    };
+    document.querySelectorAll('.btn-editar-doc').forEach(function (boton) {
+        boton.addEventListener('click', function () {
+            document.getElementById('docForm').action = '/admin/documents/' + this.dataset.id + '/edit';
+            document.getElementById('docModalTitle').textContent = 'Editar documento';
+            document.getElementById('doc-submit-btn').textContent = 'Guardar cambios';
+            document.getElementById('doc-title').value = this.dataset.titulo;
+            document.getElementById('doc-type').value = this.dataset.tipo;
+            ponerContenido(this.dataset.contenido);
+            new bootstrap.Modal(document.getElementById('docModal')).show();
+        });
+    });
 })();
 </script>
 {% endblock %}
