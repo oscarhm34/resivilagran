@@ -28,6 +28,26 @@ def post_json(client, url, payload):
     )
 
 
+def token_for(client, username, password):
+    """Devuelve el access_token JWT de una trabajadora."""
+    response = post_json(client, "/login", {"username": username, "password": password})
+    assert response.status_code == 200, response.get_data(as_text=True)
+    return response.get_json()["access_token"]
+
+
+@pytest.fixture
+def jwt_client(client, cleaner_user):
+    """
+    Cliente con el Bearer de `cleaner_user` en todas las peticiones.
+
+    Los endpoints de esta API llevan `@jwt_required()` y derivan la identidad
+    del token: el `cleaner_id` que envíe el cliente se ignora.
+    """
+    token = token_for(client, "limpiadora1", "limpia123")
+    client.environ_base["HTTP_AUTHORIZATION"] = f"Bearer {token}"
+    return client
+
+
 # ── POST /login ───────────────────────────────────────────────────────────────
 
 class TestLoginJWT:
@@ -88,10 +108,10 @@ class TestLoginJWT:
 class TestStartCleaning:
     """Tests del endpoint de inicio de limpieza."""
 
-    def test_start_cleaning_creates_new_record(self, client, cleaner_user, room):
+    def test_start_cleaning_creates_new_record(self, jwt_client, cleaner_user, room):
         """Primera lectura NFC en una habitación crea un registro nuevo."""
         response = post_json(
-            client,
+            jwt_client,
             "/start_cleaning",
             {"cleaner_id": cleaner_user.id, "room_id": room.number},
         )
@@ -101,14 +121,14 @@ class TestStartCleaning:
         assert "iniciada" in data["message"]
 
     def test_start_cleaning_second_scan_ends_active_cleaning(
-        self, client, active_record, cleaner_user, room
+        self, jwt_client, active_record, cleaner_user, room
     ):
         """
         Segunda lectura NFC en la misma habitación donde hay limpieza activa
         la finaliza en lugar de crear un nuevo registro.
         """
         response = post_json(
-            client,
+            jwt_client,
             "/start_cleaning",
             {"cleaner_id": cleaner_user.id, "room_id": room.number},
         )
@@ -118,20 +138,20 @@ class TestStartCleaning:
         # No debe devolver record_id nuevo
         assert "record_id" not in data
 
-    def test_start_cleaning_nonexistent_room_returns_404(self, client, cleaner_user, db):
+    def test_start_cleaning_nonexistent_room_returns_404(self, jwt_client, cleaner_user, db):
         """Número de habitación desconocido devuelve 404."""
         response = post_json(
-            client,
+            jwt_client,
             "/start_cleaning",
             {"cleaner_id": cleaner_user.id, "room_id": "NOEXISTE"},
         )
         assert response.status_code == 404
         assert "error" in response.get_json()
 
-    def test_start_cleaning_sets_start_time(self, client, cleaner_user, room, app):
+    def test_start_cleaning_sets_start_time(self, jwt_client, cleaner_user, room, app):
         """El registro creado tiene start_time y end_time es None."""
         response = post_json(
-            client,
+            jwt_client,
             "/start_cleaning",
             {"cleaner_id": cleaner_user.id, "room_id": room.number},
         )
@@ -148,10 +168,10 @@ class TestStartCleaning:
 class TestEndCleaning:
     """Tests del endpoint de finalización de limpieza por record_id."""
 
-    def test_end_cleaning_sets_end_time(self, client, active_record, app):
+    def test_end_cleaning_sets_end_time(self, jwt_client, active_record, app):
         """Finalizar una limpieza activa actualiza end_time y devuelve duración."""
         response = post_json(
-            client, "/end_cleaning", {"record_id": active_record.id}
+            jwt_client, "/end_cleaning", {"record_id": active_record.id}
         )
         assert response.status_code == 200
         data = response.get_json()
@@ -159,25 +179,25 @@ class TestEndCleaning:
         assert data["duration"] is not None
 
     def test_end_cleaning_already_finished_returns_400(
-        self, client, completed_record
+        self, jwt_client, completed_record
     ):
         """Intentar finalizar una limpieza ya completada devuelve 400."""
         response = post_json(
-            client, "/end_cleaning", {"record_id": completed_record.id}
+            jwt_client, "/end_cleaning", {"record_id": completed_record.id}
         )
         assert response.status_code == 400
         assert "error" in response.get_json()
 
-    def test_end_cleaning_nonexistent_record_returns_400(self, client, db):
+    def test_end_cleaning_nonexistent_record_returns_400(self, jwt_client, db):
         """record_id inexistente devuelve 400."""
-        response = post_json(client, "/end_cleaning", {"record_id": 99999})
+        response = post_json(jwt_client, "/end_cleaning", {"record_id": 99999})
         assert response.status_code == 400
         assert "error" in response.get_json()
 
-    def test_end_cleaning_duration_is_positive(self, client, active_record):
+    def test_end_cleaning_duration_is_positive(self, jwt_client, active_record):
         """La duración devuelta debe ser un número positivo."""
         response = post_json(
-            client, "/end_cleaning", {"record_id": active_record.id}
+            jwt_client, "/end_cleaning", {"record_id": active_record.id}
         )
         data = response.get_json()
         assert response.status_code == 200
@@ -190,35 +210,37 @@ class TestCheckCleaning:
     """Tests del endpoint de consulta de limpieza en curso."""
 
     def test_check_cleaning_returns_room_id_when_active(
-        self, client, active_record, cleaner_user
+        self, jwt_client, active_record, cleaner_user
     ):
         """Si hay limpieza activa devuelve room_id."""
-        response = client.get(f"/check_cleaning?cleaner_id={cleaner_user.id}")
+        response = jwt_client.get(f"/check_cleaning?cleaner_id={cleaner_user.id}")
         assert response.status_code == 200
         data = response.get_json()
         assert "room_id" in data
         assert data["room_id"] == active_record.room_id
 
     def test_check_cleaning_returns_message_when_no_active(
-        self, client, cleaner_user
+        self, jwt_client, cleaner_user
     ):
         """Sin limpieza activa devuelve mensaje informativo."""
-        response = client.get(f"/check_cleaning?cleaner_id={cleaner_user.id}")
+        response = jwt_client.get(f"/check_cleaning?cleaner_id={cleaner_user.id}")
         assert response.status_code == 200
         data = response.get_json()
         assert "message" in data
 
-    def test_check_cleaning_missing_cleaner_id_returns_400(self, client, db):
-        """Llamada sin cleaner_id devuelve 400."""
-        response = client.get("/check_cleaning")
-        assert response.status_code == 400
-        assert "error" in response.get_json()
+    def test_check_cleaning_sin_parametro_usa_la_identidad_del_token(
+        self, jwt_client, active_record
+    ):
+        """Ya no hace falta cleaner_id: se deduce del JWT."""
+        response = jwt_client.get("/check_cleaning")
+        assert response.status_code == 200
+        assert response.get_json()["room_id"] == active_record.room_id
 
     def test_check_cleaning_completed_record_not_shown(
-        self, client, completed_record, cleaner_user
+        self, jwt_client, completed_record, cleaner_user
     ):
         """Un registro ya finalizado no aparece como limpieza en curso."""
-        response = client.get(f"/check_cleaning?cleaner_id={cleaner_user.id}")
+        response = jwt_client.get(f"/check_cleaning?cleaner_id={cleaner_user.id}")
         assert response.status_code == 200
         data = response.get_json()
         # No debe haber room_id activo
@@ -231,17 +253,17 @@ class TestCleaningSummary:
     """Tests del resumen diario de limpiezas del limpiador."""
 
     def test_summary_empty_for_cleaner_with_no_records_today(
-        self, client, cleaner_user
+        self, jwt_client, cleaner_user
     ):
         """Sin registros de hoy, la respuesta es una lista vacía."""
-        response = client.get(f"/cleaning_summary/{cleaner_user.id}")
+        response = jwt_client.get(f"/cleaning_summary/{cleaner_user.id}")
         assert response.status_code == 200
         data = response.get_json()
         assert isinstance(data, list)
         assert len(data) == 0
 
     def test_summary_includes_completed_cleanings_done_today(
-        self, client, cleaner_user, room, app, db
+        self, jwt_client, cleaner_user, room, app, db
     ):
         """Los registros completados de hoy aparecen en el resumen."""
         today = datetime.now().replace(hour=8, minute=0, second=0, microsecond=0)
@@ -254,7 +276,7 @@ class TestCleaningSummary:
         _db.session.add(record)
         _db.session.commit()
 
-        response = client.get(f"/cleaning_summary/{cleaner_user.id}")
+        response = jwt_client.get(f"/cleaning_summary/{cleaner_user.id}")
         assert response.status_code == 200
         data = response.get_json()
         assert len(data) == 1
@@ -262,7 +284,7 @@ class TestCleaningSummary:
         assert room.description in data[0]
 
     def test_summary_excludes_records_from_other_days(
-        self, client, completed_record, cleaner_user
+        self, jwt_client, completed_record, cleaner_user
     ):
         """
         Un registro de otro día (2026-04-24) no aparece en el resumen
@@ -272,6 +294,6 @@ class TestCleaningSummary:
         # El resumen filtra por el día de hoy (2026-04-24 en este caso),
         # así que SÍ aparecería si hoy es esa fecha. El test verifica
         # que la respuesta es siempre una lista (formato correcto).
-        response = client.get(f"/cleaning_summary/{cleaner_user.id}")
+        response = jwt_client.get(f"/cleaning_summary/{cleaner_user.id}")
         assert response.status_code == 200
         assert isinstance(response.get_json(), list)

@@ -11,3 +11,18 @@ instance/
 .codegpt
 Thumbs.db
 app/static/*.apk
+
+# Claude Code — estado local, no versionar
+.claude/worktrees/
+.claude/settings.local.json
+.claude/agent-memory/
+.claude/skills/
+
+# Contenido de skills descargadas (se reinstala desde skills-lock.json)
+.agents/
+
+# Artefactos de Playwright MCP
+.playwright-mcp/
+
+# Editor
+.vscode/

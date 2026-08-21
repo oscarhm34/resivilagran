@@ -17,7 +17,7 @@ import pytest
 import sqlalchemy as sa
 from datetime import datetime, timedelta
 
-from app import app as flask_app, db as _db
+from app import app as flask_app, db as _db, limiter as _limiter
 from app.models import Cleaner, Room, RoomType, Floor, CleaningRecord
 
 
@@ -65,6 +65,24 @@ def app():
     engines_cache[flask_app] = original_engine_map
     test_engine.dispose()
     os.unlink(db_path)
+
+
+@pytest.fixture(scope="function", autouse=True)
+def reset_rate_limiter():
+    """
+    Vacía los contadores de Flask-Limiter antes de cada test.
+
+    El login de admin y el de trabajadora están limitados a 10/minuto y el
+    almacenamiento es en memoria (`storage_uri="memory://"`), así que sin esto
+    la 11ª llamada a `auth_client` de la suite recibe un 429 y todos los tests
+    posteriores fallan por falta de sesión. `RATELIMIT_ENABLED=False` no
+    funciona una vez la app está construida.
+    """
+    try:
+        _limiter.reset()
+    except (AttributeError, NotImplementedError):  # pragma: no cover
+        pass
+    yield
 
 
 def _truncate_all(db):

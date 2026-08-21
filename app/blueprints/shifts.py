@@ -1,10 +1,12 @@
 """Shifts / Cuadrantes blueprint — admin shift management + worker API."""
 from __future__ import annotations
+import re
 from datetime import datetime, timedelta, date, time as dt_time
 
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash, send_file
 from flask_login import current_user
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
 from .. import db
@@ -13,9 +15,14 @@ from ..models import (
     RotationPattern, RotationPatternDay, WorkerShiftConfig,
     AbsenceType, Absence, ShiftCoverageRequirement,
 )
-from ..utils import admin_required
+from ..utils import (
+    admin_required, _safe_commit, _safe_flush, _parse_hhmm, log_audit,
+)
 
 bp = Blueprint('shifts', __name__)
+
+DEFAULT_SHIFT_COLOR = '#0d6efd'
+_HEX_COLOR_RE = re.compile(r'^#[0-9A-Fa-f]{6}$')
 
 
 # ── TURNOS / CUADRANTES ─────────────────────────────────────────────────────
@@ -144,13 +151,17 @@ def cuadrantes_assign():
                 created_by=current_user.id,
             )
             db.session.add(existing)
-        db.session.commit()
+        ok, err = _safe_commit('No se pudo guardar la asignacion.')
+        if not ok:
+            return jsonify({'error': err}), 500
         return jsonify({'ok': True, 'short_name': st.short_name, 'color': st.color})
     else:
         # Clear assignment (dia libre)
         if existing:
             db.session.delete(existing)
-            db.session.commit()
+            ok, err = _safe_commit('No se pudo borrar la asignacion.')
+            if not ok:
+                return jsonify({'error': err}), 500
         return jsonify({'ok': True, 'short_name': '', 'color': ''})
 
 
@@ -188,7 +199,9 @@ def cuadrantes_bulk_assign():
                         shift_type_id=sa.shift_type_id, source='manual',
                         created_by=current_user.id,
                     ))
-        db.session.commit()
+        ok, err = _safe_commit('No se pudo aplicar la accion en bloque.')
+        if not ok:
+            return jsonify({'error': err}), 500
         return jsonify({'ok': True})
 
     return jsonify({'error': 'Accion no valida'}), 400
@@ -209,7 +222,9 @@ def cuadrantes_clear():
         ShiftAssignment.date >= first_day,
         ShiftAssignment.date <= last_day,
     ).delete()
-    db.session.commit()
+    ok, err = _safe_commit('No se pudo vaciar el cuadrante.')
+    if not ok:
+        return jsonify({'error': err}), 500
     return jsonify({'ok': True, 'deleted': deleted})
 
 
@@ -278,38 +293,90 @@ def add_edit_shift_type():
     st_id = request.form.get('shift_type_id', '').strip()
     name = request.form.get('name', '').strip()
     short_name = request.form.get('short_name', '').strip()
-    color = request.form.get('color', '#0d6efd').strip()
-    start_h, start_m = request.form.get('start_time', '07:00').split(':')
-    end_h, end_m = request.form.get('end_time', '15:00').split(':')
-    breaks_min = request.form.get('breaks_minutes', '0', type=int)
-    sort_order = request.form.get('sort_order', '0', type=int)
+    color = request.form.get('color', '').strip() or DEFAULT_SHIFT_COLOR
+    start_t = _parse_hhmm(request.form.get('start_time'))
+    end_t = _parse_hhmm(request.form.get('end_time'))
+    breaks_min = request.form.get('breaks_minutes', type=int)
+    sort_order = request.form.get('sort_order', type=int)
 
+    breaks_min = 0 if breaks_min is None or breaks_min < 0 else breaks_min
+    sort_order = 0 if sort_order is None else sort_order
+    if not _HEX_COLOR_RE.match(color):
+        color = DEFAULT_SHIFT_COLOR
+
+    # ── Validación ───────────────────────────────────────────────────────────
     if not name or not short_name:
-        flash('Nombre y abreviatura son obligatorios.', 'danger')
+        flash('El nombre y la abreviatura son obligatorios.', 'danger')
         return redirect(url_for('shifts.manage_shift_types'))
 
-    start_t = dt_time(int(start_h), int(start_m))
-    end_t = dt_time(int(end_h), int(end_m))
+    if len(name) > 50 or len(short_name) > 5:
+        flash('El nombre admite 50 caracteres y la abreviatura 5.', 'danger')
+        return redirect(url_for('shifts.manage_shift_types'))
 
-    if st_id:
-        st = db.session.get(ShiftType, int(st_id))
-        if st:
-            st.name = name
-            st.short_name = short_name
-            st.color = color
-            st.start_time = start_t
-            st.end_time = end_t
-            st.breaks_minutes = breaks_min
-            st.sort_order = sort_order
-            flash('Tipo de turno actualizado.', 'success')
-    else:
+    if start_t is None or end_t is None:
+        flash('Las horas de inicio y fin son obligatorias, en formato HH:MM.', 'danger')
+        return redirect(url_for('shifts.manage_shift_types'))
+
+    # end < start es válido: es el turno de noche (ver ShiftAssignment.net_hours).
+    # end == start no lo es: net_hours lo interpretaría como un turno de 24 h.
+    if start_t == end_t:
+        flash('La hora de fin no puede ser igual a la de inicio.', 'danger')
+        return redirect(url_for('shifts.manage_shift_types'))
+
+    duration_min = ((end_t.hour * 60 + end_t.minute)
+                    - (start_t.hour * 60 + start_t.minute)) % (24 * 60)
+    if breaks_min >= duration_min:
+        flash('El descanso no puede ser igual o superior a la duración del turno.', 'danger')
+        return redirect(url_for('shifts.manage_shift_types'))
+
+    # ── Localizar el registro a editar ───────────────────────────────────────
+    st = db.session.get(ShiftType, int(st_id)) if st_id.isdigit() else None
+    if st_id and not st:
+        flash('El tipo de turno indicado ya no existe.', 'warning')
+        return redirect(url_for('shifts.manage_shift_types'))
+
+    # ── Nombre único (ShiftType.name es unique) ──────────────────────────────
+    dup_q = ShiftType.query.filter(func.lower(ShiftType.name) == name.lower())
+    if st:
+        dup_q = dup_q.filter(ShiftType.id != st.id)
+    if dup_q.first():
+        flash('Ya existe un tipo de turno con ese nombre.', 'danger')
+        return redirect(url_for('shifts.manage_shift_types'))
+
+    is_new = st is None
+    if is_new:
         st = ShiftType(name=name, short_name=short_name, color=color,
                        start_time=start_t, end_time=end_t,
-                       breaks_minutes=breaks_min, sort_order=sort_order)
+                       breaks_minutes=breaks_min, sort_order=sort_order,
+                       active=True)
         db.session.add(st)
-        flash('Tipo de turno creado.', 'success')
+        ok, err = _safe_flush('No se pudo crear el tipo de turno.')
+        if not ok:
+            flash(err, 'danger')
+            return redirect(url_for('shifts.manage_shift_types'))
+    else:
+        st.name = name
+        st.short_name = short_name
+        st.color = color
+        st.start_time = start_t
+        st.end_time = end_t
+        st.breaks_minutes = breaks_min
+        st.sort_order = sort_order
+        # `active` no se toca aquí: lo gestiona toggle_shift_type_active.
 
-    db.session.commit()
+    log_audit('create' if is_new else 'update', 'shift_type', st.id, {
+        'name': name, 'short_name': short_name,
+        'start_time': start_t.strftime('%H:%M'),
+        'end_time': end_t.strftime('%H:%M'),
+        'breaks_minutes': breaks_min, 'sort_order': sort_order,
+    })
+
+    ok, err = _safe_commit('No se pudo guardar el tipo de turno.')
+    if not ok:
+        flash(err, 'danger')
+        return redirect(url_for('shifts.manage_shift_types'))
+
+    flash('Tipo de turno creado.' if is_new else 'Tipo de turno actualizado.', 'success')
     return redirect(url_for('shifts.manage_shift_types'))
 
 
@@ -317,26 +384,65 @@ def add_edit_shift_type():
 @admin_required
 def delete_shift_type(id):
     st = db.session.get(ShiftType, id)
-    if st:
-        if st.assignments:
-            flash('No se puede eliminar: tiene asignaciones asociadas.', 'danger')
-        else:
-            db.session.delete(st)
-            db.session.commit()
-            flash('Tipo de turno eliminado.', 'success')
+    if not st:
+        flash('El tipo de turno ya no existe.', 'warning')
+        return redirect(url_for('shifts.manage_shift_types'))
+
+    blockers = []
+    n_assign = ShiftAssignment.query.filter_by(shift_type_id=st.id).count()
+    if n_assign:
+        blockers.append(f'{n_assign} asignaciones de cuadrante')
+    n_days = RotationPatternDay.query.filter_by(shift_type_id=st.id).count()
+    if n_days:
+        blockers.append(f'{n_days} dias de patrones de rotacion')
+    n_cfg = WorkerShiftConfig.query.filter_by(fixed_shift_type_id=st.id).count()
+    if n_cfg:
+        blockers.append(f'{n_cfg} configuraciones de trabajadoras')
+
+    if blockers:
+        flash(f'No se puede eliminar «{st.name}»: esta en uso ({", ".join(blockers)}). '
+              'Desactivalo en su lugar.', 'warning')
+        return redirect(url_for('shifts.manage_shift_types'))
+
+    # Los requisitos de cobertura son configuración pura y no tienen sentido sin
+    # su tipo de turno: se eliminan junto con él.
+    ShiftCoverageRequirement.query.filter_by(shift_type_id=st.id).delete(
+        synchronize_session=False)
+
+    log_audit('delete', 'shift_type', st.id,
+              {'name': st.name, 'short_name': st.short_name})
+    db.session.delete(st)
+
+    ok, err = _safe_commit('No se pudo eliminar el tipo de turno.')
+    if not ok:
+        flash(err, 'danger')
+        return redirect(url_for('shifts.manage_shift_types'))
+
+    flash('Tipo de turno eliminado.', 'success')
     return redirect(url_for('shifts.manage_shift_types'))
 
 
 @bp.route('/shift-types/toggle-active', methods=['POST'])
 @admin_required
 def toggle_shift_type_active():
-    data = request.get_json()
-    st = db.session.get(ShiftType, data.get('id'))
-    if st:
-        st.active = data.get('active', True)
-        db.session.commit()
-        return jsonify({'ok': True})
-    return jsonify({'error': 'No encontrado'}), 404
+    data = request.get_json(silent=True) or {}
+    try:
+        st_id = int(data.get('id'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Identificador no valido'}), 400
+
+    st = db.session.get(ShiftType, st_id)
+    if not st:
+        return jsonify({'error': 'Tipo de turno no encontrado'}), 404
+
+    st.active = bool(data.get('active', True))
+    log_audit('update', 'shift_type', st.id, {'active': st.active})
+
+    ok, err = _safe_commit('No se pudo actualizar el estado del tipo de turno.')
+    if not ok:
+        return jsonify({'error': err}), 500
+
+    return jsonify({'ok': True, 'active': st.active})
 
 
 # ── API WORKER: MIS TURNOS ──────────────────────────────────────────────────
@@ -357,7 +463,9 @@ def worker_my_shifts():
             year, mo = month_str.split('-')
             year, mo = int(year), int(mo)
         except ValueError:
-            return jsonify({'error': 'Invalid month format (YYYY-MM)'}), 400
+            return jsonify({'error': 'Formato de mes no valido (YYYY-MM)'}), 400
+        if not (1 <= mo <= 12) or not (2000 <= year <= 2100):
+            return jsonify({'error': 'Formato de mes no valido (YYYY-MM)'}), 400
     else:
         year, mo = datetime.now().year, datetime.now().month
 
@@ -404,10 +512,18 @@ def add_edit_pattern():
     pattern_id = request.form.get('pattern_id', '').strip()
     name = request.form.get('name', '').strip()
     description = request.form.get('description', '').strip()
-    cycle_days = request.form.get('cycle_days', '7', type=int)
+    cycle_days = request.form.get('cycle_days', type=int) or 0
 
-    if not name or cycle_days < 1:
-        flash('Nombre y dias del ciclo son obligatorios.', 'danger')
+    if not name:
+        flash('El nombre del patron es obligatorio.', 'danger')
+        return redirect(url_for('shifts.manage_patterns'))
+
+    if not (1 <= cycle_days <= 31):
+        flash('Los dias del ciclo deben estar entre 1 y 31.', 'danger')
+        return redirect(url_for('shifts.manage_patterns'))
+
+    if pattern_id and not pattern_id.isdigit():
+        flash('El patron indicado no es valido.', 'danger')
         return redirect(url_for('shifts.manage_patterns'))
 
     if pattern_id:
@@ -432,7 +548,10 @@ def add_edit_pattern():
             shift_type_id=int(st_id) if st_id else None,
         ))
 
-    db.session.commit()
+    ok, err = _safe_commit('No se pudo guardar el patron.')
+    if not ok:
+        flash(err, 'danger')
+        return redirect(url_for('shifts.manage_patterns'))
     flash('Patron guardado correctamente.', 'success')
     return redirect(url_for('shifts.manage_patterns'))
 
@@ -446,8 +565,8 @@ def delete_pattern(id):
             flash('No se puede eliminar: hay trabajadores asignados a este patron.', 'danger')
         else:
             db.session.delete(pattern)
-            db.session.commit()
-            flash('Patron eliminado.', 'success')
+            ok, err = _safe_commit('No se pudo eliminar el patron.')
+            flash('Patron eliminado.' if ok else err, 'success' if ok else 'danger')
     return redirect(url_for('shifts.manage_patterns'))
 
 
@@ -481,7 +600,9 @@ def set_worker_shift_config():
         effective_from=date.today(),
     )
     db.session.add(config)
-    db.session.commit()
+    ok, err = _safe_commit('No se pudo guardar la configuracion.')
+    if not ok:
+        return jsonify({'error': err}), 500
     return jsonify({'ok': True})
 
 
@@ -559,7 +680,9 @@ def cuadrantes_fill_gap():
                 shift_type_id=shift_type_id, source='smart',
                 created_by=current_user.id,
             ))
-        db.session.commit()
+        ok, err = _safe_commit('No se pudo asignar el hueco.')
+        if not ok:
+            return jsonify({'error': err}), 500
         st = db.session.get(ShiftType, shift_type_id)
         return jsonify({
             'ok': True,
@@ -602,7 +725,10 @@ def save_coverage_settings():
                     ))
             elif existing:
                 db.session.delete(existing)
-    db.session.commit()
+    ok, err = _safe_commit('No se pudieron guardar los requisitos de cobertura.')
+    if not ok:
+        flash(err, 'danger')
+        return redirect(url_for('shifts.coverage_settings'))
     flash('Requisitos de cobertura guardados.', 'success')
     return redirect(url_for('shifts.coverage_settings'))
 
@@ -666,7 +792,10 @@ def add_edit_absence():
         )
         db.session.add(absence)
 
-    db.session.commit()
+    ok, err = _safe_commit('No se pudo registrar la ausencia.')
+    if not ok:
+        flash(err, 'danger')
+        return redirect(url_for('shifts.manage_absences'))
     flash('Ausencia registrada.', 'success')
     return redirect(url_for('shifts.manage_absences'))
 
@@ -677,8 +806,8 @@ def delete_absence(id):
     absence = db.session.get(Absence, id)
     if absence:
         db.session.delete(absence)
-        db.session.commit()
-        flash('Ausencia eliminada.', 'success')
+        ok, err = _safe_commit('No se pudo eliminar la ausencia.')
+        flash('Ausencia eliminada.' if ok else err, 'success' if ok else 'danger')
     return redirect(url_for('shifts.manage_absences'))
 
 
@@ -686,8 +815,10 @@ def delete_absence(id):
 @admin_required
 def cuadrantes_validate():
     """Validate shift assignments for labor law compliance. Returns warnings."""
-    year = request.args.get('year', type=int)
-    month = request.args.get('month', type=int)
+    year = request.args.get('year', type=int) or datetime.now().year
+    month = request.args.get('month', type=int) or datetime.now().month
+    if not (1 <= month <= 12) or not (2000 <= year <= 2100):
+        return jsonify({'error': 'Ano o mes no valido'}), 400
 
     import calendar
     num_days = calendar.monthrange(year, month)[1]

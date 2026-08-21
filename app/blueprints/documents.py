@@ -9,7 +9,7 @@ from sqlalchemy.orm import joinedload
 
 from .. import app, db
 from ..models import Cleaner, LegalDocument, DocumentSignature
-from ..utils import admin_required, _verify_worker_id
+from ..utils import admin_required, _verify_worker_id, _current_worker_id
 
 bp = Blueprint('documents', __name__)
 
@@ -108,9 +108,9 @@ def document_signatures(doc_id: int):
 @bp.route('/api/worker/pending-documents')
 @jwt_required()
 def pending_documents():
-    worker_id = request.args.get('worker_id', type=int)
+    worker_id = _current_worker_id()
     if not worker_id:
-        return jsonify({'error': 'worker_id requerido'}), 400
+        return jsonify({'error': 'Trabajador no encontrado'}), 404
     signed = db.session.query(DocumentSignature.document_id)\
         .filter_by(cleaner_id=worker_id).subquery()
     docs = LegalDocument.query.filter_by(active=True)\

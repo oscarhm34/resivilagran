@@ -25,7 +25,7 @@ from ..models import (
     MoodRecord, MealRecord,
 )
 from ..utils import (
-    admin_required, _verify_worker_id, _safe_commit,
+    admin_required, _verify_worker_id, _current_worker_id, _safe_commit,
     _check_single_session_conflict, _resolve_nfc_code, _format_duration,
     _allowed_file, ALLOWED_IMAGE_EXTENSIONS,
 )
@@ -93,10 +93,14 @@ def refresh_token():
 @jwt_required()
 def start_cleaning():
     data = request.json or {}
-    cleaner_id = data.get('cleaner_id')
+    # El cleaner es siempre el del token: el `cleaner_id` que manda el cliente
+    # se ignora para que nadie pueda abrir una limpieza a nombre de otra.
+    cleaner_id = _current_worker_id()
     room_number = data.get('room_id')
-    if not cleaner_id or not room_number:
-        return jsonify({'error': 'Campos requeridos: cleaner_id, room_id'}), 400
+    if not cleaner_id:
+        return jsonify({'error': 'Trabajador no encontrado'}), 404
+    if not room_number:
+        return jsonify({'error': 'Campo requerido: room_id'}), 400
 
     room = Room.query.filter_by(number=room_number).first()
     if not room:
@@ -140,6 +144,8 @@ def end_cleaning():
     record = db.session.get(CleaningRecord, record_id)
     if not record or record.end_time:
         return jsonify({'error': 'Registro no válido o limpieza ya finalizada.'}), 400
+    if record.cleaner_id != _current_worker_id():
+        return jsonify({'error': 'No autorizado'}), 403
     record.end_time = datetime.now()
     ok, err = _safe_commit()
     if not ok:
@@ -150,9 +156,9 @@ def end_cleaning():
 @bp.route('/check_cleaning', methods=['GET'])
 @jwt_required()
 def check_cleaning():
-    cleaner_id = request.args.get('cleaner_id')
+    cleaner_id = _current_worker_id()
     if not cleaner_id:
-        return jsonify({'error': 'Falta el ID del limpiador.'}), 400
+        return jsonify({'error': 'Trabajador no encontrado'}), 404
     record = CleaningRecord.query.filter_by(cleaner_id=cleaner_id, end_time=None).first()
     if record:
         return jsonify({'room_id': record.room_id}), 200
@@ -162,6 +168,8 @@ def check_cleaning():
 @bp.route('/cleaning_summary/<int:cleaner_id>', methods=['GET'])
 @jwt_required()
 def cleaning_summary(cleaner_id: int):
+    if _verify_worker_id(cleaner_id) is None:
+        return jsonify({'error': 'No autorizado'}), 403
     today = datetime.now().date()
     tomorrow = today + timedelta(days=1)
     records = CleaningRecord.query.filter(
@@ -291,7 +299,7 @@ def debug_record():
 @bp.route('/api/worker/active-sessions')
 @jwt_required()
 def worker_active_sessions():
-    worker_id = request.args.get('worker_id', type=int)
+    worker_id = _current_worker_id()
     if not worker_id:
         return jsonify([]), 200
 
@@ -399,7 +407,7 @@ def api_rooms():
 @bp.route('/api/residents')
 @jwt_required()
 def api_residents():
-    worker_id = request.args.get('worker_id', type=int)
+    worker_id = _current_worker_id()
 
     today = datetime.now().date()
     hoy_inicio = datetime.combine(today, datetime.min.time())
@@ -488,7 +496,7 @@ def api_resident_info(resident_id):
 @bp.route('/api/worker/active-session')
 @jwt_required()
 def worker_active_session():
-    worker_id = request.args.get('worker_id', type=int)
+    worker_id = _current_worker_id()
     if not worker_id:
         return jsonify({'active': False}), 200
 
@@ -521,7 +529,7 @@ def worker_active_session():
 @bp.route('/api/worker/today')
 @jwt_required()
 def worker_today():
-    worker_id = request.args.get('worker_id', type=int)
+    worker_id = _current_worker_id()
     if not worker_id:
         return jsonify({'sessions': []}), 200
 
@@ -587,7 +595,7 @@ def worker_today():
 @bp.route('/api/worker/my-groups')
 @jwt_required()
 def worker_my_groups():
-    worker_id = request.args.get('worker_id', type=int)
+    worker_id = _current_worker_id()
     if not worker_id:
         return jsonify({'groups': []}), 200
 
@@ -1251,9 +1259,9 @@ def api_serve_upload(filename: str):
 @bp.route('/api/worker/identity-status')
 @jwt_required()
 def worker_identity_status():
-    worker_id = request.args.get('worker_id', type=int)
+    worker_id = _current_worker_id()
     if not worker_id:
-        return jsonify({'error': 'worker_id requerido'}), 400
+        return jsonify({'error': 'Trabajador no encontrado'}), 404
     cleaner = db.session.get(Cleaner, worker_id)
     if not cleaner:
         return jsonify({'error': 'Trabajador no encontrado'}), 404

@@ -11,7 +11,7 @@ from sqlalchemy.orm import joinedload
 
 from .. import db
 from ..models import (Cleaner, TrainingPill, TrainingQuestion, TrainingCompletion, TrainingAssignment)
-from ..utils import admin_required, _verify_worker_id
+from ..utils import admin_required, _verify_worker_id, _current_worker_id
 
 bp = Blueprint('training', __name__)
 
@@ -226,9 +226,9 @@ def ai_generate_questions():
 @bp.route('/api/worker/pending-training')
 @jwt_required()
 def pending_training():
-    worker_id = request.args.get('worker_id', type=int)
+    worker_id = _current_worker_id()
     if not worker_id:
-        return jsonify({'error': 'worker_id requerido'}), 400
+        return jsonify({'error': 'Trabajador no encontrado'}), 404
     passed = db.session.query(TrainingCompletion.pill_id)\
         .filter_by(cleaner_id=worker_id, passed=True).subquery()
     all_pending = TrainingPill.query.filter_by(active=True)\
@@ -309,12 +309,11 @@ def start_training(pill_id: int):
 @bp.route('/api/worker/training/<int:pill_id>/video-complete', methods=['POST'])
 @jwt_required()
 def training_video_complete(pill_id: int):
-    data = request.json or {}
-    worker_id = data.get('worker_id')
+    worker_id = _current_worker_id()
     if not worker_id:
-        return jsonify({'error': 'worker_id requerido'}), 400
+        return jsonify({'error': 'Trabajador no encontrado'}), 404
     completion = TrainingCompletion.query.filter_by(
-        pill_id=pill_id, cleaner_id=int(worker_id),
+        pill_id=pill_id, cleaner_id=worker_id,
     ).order_by(TrainingCompletion.started_at.desc()).first()
     if not completion:
         return jsonify({'error': 'No hay sesión activa'}), 400
@@ -331,9 +330,9 @@ def training_video_complete(pill_id: int):
 @bp.route('/api/worker/training/<int:pill_id>/questions')
 @jwt_required()
 def training_questions(pill_id: int):
-    worker_id = request.args.get('worker_id', type=int)
+    worker_id = _current_worker_id()
     if not worker_id:
-        return jsonify({'error': 'worker_id requerido'}), 400
+        return jsonify({'error': 'Trabajador no encontrado'}), 404
     pill = db.session.get(TrainingPill, pill_id)
     if not pill:
         return jsonify({'error': 'Píldora no encontrada'}), 404

@@ -31,7 +31,7 @@
                 <div class="mb-3">
                     <label for="st-name" class="form-label">Nombre <span class="text-danger" aria-hidden="true">*</span></label>
                     <input type="text" id="st-name" name="name"
-                           class="form-control" required autocomplete="off"
+                           class="form-control" required maxlength="50" autocomplete="off"
                            placeholder="ej. Mañana">
                     <div class="invalid-feedback">El nombre es obligatorio.</div>
                 </div>
@@ -45,16 +45,20 @@
                 <div class="mb-3">
                     <label for="st-color" class="form-label">Color</label>
                     <input type="color" id="st-color" name="color"
-                           class="form-control form-control-color" value="#0069d9">
+                           class="form-control form-control-color" value="#0d6efd">
                 </div>
                 <div class="row g-3 mb-3">
                     <div class="col-6">
-                        <label for="st-start-time" class="form-label">Hora inicio</label>
-                        <input type="time" id="st-start-time" name="start_time" class="form-control">
+                        <label for="st-start-time" class="form-label">Hora inicio <span class="text-danger" aria-hidden="true">*</span></label>
+                        <input type="time" id="st-start-time" name="start_time"
+                               class="form-control" required value="07:00">
+                        <div class="invalid-feedback">Indica la hora de inicio.</div>
                     </div>
                     <div class="col-6">
-                        <label for="st-end-time" class="form-label">Hora fin</label>
-                        <input type="time" id="st-end-time" name="end_time" class="form-control">
+                        <label for="st-end-time" class="form-label">Hora fin <span class="text-danger" aria-hidden="true">*</span></label>
+                        <input type="time" id="st-end-time" name="end_time"
+                               class="form-control" required value="15:00">
+                        <div class="invalid-feedback">Indica la hora de fin.</div>
                     </div>
                 </div>
                 <div class="row g-3 mb-3">
@@ -104,7 +108,7 @@
                         <td><code style="color:var(--color-primary);background:var(--color-primary-lt);padding:1px 6px;border-radius:4px">{{ st.short_name }}</code></td>
                         <td>
                             {% if st.start_time and st.end_time %}
-                                {{ st.start_time }} - {{ st.end_time }}
+                                {{ st.start_time.strftime('%H:%M') }} - {{ st.end_time.strftime('%H:%M') }}
                             {% else %}
                                 <span class="text-body-secondary">--</span>
                             {% endif %}
@@ -132,9 +136,9 @@
                                     data-id="{{ st.id }}"
                                     data-name="{{ st.name }}"
                                     data-short-name="{{ st.short_name }}"
-                                    data-color="{{ st.color or '#0069d9' }}"
-                                    data-start-time="{{ st.start_time or '' }}"
-                                    data-end-time="{{ st.end_time or '' }}"
+                                    data-color="{{ st.color or '#0d6efd' }}"
+                                    data-start-time="{{ st.start_time.strftime('%H:%M') if st.start_time else '' }}"
+                                    data-end-time="{{ st.end_time.strftime('%H:%M') if st.end_time else '' }}"
                                     data-breaks-minutes="{{ st.breaks_minutes or 0 }}"
                                     data-sort-order="{{ st.sort_order or 0 }}"
                                     data-active="{{ '1' if st.active else '' }}"
@@ -176,7 +180,9 @@
         form.reset();
         form.classList.remove('was-validated');
         form.querySelector('[name="shift_type_id"]').value = '';
-        form.querySelector('[name="color"]').value = '#0069d9';
+        form.querySelector('[name="color"]').value = '#0d6efd';
+        form.querySelector('[name="start_time"]').value = '07:00';
+        form.querySelector('[name="end_time"]').value = '15:00';
         form.querySelector('[name="breaks_minutes"]').value = '0';
         form.querySelector('[name="sort_order"]').value = '0';
         document.getElementById('submit-btn').textContent = 'Añadir tipo de turno';
@@ -223,11 +229,12 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: id, active: active }),
                 });
+                var payload = await res.json().catch(function () { return {}; });
                 if (res.ok) {
                     showToast('Estado actualizado', 'success');
                 } else {
                     this.checked = !active;
-                    showToast('Error al actualizar', 'error');
+                    showToast(payload.error || 'Error al actualizar', 'error');
                 }
             } catch (e) {
                 this.checked = !active;
