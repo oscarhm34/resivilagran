@@ -337,7 +337,7 @@
                 <li>Cada trabajador tiene un <strong>rol</strong> que determina sus funciones y visibilidad:</li>
                 <li><span class="status-badge status-success">Atenciones</span> Auxiliares y cuidadores que atienden a residentes.</li>
                 <li><span class="status-badge status-info">Limpieza</span> Personal de limpieza de zonas y habitaciones. Ve la <strong>"Ruta de limpieza"</strong> en la webapp.</li>
-                <li><span class="status-badge" style="color:#6f42c1;background:#e8d5f5">Mixto</span> Trabajadores que hacen tanto limpieza como atenciones. Ve la ruta de limpieza y tambien puede registrar atenciones.</li>
+                <li><span class="status-badge status-tint" style="--tint:#6f42c1">Mixto</span> Trabajadores que hacen tanto limpieza como atenciones. Ve la ruta de limpieza y tambien puede registrar atenciones.</li>
                 <li><span class="status-badge status-warning">Gestion</span> Personal administrativo. <strong>No aparece</strong> en los cuadrantes de turnos.</li>
             </ul>
 
@@ -460,10 +460,10 @@
                 <li><strong>Tarjeta por trabajador:</strong> nombre, turno (M/T/N con horario), barra de progreso (completadas/total).</li>
                 <li><strong>Lista de habitaciones</strong> agrupadas por prioridad:
                     <ul>
-                        <li><span style="color:#cf222e;font-weight:600">Atrasadas (rojo):</span> llevan mas del doble de su frecuencia habitual sin limpiar.</li>
-                        <li><span style="color:#bf8700;font-weight:600">Toca hoy (amarillo):</span> han alcanzado su frecuencia habitual de limpieza.</li>
+                        <li><span style="color:var(--color-danger);font-weight:600">Atrasadas (rojo):</span> llevan mas del doble de su frecuencia habitual sin limpiar.</li>
+                        <li><span style="color:var(--color-warning-text);font-weight:600">Toca hoy (amarillo):</span> han alcanzado su frecuencia habitual de limpieza.</li>
                         <li><span style="color:var(--color-text-secondary);font-weight:600">Al dia (gris):</span> aún no les toca.</li>
-                        <li><span style="color:#1a7f37;font-weight:600">Completadas (verde):</span> ya limpiadas hoy.</li>
+                        <li><span style="color:var(--color-success);font-weight:600">Completadas (verde):</span> ya limpiadas hoy.</li>
                     </ul>
                 </li>
                 <li><strong>Limpiezas completadas:</strong> detalle de lo que cada trabajador ha hecho hoy con hora y duracion.</li>
@@ -556,10 +556,10 @@
             <ul>
                 <li>Cada incidencia tiene un <strong>estado</strong> que indica su progreso:
                     <ul>
-                        <li><span style="color:#cf222e;font-weight:600">Abierta:</span> recien reportada, pendiente de accion.</li>
-                        <li><span style="color:#0069d9;font-weight:600">En curso:</span> se esta trabajando en ella.</li>
-                        <li><span style="color:#1a7f37;font-weight:600">Resuelta:</span> se ha solucionado (con notas de resolucion).</li>
-                        <li><span style="color:#656d76;font-weight:600">Cerrada:</span> caso finalizado.</li>
+                        <li><span style="color:var(--color-danger);font-weight:600">Abierta:</span> recien reportada, pendiente de accion.</li>
+                        <li><span style="color:var(--color-primary);font-weight:600">En curso:</span> se esta trabajando en ella.</li>
+                        <li><span style="color:var(--color-success);font-weight:600">Resuelta:</span> se ha solucionado (con notas de resolucion).</li>
+                        <li><span style="color:var(--color-text-secondary);font-weight:600">Cerrada:</span> caso finalizado.</li>
                     </ul>
                 </li>
                 <li>Al <strong>resolver</strong> una incidencia, se piden notas de resolucion y se registra quien la resolvio y cuando.</li>
@@ -568,10 +568,10 @@
 
             <h6 class="mt-3">Badges de severidad</h6>
             <ul>
-                <li><span style="background:#ffddd9;color:#cf222e;padding:2px 8px;border-radius:4px;font-size:.8rem">Critica</span> Requiere atencion inmediata.</li>
-                <li><span style="background:#fff3cd;color:#fd7e14;padding:2px 8px;border-radius:4px;font-size:.8rem">Alta</span> Importante, resolver pronto.</li>
-                <li><span style="background:#fff8e6;color:#bf8700;padding:2px 8px;border-radius:4px;font-size:.8rem">Media</span> Atencion normal.</li>
-                <li><span style="background:#f0f0f0;color:#656d76;padding:2px 8px;border-radius:4px;font-size:.8rem">Baja</span> Informativa, no urgente.</li>
+                <li><span class="status-tint" style="--tint:var(--color-danger);padding:2px 8px;border-radius:4px;font-size:.8rem">Critica</span> Requiere atencion inmediata.</li>
+                <li><span class="status-tint" style="--tint:var(--color-warning-text);padding:2px 8px;border-radius:4px;font-size:.8rem">Alta</span> Importante, resolver pronto.</li>
+                <li><span class="status-tint" style="--tint:var(--color-warning-text);padding:2px 8px;border-radius:4px;font-size:.8rem">Media</span> Atencion normal.</li>
+                <li><span class="status-tint" style="--tint:var(--color-text-secondary);padding:2px 8px;border-radius:4px;font-size:.8rem">Baja</span> Informativa, no urgente.</li>
             </ul>
         </div>
     </div>
@@ -756,9 +756,9 @@
                 <li>La pagina principal de medicacion muestra el <strong>estado del dia</strong> para todos los residentes con medicacion activa.</li>
                 <li>Para cada medicamento se muestran los <strong>horarios programados</strong> con un badge de color:
                     <ul>
-                        <li><span style="background:#19875420;color:#198754;padding:2px 8px;border-radius:4px;font-size:.8rem">08:00</span> — Administrado</li>
-                        <li><span style="background:#fd7e1420;color:#fd7e14;padding:2px 8px;border-radius:4px;font-size:.8rem">14:00</span> — Pendiente (la hora ya ha pasado)</li>
-                        <li><span style="background:#6c757d20;color:#6c757d;padding:2px 8px;border-radius:4px;font-size:.8rem">22:00</span> — Proximo (la hora aun no ha llegado)</li>
+                        <li><span class="status-tint" style="--tint:#14682c;20;padding:2px 8px;border-radius:4px;font-size:.8rem">08:00</span> — Administrado</li>
+                        <li><span class="status-tint" style="--tint:var(--color-warning-text);20;padding:2px 8px;border-radius:4px;font-size:.8rem">14:00</span> — Pendiente (la hora ya ha pasado)</li>
+                        <li><span class="status-tint" style="--tint:var(--color-text-secondary);20;padding:2px 8px;border-radius:4px;font-size:.8rem">22:00</span> — Proximo (la hora aun no ha llegado)</li>
                     </ul>
                 </li>
                 <li>Boton para <strong>marcar como administrado</strong> con un clic por cada toma pendiente.</li>
@@ -999,7 +999,7 @@
             <ul>
                 <li>Boton <strong><i class="bi bi-arrow-repeat"></i> Revisar PAI</strong> en la ficha del residente.</li>
                 <li>La IA compara los objetivos del PAI activo con los datos reales de los ultimos 30 dias.</li>
-                <li>Para cada objetivo indica: <span style="color:green"><strong>CONSEGUIDO</strong></span>, <span style="color:orange"><strong>EN PROGRESO</strong></span>, <span style="color:red"><strong>NO CONSEGUIDO</strong></span> o <strong>SIN DATOS</strong>.</li>
+                <li>Para cada objetivo indica: <span style="color:var(--color-success)"><strong>CONSEGUIDO</strong></span>, <span style="color:var(--color-warning-text)"><strong>EN PROGRESO</strong></span>, <span style="color:var(--color-danger)"><strong>NO CONSEGUIDO</strong></span> o <strong>SIN DATOS</strong>.</li>
                 <li>Sugiere ajustes al plan si es necesario.</li>
             </ul>
 
@@ -1077,9 +1077,9 @@
 
             <h6 class="mt-3">Semaforos</h6>
             <ul>
-                <li><span style="color:#198754;font-weight:600">Verde:</span> dentro del objetivo.</li>
-                <li><span style="color:#fd7e14;font-weight:600">Naranja:</span> cerca del limite.</li>
-                <li><span style="color:#dc3545;font-weight:600">Rojo:</span> fuera del objetivo, requiere accion.</li>
+                <li><span style="color:var(--color-success);font-weight:600">Verde:</span> dentro del objetivo.</li>
+                <li><span style="color:var(--color-warning-text);font-weight:600">Naranja:</span> cerca del limite.</li>
+                <li><span style="color:var(--color-danger);font-weight:600">Rojo:</span> fuera del objetivo, requiere accion.</li>
                 <li>Filtro por periodo: 7, 14, 30 o 90 dias.</li>
             </ul>
         </div>
@@ -1178,7 +1178,7 @@
             <h6 class="mt-3">Perfil de riesgo del residente (ML + reglas)</h6>
             <ul>
                 <li>En la ficha del residente (pestana Resumen), badges de color con <strong>puntuacion 0-100</strong>:</li>
-                <li><span style="background:#dc354520;color:#dc3545;padding:2px 8px;border-radius:12px;font-size:.8rem">Alto (≥50)</span> <span style="background:#fd7e1420;color:#fd7e14;padding:2px 8px;border-radius:12px;font-size:.8rem">Medio (25-49)</span> <span style="background:#19875420;color:#198754;padding:2px 8px;border-radius:12px;font-size:.8rem">Bajo (&lt;25)</span></li>
+                <li><span class="status-tint" style="--tint:var(--color-danger);20;padding:2px 8px;border-radius:12px;font-size:.8rem">Alto (≥50)</span> <span class="status-tint" style="--tint:var(--color-warning-text);20;padding:2px 8px;border-radius:12px;font-size:.8rem">Medio (25-49)</span> <span class="status-tint" style="--tint:#14682c;20;padding:2px 8px;border-radius:12px;font-size:.8rem">Bajo (&lt;25)</span></li>
                 <li><strong>4 tipos de riesgo:</strong></li>
                 <ul>
                     <li><strong>Caidas:</strong> Norton, Barthel, historial caidas 90d, polifarmacia, tendencia funcional</li>
@@ -1285,6 +1285,7 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>21/08</td><td><strong>Revision visual completa:</strong> el modo oscuro ya se aplica a tablas, etiquetas de estado y pie de pagina, que antes se quedaban en claro y resultaban ilegibles. La webapp del trabajador tiene modo oscuro y sigue el ajuste del movil, util en el turno de noche. Botones mas grandes en movil, tildes repuestas en toda la interfaz, fin de semana marcado en los cuadrantes, aviso en las trabajadoras sin turnos asignados y duraciones en horas y minutos en vez de minutos sueltos.</td></tr>
                     <tr><td>21/08</td><td><strong>Aislamiento de datos entre trabajadoras:</strong> las pantallas de la webapp (jornada, sesiones activas, grupos, documentos y formacion) usan ahora siempre la identidad de quien ha iniciado sesion. Antes era posible consultar o modificar los datos de otra companera manipulando la peticion.</td></tr>
                     <tr><td>21/08</td><td><strong>Correccion en tipos de turno:</strong> crear un tipo de turno sin rellenar las horas ya no da error. Las horas de inicio y fin son ahora obligatorias, se avisa si el nombre ya existe y no se puede borrar un tipo de turno que este en uso en cuadrantes, patrones o configuraciones de trabajadoras.</td></tr>
                     <tr><td>17/08</td><td><strong>Mejoras en cuadrantes de turnos:</strong> la fila de cobertura ahora muestra colores (verde = cumple ideal, naranja = entre minimo e ideal, rojo parpadeante = por debajo del minimo). Nuevo campo "ideal" en la configuracion de cobertura para diferenciar cobertura minima de la optima. El generador intenta cubrir hasta el nivel ideal. Los resultados de "Generar mes" se muestran en un modal visual con tarjetas de estadisticas, tabla de distribucion y lista de gaps pendientes (en vez del alert anterior).</td></tr>

@@ -3,6 +3,19 @@
 
 {% block content %}
 <style>
+    :root {
+        --weekend-bg:        #eaeef4;
+        --weekend-header-bg: #dde4ee;
+        --weekend-line:      #c2cbd8;
+        --aviso-fg:          #ffffff;
+    }
+    [data-theme="dark"] {
+        --weekend-bg:        #11161d;
+        --weekend-header-bg: #1b2430;
+        --weekend-line:      #2b3542;
+        --aviso-fg:          #10131a;
+    }
+
     /* ── Grid table ─────────────────────────────────────────── */
     .shift-grid-wrap {
         overflow-x: auto;
@@ -50,15 +63,24 @@
         z-index: 4;
         background: var(--color-bg);
     }
+    /* Sabado y domingo. Es la separacion que mas importa en un cuadrante
+       —los requisitos de cobertura distinguen weekday de weekend—, asi que
+       tiene que leerse de un vistazo y en los dos temas. Antes era un
+       rgba(0,0,0,.03) practicamente invisible. */
     .shift-grid .col-weekend {
-        background-color: rgba(0,0,0,.03);
+        background-color: var(--weekend-bg);
     }
     .shift-grid td:first-child.col-weekend {
         background-color: var(--color-surface);
     }
     .shift-grid thead th.col-weekend {
-        background-color: rgba(0,0,0,.05);
+        background-color: var(--weekend-header-bg);
+        color: var(--color-text);
+        font-weight: 700;
     }
+    .shift-grid thead th.col-weekend .day-header-num { color: inherit; }
+    .shift-grid .col-weekend.weekend-start { border-left: 2px solid var(--weekend-line); }
+    .shift-grid .col-weekend.weekend-end   { border-right: 2px solid var(--weekend-line); }
     .shift-grid tbody tr:hover td {
         background-color: var(--color-primary-lt);
     }
@@ -71,6 +93,7 @@
 
     /* ── Shift cell pill ────────────────────────────────────── */
     .shift-cell {
+        text-shadow: 0 1px 1px rgba(0,0,0,.55);
         cursor: pointer;
         border-radius: 4px;
         width: 28px;
@@ -117,11 +140,14 @@
     .coverage-pill {
         display: inline-block;
         border-radius: 3px;
-        padding: 1px 4px;
-        font-weight: 600;
-        font-size: .6rem;
+        padding: 1px 5px;
+        font-weight: 700;
+        font-size: .68rem;
         color: #fff;
         margin: 1px 0;
+        /* El fondo lo pone el color del tipo de turno; sobre los amarillos el
+           blanco se quedaba en 3.14 de contraste. La sombra lo despega. */
+        text-shadow: 0 1px 1px rgba(0,0,0,.55);
     }
     .coverage-pill.cov-ok {
         box-shadow: 0 0 0 2px #198754;
@@ -182,6 +208,13 @@
         margin-bottom: 8px;
         flex-wrap: wrap;
     }
+    /* En movil estos dos son los mas dificiles de acertar con el dedo:
+       23px y 15px de alto. En escritorio se quedan compactos. */
+    @media (max-width: 767px) {
+        .copy-week-btn { min-height: 44px; }
+        .worker-config-link { display: inline-flex; align-items: center; min-height: 44px; }
+    }
+
     .copy-week-btn {
         font-size: .7rem;
         padding: 2px 8px;
@@ -198,6 +231,22 @@
         color: var(--color-primary);
     }
 
+    /* ── Trabajadoras sin ningun turno asignado ─────────────── */
+    .shift-grid tr.sin-asignar td:first-child {
+        border-left: 3px solid var(--color-warning);
+    }
+    .aviso-sin-asignar {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 0 6px;
+        border-radius: 20px;
+        font-size: .62rem;
+        font-weight: 700;
+        color: var(--aviso-fg);
+        background: var(--color-warning-text);
+        vertical-align: middle;
+    }
+
     /* ── Day-of-week in header ──────────────────────────────── */
     .day-header-num {
         display: block;
@@ -208,7 +257,7 @@
         display: block;
         font-weight: 400;
         font-size: .6rem;
-        color: var(--color-text-secondary);
+        color: var(--color-text);
         text-transform: uppercase;
     }
 
@@ -263,7 +312,7 @@
                    class="btn btn-outline-secondary" title="Mes anterior">
                     <i class="bi bi-chevron-left"></i>
                 </a>
-                <span class="btn btn-outline-secondary disabled" style="font-weight:600; min-width:140px; pointer-events:none">
+                <span class="btn btn-outline-secondary disabled" style="font-weight:600; min-width:140px; pointer-events:none; color:var(--color-text); opacity:1">
                     {% set month_names = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'] %}
                     {{ month_names[month - 1] }} {{ year }}
                 </span>
@@ -276,6 +325,7 @@
             {# Group filter #}
             {% if groups %}
             <select class="form-select form-select-sm no-print" style="width:auto"
+                    aria-label="Filtrar el cuadrante por grupo de residentes"
                     onchange="window.location.href='{{ url_for('shifts.cuadrantes', year=year, month=month) }}&group_id='+this.value">
                 <option value="">Todos los grupos</option>
                 {% for g in groups %}
@@ -286,6 +336,7 @@
 
             {# Role filter #}
             <select class="form-select form-select-sm no-print" style="width:auto"
+                    aria-label="Filtrar el cuadrante por rol"
                     onchange="window.location.href='{{ url_for('shifts.cuadrantes', year=year, month=month, group_id=group_id) }}&role='+this.value">
                 <option value="">Todos los roles</option>
                 <option value="atenciones" {{ 'selected' if role_filter == 'atenciones' }}>Atenciones</option>
@@ -436,7 +487,7 @@
             <span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:{{ st.color }}"></span>
             <span>{{ st.short_name }} &ndash; {{ st.name }}
                 {% if st.start_time and st.end_time %}
-                ({{ st.start_time }} - {{ st.end_time }})
+                ({{ st.start_time.strftime('%H:%M') }} - {{ st.end_time.strftime('%H:%M') }})
                 {% endif %}
             </span>
         </span>
@@ -649,6 +700,42 @@
     var COVERAGE_REQS = {{ coverage_reqs | tojson }};
     var DOW_NAMES = ['D','L','M','X','J','V','S']; // JS: 0=Sun
 
+
+    /**
+     * Elige texto blanco o negro segun la luminancia del fondo. El color de
+     * cada tipo de turno lo escoge la administradora, asi que fijar el texto
+     * a blanco deja las etiquetas ilegibles sobre amarillos y verdes claros.
+     */
+    function textoLegibleSobre(hex) {
+        var h = String(hex || '').replace('#', '');
+        if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+        if (h.length !== 6) return '#fff';
+        var canal = function (i) {
+            var v = parseInt(h.substr(i, 2), 16) / 255;
+            return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+        };
+        var L = 0.2126 * canal(0) + 0.7152 * canal(2) + 0.0722 * canal(4);
+        // Contraste real contra cada candidato (el oscuro no es negro puro).
+        var conBlanco = 1.05 / (L + 0.05);
+        var conOscuro = (L + 0.05) / (0.0065 + 0.05);
+        return conBlanco >= conOscuro ? '#fff' : '#10131a';
+    }
+
+    function aplicarTextoLegible(raiz) {
+        (raiz || document).querySelectorAll('.shift-cell[style*="background"], .coverage-pill[style*="background"]')
+            .forEach(function (el) {
+                var fondo = el.style.backgroundColor || el.style.background;
+                if (!fondo) return;
+                var m = fondo.match(/#[0-9a-fA-F]{3,6}/) ||
+                        (fondo.match(/\d+/g) || []).slice(0, 3).map(function (n) {
+                            return ('0' + parseInt(n, 10).toString(16)).slice(-2);
+                        }).join('');
+                var hex = Array.isArray(m) ? '#' + m.join('') : (typeof m === 'string' ? m : (m && m[0]));
+                if (!hex) return;
+                el.style.color = textoLegibleSobre(hex);
+            });
+    }
+
     /* ── Day-of-week headers & weekend tinting ─────────────── */
     for (var d = 1; d <= NUM_DAYS; d++) {
         var jsDay = new Date(YEAR, MONTH - 1, d).getDay(); // 0=Sun
@@ -658,13 +745,37 @@
 
         var isWeekend = (jsDay === 0 || jsDay === 6);
         if (isWeekend) {
+            var borde = jsDay === 6 ? 'weekend-start' : 'weekend-end';
             var headerTh = document.getElementById('dh-' + d);
-            if (headerTh) headerTh.classList.add('col-weekend');
+            if (headerTh) headerTh.classList.add('col-weekend', borde);
             document.querySelectorAll('td[data-day="' + d + '"]').forEach(function(td) {
-                if (!td.matches('td:first-child')) td.classList.add('col-weekend');
+                if (!td.matches('td:first-child')) td.classList.add('col-weekend', borde);
             });
         }
     }
+
+    aplicarTextoLegible(document);
+
+    /* ── Trabajadoras sin ningun turno en todo el mes ───────── */
+    (function marcarSinAsignar() {
+        document.querySelectorAll('.shift-grid tbody tr').forEach(function (tr) {
+            var celdas = tr.querySelectorAll('.shift-cell');
+            if (!celdas.length) return;
+            var conTurno = Array.prototype.some.call(celdas, function (c) {
+                return !c.classList.contains('empty');
+            });
+            if (conTurno) return;
+            tr.classList.add('sin-asignar');
+            var primera = tr.querySelector('td:first-child');
+            if (primera && !primera.querySelector('.aviso-sin-asignar')) {
+                var aviso = document.createElement('span');
+                aviso.className = 'aviso-sin-asignar';
+                aviso.title = 'Sin ningun turno asignado este mes';
+                aviso.textContent = 'Sin turnos';
+                primera.appendChild(aviso);
+            }
+        });
+    })();
 
     /* ── Copy week buttons ─────────────────────────────────── */
     (function buildCopyBtns() {
@@ -851,6 +962,7 @@
         if (!st) return;
         cell.innerHTML = '<span class="shift-cell" style="background:' + st.color +
             '" title="' + st.name + '" data-shift-id="' + st.id + '">' + st.short_name + '</span>';
+        aplicarTextoLegible(cell);
         updateCoverage();
         updateWorkerHours();
     }
@@ -905,6 +1017,7 @@
                 html += '</span>';
             }
             covTd.innerHTML = html;
+            aplicarTextoLegible(covTd);
         });
     }
 

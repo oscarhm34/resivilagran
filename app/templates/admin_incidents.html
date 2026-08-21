@@ -25,7 +25,7 @@
             <form method="GET" action="{{ url_for('incidents.admin_incidents') }}" class="row g-2 align-items-end">
                 <div class="col-auto">
                     <label class="form-label mb-0 small">Tipo</label>
-                    <select name="incident_type_id" class="form-select form-select-sm" style="min-width:140px">
+                    <select name="incident_type_id" aria-label="Filtrar por tipo de incidencia" class="form-select form-select-sm" style="min-width:140px">
                         <option value="">Todos</option>
                         {% for t in incident_types %}
                         <option value="{{ t.id }}" {% if filters.incident_type_id|string == t.id|string %}selected{% endif %}>{{ t.name }}</option>
@@ -34,7 +34,7 @@
                 </div>
                 <div class="col-auto">
                     <label class="form-label mb-0 small">Severidad</label>
-                    <select name="severity" class="form-select form-select-sm" style="min-width:120px">
+                    <select name="severity" aria-label="Filtrar por severidad" class="form-select form-select-sm" style="min-width:120px">
                         <option value="">Todas</option>
                         <option value="critical" {% if filters.severity == 'critical' %}selected{% endif %}>Crítica</option>
                         <option value="high" {% if filters.severity == 'high' %}selected{% endif %}>Alta</option>
@@ -44,7 +44,7 @@
                 </div>
                 <div class="col-auto">
                     <label class="form-label mb-0 small">Estado</label>
-                    <select name="status" class="form-select form-select-sm" style="min-width:120px">
+                    <select name="status" aria-label="Filtrar por estado" class="form-select form-select-sm" style="min-width:120px">
                         <option value="">Todos</option>
                         <option value="open" {% if filters.status == 'open' %}selected{% endif %}>Abierta</option>
                         <option value="in_progress" {% if filters.status == 'in_progress' %}selected{% endif %}>En curso</option>
@@ -54,11 +54,11 @@
                 </div>
                 <div class="col-auto">
                     <label class="form-label mb-0 small">Desde</label>
-                    <input type="date" name="start_date" class="form-control form-control-sm" value="{{ filters.start_date }}">
+                    <input type="date" name="start_date" aria-label="Fecha de inicio del filtro" class="form-control form-control-sm" value="{{ filters.start_date }}">
                 </div>
                 <div class="col-auto">
                     <label class="form-label mb-0 small">Hasta</label>
-                    <input type="date" name="end_date" class="form-control form-control-sm" value="{{ filters.end_date }}">
+                    <input type="date" name="end_date" aria-label="Fecha de fin del filtro" class="form-control form-control-sm" value="{{ filters.end_date }}">
                 </div>
                 <div class="col-auto">
                     <button type="submit" class="btn btn-sm btn-outline-primary">Filtrar</button>
@@ -97,9 +97,9 @@
                             {% endif %}
                         </td>
                         <td>
-                            {% set sev_colors = {'critical': '#cf222e', 'high': '#fd7e14', 'medium': '#bf8700', 'low': '#656d76'} %}
+                            {% set sev_colors = {'critical': '#cf222e', 'high': '#c2410c', 'medium': '#8a6100', 'low': '#57606a'} %}
                             {% set sev_labels = {'critical': 'Crítica', 'high': 'Alta', 'medium': 'Media', 'low': 'Baja'} %}
-                            <span class="status-badge" style="color:{{ sev_colors.get(inc.severity, '#656d76') }};background:{{ sev_colors.get(inc.severity, '#656d76') }}20">
+                            <span class="status-badge status-tint" style="--tint:{{ sev_colors.get(inc.severity, '#656d76') }}">
                                 {{ sev_labels.get(inc.severity, inc.severity) }}
                             </span>
                         </td>
@@ -107,9 +107,9 @@
                         <td class="hide-mobile">{{ inc.resident.name if inc.resident else '—' }}</td>
                         <td class="hide-mobile">{{ inc.reporter.name if inc.reporter else '—' }}</td>
                         <td>
-                            {% set st_colors = {'open': '#cf222e', 'in_progress': '#0069d9', 'resolved': '#1a7f37', 'closed': '#656d76'} %}
+                            {% set st_colors = {'open': '#cf222e', 'in_progress': '#0069d9', 'resolved': '#14682c', 'closed': '#656d76'} %}
                             {% set st_labels = {'open': 'Abierta', 'in_progress': 'En curso', 'resolved': 'Resuelta', 'closed': 'Cerrada'} %}
-                            <span class="status-badge" style="color:{{ st_colors.get(inc.status, '#656d76') }};background:{{ st_colors.get(inc.status, '#656d76') }}20">
+                            <span class="status-badge status-tint" style="--tint:{{ st_colors.get(inc.status, '#656d76') }}">
                                 {{ st_labels.get(inc.status, inc.status) }}
                             </span>
                         </td>

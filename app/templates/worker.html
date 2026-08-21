@@ -19,15 +19,46 @@
             --blue:    #0069d9; --blue-dk: #004fa3; --blue-lt: #e8f1fb;
             --green:   #1a7f37; --green-dk:#145c28; --green-lt:#d1f0da;
             --danger:  #cf222e;
-            --bg:      #f4f6f9; --surface: #ffffff;
+            --bg:      #f4f6f9; --surface: #ffffff; --surface-2: #e8ecf0;
             --text:    #1f2328; --text-2:  #656d76; --border: #d0d7de;
+            --muted-bg:     #f0f0f0;
+            --tint-warn-bg: #fff3e0; --tint-warn-fg: #e65100;
+            --tint-ok-bg:   #e8f5e9; --tint-ok-fg:   #2e7d32;
+            --tint-food-bg: #dcfce7; --tint-food-fg: #166534;
+            --tint-mood-bg: #fef3c7; --tint-mood-fg: #92400e;
+            --tint-ai-bg:   #f5f3ff; --tint-ai-fg:   #6d3fd4; --tint-ai-border: #8b5cf6;
         }
 
-        html, body { height: 100%; font-family: 'Inter', system-ui, sans-serif; background: #e8ecf0; color: var(--text); -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+        /*
+         * Modo oscuro. Sigue al ajuste del movil, sin control propio que
+         * aprender. Importa de verdad en el turno de noche (22:00-07:00):
+         * la pantalla a pleno brillo entra en habitaciones con residentes
+         * durmiendo.
+         */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --blue:    #4da3ff; --blue-dk: #1f6feb; --blue-lt: #132338;
+                --green:   #3fb950; --green-dk:#2ea043; --green-lt:#10261a;
+                --danger:  #f85149;
+                --bg:      #0d1117; --surface: #161b22; --surface-2: #0d1117;
+                --text:    #e6edf3; --text-2:  #8b949e; --border: #30363d;
+                --muted-bg:     #21262d;
+                --tint-warn-bg: #2b1d0a; --tint-warn-fg: #f0a868;
+                --tint-ok-bg:   #10261a; --tint-ok-fg:   #56d364;
+                --tint-food-bg: #10261a; --tint-food-fg: #56d364;
+                --tint-mood-bg: #2b2107; --tint-mood-fg: #e3b341;
+                --tint-ai-bg:   #1d1633; --tint-ai-fg:   #c4a7ff; --tint-ai-border: #8b5cf6;
+            }
+            color-scheme: dark;
+        }
+
+        html, body { height: 100%; font-family: 'Inter', system-ui, sans-serif; background: var(--surface-2); color: var(--text); -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
 
         #app { min-height: 100vh; max-width: 480px; margin: 0 auto; background: var(--surface); box-shadow: 0 0 60px rgba(0,0,0,.18); display: flex; flex-direction: column; }
 
-        .screen { display: none; flex-direction: column; min-height: 100vh; padding: 28px 22px 32px; }
+        /* El boton de chat flota abajo a la derecha: sin este hueco tapa la
+           ultima fila de cada listado. */
+        .screen { display: none; flex-direction: column; min-height: 100vh; padding: 28px 22px 96px; }
         .screen.active { display: flex; animation:fadeIn .25s ease; }
 
         /* ── LOGIN ── */
@@ -92,7 +123,7 @@
         .asc.stale { border-color:var(--danger) !important; animation:stale-pulse 2s ease-in-out infinite; }
         .asc.stale .asc-timer { color:var(--danger) !important; }
         .asc.stale .asc-subject { color:var(--danger) !important; }
-        .stale-warning { background:#fff3e0; color:#e65100; border-radius:10px; padding:6px 10px; font-size:11px; font-weight:600; margin-top:4px; text-align:center; }
+        .stale-warning { background:var(--tint-warn-bg); color:var(--tint-warn-fg); border-radius:10px; padding:6px 10px; font-size:11px; font-weight:600; margin-top:4px; text-align:center; }
         @keyframes stale-pulse {
             0%,100% { box-shadow:0 0 0 0 rgba(207,34,46,.3); }
             50%     { box-shadow:0 0 12px 4px rgba(207,34,46,.25); }
@@ -315,7 +346,7 @@
         .grp-room { font-size:12px; color:var(--text-2); margin-top:1px; }
         .grp-status { flex-shrink:0; font-size:12px; font-weight:600; padding:3px 10px; border-radius:20px; }
         .grp-status.done { background:var(--green-lt); color:var(--green); }
-        .grp-status.pending { background:#f0f0f0; color:var(--text-2); }
+        .grp-status.pending { background:var(--muted-bg); color:var(--text-2); }
         .grp-empty { padding:16px 14px; font-size:13px; color:var(--text-2); text-align:center; }
 
         /* ── Select screen ── */
@@ -357,17 +388,21 @@
         /* ── Pending badges ── */
         .pending-section { display:flex; flex-direction:column; gap:8px; margin-bottom:20px; }
         .pending-card { display:flex; align-items:center; gap:12px; padding:14px 16px; border-radius:14px; background:var(--bg); cursor:pointer; border:none; width:100%; text-align:left; font-family:inherit; transition:background .15s; }
-        .pending-card:hover { background:#e8ecf0; }
+        .pending-card:hover { background:var(--surface-2); }
         .pending-icon { width:40px; height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
-        .pending-icon.docs { background:#fff3e0; }
-        .pending-icon.training { background:#e8f5e9; }
+        .pending-icon.docs { background:var(--tint-warn-bg); }
+        .pending-icon.training { background:var(--tint-ok-bg); }
+        .mode-badge-mood     { background:var(--tint-mood-bg); color:var(--tint-mood-fg); }
+        .mode-badge-food     { background:var(--tint-food-bg); color:var(--tint-food-fg); }
+        .mode-badge-docs     { background:var(--tint-warn-bg); color:var(--tint-warn-fg); }
+        .mode-badge-training { background:var(--tint-ok-bg);   color:var(--tint-ok-fg); }
         .pending-info { flex:1; }
         .pending-title { font-weight:600; font-size:14px; }
         .pending-sub { font-size:12px; color:var(--text-2); margin-top:1px; }
         .pending-badge { background:var(--danger); color:#fff; border-radius:20px; padding:2px 10px; font-size:12px; font-weight:700; flex-shrink:0; }
 
         /* ── Document viewer ── */
-        .doc-content { flex:1; overflow-y:auto; background:#fff; border:1px solid var(--border); border-radius:12px; padding:16px; font-size:14px; line-height:1.6; margin:12px 0; }
+        .doc-content { flex:1; overflow-y:auto; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; font-size:14px; line-height:1.6; margin:12px 0; }
 
         /* ── Training quiz ── */
         .quiz-q { font-weight:600; font-size:15px; margin-bottom:12px; }
@@ -539,7 +574,7 @@
     <div id="screen-mood" class="screen">
         <div class="scan-header">
             <button class="btn-back" id="mood-back" aria-label="Volver">←</button>
-            <span class="mode-badge" style="background:#fef3c7;color:#92400e">😊 Estado de ánimo</span>
+            <span class="mode-badge mode-badge-mood">😊 Estado de ánimo</span>
         </div>
         <div style="padding:12px 0;text-align:center">
             <h3 id="mood-resident-name" style="font-size:18px;font-weight:700;margin:0"></h3>
@@ -580,7 +615,7 @@
     <div id="screen-meal" class="screen">
         <div class="scan-header">
             <button class="btn-back" id="meal-back" aria-label="Volver">←</button>
-            <span class="mode-badge" style="background:#dcfce7;color:#166534">🍽 Ingesta</span>
+            <span class="mode-badge mode-badge-food">🍽 Ingesta</span>
         </div>
         <div style="padding:12px 0;text-align:center">
             <h3 id="meal-resident-name" style="font-size:18px;font-weight:700;margin:0"></h3>
@@ -707,7 +742,7 @@
                 <span id="scribe-label">🎙 Escriba de voz</span>
                 <span class="scribe-status" id="scribe-status"></span>
             </button>
-            <div id="scribe-result" style="display:none;padding:10px;border:1.5px solid #8b5cf6;border-radius:10px;background:#f5f3ff;margin-top:6px">
+            <div id="scribe-result" style="display:none;padding:10px;border:1.5px solid var(--tint-ai-border);border-radius:10px;background:var(--tint-ai-bg);margin-top:6px">
                 <div style="font-size:11px;font-weight:600;color:#7c3aed;margin-bottom:4px">Notas generadas por IA:</div>
                 <div id="scribe-notes-text" style="font-size:13px;line-height:1.5;color:var(--text)"></div>
                 <div style="display:flex;gap:6px;margin-top:8px">
@@ -729,7 +764,7 @@
         <div style="padding:8px 0">
             <button type="button" id="ct-mood-toggle" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;cursor:pointer;font-weight:600;transition:all .15s;text-align:center">😊 Registrar estat d'ànim (opcional)</button>
         </div>
-        <div id="ct-mood-section" style="display:none;padding:12px;border:1.5px solid #f59e0b;border-radius:12px;margin:4px 0;background:#fef3c720">
+        <div id="ct-mood-section" style="display:none;padding:12px;border:1.5px solid #f59e0b;border-radius:12px;margin:4px 0;background:var(--tint-mood-bg);background-color:#fef3c720">
             <div style="display:flex;justify-content:center;gap:8px;margin-bottom:8px">
                 <button class="ct-mood-btn" data-score="1" style="font-size:1.6rem;background:none;border:2px solid transparent;border-radius:12px;padding:4px 8px;cursor:pointer">😢</button>
                 <button class="ct-mood-btn" data-score="2" style="font-size:1.6rem;background:none;border:2px solid transparent;border-radius:12px;padding:4px 8px;cursor:pointer">😟</button>
@@ -904,7 +939,7 @@
     <div id="screen-documents-list" class="screen">
         <div class="scan-header">
             <button class="btn-back" id="docs-back" aria-label="Volver">←</button>
-            <span class="mode-badge" style="background:#fff3e0;color:#e65100">📄 Documentos pendientes</span>
+            <span class="mode-badge mode-badge-docs">📄 Documentos pendientes</span>
         </div>
         <div id="docs-list" style="margin-top:12px;flex:1;overflow-y:auto"></div>
     </div>
@@ -942,7 +977,7 @@
     <div id="screen-training-list" class="screen">
         <div class="scan-header">
             <button class="btn-back" id="train-back" aria-label="Volver">←</button>
-            <span class="mode-badge" style="background:#e8f5e9;color:#2e7d32">🎓 Formaciones pendientes</span>
+            <span class="mode-badge mode-badge-training">🎓 Formaciones pendientes</span>
         </div>
         <div id="train-list" style="margin-top:12px;flex:1;overflow-y:auto"></div>
     </div>
@@ -1017,7 +1052,7 @@
             <div style="font-size:3rem;margin-bottom:12px">📱</div>
             <h3 style="font-family:'Outfit',system-ui,sans-serif;font-weight:700;font-size:18px;margin:0 0 12px;color:var(--text)">Cambio importante</h3>
             <p style="font-size:14px;color:var(--text-2);line-height:1.5;margin:0 0 20px">
-                A partir de ahora, para <strong>finalizar</strong> una limpieza o atencion, debes <strong>escanear de nuevo el NFC</strong> de la habitacion o residente.<br><br>
+                A partir de ahora, para <strong>finalizar</strong> una limpieza o atención, debes <strong>escanear de nuevo el NFC</strong> de la habitación o residente.<br><br>
                 <span style="color:var(--blue);font-weight:600">Escanear para abrir → Escanear para cerrar</span>
             </p>
             <button id="btn-announce-ok" style="background:var(--blue);color:#fff;border:none;border-radius:14px;padding:14px 40px;font-size:15px;font-weight:700;cursor:pointer;font-family:'Outfit',system-ui,sans-serif;width:100%">Entendido</button>
@@ -1060,10 +1095,10 @@
     .voice-mic-btn.transcribing{opacity:.5;pointer-events:none}
     .textarea-mic-wrap{position:relative}
     .textarea-mic-wrap textarea{padding-right:44px}
-    .ai-expand-btn{display:none;font-size:11px;padding:4px 10px;border-radius:16px;border:1.5px solid #8b5cf6;background:#f5f3ff;color:#7c3aed;cursor:pointer;font-weight:600;font-family:inherit;margin-top:4px;transition:all .15s}
+    .ai-expand-btn{display:none;font-size:11px;padding:4px 10px;border-radius:16px;border:1.5px solid var(--tint-ai-border);background:var(--tint-ai-bg);color:#7c3aed;cursor:pointer;font-weight:600;font-family:inherit;margin-top:4px;transition:all .15s}
     .ai-expand-btn:active{background:#7c3aed;color:#fff}
     .ai-expand-btn.loading{opacity:.5;pointer-events:none}
-    .scribe-toggle{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;border:1.5px solid #8b5cf6;background:#f5f3ff;cursor:pointer;font-size:13px;font-weight:600;color:#7c3aed;margin:8px 0;transition:all .15s;font-family:inherit;width:100%}
+    .scribe-toggle{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;border:1.5px solid var(--tint-ai-border);background:var(--tint-ai-bg);cursor:pointer;font-size:13px;font-weight:600;color:#7c3aed;margin:8px 0;transition:all .15s;font-family:inherit;width:100%}
     .scribe-toggle.active{background:#7c3aed;color:#fff;border-color:#7c3aed;animation:pulse-mic 2s infinite}
     .scribe-toggle .scribe-dot{width:10px;height:10px;border-radius:50%;background:#dc3545;display:none}
     .scribe-toggle.active .scribe-dot{display:inline-block;animation:pulse-mic 1s infinite}
@@ -1074,6 +1109,17 @@
 </style>
 
 <script>
+        /**
+         * Convierte minutos en algo legible de un vistazo: "7 h 39 min".
+         * Un numero como "459 min" obliga a hacer la cuenta mentalmente.
+         */
+        function formatearDuracion(minutos) {
+            var m = Math.max(0, Math.round(minutos || 0));
+            if (m < 60) return m + ' min';
+            var h = Math.floor(m / 60), r = m % 60;
+            return r ? h + ' h ' + r + ' min' : h + ' h';
+        }
+
 'use strict';
 
 // ── State ──────────────────────────────────────────────────────────────────
@@ -3699,7 +3745,7 @@ async function loadRoute() {
     if (homeSum) {
         homeSum.textContent = (urgentInfo ? urgentInfo + ' · ' : '') +
             data.summary.remaining + ' pendientes · ~' +
-            Math.round(data.summary.remaining_estimated_minutes) + ' min' + shiftInfo;
+            formatearDuracion(data.summary.remaining_estimated_minutes) + shiftInfo;
     }
 
     // Render route list
@@ -3714,7 +3760,7 @@ function renderRoute(data) {
     var urgentText = data.summary.urgent > 0 ? (data.summary.urgent + ' urgentes · ') : '';
     detailSum.textContent = urgentText + data.summary.cleaned_today + '/' + data.summary.total_rooms +
         ' completadas · ' + data.summary.remaining + ' pendientes · ~' +
-        Math.round(data.summary.remaining_estimated_minutes) + ' min restantes';
+        formatearDuracion(data.summary.remaining_estimated_minutes) + ' restantes';
 
     var html = '';
     var currentPriority = '';
@@ -3765,7 +3811,7 @@ function renderRoute(data) {
             '<div style="font-size:11px;color:var(--text-2)">' + esc(room.priority_label) + '</div>' +
             '</div>' +
             '<div style="text-align:right;flex-shrink:0">' +
-            '<div style="font-family:\'Outfit\',monospace;font-size:13px;font-weight:600;color:' + iconColor + '">~' + room.estimated_minutes + ' min</div>' +
+            '<div style="font-family:\'Outfit\',monospace;font-size:13px;font-weight:600;color:' + iconColor + '">~' + formatearDuracion(room.estimated_minutes) + '</div>' +
             '<div style="font-size:10px;color:var(--text-2)">' + esc(room.room_type) + '</div>' +
             '</div>' +
             '</div>';

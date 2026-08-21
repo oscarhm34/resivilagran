@@ -49,8 +49,8 @@
                         <h2 class="h4 mb-2">{{ resident.name }}</h2>
                         <table class="table table-sm table-borderless mb-0" style="max-width:500px">
                             <tbody>
-                                <tr><td style="width:140px;color:var(--color-text-secondary);font-weight:600">Habitacion</td><td>{{ resident.room_number or '—' }}</td></tr>
-                                <tr><td style="color:var(--color-text-secondary);font-weight:600">Codigo NFC</td><td><code style="color:var(--color-primary);background:var(--color-primary-lt);padding:1px 7px;border-radius:4px;font-size:.85rem">{{ resident.nfc_code }}</code></td></tr>
+                                <tr><td style="width:140px;color:var(--color-text-secondary);font-weight:600">Habitación</td><td>{{ resident.room_number or '—' }}</td></tr>
+                                <tr><td style="color:var(--color-text-secondary);font-weight:600">Código NFC</td><td><code style="color:var(--color-primary);background:var(--color-primary-lt);padding:1px 7px;border-radius:4px;font-size:.85rem">{{ resident.nfc_code }}</code></td></tr>
                                 <tr><td style="color:var(--color-text-secondary);font-weight:600">Grupo</td><td>{% if resident.group %}<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{{ resident.group.color }};vertical-align:middle"></span> {{ resident.group.name }}{% else %}Sin grupo{% endif %}</td></tr>
                                 <tr><td style="color:var(--color-text-secondary);font-weight:600">Estado</td><td><span class="badge {{ 'bg-success' if resident.active else 'bg-secondary' }}">{{ 'Activo' if resident.active else 'Inactivo' }}</span></td></tr>
                             </tbody>
@@ -69,14 +69,14 @@
         {% set has_medical = resident.diagnoses or resident.allergies or resident.current_medication or resident.blood_type or resident.dependency_level or resident.emergency_contact_name %}
         {% if has_medical %}
         <div class="card mb-4">
-            <div class="card-header"><strong><i class="bi bi-heart-pulse me-1"></i>Perfil medico</strong></div>
+            <div class="card-header"><strong><i class="bi bi-heart-pulse me-1"></i>Perfil médico</strong></div>
             <div class="card-body">
                 <div class="row g-4">
                     {% if resident.diagnoses or resident.allergies or resident.current_medication %}
                     <div class="col-md-6">
-                        {% if resident.diagnoses %}<div class="mb-3"><div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Diagnosticos</div><div style="font-size:.9rem">{{ resident.diagnoses }}</div></div>{% endif %}
+                        {% if resident.diagnoses %}<div class="mb-3"><div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Diagnósticos</div><div style="font-size:.9rem">{{ resident.diagnoses }}</div></div>{% endif %}
                         {% if resident.allergies %}<div class="mb-3"><div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Alergias</div><div class="p-2" style="background:#fff3cd;border-left:3px solid #ffc107;border-radius:4px;font-size:.9rem;color:#856404"><i class="bi bi-exclamation-triangle me-1"></i>{{ resident.allergies }}</div></div>{% endif %}
-                        {% if resident.current_medication %}<div class="mb-3"><div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Medicacion actual</div><div style="font-size:.9rem">{{ resident.current_medication }}</div></div>{% endif %}
+                        {% if resident.current_medication %}<div class="mb-3"><div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Medicación actual</div><div style="font-size:.9rem">{{ resident.current_medication }}</div></div>{% endif %}
                     </div>
                     {% endif %}
                     <div class="col-md-6">
@@ -197,8 +197,8 @@
                         <div class="me-auto"><i class="bi bi-stars me-1" style="color:var(--color-primary)"></i><strong>Informe IA</strong></div>
                         <select id="ai-period" class="form-select form-select-sm" style="width:auto;font-size:.8rem">
                             <option value="today">Hoy</option>
-                            <option value="week" selected>Ultima semana</option>
-                            <option value="month">Ultimo mes</option>
+                            <option value="week" selected>Última semana</option>
+                            <option value="month">Último mes</option>
                         </select>
                         <button type="button" class="btn btn-primary btn-sm" id="btn-ai-summary">
                             <i class="bi bi-stars me-1"></i>Generar informe
@@ -233,7 +233,7 @@
                             <table style="width:100%;font-size:13px;margin-bottom:16px">
                                 <tr>
                                     <td><strong>Residente:</strong> <span id="rpt-name"></span></td>
-                                    <td><strong>Habitacion:</strong> <span id="rpt-room"></span></td>
+                                    <td><strong>Habitación:</strong> <span id="rpt-room"></span></td>
                                 </tr>
                                 <tr>
                                     <td><strong>Periodo:</strong> <span id="rpt-period"></span></td>
@@ -249,8 +249,8 @@
                         <!-- Footer -->
                         <div id="report-footer" class="report-print-footer" style="display:none">
                             <div style="border-top:1px solid #ccc;padding-top:8px;margin-top:24px;font-size:11px;color:#999;text-align:center">
-                                Informe generado automaticamente por IA a partir de los registros del sistema.
-                                No sustituye la valoracion del profesional sanitario.
+                                Informe generado automáticamente por IA a partir de los registros del sistema.
+                                No sustituye la valoración del profesional sanitario.
                             </div>
                         </div>
                     </div>
@@ -363,7 +363,7 @@
                     <div class="d-flex align-items-center gap-3 mb-3">
                         <div style="font-size:2rem;font-weight:800;color:{{ b_colors.get(last_b.interpretation, '#6c757d') }}">{{ last_b.score }}<span style="font-size:1rem;color:var(--color-text-secondary)">/100</span></div>
                         <div>
-                            <span class="badge" style="background:{{ b_colors.get(last_b.interpretation, '#6c757d') }}20;color:{{ b_colors.get(last_b.interpretation, '#6c757d') }}">{{ b_labels.get(last_b.interpretation, last_b.interpretation) }}</span>
+                            <span class="badge status-tint" style="--tint:{{ b_colors.get(last_b.interpretation, '#6c757d') }}">{{ b_labels.get(last_b.interpretation, last_b.interpretation) }}</span>
                             <br><small class="text-muted">{{ last_b.assessed_at.strftime('%d/%m/%Y') }}</small>
                         </div>
                     </div>
@@ -373,7 +373,7 @@
                     <details class="mt-2">
                         <summary class="text-muted" style="font-size:.8rem;cursor:pointer">Historial ({{ barthel_records|length }})</summary>
                         <table class="table table-sm mt-2" style="font-size:.8rem">
-                            <thead><tr><th>Fecha</th><th>Puntuacion</th><th>Resultado</th><th>Evaluador</th></tr></thead>
+                            <thead><tr><th>Fecha</th><th>Puntuación</th><th>Resultado</th><th>Evaluador</th></tr></thead>
                             <tbody>
                             {% for a in barthel_records %}
                             <tr>
@@ -408,7 +408,7 @@
                     <div class="d-flex align-items-center gap-3 mb-3">
                         <div style="font-size:2rem;font-weight:800;color:{{ n_colors.get(last_n.interpretation, '#6c757d') }}">{{ last_n.score }}<span style="font-size:1rem;color:var(--color-text-secondary)">/20</span></div>
                         <div>
-                            <span class="badge" style="background:{{ n_colors.get(last_n.interpretation, '#6c757d') }}20;color:{{ n_colors.get(last_n.interpretation, '#6c757d') }}">{{ n_labels.get(last_n.interpretation, last_n.interpretation) }}</span>
+                            <span class="badge status-tint" style="--tint:{{ n_colors.get(last_n.interpretation, '#6c757d') }}">{{ n_labels.get(last_n.interpretation, last_n.interpretation) }}</span>
                             <br><small class="text-muted">{{ last_n.assessed_at.strftime('%d/%m/%Y') }}</small>
                         </div>
                     </div>
@@ -418,7 +418,7 @@
                     <details class="mt-2">
                         <summary class="text-muted" style="font-size:.8rem;cursor:pointer">Historial ({{ norton_records|length }})</summary>
                         <table class="table table-sm mt-2" style="font-size:.8rem">
-                            <thead><tr><th>Fecha</th><th>Puntuacion</th><th>Resultado</th><th>Evaluador</th></tr></thead>
+                            <thead><tr><th>Fecha</th><th>Puntuación</th><th>Resultado</th><th>Evaluador</th></tr></thead>
                             <tbody>
                             {% for a in norton_records %}
                             <tr>
@@ -465,7 +465,7 @@
                             <table style="width:100%;font-size:13px;margin-bottom:16px">
                                 <tr>
                                     <td><strong>Residente:</strong> <span id="insp-rpt-name"></span></td>
-                                    <td><strong>Habitacion:</strong> <span id="insp-rpt-room"></span></td>
+                                    <td><strong>Habitación:</strong> <span id="insp-rpt-room"></span></td>
                                 </tr>
                                 <tr>
                                     <td><strong>Fecha:</strong> <span id="insp-rpt-date"></span></td>
@@ -476,7 +476,7 @@
                         <div id="insp-content" class="ai-report-content"></div>
                         <div id="insp-footer" class="report-print-footer" style="display:none">
                             <div style="border-top:1px solid #ccc;padding-top:8px;margin-top:24px;font-size:11px;color:#999;text-align:center">
-                                Documento generado automaticamente por IA. Debe ser revisado y validado por el equipo profesional.
+                                Documento generado automáticamente por IA. Debe ser revisado y validado por el equipo profesional.
                             </div>
                             <div style="margin-top:30px;display:flex;justify-content:space-between">
                                 <div style="border-top:1px solid #333;width:200px;text-align:center;padding-top:4px;font-size:11px">Firma del profesional</div>

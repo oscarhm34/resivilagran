@@ -29,7 +29,7 @@
                         <option value="vital_alert" {% if filters.type == 'vital_alert' %}selected{% endif %}>Alerta vital</option>
                         <option value="incident" {% if filters.type == 'incident' %}selected{% endif %}>Incidencia</option>
                         <option value="document_pending" {% if filters.type == 'document_pending' %}selected{% endif %}>Documento pendiente</option>
-                        <option value="stale_session" {% if filters.type == 'stale_session' %}selected{% endif %}>Sesion estancada</option>
+                        <option value="stale_session" {% if filters.type == 'stale_session' %}selected{% endif %}>Sesión estancada</option>
                         <option value="coverage_gap" {% if filters.type == 'coverage_gap' %}selected{% endif %}>Falta cobertura</option>
                         <option value="worker_note" {% if filters.type == 'worker_note' %}selected{% endif %}>Nota del trabajador</option>
                         <option value="ai_insight" {% if filters.type == 'ai_insight' %}selected{% endif %}>Alerta IA</option>
@@ -41,7 +41,7 @@
                     <label class="form-label mb-0 small">Severidad</label>
                     <select name="severity" class="form-select form-select-sm" style="min-width:120px">
                         <option value="">Todas</option>
-                        <option value="critical" {% if filters.severity == 'critical' %}selected{% endif %}>Critica</option>
+                        <option value="critical" {% if filters.severity == 'critical' %}selected{% endif %}>Crítica</option>
                         <option value="warning" {% if filters.severity == 'warning' %}selected{% endif %}>Aviso</option>
                         <option value="info" {% if filters.severity == 'info' %}selected{% endif %}>Info</option>
                     </select>
@@ -70,7 +70,7 @@
                 <thead>
                     <tr>
                         <th style="width:40px"></th>
-                        <th colspan="2">Notificacion</th>
+                        <th colspan="2">Notificación</th>
                         <th>Fecha</th>
                         <th>Estado</th>
                         <th class="text-end">Acciones</th>
@@ -96,9 +96,9 @@
                         <td style="white-space:nowrap;vertical-align:top;padding-top:12px">{{ n.created_at.strftime('%d/%m/%Y %H:%M') if n.created_at else '—' }}</td>
                         <td style="vertical-align:top;padding-top:12px">
                             {% if n.read %}
-                            <span class="status-badge" style="color:#656d76;background:#656d7620">Leida</span>
+                            <span class="status-badge status-tint" style="--tint:#656d76">Leida</span>
                             {% else %}
-                            <span class="status-badge" style="color:{{ sev_colors.get(n.severity, '#0069d9') }};background:{{ sev_colors.get(n.severity, '#0069d9') }}20">
+                            <span class="status-badge status-tint" style="--tint:{{ sev_colors.get(n.severity, '#0069d9') }}">
                                 {{ sev_labels.get(n.severity, 'Info') }}
                             </span>
                             {% endif %}
@@ -121,7 +121,7 @@
     {% if pagination and pagination.pages > 1 %}
     <div class="d-flex align-items-center justify-content-between flex-wrap mt-3">
         <p class="small mb-2" style="color:var(--color-text-secondary)">
-            Pagina <strong>{{ pagination.page }}</strong> de <strong>{{ pagination.pages }}</strong>
+            Página <strong>{{ pagination.page }}</strong> de <strong>{{ pagination.pages }}</strong>
         </p>
         <nav aria-label="Paginacion">
             <ul class="pagination pagination-sm mb-0 flex-wrap">
@@ -192,7 +192,7 @@
                         btn.replaceWith(document.createTextNode('—'));
                         // Update status cell
                         var cells = row.querySelectorAll('td');
-                        cells[4].innerHTML = '<span class="status-badge" style="color:#656d76;background:#656d7620">Leida</span>';
+                        cells[4].innerHTML = '<span class="status-badge status-tint" style="--tint:#656d76">Leida</span>';
                         if (typeof showToast === 'function') showToast('Notificacion marcada como leida', 'success');
                     }
                 })

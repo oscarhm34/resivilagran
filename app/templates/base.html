@@ -32,6 +32,33 @@
             --radius-lg:              12px;
             --shadow-sm:              0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
             --shadow-md:              0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.06);
+
+            /* Fondos de los badges de estado: token, no hex suelto, para que
+               cambien con el tema igual que su color de texto. */
+            --badge-success-bg:       #eaf7ee;
+            --badge-warning-bg:       #fff3cd;
+            --badge-danger-bg:        #ffddd9;
+            --badge-info-bg:          #dbeafe;
+            --badge-muted-bg:         #eceef0;
+            /* #bf8700 se queda en 2.90 como texto sobre --color-bg. Sirve de
+               relleno, no de texto: para texto se usa este ambar mas oscuro. */
+            --color-warning-text:     #8a6100;
+
+            /* Bootstrap usa su propia paleta por defecto, mas clara que la del
+               proyecto y sin contraste suficiente sobre --color-bg. Se alinea
+               aqui una sola vez en vez de parchear plantilla por plantilla. */
+            --bs-primary:             #0069d9;
+            --bs-primary-rgb:         0,105,217;
+            --bs-success:             #1a7f37;
+            --bs-success-rgb:         26,127,55;
+            --bs-warning:             #bf8700;
+            --bs-warning-rgb:         191,135,0;
+            --bs-danger:              #cf222e;
+            --bs-danger-rgb:          207,34,46;
+            --bs-info:                #0550ae;
+            --bs-info-rgb:            5,80,174;
+            --bs-secondary:           #57606a;
+            --bs-secondary-rgb:       87,96,106;
         }
 
         /* ── Dark mode ──────────────────────────────────────────── */
@@ -48,6 +75,24 @@
             --color-border:           #30363d;
             --color-text:             #e6edf3;
             --color-text-secondary:   #8b949e;
+            --badge-success-bg:       #10261a;
+            --badge-warning-bg:       #2b2107;
+            --badge-danger-bg:        #2f1416;
+            --badge-info-bg:          #10243d;
+            --badge-muted-bg:         #21262d;
+            --color-warning-text:     #d29922;
+            --bs-primary:             #4da3ff;
+            --bs-primary-rgb:         77,163,255;
+            --bs-success:             #3fb950;
+            --bs-success-rgb:         63,185,80;
+            --bs-warning:             #d29922;
+            --bs-warning-rgb:         210,153,34;
+            --bs-danger:              #f85149;
+            --bs-danger-rgb:          248,81,73;
+            --bs-info:                #58a6ff;
+            --bs-info-rgb:            88,166,255;
+            --bs-secondary:           #8b949e;
+            --bs-secondary-rgb:       139,148,158;
             --shadow-sm:              0 1px 3px rgba(0,0,0,.3);
             --shadow-md:              0 4px 6px rgba(0,0,0,.3);
             /* Bootstrap overrides */
@@ -66,7 +111,7 @@
         [data-theme="dark"] .navbar { background-color: #161b22 !important; border-bottom-color: #30363d !important; }
         [data-theme="dark"] .card { background: #161b22; border-color: #30363d; color: #e6edf3; }
         [data-theme="dark"] .card-header { background: #1c2128; border-color: #30363d; color: #e6edf3; }
-        [data-theme="dark"] .table { color: #e6edf3; --bs-table-bg: #161b22; --bs-table-border-color: #30363d; --bs-table-striped-bg: #1c2128; --bs-table-hover-bg: #1c2128; }
+        [data-theme="dark"] .table { color: #e6edf3; --bs-table-color: #e6edf3; --bs-table-bg: #161b22; --bs-table-border-color: #30363d; --bs-table-striped-bg: #1c2128; --bs-table-hover-bg: #1c2128; --bs-table-hover-color: #e6edf3; --bs-table-striped-color: #e6edf3; }
         [data-theme="dark"] .table th { color: #8b949e; }
         [data-theme="dark"] .modal-content { background: #161b22; color: #e6edf3; border-color: #30363d; }
         [data-theme="dark"] .modal-header, [data-theme="dark"] .modal-footer { border-color: #30363d; }
@@ -88,15 +133,17 @@
         [data-theme="dark"] .alert-danger { background: #3d0c0c; color: #ff7b72; border-color: #5c1a1a; }
         [data-theme="dark"] .alert-success { background: #0c3d1a; color: #56d364; border-color: #1a5c2e; }
         [data-theme="dark"] .btn-close { filter: invert(1); }
+        [data-theme="dark"] .btn-primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+        [data-theme="dark"] .btn-primary:hover, [data-theme="dark"] .btn-primary:focus { background: #388bfd; border-color: #388bfd; color: #fff; }
         [data-theme="dark"] .btn-outline-secondary { color: #8b949e; border-color: #30363d; }
         [data-theme="dark"] .btn-outline-secondary:hover { background: #30363d; color: #e6edf3; }
         [data-theme="dark"] .text-muted, [data-theme="dark"] .text-body-secondary { color: #8b949e !important; }
         [data-theme="dark"] .badge.bg-light { background: #30363d !important; color: #e6edf3 !important; }
         [data-theme="dark"] .progress { background: #30363d; }
         [data-theme="dark"] .list-group-item { background: #161b22; color: #e6edf3; border-color: #30363d; }
+        [data-theme="dark"] a:not(.btn):not(.nav-link):not(.dropdown-item) { color: var(--color-primary); }
         [data-theme="dark"] footer { color: #8b949e; }
         [data-theme="dark"] code { color: #f0883e; background: #1c2128; }
-        [data-theme="dark"] .status-badge { opacity: .9; }
         [data-theme="dark"] .home-card { background: #161b22; border-color: #30363d; }
         [data-theme="dark"] .home-card:hover { border-color: #4da3ff; }
 
@@ -242,11 +289,54 @@
             border-radius: 50%;
             background: currentColor;
         }
-        .status-success { color: var(--color-success); background: #d1f0da; }
-        .status-warning  { color: var(--color-warning); background: #fff3cd; }
-        .status-danger   { color: var(--color-danger);  background: #ffddd9; }
-        .status-info     { color: var(--color-info);    background: #dbeafe; }
-        .status-muted    { color: var(--color-text-secondary); background: #f0f0f0; }
+        .status-success { color: var(--color-success); background: var(--badge-success-bg); }
+        .status-warning  { color: var(--color-warning-text); background: var(--badge-warning-bg); }
+        .status-danger   { color: var(--color-danger);  background: var(--badge-danger-bg); }
+        .status-info     { color: var(--color-info);    background: var(--badge-info-bg); }
+        .status-muted    { color: var(--color-text-secondary); background: var(--badge-muted-bg); }
+
+        /*
+         * Badge cuyo color lo decide la plantilla (severidad de incidencia,
+         * estado, color de un tipo de turno). Se pasa como --tint y el tinte
+         * de fondo se calcula aqui, de modo que tambien funcione en oscuro.
+         * El color plano es el respaldo si el navegador no soporta color-mix.
+         */
+        .status-tint { color: var(--tint, var(--color-text-secondary)); background: var(--badge-muted-bg); }
+        @supports (background: color-mix(in srgb, red 10%, white)) {
+            .status-tint { background: color-mix(in srgb, var(--tint) 9%, var(--color-surface)); }
+            [data-theme="dark"] .status-tint {
+                color: color-mix(in srgb, var(--tint) 55%, #ffffff);
+                background: color-mix(in srgb, var(--tint) 24%, var(--color-surface));
+            }
+        }
+
+
+        /* ── Botones: alinear con la paleta del proyecto ─────────
+           Bootstrap fija los colores de cada variante como literales en
+           --bs-btn-*, no via --bs-primary, asi que redefinir la paleta no
+           basta. Sus amarillos y cianes por defecto no llegan al minimo de
+           contraste sobre --color-bg. */
+        .btn-outline-primary   { --bs-btn-color: var(--color-primary);        --bs-btn-border-color: var(--color-primary);        --bs-btn-hover-bg: var(--color-primary);        --bs-btn-hover-border-color: var(--color-primary);        --bs-btn-active-bg: var(--color-primary-dk); --bs-btn-active-border-color: var(--color-primary-dk); }
+        .btn-outline-success   { --bs-btn-color: var(--color-success);        --bs-btn-border-color: var(--color-success);        --bs-btn-hover-bg: var(--color-success);        --bs-btn-hover-border-color: var(--color-success); }
+        .btn-outline-warning   { --bs-btn-color: var(--color-warning-text);   --bs-btn-border-color: var(--color-warning);        --bs-btn-hover-bg: var(--color-warning);        --bs-btn-hover-border-color: var(--color-warning);        --bs-btn-hover-color: #fff; }
+        .btn-outline-danger    { --bs-btn-color: var(--color-danger);         --bs-btn-border-color: var(--color-danger);         --bs-btn-hover-bg: var(--color-danger);         --bs-btn-hover-border-color: var(--color-danger); }
+        .btn-outline-info      { --bs-btn-color: var(--color-info);           --bs-btn-border-color: var(--color-info);           --bs-btn-hover-bg: var(--color-info);           --bs-btn-hover-border-color: var(--color-info);           --bs-btn-hover-color: #fff; }
+        .btn-outline-secondary { --bs-btn-color: var(--color-text);           --bs-btn-border-color: var(--color-border);         --bs-btn-hover-bg: var(--color-text-secondary); --bs-btn-hover-border-color: var(--color-text-secondary); }
+        .btn-success { --bs-btn-bg: var(--color-success); --bs-btn-border-color: var(--color-success); }
+        .btn-danger  { --bs-btn-bg: var(--color-danger);  --bs-btn-border-color: var(--color-danger); }
+        .btn-warning { --bs-btn-bg: var(--color-warning); --bs-btn-border-color: var(--color-warning); --bs-btn-color: #fff; --bs-btn-hover-color: #fff; }
+        .btn-info    { --bs-btn-bg: var(--color-info);    --bs-btn-border-color: var(--color-info);    --bs-btn-color: #fff; --bs-btn-hover-color: #fff; }
+
+        /* Los badges solidos en oscuro llevan fondo claro: el texto va oscuro. */
+        [data-theme="dark"] .badge.bg-success:not([class*="bg-opacity"]):not([class*="text-"]),
+        [data-theme="dark"] .badge.bg-warning:not([class*="bg-opacity"]):not([class*="text-"]),
+        [data-theme="dark"] .badge.bg-info:not([class*="bg-opacity"]):not([class*="text-"]),
+        [data-theme="dark"] .badge.bg-danger:not([class*="bg-opacity"]):not([class*="text-"]),
+        [data-theme="dark"] .badge.bg-primary:not([class*="bg-opacity"]):not([class*="text-"]),
+        [data-theme="dark"] .badge.bg-secondary:not([class*="bg-opacity"]):not([class*="text-"]) { color: #0d1117 !important; }
+
+        /* Enlace de salto: en oscuro bg-primary se aclara y el blanco no llega. */
+        .visually-hidden-focusable.bg-primary { background: #0069d9 !important; color: #fff !important; }
 
         /* ── Formularios ────────────────────────────────────────── */
         .form-control, .form-select {
@@ -270,6 +360,7 @@
 
         /* ── Footer ─────────────────────────────────────────────── */
         .footer {
+            background: var(--color-surface);
             border-top: 1px solid var(--color-border);
             font-size: .82rem;
             color: var(--color-text-secondary);
@@ -293,6 +384,18 @@
         @media (max-width: 767px) {
             .hide-mobile { display: none !important; }
             .table tbody td, .table thead th { font-size: .82rem; padding: .5rem .75rem; }
+
+            /* En movil, todo lo pulsable llega a 44px: es el minimo comodo para
+               un dedo. En escritorio se mantienen los tamanos compactos. */
+            .btn, .btn-sm, .navbar-toggler, .page-link {
+                min-height: 44px;
+                min-width: 44px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .form-check-input { width: 1.35rem; height: 1.35rem; }
+            .form-check label, label.form-check { min-height: 44px; display: inline-flex; align-items: center; }
         }
     </style>
 </head>
@@ -324,7 +427,7 @@
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ url_for('assessments.admin_assessments') }}"><i class="bi bi-clipboard2-pulse me-1" aria-hidden="true"></i>Valoraciones clinicas</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('assessments.admin_daily_digest') }}"><i class="bi bi-journal-text me-1" aria-hidden="true"></i>Resúmenes diarios IA</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('medication.admin_medication') }}"><i class="bi bi-capsule me-1" aria-hidden="true"></i>Medicacion</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('medication.admin_medication') }}"><i class="bi bi-capsule me-1" aria-hidden="true"></i>Medicación</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('activities.admin_activities') }}"><i class="bi bi-calendar-event me-1" aria-hidden="true"></i>Actividades</a></li>
                         </ul>
                     </li>
@@ -452,7 +555,7 @@
         {% block content %}{% endblock %}
     </main>
 
-    <footer class="footer bg-white py-3 mt-5">
+    <footer class="footer py-3 mt-5">
         <div class="container">
             &copy; {{ now.year if now else 2025 }} La Vila Gran &mdash; Panel de Administración
         </div>
