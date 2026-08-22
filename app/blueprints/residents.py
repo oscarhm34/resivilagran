@@ -22,7 +22,7 @@ from ..models import (
 from .assessments import get_resident_assessment_data
 from ..models import MedicationPrescription, MedicationAdministration
 from ..utils import (
-    admin_required, _format_duration, _allowed_file,
+    admin_required, _format_duration, _allowed_file, _safe_commit,
     ALLOWED_IMAGE_EXTENSIONS, ALLOWED_DOC_EXTENSIONS,
 )
 
@@ -307,8 +307,12 @@ def update_resident_group():
     r = db.session.get(Resident, int(resident_id))
     if not r:
         return jsonify({'error': 'Residente no encontrado'}), 404
+    if group_id and not r.active:
+        return jsonify({'error': 'Un residente dado de baja no puede asignarse a un grupo'}), 400
     r.group_id = int(group_id) if group_id else None
-    db.session.commit()
+    ok, error = _safe_commit('Error al cambiar el grupo del residente')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True}), 200
 
 
@@ -404,7 +408,15 @@ def delete_resident_document(doc_id: int):
 @admin_required
 def manage_groups():
     groups = ResidentGroup.query.order_by(ResidentGroup.name).all()
-    return render_template('manage_groups.html', groups=groups)
+    # Los residentes dados de baja (active=False) no cuentan como miembros del grupo
+    resident_counts = dict(
+        db.session.query(Resident.group_id, db.func.count(Resident.id))
+        .filter(Resident.active == True, Resident.group_id.isnot(None))
+        .group_by(Resident.group_id)
+        .all()
+    )
+    return render_template('manage_groups.html', groups=groups,
+                           resident_counts=resident_counts)
 
 
 @bp.route('/groups/<int:id>')
@@ -413,7 +425,8 @@ def group_detail(id: int):
     group = db.session.get(ResidentGroup, id)
     if group is None:
         abort(404)
-    residents = Resident.query.filter_by(group_id=group.id).order_by(Resident.name).all()
+    # Solo residentes activos: los dados de baja no aparecen en el grupo
+    residents = Resident.query.filter_by(group_id=group.id, active=True).order_by(Resident.name).all()
     available = Resident.query.filter(
         Resident.active == True,
         (Resident.group_id == None) | (Resident.group_id != group.id),
@@ -477,12 +490,29 @@ def assign_residents_to_group(id: int):
         return jsonify({'error': 'Grupo no encontrado'}), 404
     data = request.json or {}
     resident_ids = data.get('resident_ids', [])
-    residents = Resident.query.filter(Resident.id.in_([int(rid) for rid in resident_ids])).all()
+    try:
+        ids = [int(rid) for rid in resident_ids]
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Identificadores de residente no validos'}), 400
+
+    # Los residentes inactivos no pueden formar parte de un grupo
+    residents = Resident.query.filter(
+        Resident.id.in_(ids), Resident.active == True
+    ).all()
     for r in residents:
         r.group_id = group.id
-    db.session.commit()
-    count = len(residents)
-    return jsonify({'ok': True, 'count': count}), 200
+
+    from ..utils import log_audit
+    log_audit('update', 'resident_group', group.id,
+              {'assigned': [r.id for r in residents]})
+    ok, error = _safe_commit('Error al asignar los residentes al grupo')
+    if not ok:
+        return jsonify({'error': error}), 500
+    return jsonify({
+        'ok': True,
+        'count': len(residents),
+        'skipped': len(set(ids)) - len(residents),
+    }), 200
 
 
 # ── ADMIN – FICHAJES POR TRABAJADOR ─────────────────────────────────────────

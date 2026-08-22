@@ -68,7 +68,7 @@
                                 {{ g.name }}
                             </a>
                         </td>
-                        <td>{{ g.residents|length }}</td>
+                        <td>{{ resident_counts.get(g.id, 0) }}</td>
                         <td>{{ g.workers|length }}</td>
                         <td class="text-end">
                             <a href="{{ url_for('residents.group_detail', id=g.id) }}"

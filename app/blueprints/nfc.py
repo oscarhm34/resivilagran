@@ -900,7 +900,8 @@ def start_group_care():
     records_out = []
     for rid in resident_ids:
         resident = db.session.get(Resident, rid)
-        if not resident:
+        # Los residentes dados de baja no forman parte de ningun grupo
+        if not resident or not resident.active:
             continue
         rec = CareRecord(worker_id=worker_id, resident_id=rid, start_time=now)
         db.session.add(rec)
@@ -912,6 +913,10 @@ def start_group_care():
             'photo_url': f'/api/uploads/{resident.photo_path}' if resident.photo_path else None,
             'start_time': now.isoformat(),
         })
+
+    if not records_out:
+        db.session.rollback()
+        return jsonify({'error': 'Ningun residente disponible'}), 400
 
     ok, err = _safe_commit()
     if not ok:

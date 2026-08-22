@@ -22,7 +22,7 @@
     <!-- Residentes -->
     <div class="card mb-4">
         <div class="card-header d-flex align-items-center justify-content-between">
-            <span>Residentes</span>
+            <span>Residentes activos</span>
             <span class="badge bg-secondary">{{ residents|length }}</span>
         </div>
         {% if residents %}
@@ -33,7 +33,6 @@
                         <th scope="col">Nombre</th>
                         <th scope="col">Habitación</th>
                         <th scope="col" class="hide-mobile">Código NFC</th>
-                        <th scope="col">Estado</th>
                         <th scope="col" class="hide-mobile">Notas</th>
                     </tr>
                 </thead>
@@ -47,13 +46,6 @@
                                 {{ r.nfc_code }}
                             </code>
                         </td>
-                        <td>
-                            {% if r.active %}
-                            <span class="status-badge status-success">Activo</span>
-                            {% else %}
-                            <span class="status-badge status-muted">Inactivo</span>
-                            {% endif %}
-                        </td>
                         <td class="hide-mobile" style="color:var(--color-text-secondary);font-size:.85rem;max-width:200px">
                             {{ r.notes or '—' }}
                         </td>
@@ -62,9 +54,14 @@
                 </tbody>
             </table>
         </div>
+        <div class="card-body py-2">
+            <p class="text-body-secondary mb-0" style="font-size:.82rem">
+                Los residentes dados de baja no aparecen en el grupo.
+            </p>
+        </div>
         {% else %}
         <div class="card-body">
-            <p class="text-body-secondary mb-0">No hay residentes asignados a este grupo.
+            <p class="text-body-secondary mb-0">No hay residentes activos asignados a este grupo.
                 <a href="{{ url_for('residents.manage_residents') }}">Gestionar residentes</a>
             </p>
         </div>

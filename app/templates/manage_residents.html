@@ -259,6 +259,12 @@
                             </code>
                         </td>
                         <td>
+                            {% if not r.active %}
+                            <span class="text-body-secondary" style="font-size:.82rem"
+                                  title="Los residentes dados de baja no aparecen en los grupos">
+                                Sin grupo (baja)
+                            </span>
+                            {% else %}
                             <div class="dropdown inline-group-dd" data-resident-id="{{ r.id }}">
                                 <button type="button" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2 ig-btn"
                                         data-bs-toggle="dropdown" aria-expanded="false" style="font-size:.82rem;padding:4px 10px;min-width:120px">
@@ -279,6 +285,7 @@
                                     {% endfor %}
                                 </ul>
                             </div>
+                            {% endif %}
                         </td>
                         <td>
                             <label class="form-check m-0 d-flex align-items-center gap-1" style="cursor:pointer">
@@ -535,6 +542,10 @@ var RESIDENT_DOCS = {
                         row.style.transition = 'opacity .4s';
                         row.style.opacity = '0';
                         setTimeout(function () { row.remove(); }, 400);
+                    } else {
+                        // La columna de grupo cambia con el estado (los residentes de
+                        // baja no pertenecen a ningun grupo): recargar para reflejarlo
+                        setTimeout(function () { location.reload(); }, 600);
                     }
                 } else {
                     this.checked = !active;
@@ -641,12 +652,19 @@ var RESIDENT_DOCS = {
         if (!groupId) { showToast('Selecciona un grupo', 'warning'); return; }
         var ids = Array.from(document.querySelectorAll('.bulk-check:checked')).map(function (cb) { return parseInt(cb.value); });
         if (!ids.length) return;
+        var omitidos = 0;
         for (var i = 0; i < ids.length; i++) {
-            await fetch('/residents/update-group', {
+            var r = await fetch('/residents/update-group', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ resident_id: ids[i], group_id: groupId === 'none' ? null : parseInt(groupId) }),
             });
+            if (!r.ok) omitidos++;
+        }
+        if (omitidos) {
+            showToast(omitidos + ' residente(s) de baja no se han asignado al grupo', 'warning');
+            setTimeout(function () { location.reload(); }, 1500);
+            return;
         }
         location.reload();
     });

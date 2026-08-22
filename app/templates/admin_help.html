@@ -353,6 +353,11 @@
                 <li>Se pueden crear grupos (ej: "Planta Baja", "Ala Norte") y asignar residentes y trabajadores.</li>
                 <li>Los trabajadores ven "Mi grupo" en la webapp para acceso rapido.</li>
                 <li>Cada grupo tiene un color para identificarlo visualmente.</li>
+                <li><strong>Los residentes dados de baja no forman parte de ningun grupo:</strong>
+                    no aparecen en la ficha del grupo, no cuentan en el numero de residentes del
+                    listado de grupos y no se pueden asignar a uno. En la webapp del trabajador
+                    tampoco salen en "Mi grupo" ni en la atencion grupal. Si el residente vuelve a
+                    darse de alta, recupera automaticamente el grupo que tenia.</li>
             </ul>
         </div>
     </div>
@@ -1285,6 +1290,7 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>22/08</td><td><strong>Residentes de baja fuera de los grupos:</strong> un residente dado de baja deja de aparecer en su grupo, ya no cuenta en el numero de residentes del listado de grupos y no se puede asignar a ninguno. Si vuelve a darse de alta, recupera el grupo que tenia.</td></tr>
                     <tr><td>21/08</td><td><strong>Documentos legales:</strong> el editor de texto ya no muestra el aviso de clave de API y funciona en castellano. Ademas se ha corregido el boton <strong>Editar</strong>, que no llegaba a abrir el documento: ahora carga el titulo y el contenido con su formato. Si la residencia se queda sin internet, el editor pasa a texto plano en vez de bloquearse.</td></tr>
                     <tr><td>21/08</td><td><strong>Revision visual completa:</strong> el modo oscuro ya se aplica a tablas, etiquetas de estado y pie de pagina, que antes se quedaban en claro y resultaban ilegibles. La webapp del trabajador tiene modo oscuro y sigue el ajuste del movil, util en el turno de noche. Botones mas grandes en movil, tildes repuestas en toda la interfaz, fin de semana marcado en los cuadrantes, aviso en las trabajadoras sin turnos asignados y duraciones en horas y minutos en vez de minutos sueltos.</td></tr>
                     <tr><td>21/08</td><td><strong>Aislamiento de datos entre trabajadoras:</strong> las pantallas de la webapp (jornada, sesiones activas, grupos, documentos y formacion) usan ahora siempre la identidad de quien ha iniciado sesion. Antes era posible consultar o modificar los datos de otra companera manipulando la peticion.</td></tr>
