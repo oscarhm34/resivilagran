@@ -143,9 +143,12 @@
 
             <h6 class="mt-3">Documentos del residente</h6>
             <ul>
-                <li>Al editar un residente, aparece la seccion <strong>"Documentos"</strong> donde se pueden subir archivos (PIAs, informes medicos, pautas farmacologicas, etc.).</li>
+                <li>Hay dos sitios para subir archivos (PIAs, informes medicos, pautas farmacologicas, etc.):
+                    la pestana <strong>Documentos</strong> de la ficha del residente y la seccion
+                    <strong>"Documentos"</strong> que aparece al editar un residente en el listado.</li>
                 <li>Cada documento tiene: archivo, tipo (PIA, Informe medico, Pauta farmacologica, Consentimiento, Otros) y descripcion opcional.</li>
-                <li>Los documentos se pueden descargar y eliminar desde la misma seccion.</li>
+                <li>Formatos admitidos: PDF, TXT, CSV, DOC, DOCX e imagenes (JPG, PNG, WEBP), hasta 16 MB.</li>
+                <li>Los documentos se pueden abrir y eliminar desde la misma pestana; al eliminar se pide confirmacion.</li>
                 <li>El chatbot IA puede leer el contenido de los documentos PDF para responder preguntas sobre el residente.</li>
             </ul>
 
@@ -603,12 +606,20 @@
 
             <h6 class="mt-3">Como funciona</h6>
             <ul>
-                <li>Las notificaciones se generan automaticamente cada vez que el admin visita el <strong>dashboard principal</strong>.</li>
+                <li>Las notificaciones se generan automaticamente cuando el admin visita el <strong>dashboard principal</strong>, como maximo una vez cada 2 minutos (la pantalla se recarga sola cada 15 segundos y no hace falta repetir el escaneo en cada recarga).</li>
                 <li>La <strong>campana</strong> muestra un <strong>badge rojo con el numero</strong> de notificaciones no leidas.</li>
                 <li>Se actualiza automaticamente cada 60 segundos sin recargar la pagina.</li>
                 <li>Clic en la campana para ver la lista completa con filtros por tipo, severidad y estado.</li>
                 <li>Se pueden marcar como leidas individualmente o todas a la vez.</li>
                 <li>Las notificaciones no se duplican: si ya existe una alerta similar en las ultimas 24h, no se crea otra.</li>
+            </ul>
+
+            <h6 class="mt-3">Actualizacion automatica de la pantalla de inicio</h6>
+            <ul>
+                <li>La <strong>pantalla de inicio</strong> (Bienvenido...) se recarga sola <strong>cada 15 segundos</strong>, asi que los datos del turno (conectados, trabajando ahora, limpiezas, atenciones, alertas) estan siempre al dia sin tocar nada. Es la pantalla pensada para dejar abierta en el ordenador de control.</li>
+                <li>Debajo del titulo hay un interruptor <strong>"Actualizacion automatica"</strong> con la cuenta atras. Se puede desactivar, y la eleccion se recuerda en ese ordenador.</li>
+                <li>La recarga <strong>se pausa sola</strong> mientras hay una ventana abierta (resumen del dia, traspaso de turno, seguimiento), mientras se escribe en un campo o si la pestana esta en segundo plano, para no cortar lo que se esta haciendo.</li>
+                <li>El resto de pantallas del panel <strong>no</strong> se recargan solas.</li>
             </ul>
 
             <h6 class="mt-3">Notificaciones push (movil)</h6>
@@ -1290,6 +1301,8 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>22/08</td><td><strong>La pantalla de inicio se actualiza sola:</strong> la portada del panel se recarga cada 15 segundos, de modo que quien esta conectado, quien esta trabajando y los datos del dia se ven siempre al momento. Hay un interruptor para desactivarlo y la recarga se pausa mientras se escribe o hay una ventana abierta.</td></tr>
+                    <tr><td>22/08</td><td><strong>Subir documentos desde la ficha del residente:</strong> la pestana Documentos de la ficha ya permite subir archivos (PIA, informe medico, pauta farmacologica, consentimiento u otros) y eliminarlos, sin tener que ir al listado y editar el residente. Al terminar se vuelve a la misma pestana.</td></tr>
                     <tr><td>22/08</td><td><strong>Residentes de baja fuera de los grupos:</strong> un residente dado de baja deja de aparecer en su grupo, ya no cuenta en el numero de residentes del listado de grupos y no se puede asignar a ninguno. Si vuelve a darse de alta, recupera el grupo que tenia.</td></tr>
                     <tr><td>21/08</td><td><strong>Documentos legales:</strong> el editor de texto ya no muestra el aviso de clave de API y funciona en castellano. Ademas se ha corregido el boton <strong>Editar</strong>, que no llegaba a abrir el documento: ahora carga el titulo y el contenido con su formato. Si la residencia se queda sin internet, el editor pasa a texto plano en vez de bloquearse.</td></tr>
                     <tr><td>21/08</td><td><strong>Revision visual completa:</strong> el modo oscuro ya se aplica a tablas, etiquetas de estado y pie de pagina, que antes se quedaban en claro y resultaban ilegibles. La webapp del trabajador tiene modo oscuro y sigue el ajuste del movil, util en el turno de noche. Botones mas grandes en movil, tildes repuestas en toda la interfaz, fin de semana marcado en los cuadrantes, aviso en las trabajadoras sin turnos asignados y duraciones en horas y minutos en vez de minutos sueltos.</td></tr>

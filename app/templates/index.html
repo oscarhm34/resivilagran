@@ -6,7 +6,13 @@
     <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
         <div>
             <h1 class="h3 mb-1">Bienvenido, {{ current_user.name }}</h1>
-            <p class="mb-0" style="color:var(--color-text-secondary)">Panel de gestión &mdash; La Vila Gran</p>
+            <p class="mb-1" style="color:var(--color-text-secondary)">Panel de gestión &mdash; La Vila Gran</p>
+            <div class="form-check form-switch mb-0" style="font-size:.82rem">
+                <input class="form-check-input" type="checkbox" id="auto-refresh-toggle" checked>
+                <label class="form-check-label" for="auto-refresh-toggle" style="color:var(--color-text-secondary)">
+                    Actualización automática <span id="auto-refresh-status">en 15 s</span>
+                </label>
+            </div>
         </div>
         <div class="d-flex gap-2">
             <button type="button" class="btn btn-outline-primary btn-sm" id="btn-global-report" data-bs-toggle="modal" data-bs-target="#globalReportModal">
@@ -385,6 +391,47 @@
 
 {% block scripts_extra %}
 <script>
+/* ── Refresco automatico de la portada cada 15 s ───────────────────────────
+   Se pausa si hay un modal abierto, si se esta escribiendo en un campo o si
+   la pestana esta en segundo plano, para no interrumpir al administrador.  */
+(function(){
+    var SEGUNDOS = 15;
+    var CLAVE = 'admin_auto_refresh';
+    var toggle = document.getElementById('auto-refresh-toggle');
+    var estado = document.getElementById('auto-refresh-status');
+    var restantes = SEGUNDOS;
+
+    function guardado(){
+        try { return localStorage.getItem(CLAVE); } catch (e) { return null; }
+    }
+    toggle.checked = guardado() !== 'off';
+    toggle.addEventListener('change', function(){
+        try { localStorage.setItem(CLAVE, this.checked ? 'on' : 'off'); } catch (e) {}
+        restantes = SEGUNDOS;
+        pintar();
+    });
+
+    function ocupado(){
+        if (document.hidden) return true;
+        if (document.querySelector('.modal.show')) return true;
+        var el = document.activeElement;
+        return !!(el && el.matches('input, textarea, select'));
+    }
+
+    function pintar(){
+        if (!toggle.checked) { estado.textContent = 'desactivada'; return; }
+        estado.textContent = ocupado() ? 'en pausa' : 'en ' + restantes + ' s';
+    }
+
+    pintar();
+    setInterval(function(){
+        if (!toggle.checked || ocupado()) { restantes = SEGUNDOS; pintar(); return; }
+        restantes -= 1;
+        if (restantes <= 0) { location.reload(); return; }
+        pintar();
+    }, 1000);
+})();
+
 (function(){
     // Handover report
     document.getElementById('btn-ho-generate').addEventListener('click', function() {
@@ -503,7 +550,7 @@ document.getElementById('wl-generate').addEventListener('click', function() {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar watchlist';
         if (data.html) {
-            content.innerHTML = '<div class="ai-report-content">' + data.html + '</div><div class="text-muted text-center mt-2" style="font-size:.75rem">Generat: ' + (data.generated_at || '') + '</div>';
+            content.innerHTML = '<div class="ai-report-content">' + data.html + '</div><div class="text-muted text-center mt-2" style="font-size:.75rem">Generado: ' + (data.generated_at || '') + '</div>';
         } else {
             content.innerHTML = '<div class="alert alert-warning">' + (data.error || 'Error') + '</div>';
         }

@@ -22,6 +22,12 @@ from ..utils import (admin_required, _format_duration,
 
 bp = Blueprint('admin_bp', __name__)
 
+# La portada se refresca sola cada 15 s, asi que la generacion de notificaciones
+# (que recorre constantes, incidencias, turnos y firmas) se limita a una vez cada
+# NOTIF_REFRESH_SECONDS para no repetir el escaneo completo en cada recarga.
+NOTIF_REFRESH_SECONDS = 120
+_last_notif_generation: datetime | None = None
+
 
 # ── WEB AUTH ────────────────────────────────────────────────────────────────
 
@@ -81,12 +87,17 @@ def index():
     if stale_count:
         db.session.commit()
 
-    try:
-        from .notifications import _generate_notifications
-        _generate_notifications()
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning('Error generating notifications: %s', e)
+    global _last_notif_generation
+    now_notif = datetime.now()
+    if (_last_notif_generation is None
+            or (now_notif - _last_notif_generation).total_seconds() >= NOTIF_REFRESH_SECONDS):
+        _last_notif_generation = now_notif
+        try:
+            from .notifications import _generate_notifications
+            _generate_notifications()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning('Error generating notifications: %s', e)
 
     today = datetime.now().date()
     tomorrow = today + timedelta(days=1)

@@ -334,6 +334,19 @@ def update_resident_active():
 
 # ── RESIDENT DOCUMENTS ──────────────────────────────────────────────────────
 
+def _docs_redirect():
+    """Vuelve a la pagina desde la que se subio o borro el documento.
+
+    El formulario envia el destino en `next` (la ficha del residente o el
+    listado). Se valida como en el login: solo rutas internas.
+    """
+    target = (request.form.get('next') or '').strip()
+    if (target.startswith('/') and not target.startswith('//')
+            and ':' not in target):
+        return redirect(target)
+    return redirect(url_for('residents.manage_residents'))
+
+
 @bp.route('/residents/<int:resident_id>/documents', methods=['POST'])
 @admin_required
 def upload_resident_document(resident_id: int):
@@ -345,11 +358,11 @@ def upload_resident_document(resident_id: int):
     doc_file = request.files.get('doc_file')
     if not doc_file or not doc_file.filename:
         flash('Selecciona un archivo.', 'error')
-        return redirect(url_for('residents.manage_residents'))
+        return _docs_redirect()
 
-    if not _allowed_file(doc_file.filename, ALLOWED_DOC_EXTENSIONS):
+    if not _allowed_file(doc_file.filename, ALLOWED_DOC_EXTENSIONS | ALLOWED_IMAGE_EXTENSIONS):
         flash('Tipo de archivo no permitido. Usa PDF, TXT, DOC, DOCX o imágenes.', 'error')
-        return redirect(url_for('residents.manage_residents'))
+        return _docs_redirect()
 
     doc_type = request.form.get('doc_type', '').strip() or 'Otros'
     description = request.form.get('doc_description', '').strip()
@@ -366,7 +379,7 @@ def upload_resident_document(resident_id: int):
     except (OSError, IOError) as e:
         app.logger.error('Error saving document: %s', e)
         flash('Error al guardar el archivo. Inténtalo de nuevo.', 'error')
-        return redirect(url_for('residents.manage_residents'))
+        return _docs_redirect()
     rel_path = f'resident_docs/res_{resident_id}/{filename}'
 
     doc = ResidentDocument(
@@ -377,9 +390,16 @@ def upload_resident_document(resident_id: int):
         description=description,
     )
     db.session.add(doc)
-    db.session.commit()
+
+    from ..utils import log_audit
+    log_audit('create', 'resident_document', resident_id,
+              {'filename': original, 'doc_type': doc_type})
+    ok, error = _safe_commit('Error al guardar el documento')
+    if not ok:
+        flash(error, 'danger')
+        return _docs_redirect()
     flash(f'Documento "{original}" subido correctamente.', 'success')
-    return redirect(url_for('residents.manage_residents'))
+    return _docs_redirect()
 
 
 @bp.route('/residents/documents/<int:doc_id>/delete', methods=['POST'])
@@ -388,7 +408,7 @@ def delete_resident_document(doc_id: int):
     doc = db.session.get(ResidentDocument, doc_id)
     if not doc:
         flash('Documento no encontrado.', 'error')
-        return redirect(url_for('residents.manage_residents'))
+        return _docs_redirect()
     # Delete file
     full_path = os.path.join(app.config['UPLOAD_FOLDER'], doc.file_path)
     try:
@@ -396,10 +416,17 @@ def delete_resident_document(doc_id: int):
             os.remove(full_path)
     except OSError as e:
         app.logger.warning('Could not delete file %s: %s', full_path, e)
+    resident_id, original = doc.resident_id, doc.original_filename
     db.session.delete(doc)
-    db.session.commit()
+
+    from ..utils import log_audit
+    log_audit('delete', 'resident_document', resident_id, {'filename': original})
+    ok, error = _safe_commit('Error al eliminar el documento')
+    if not ok:
+        flash(error, 'danger')
+        return _docs_redirect()
     flash('Documento eliminado.', 'success')
-    return redirect(url_for('residents.manage_residents'))
+    return _docs_redirect()
 
 
 # ── ADMIN – GRUPOS DE RESIDENTES ────────────────────────────────────────────

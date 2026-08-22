@@ -170,7 +170,7 @@
             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-valoraciones" type="button" role="tab" aria-selected="false">Valoraciones</button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-medicacion" type="button" role="tab" aria-selected="false">Medicacio</button>
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-medicacion" type="button" role="tab" aria-selected="false">Medicación</button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-historial" type="button" role="tab" aria-selected="false">Historial</button>
@@ -647,9 +647,51 @@
 
         <!-- Tab Documentos -->
         <div class="tab-pane fade" id="tab-documentos" role="tabpanel">
+            <!-- Subir documento -->
+            <div class="card mb-4">
+                <div class="card-header"><strong>Subir documento</strong></div>
+                <div class="card-body">
+                    <form method="POST" enctype="multipart/form-data"
+                          action="{{ url_for('residents.upload_resident_document', resident_id=resident.id) }}">
+                        <input type="hidden" name="next" value="{{ url_for('residents.resident_detail', resident_id=resident.id) }}#tab-documentos">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-sm-4">
+                                <label class="form-label" for="doc-file">Archivo</label>
+                                <input type="file" name="doc_file" id="doc-file" class="form-control form-control-sm" required>
+                            </div>
+                            <div class="col-sm-3">
+                                <label class="form-label" for="doc-type">Tipo</label>
+                                <select name="doc_type" id="doc-type" class="form-select form-select-sm">
+                                    <option value="PIA">PIA</option>
+                                    <option value="Informe médico">Informe médico</option>
+                                    <option value="Pauta farmacológica">Pauta farmacológica</option>
+                                    <option value="Consentimiento">Consentimiento</option>
+                                    <option value="Otros" selected>Otros</option>
+                                </select>
+                            </div>
+                            <div class="col-sm-3">
+                                <label class="form-label" for="doc-description">Descripción <small class="text-body-secondary">(opcional)</small></label>
+                                <input type="text" name="doc_description" id="doc-description" class="form-control form-control-sm" placeholder="ej. PIA 2026">
+                            </div>
+                            <div class="col-sm-2">
+                                <button type="submit" class="btn btn-sm btn-primary w-100">
+                                    <i class="bi bi-upload me-1"></i>Subir
+                                </button>
+                            </div>
+                        </div>
+                        <p class="text-body-secondary mb-0 mt-2" style="font-size:.82rem">
+                            Formatos permitidos: PDF, TXT, CSV, DOC, DOCX e imágenes (máximo 16 MB).
+                        </p>
+                    </form>
+                </div>
+            </div>
+
             {% if resident.documents %}
             <div class="card mb-4">
-                <div class="card-header"><strong>Documentos</strong></div>
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <strong>Documentos</strong>
+                    <span class="badge bg-secondary">{{ resident.documents|length }}</span>
+                </div>
                 <div class="card-body p-0">
                     <table class="table table-hover mb-0">
                         <thead>
@@ -658,6 +700,7 @@
                                 <th scope="col">Tipo</th>
                                 <th scope="col" class="hide-mobile">Descripción</th>
                                 <th scope="col">Fecha</th>
+                                <th scope="col" class="text-end">Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -671,6 +714,18 @@
                                 <td><span class="status-badge status-muted">{{ doc.doc_type or '—' }}</span></td>
                                 <td class="hide-mobile" style="color:var(--color-text-secondary);font-size:.85rem">{{ doc.description or '—' }}</td>
                                 <td style="font-size:.85rem">{{ doc.uploaded_at.strftime('%d/%m/%Y') if doc.uploaded_at else '—' }}</td>
+                                <td class="text-end">
+                                    <form method="POST" class="d-inline"
+                                          action="{{ url_for('residents.delete_resident_document', doc_id=doc.id) }}"
+                                          data-confirm="¿Eliminar el documento {{ doc.original_filename }}?">
+                                        <input type="hidden" name="next" value="{{ url_for('residents.resident_detail', resident_id=resident.id) }}#tab-documentos">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                title="Eliminar documento"
+                                                aria-label="Eliminar documento {{ doc.original_filename }}">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -678,7 +733,7 @@
                 </div>
             </div>
             {% else %}
-            <div class="alert alert-info">No hay documentos para este residente.</div>
+            <div class="alert alert-info">No hay documentos para este residente. Sube el primero con el formulario de arriba.</div>
             {% endif %}
         </div>
 
@@ -1496,5 +1551,12 @@ function showWoundDetail(woundId) {
 
 // Load wounds when tab is shown
 document.querySelector('[data-bs-target="#tab-ferides"]').addEventListener('shown.bs.tab', loadWounds);
+
+// Abrir la pestaña indicada en la URL (#tab-documentos tras subir o borrar un documento)
+(function () {
+    if (!/^#tab-[a-z]+$/.test(location.hash)) return;
+    var btn = document.querySelector('[data-bs-target="' + location.hash + '"]');
+    if (btn) new bootstrap.Tab(btn).show();
+})();
 </script>
 {% endblock %}
