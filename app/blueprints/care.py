@@ -9,7 +9,9 @@ import os
 
 from .. import db
 from ..models import CareType, VitalSignType, ChecklistItem
-from ..utils import admin_required, _allowed_file, ALLOWED_IMAGE_EXTENSIONS
+from ..utils import (
+    admin_required, _allowed_file, ALLOWED_IMAGE_EXTENSIONS, _open_image_oriented,
+)
 
 bp = Blueprint('care', __name__)
 
@@ -17,14 +19,13 @@ bp = Blueprint('care', __name__)
 # ── HELPER ──────────────────────────────────────────────────────────────────
 
 def _save_care_type_icon(file_storage, care_type_id: int) -> str:
-    from PIL import Image
     from flask import current_app
     ts = datetime.utcnow().strftime('%Y%m%d%H%M%S')
     filename = f'ct_{care_type_id}_{ts}.png'
     folder = os.path.join(current_app.config['UPLOAD_FOLDER'], 'care_icons')
     os.makedirs(folder, exist_ok=True)
     file_storage.seek(0)
-    img = Image.open(file_storage)
+    img = _open_image_oriented(file_storage)
     img = img.convert('RGBA')
     img.thumbnail((128, 128))
     img.save(os.path.join(folder, filename), 'PNG', optimize=True)

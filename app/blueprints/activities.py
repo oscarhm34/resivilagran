@@ -12,7 +12,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from .. import db
 from ..models import Activity, ActivityParticipation, ActivityTemplate, ActivityPhoto, Resident, Cleaner
-from ..utils import admin_required
+from ..utils import admin_required, _open_image_oriented
 
 bp = Blueprint('activities', __name__)
 
@@ -535,7 +535,6 @@ def upload_activity_photo(act_id: int):
     """Upload a photo for an activity."""
     import os, uuid
     from flask import current_app
-    from PIL import Image
 
     a = db.session.get(Activity, act_id)
     if not a:
@@ -552,7 +551,7 @@ def upload_activity_photo(act_id: int):
     filename = f"act_{act_id}_{uuid.uuid4().hex[:8]}{ext}"
     filepath = os.path.join(upload_dir, filename)
 
-    img = Image.open(file.stream)
+    img = _open_image_oriented(file.stream)
     img.thumbnail((1200, 1200))
     if img.mode in ('RGBA', 'P'):
         img = img.convert('RGB')
@@ -668,7 +667,6 @@ def api_upload_activity_photo(act_id: int):
     """Worker uploads a photo for an activity."""
     import os, uuid
     from flask import current_app
-    from PIL import Image
 
     identity = get_jwt_identity()
     worker = Cleaner.query.filter_by(username=identity).first()
@@ -689,7 +687,7 @@ def api_upload_activity_photo(act_id: int):
     filename = f"act_{act_id}_{uuid.uuid4().hex[:8]}.jpg"
     filepath = os.path.join(upload_dir, filename)
 
-    img = Image.open(file.stream)
+    img = _open_image_oriented(file.stream)
     img.thumbnail((1200, 1200))
     if img.mode in ('RGBA', 'P'):
         img = img.convert('RGB')

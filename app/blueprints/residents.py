@@ -24,6 +24,7 @@ from ..models import MedicationPrescription, MedicationAdministration
 from ..utils import (
     admin_required, _format_duration, _allowed_file, _safe_commit,
     ALLOWED_IMAGE_EXTENSIONS, ALLOWED_DOC_EXTENSIONS,
+    _open_image_oriented, log_audit,
 )
 
 bp = Blueprint('residents', __name__)
@@ -32,14 +33,13 @@ bp = Blueprint('residents', __name__)
 # ── HELPERS ──────────────────────────────────────────────────────────────────
 
 def _save_resident_photo(file_storage, resident_id: int) -> str:
-    from PIL import Image
     ts = datetime.utcnow().strftime('%Y%m%d%H%M%S')
     filename = f'res_{resident_id}_{ts}.jpg'
     folder = os.path.join(app.config['UPLOAD_FOLDER'], 'residents')
     os.makedirs(folder, exist_ok=True)
     file_storage.seek(0)
     try:
-        img = Image.open(file_storage)
+        img = _open_image_oriented(file_storage)
         img = img.convert('RGB')
         img.thumbnail((800, 800))
         img.save(os.path.join(folder, filename), 'JPEG', quality=85, optimize=True)
@@ -219,7 +219,7 @@ def add_edit_resident():
             db.session.add(r)
             db.session.flush()  # obtener r.id para el nombre del archivo
             photo_file = request.files.get('photo')
-            if photo_file and photo_file.filename:
+            if photo_file and photo_file.filename and _allowed_file(photo_file.filename, ALLOWED_IMAGE_EXTENSIONS):
                 r.photo_path = _save_resident_photo(photo_file, r.id)
             db.session.commit()
             flash('Residente añadido correctamente.', 'success')
@@ -228,6 +228,45 @@ def add_edit_resident():
         flash('El código NFC ya está en uso por otro residente.', 'error')
 
     return redirect(url_for('residents.manage_residents'))
+
+
+@bp.route('/residents/<int:resident_id>/rotate-photo', methods=['POST'])
+@admin_required
+def rotate_resident_photo(resident_id: int):
+    """Gira 90 grados la foto ya guardada de un residente.
+
+    Las fotos subidas antes de aplicar la orientacion EXIF perdieron el bloque
+    EXIF al reprocesarse, asi que no se pueden enderezar automaticamente: el
+    administrador las corrige a mano desde la ficha.
+    """
+    r = db.session.get(Resident, resident_id)
+    if not r or not r.photo_path:
+        return jsonify({'error': 'El residente no tiene foto.'}), 404
+
+    payload = request.get_json(silent=True) or {}
+    direction = (request.form.get('direction') or payload.get('direction') or 'cw').strip()
+    if direction not in ('cw', 'ccw'):
+        return jsonify({'error': 'Sentido de giro no valido.'}), 400
+
+    upload_dir = os.path.normpath(app.config['UPLOAD_FOLDER'])
+    filepath = os.path.normpath(os.path.join(upload_dir, r.photo_path))
+    if not filepath.startswith(upload_dir) or not os.path.exists(filepath):
+        return jsonify({'error': 'No se ha encontrado el fichero de la foto.'}), 404
+
+    try:
+        from PIL import Image
+        img = Image.open(filepath)
+        img = img.rotate(-90 if direction == 'cw' else 90, expand=True)
+        img.convert('RGB').save(filepath, 'JPEG', quality=85, optimize=True)
+    except (OSError, IOError) as e:
+        app.logger.error('Error al girar la foto del residente: %s', e)
+        return jsonify({'error': 'No se ha podido girar la foto.'}), 500
+
+    log_audit('rotate_photo', 'resident', r.id, {'direction': direction})
+    ok, error = _safe_commit('Error al registrar el giro de la foto')
+    if not ok:
+        return jsonify({'error': error}), 500
+    return jsonify({'ok': True, 'photo_url': url_for('nfc.serve_upload', filename=r.photo_path)})
 
 
 @bp.route('/api/resident/<int:resident_id>/update', methods=['POST'])

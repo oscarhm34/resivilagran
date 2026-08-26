@@ -88,6 +88,17 @@
                     <div id="photo-preview" class="mt-2" style="display:none">
                         <img id="photo-img" src="" alt="Foto actual" style="max-width:100px;max-height:100px;border-radius:8px;object-fit:cover">
                         <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="remove-photo-btn">Quitar foto</button>
+                        <div id="photo-rotate" class="mt-2 d-flex align-items-center gap-2" style="display:none!important">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="rotate-ccw-btn"
+                                    title="Girar la foto a la izquierda" aria-label="Girar la foto a la izquierda">
+                                <i class="bi bi-arrow-counterclockwise"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="rotate-cw-btn"
+                                    title="Girar la foto a la derecha" aria-label="Girar la foto a la derecha">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                            <small class="text-body-secondary">Endereza fotos antiguas que se guardaron giradas.</small>
+                        </div>
                     </div>
                 </div>
                 <div class="mb-3">
@@ -247,7 +258,7 @@
                         <td>
                             <div class="d-flex align-items-center gap-2">
                                 {% if r.photo_path %}
-                                <img src="{{ url_for('nfc.serve_upload', filename=r.photo_path) }}" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover">
+                                <img src="{{ url_for('nfc.serve_upload', filename=r.photo_path) }}" alt="" class="resident-thumb" data-resident="{{ r.id }}" style="width:28px;height:28px;border-radius:50%;object-fit:cover">
                                 {% endif %}
                                 <strong>{{ r.name }}</strong>
                             </div>
@@ -409,15 +420,46 @@ var RESIDENT_DOCS = {
     var photoImg     = document.getElementById('photo-img');
     var removePhotoInput = document.getElementById('remove_photo');
 
+    var photoRotate = document.getElementById('photo-rotate');
+
+    // Los botones de giro solo aplican a una foto ya guardada en el servidor,
+    // no a la vista previa de un fichero que aun no se ha subido.
+    function showRotateControls(show) {
+        photoRotate.style.setProperty('display', show ? 'flex' : 'none', 'important');
+    }
+
     document.getElementById('remove-photo-btn').addEventListener('click', function () {
         photoPreview.style.display = 'none';
         photoImg.src = '';
         removePhotoInput.value = '1';
+        showRotateControls(false);
         document.getElementById('photo').value = '';
     });
 
+    function rotatePhoto(direction) {
+        var residentId = document.getElementById('resident-form').querySelector('[name="resident_id"]').value;
+        if (!residentId) return;
+        var body = new FormData();
+        body.append('direction', direction);
+        fetch('/residents/' + residentId + '/rotate-photo', { method: 'POST', body: body })
+            .then(function (res) { return res.json().then(function (d) { return { ok: res.ok, data: d }; }); })
+            .then(function (r) {
+                if (!r.ok) { alert(r.data.error || 'No se ha podido girar la foto.'); return; }
+                // El nombre del fichero no cambia: hay que saltarse la cache del navegador.
+                var bust = '?v=' + Date.now();
+                photoImg.src = r.data.photo_url + bust;
+                var thumb = document.querySelector('.resident-thumb[data-resident="' + residentId + '"]');
+                if (thumb) thumb.src = r.data.photo_url + bust;
+            })
+            .catch(function () { alert('Error de conexion al girar la foto.'); });
+    }
+
+    document.getElementById('rotate-cw-btn').addEventListener('click', function () { rotatePhoto('cw'); });
+    document.getElementById('rotate-ccw-btn').addEventListener('click', function () { rotatePhoto('ccw'); });
+
     document.getElementById('photo').addEventListener('change', function () {
         removePhotoInput.value = '';
+        showRotateControls(false);
         if (this.files && this.files[0]) {
             var reader = new FileReader();
             reader.onload = function (e) {
@@ -447,6 +489,7 @@ var RESIDENT_DOCS = {
         photoPreview.style.display = 'none';
         photoImg.src = '';
         removePhotoInput.value = '';
+        showRotateControls(false);
         document.getElementById('submit-btn').textContent    = 'Añadir residente';
         document.getElementById('residentFormTitle').textContent = 'Nuevo residente';
         document.getElementById('edit-badge').classList.add('d-none');
@@ -484,11 +527,13 @@ var RESIDENT_DOCS = {
             removePhotoInput.value = '';
             document.getElementById('photo').value = '';
             if (this.dataset.photo) {
-                photoImg.src = '/uploads/' + this.dataset.photo;
+                photoImg.src = '/uploads/' + this.dataset.photo + '?v=' + Date.now();
                 photoPreview.style.display = 'block';
+                showRotateControls(true);
             } else {
                 photoPreview.style.display = 'none';
                 photoImg.src = '';
+                showRotateControls(false);
             }
             document.getElementById('submit-btn').textContent      = 'Guardar cambios';
             document.getElementById('residentFormTitle').textContent = 'Editando: ' + this.dataset.name;

@@ -305,7 +305,9 @@ class TrainingQuestion(db.Model):
     __tablename__ = 'training_question'
     id = db.Column(db.Integer, primary_key=True)
     pill_id = db.Column(db.Integer, db.ForeignKey('training_pill.id'), nullable=False)
-    question_text = db.Column(db.String(500), nullable=False)
+    question_text = db.Column(db.Text, nullable=False)
+    # 'multiple' = test A/B/C/D | 'instruccion' = escuchar el audio y responder Si/No
+    question_type = db.Column(db.String(20), nullable=False, default='multiple')
     option_a = db.Column(db.String(200), nullable=False)
     option_b = db.Column(db.String(200), nullable=False)
     option_c = db.Column(db.String(200), nullable=False)
@@ -314,6 +316,32 @@ class TrainingQuestion(db.Model):
     sort_order = db.Column(db.Integer, default=0)
 
     pill = db.relationship('TrainingPill', back_populates='questions')
+    translations = db.relationship('TrainingTranslation', back_populates='question',
+                                   lazy=True, cascade='all, delete-orphan')
+
+    def translation(self, lang: str):
+        """Devuelve la traduccion en ese idioma, o None si no existe."""
+        return next((t for t in self.translations if t.lang == lang), None)
+
+
+class TrainingTranslation(db.Model):
+    """Texto y audio de una instruccion formativa en un idioma concreto."""
+    __tablename__ = 'training_translation'
+    id = db.Column(db.Integer, primary_key=True)
+    question_id = db.Column(db.Integer,
+                            db.ForeignKey('training_question.id', name='fk_tt_question'),
+                            nullable=False, index=True)
+    lang = db.Column(db.String(5), nullable=False, index=True)  # es, ar, en, fr, ro, uk
+    text = db.Column(db.Text, nullable=False)
+    yes_label = db.Column(db.String(50), nullable=False, default='Sí')
+    no_label = db.Column(db.String(50), nullable=False, default='No')
+    audio_path = db.Column(db.String(255), nullable=True)
+    generated_at = db.Column(db.DateTime, nullable=True, default=datetime.now)
+
+    question = db.relationship('TrainingQuestion', back_populates='translations')
+
+    __table_args__ = (db.UniqueConstraint('question_id', 'lang',
+                                          name='uq_training_translation'),)
 
 
 class TrainingCompletion(db.Model):

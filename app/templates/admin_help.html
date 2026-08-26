@@ -139,6 +139,9 @@
                 <li><strong>Nivel de dependencia:</strong> Autonomo, Leve, Moderado, Severo, Total. Se muestra con badge de color.</li>
                 <li><strong>Contacto de emergencia:</strong> Nombre, telefono (clicar para llamar) y relacion (ej: Hijo/a, Conyuge).</li>
                 <li>Los trabajadores ven las alergias y nivel de dependencia en la webapp al consultar informacion del residente.</li>
+                <li><strong>Girar la foto:</strong> al editar un residente que ya tiene foto, debajo de la miniatura
+                    hay dos botones de giro. Sirven para enderezar fotos antiguas que se guardaron tumbadas.
+                    Las fotos que se suban a partir de ahora ya salen derechas solas.</li>
             </ul>
 
             <h6 class="mt-3">Documentos del residente</h6>
@@ -271,6 +274,35 @@
                 <li>En el formulario de crear/editar pildora, boton <strong><i class="bi bi-stars"></i> Generar con IA</strong>.</li>
                 <li>Introduce el titulo y descripcion de la formacion — la IA genera 5 preguntas con 4 opciones y respuesta correcta.</li>
                 <li>Las preguntas se pueden editar, anadir o eliminar antes de guardar.</li>
+            </ul>
+
+            <h6 class="mt-3">Instrucciones habladas en varios idiomas <span class="badge bg-success">NUEVO</span></h6>
+            <ul>
+                <li>Pensado para personal que no lee castellano. La aplicacion le lee la instruccion
+                    en voz alta en su idioma y solo tiene que responder <strong>Si</strong> o <strong>No</strong>.</li>
+                <li>Al crear o editar una pildora, cada pregunta tiene un selector <strong>Tipo de pregunta</strong>:
+                    <em>Test (4 opciones)</em>, como hasta ahora, o <em>Instruccion (escuchar y responder Si/No)</em>.</li>
+                <li>En una instruccion solo se escribe el texto en castellano. No hay opciones A/B/C/D:
+                    la respuesta correcta es siempre <strong>Si</strong>, es decir, que ha entendido la instruccion.
+                    Quien responde <strong>No</strong> no aprueba la pildora y puede repetirla.</li>
+                <li>Despues de guardar la pildora, aparece en el listado un boton
+                    <strong><i class="bi bi-translate"></i> Idiomas</strong>. Ahi se prepara cada idioma:
+                    castellano, arabe, ingles, frances, rumano y ucraniano.</li>
+                <li><strong>Traducir todo con IA</strong> rellena de golpe los seis idiomas. Las traducciones
+                    se pueden corregir a mano en la misma tabla y guardarlas con el boton del disquete.</li>
+                <li><strong>Generar todos los audios</strong> crea el archivo de voz de cada idioma.
+                    Tambien se puede generar uno solo con el boton del microfono de esa fila.
+                    Debajo queda un reproductor para comprobar como suena antes de publicarlo.</li>
+                <li><strong>Importante:</strong> si se cambia el texto de una instruccion, sus traducciones y
+                    sus audios se borran, porque dejarian de corresponderse con el original.
+                    Hay que volver a traducir y a generar el audio.</li>
+                <li>En el movil, la trabajadora ve los idiomas disponibles con su bandera, elige uno,
+                    pulsa <strong>Escuchar</strong> y hasta que no termina el audio no se activan los botones
+                    de Si y No. El arabe se muestra de derecha a izquierda.</li>
+                <li>Solo aparecen los idiomas que tengan texto traducido. Si una instruccion no tiene audio
+                    en ese idioma, se muestra el texto y se puede responder directamente.</li>
+                <li>La generacion de audio necesita la clave <code>OPENAI_API_KEY</code> configurada en el
+                    servidor. Si falta, el sistema avisa al intentar generarlo.</li>
             </ul>
 
             <h6 class="mt-3">Formacion obligatoria <span class="badge bg-success">NUEVO</span></h6>
@@ -1301,6 +1333,8 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>26/08</td><td><strong>Instrucciones habladas en las pildoras:</strong> las pildoras formativas admiten un tipo de pregunta nuevo, la instruccion. La trabajadora elige idioma (castellano, arabe, ingles, frances, rumano o ucraniano), escucha el texto en audio y responde Si o No. Las traducciones se generan con IA y los audios desde el boton Idiomas del listado de pildoras.</td></tr>
+                    <tr><td>26/08</td><td><strong>Fotos que salian giradas:</strong> las fotos hechas con el movil ya se guardan con la orientacion correcta en residentes, actividades, selfies e iconos. Las fotos antiguas que quedaron tumbadas se enderezan con los botones de giro que hay al editar el residente.</td></tr>
                     <tr><td>22/08</td><td><strong>La pantalla de inicio se actualiza sola:</strong> la portada del panel se recarga cada 15 segundos, de modo que quien esta conectado, quien esta trabajando y los datos del dia se ven siempre al momento. Hay un interruptor para desactivarlo y la recarga se pausa mientras se escribe o hay una ventana abierta.</td></tr>
                     <tr><td>22/08</td><td><strong>Subir documentos desde la ficha del residente:</strong> la pestana Documentos de la ficha ya permite subir archivos (PIA, informe medico, pauta farmacologica, consentimiento u otros) y eliminarlos, sin tener que ir al listado y editar el residente. Al terminar se vuelve a la misma pestana.</td></tr>
                     <tr><td>22/08</td><td><strong>Residentes de baja fuera de los grupos:</strong> un residente dado de baja deja de aparecer en su grupo, ya no cuenta en el numero de residentes del listado de grupos y no se puede asignar a ninguno. Si vuelve a darse de alta, recupera el grupo que tenia.</td></tr>

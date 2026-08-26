@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block title %}Idiomas y audio — {{ pill.title }}{% endblock %}
+
+{% block breadcrumbs %}
+<nav aria-label="Navegación" class="mt-3 mb-2 no-print">
+    <ol class="breadcrumb mb-0" style="font-size:.85rem">
+        <li class="breadcrumb-item"><a href="{{ url_for('admin_bp.index') }}">Inicio</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('training.admin_training') }}">Formación</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Idiomas — {{ pill.title }}</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+<h2 style="font-family:'Outfit',system-ui,sans-serif;font-weight:700;font-size:22px;margin:0 0 4px">
+    Idiomas y audio
+</h2>
+<p class="text-body-secondary mb-4">
+    {{ pill.title }} · {{ instructions|length }} instrucción{{ 'es' if instructions|length != 1 else '' }}
+</p>
+
+{% if not instructions %}
+<div class="alert alert-info">
+    Esta píldora no tiene ninguna pregunta de tipo <strong>instrucción</strong>.
+    Añade una desde el botón <em>Editar</em> de la lista de píldoras y vuelve aquí para
+    traducirla y generar el audio.
+</div>
+{% else %}
+
+<div class="alert alert-secondary">
+    <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+    La trabajadora elige el idioma en su móvil, escucha la instrucción y responde
+    <strong>Sí</strong> o <strong>No</strong>. Solo aparecen los idiomas que tengan texto
+    traducido. Si cambias el texto en español, hay que volver a traducir y a generar el audio.
+</div>
+
+{% for q in instructions %}
+<div class="card mb-4" data-question="{{ q.id }}">
+    <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center">
+        <strong>Instrucción {{ loop.index }}</strong>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-outline-primary translate-all-btn"
+                    data-question="{{ q.id }}">
+                <i class="bi bi-translate me-1" aria-hidden="true"></i>Traducir todo con IA
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-success audio-all-btn"
+                    data-question="{{ q.id }}">
+                <i class="bi bi-volume-up me-1" aria-hidden="true"></i>Generar todos los audios
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <p class="mb-3"><span class="text-body-secondary">Texto original (español):</span><br>
+            {{ q.question_text }}</p>
+
+        <div class="table-responsive">
+            <table class="table table-sm align-middle">
+                <thead>
+                    <tr>
+                        <th style="width:150px">Idioma</th>
+                        <th>Texto</th>
+                        <th style="width:110px">Sí / No</th>
+                        <th style="width:210px">Audio</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for code, meta in languages.items() %}
+                    {% set tr = q.translation(code) %}
+                    <tr data-lang="{{ code }}">
+                        <td>
+                            <span aria-hidden="true">{{ meta.flag }}</span>
+                            {{ meta.native }}
+                            <div class="text-body-secondary" style="font-size:.75rem">{{ meta.name }}</div>
+                        </td>
+                        <td>
+                            <textarea class="form-control form-control-sm tr-text" rows="2"
+                                      {% if meta.rtl %}dir="rtl" lang="{{ code }}"{% endif %}
+                                      aria-label="Texto en {{ meta.name }}"
+                                      placeholder="Sin traducir">{{ tr.text if tr else '' }}</textarea>
+                        </td>
+                        <td>
+                            <input type="text" class="form-control form-control-sm mb-1 tr-yes"
+                                   value="{{ tr.yes_label if tr else 'Sí' }}" aria-label="Etiqueta afirmativa">
+                            <input type="text" class="form-control form-control-sm tr-no"
+                                   value="{{ tr.no_label if tr else 'No' }}" aria-label="Etiqueta negativa">
+                        </td>
+                        <td>
+                            <div class="audio-slot mb-1">
+                                {% if tr and tr.audio_path %}
+                                <audio controls preload="none" style="width:100%;height:32px"
+                                       src="{{ url_for('nfc.serve_upload', filename=tr.audio_path) }}"></audio>
+                                {% else %}
+                                <span class="status-badge text-body-secondary" style="font-size:.8rem">
+                                    <i class="bi bi-dash-circle me-1" aria-hidden="true"></i>Sin audio
+                                </span>
+                                {% endif %}
+                            </div>
+                            <div class="d-flex gap-1">
+                                <button type="button" class="btn btn-sm btn-outline-secondary save-tr-btn"
+                                        title="Guardar el texto" aria-label="Guardar el texto">
+                                    <i class="bi bi-save" aria-hidden="true"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-success gen-audio-btn"
+                                        title="Generar el audio" aria-label="Generar el audio">
+                                    <i class="bi bi-mic" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    'use strict';
+
+    function busy(btn, on) {
+        btn.disabled = on;
+        btn.classList.toggle('disabled', on);
+    }
+
+    function langsOf(card) {
+        return Array.prototype.map.call(card.querySelectorAll('tr[data-lang]'),
+                                        function (row) { return row.dataset.lang; });
+    }
+
+    function rowOf(card, lang) {
+        return card.querySelector('tr[data-lang="' + lang + '"]');
+    }
+
+    // Refresca texto y reproductor tras traducir o generar audio.
+    function applyTranslations(card, translations) {
+        translations.forEach(function (t) {
+            var row = rowOf(card, t.lang);
+            if (!row) return;
+            row.querySelector('.tr-text').value = t.text || '';
+            row.querySelector('.tr-yes').value  = t.yes || 'Sí';
+            row.querySelector('.tr-no').value   = t.no  || 'No';
+            var slot = row.querySelector('.audio-slot');
+            if (t.audio_url) {
+                slot.innerHTML = '';
+                var audio = document.createElement('audio');
+                audio.controls = true;
+                audio.preload = 'none';
+                audio.style.width = '100%';
+                audio.style.height = '32px';
+                // El nombre del fichero no cambia al regenerarlo: hay que evitar la cache.
+                audio.src = t.audio_url + '?v=' + Date.now();
+                slot.appendChild(audio);
+            } else {
+                slot.innerHTML = '<span class="status-badge text-body-secondary" style="font-size:.8rem">'
+                    + '<i class="bi bi-dash-circle me-1" aria-hidden="true"></i>Sin audio</span>';
+            }
+        });
+    }
+
+    function post(url, payload, btn, card, okMessage) {
+        busy(btn, true);
+        fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        })
+            .then(function (res) { return res.json().then(function (d) { return { ok: res.ok, data: d }; }); })
+            .then(function (r) {
+                if (!r.ok) { alert(r.data.error || 'No se ha podido completar la operación.'); return; }
+                applyTranslations(card, r.data.translations || []);
+                if (r.data.failed && r.data.failed.length) {
+                    alert('No se ha podido generar el audio de: ' + r.data.failed.join(', ')
+                          + '. Comprueba que esos idiomas tienen texto traducido.');
+                } else if (okMessage) {
+                    alert(okMessage);
+                }
+            })
+            .catch(function () { alert('Error de conexión con el servidor.'); })
+            .finally(function () { busy(btn, false); });
+    }
+
+    document.querySelectorAll('.translate-all-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var card = btn.closest('[data-question]');
+            var langs = langsOf(card).filter(function (l) { return l !== 'es'; });
+            post('/api/training/question/' + card.dataset.question + '/translate',
+                 { langs: langs }, btn, card, 'Traducciones generadas. Revísalas antes de crear el audio.');
+        });
+    });
+
+    document.querySelectorAll('.audio-all-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var card = btn.closest('[data-question]');
+            post('/api/training/question/' + card.dataset.question + '/audio',
+                 { langs: langsOf(card) }, btn, card, 'Audios generados.');
+        });
+    });
+
+    document.querySelectorAll('.gen-audio-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var card = btn.closest('[data-question]');
+            var lang = btn.closest('tr[data-lang]').dataset.lang;
+            post('/api/training/question/' + card.dataset.question + '/audio',
+                 { langs: [lang] }, btn, card, null);
+        });
+    });
+
+    document.querySelectorAll('.save-tr-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var card = btn.closest('[data-question]');
+            var row  = btn.closest('tr[data-lang]');
+            var text = row.querySelector('.tr-text').value.trim();
+            if (!text) { alert('El texto no puede estar vacío.'); return; }
+            busy(btn, true);
+            fetch('/api/training/question/' + card.dataset.question + '/translation/' + row.dataset.lang, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    text: text,
+                    yes: row.querySelector('.tr-yes').value.trim(),
+                    no: row.querySelector('.tr-no').value.trim(),
+                }),
+            })
+                .then(function (res) { return res.json().then(function (d) { return { ok: res.ok, data: d }; }); })
+                .then(function (r) {
+                    if (!r.ok) { alert(r.data.error || 'No se ha podido guardar.'); return; }
+                    applyTranslations(card, r.data.translations || []);
+                })
+                .catch(function () { alert('Error de conexión con el servidor.'); })
+                .finally(function () { busy(btn, false); });
+        });
+    });
+})();
+</script>
+{% endblock %}

@@ -107,6 +107,30 @@ def _allowed_file(filename: str, allowed: set) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed
 
 
+def _open_image_oriented(source):
+    """Abre una imagen aplicando la orientacion EXIF de la camara.
+
+    Los moviles guardan el JPEG sin rotar y anotan la orientacion en EXIF.
+    Pillow no la aplica sola, y thumbnail()/save() descartan el bloque EXIF,
+    asi que hay que transponer los pixeles antes de redimensionar o la foto
+    queda girada 90 grados en disco.
+    """
+    from PIL import Image, ImageOps
+    return ImageOps.exif_transpose(Image.open(source))
+
+
+# ── Idiomas de las pildoras formativas ───────────────────────────────────────
+
+TRAINING_LANGUAGES = {
+    'es': {'name': 'Espanol', 'native': 'Español', 'flag': '🇪🇸', 'voice': 'nova', 'rtl': False},
+    'ar': {'name': 'Arabe', 'native': 'العربية', 'flag': '🇸🇦', 'voice': 'nova', 'rtl': True},
+    'en': {'name': 'Ingles', 'native': 'English', 'flag': '🇬🇧', 'voice': 'nova', 'rtl': False},
+    'fr': {'name': 'Frances', 'native': 'Français', 'flag': '🇫🇷', 'voice': 'nova', 'rtl': False},
+    'ro': {'name': 'Rumano', 'native': 'Română', 'flag': '🇷🇴', 'voice': 'nova', 'rtl': False},
+    'uk': {'name': 'Ucraniano', 'native': 'Українська', 'flag': '🇺🇦', 'voice': 'nova', 'rtl': False},
+}
+
+
 # ── Formatting helpers ───────────────────────────────────────────────────────
 
 def _format_duration(start_time: datetime | None, end_time: datetime | None) -> str:

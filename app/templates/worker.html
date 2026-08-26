@@ -412,6 +412,28 @@
         .quiz-opt.selected { border-color:var(--blue); background:var(--blue-lt); }
         .quiz-progress { font-size:12px; color:var(--text-2); text-align:center; margin-bottom:8px; }
 
+        /* ── Instrucciones habladas ── */
+        .lang-row { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+        .lang-chip { display:flex; align-items:center; gap:6px; min-height:44px; padding:0 14px;
+                     border:1.5px solid var(--border); border-radius:22px; background:var(--surface);
+                     color:var(--text); font-size:15px; cursor:pointer; }
+        .lang-chip.selected { border-color:var(--blue); background:var(--blue-lt); font-weight:600; }
+        .instr-text { font-size:18px; line-height:1.7; background:var(--surface);
+                      border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:14px; }
+        .instr-text[dir="rtl"] { text-align:right; }
+        .audio-btn { display:flex; align-items:center; justify-content:center; gap:10px; width:100%;
+                     min-height:56px; border:none; border-radius:12px; background:var(--blue);
+                     color:#fff; font-size:17px; font-weight:600; cursor:pointer; margin-bottom:14px; }
+        .audio-btn:disabled { opacity:.5; }
+        .instr-hint { font-size:13px; color:var(--text-2); text-align:center; margin-bottom:12px; }
+        .yesno-row { display:flex; gap:10px; }
+        .yesno-btn { flex:1; min-height:64px; border:2px solid var(--border); border-radius:12px;
+                     background:var(--surface); color:var(--text); font-size:18px; font-weight:600;
+                     cursor:pointer; }
+        .yesno-btn:disabled { opacity:.4; cursor:default; }
+        .yesno-btn.yes.selected { border-color:var(--green); background:var(--green-lt); color:var(--green-dk); }
+        .yesno-btn.no.selected  { border-color:var(--blue); background:var(--blue-lt); }
+
         /* ── Shared ── */
         .spacer { flex:1; }
         .toast { position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(80px); background:#1f2328; color:#fff; padding:13px 22px; border-radius:14px; font-size:14px; font-weight:500; z-index:9999; transition:transform .3s cubic-bezier(.34,1.56,.64,1); white-space:nowrap; box-shadow:0 10px 30px rgba(0,0,0,.25); pointer-events:none; }
@@ -3627,27 +3649,143 @@ $('trainvid-continue').addEventListener('click', async () => {
     show('screen-training-quiz');
 });
 
-function renderQuizQuestion() {
-    const q = quizQuestions[quizIndex];
-    $('quiz-progress').textContent = `Pregunta ${quizIndex + 1} de ${quizQuestions.length}`;
-    $('quiz-title').textContent = 'Test';
-    const container = $('quiz-container');
-    const current = quizAnswers[String(q.index)] || '';
+// ── Audio de las instrucciones ─────────────────────────────────────────────
+// Los MP3 estan tras @jwt_required(), asi que <audio src> directo no sirve:
+// hay que descargarlos con el token y crear una URL de blob.
+let instrAudio = null;
+const instrAudioCache = {};
+
+function stopInstructionAudio() {
+    if (instrAudio) { instrAudio.pause(); instrAudio = null; }
+}
+
+function clearInstructionAudioCache() {
+    Object.values(instrAudioCache).forEach(url => URL.revokeObjectURL(url));
+    Object.keys(instrAudioCache).forEach(k => delete instrAudioCache[k]);
+}
+
+async function loadInstructionAudio(url) {
+    if (instrAudioCache[url]) return instrAudioCache[url];
+    try {
+        const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + S.token } });
+        if (!res.ok) return null;
+        const blobUrl = URL.createObjectURL(await res.blob());
+        instrAudioCache[url] = blobUrl;
+        return blobUrl;
+    } catch {
+        return null;
+    }
+}
+
+function renderInstructionQuestion(q, container) {
+    const langs = q.translations || [];
+    let lang = localStorage.getItem('train_lang');
+    let tr = langs.find(t => t.lang === lang);
+    if (!tr) tr = langs.find(t => t.lang === 'es') || langs[0] || null;
+
+    // Sin traducciones no hay nada que escuchar: se muestra el texto original.
+    const text = tr ? tr.text : q.question;
+    const yesLabel = tr ? tr.yes : (q.options.a || 'Sí');
+    const noLabel  = tr ? tr.no  : (q.options.b || 'No');
+    const rtl = tr ? tr.rtl : false;
+    const audioUrl = tr ? tr.audio_url : null;
+    const answered = quizAnswers[String(q.index)] || '';
+    // Si ya respondio (o no hay audio), no se le vuelve a exigir escuchar.
+    let listened = !audioUrl || !!answered;
+
     container.innerHTML = `
-        <div class="quiz-q">${q.question}</div>
-        ${Object.entries(q.options).map(([key, text]) => `
-            <label class="quiz-opt ${current === key ? 'selected' : ''}">
-                <input type="radio" name="quiz-answer" value="${key}" ${current === key ? 'checked' : ''} style="display:none">
-                <strong>${key.toUpperCase()}.</strong> ${text}
-            </label>`).join('')}`;
-    container.querySelectorAll('.quiz-opt').forEach(opt => {
-        opt.addEventListener('click', () => {
-            container.querySelectorAll('.quiz-opt').forEach(o => o.classList.remove('selected'));
-            opt.classList.add('selected');
-            const val = opt.querySelector('input').value;
-            quizAnswers[String(q.index)] = val;
+        ${langs.length > 1 ? `<div class="lang-row">${langs.map(t => `
+            <button type="button" class="lang-chip ${t.lang === (tr && tr.lang) ? 'selected' : ''}" data-lang="${esc(t.lang)}">
+                <span aria-hidden="true">${esc(t.flag)}</span> ${esc(t.name)}
+            </button>`).join('')}</div>` : ''}
+        <div class="instr-text" ${rtl ? 'dir="rtl"' : ''} lang="${esc(tr ? tr.lang : 'es')}">${esc(text)}</div>
+        ${audioUrl ? `<button type="button" class="audio-btn" id="instr-play">
+            <span aria-hidden="true">▶</span> Escuchar
+        </button>` : ''}
+        <div class="instr-hint" id="instr-hint">${listened ? '' : 'Escucha la instrucción para poder responder'}</div>
+        <div class="yesno-row">
+            <button type="button" class="yesno-btn yes ${answered === 'a' ? 'selected' : ''}" data-answer="a" ${listened ? '' : 'disabled'}>${esc(yesLabel)}</button>
+            <button type="button" class="yesno-btn no ${answered === 'b' ? 'selected' : ''}" data-answer="b" ${listened ? '' : 'disabled'}>${esc(noLabel)}</button>
+        </div>`;
+
+    container.querySelectorAll('.lang-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            stopInstructionAudio();
+            localStorage.setItem('train_lang', chip.dataset.lang);
+            renderQuizQuestion();
         });
     });
+
+    const playBtn = container.querySelector('#instr-play');
+    if (playBtn) {
+        playBtn.addEventListener('click', async () => {
+            if (instrAudio && !instrAudio.paused) { stopInstructionAudio(); playBtn.innerHTML = '<span aria-hidden="true">▶</span> Escuchar'; return; }
+            playBtn.disabled = true;
+            const blobUrl = await loadInstructionAudio(audioUrl);
+            playBtn.disabled = false;
+            if (!blobUrl) {
+                toast('No se ha podido cargar el audio');
+                enableYesNo(container);   // no bloquear a nadie por un fallo de red
+                return;
+            }
+            stopInstructionAudio();
+            instrAudio = new Audio(blobUrl);
+            playBtn.innerHTML = '<span aria-hidden="true">⏸</span> Pausar';
+            instrAudio.addEventListener('ended', () => {
+                playBtn.innerHTML = '<span aria-hidden="true">▶</span> Escuchar';
+                enableYesNo(container);
+            });
+            instrAudio.play().catch(() => {
+                toast('No se ha podido reproducir el audio');
+                enableYesNo(container);
+            });
+        });
+    }
+
+    container.querySelectorAll('.yesno-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (btn.disabled) return;
+            container.querySelectorAll('.yesno-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            quizAnswers[String(q.index)] = btn.dataset.answer;
+        });
+    });
+}
+
+function enableYesNo(container) {
+    container.querySelectorAll('.yesno-btn').forEach(b => { b.disabled = false; });
+    const hint = container.querySelector('#instr-hint');
+    if (hint) hint.textContent = '';
+}
+
+function renderQuizQuestion() {
+    stopInstructionAudio();
+    const q = quizQuestions[quizIndex];
+    $('quiz-progress').textContent = `Pregunta ${quizIndex + 1} de ${quizQuestions.length}`;
+    const container = $('quiz-container');
+    const current = quizAnswers[String(q.index)] || '';
+
+    if (q.type === 'instruccion') {
+        $('quiz-title').textContent = 'Instrucción';
+        renderInstructionQuestion(q, container);
+    } else {
+        $('quiz-title').textContent = 'Test';
+        container.innerHTML = `
+            <div class="quiz-q">${esc(q.question)}</div>
+            ${Object.entries(q.options).map(([key, text]) => `
+                <label class="quiz-opt ${current === key ? 'selected' : ''}">
+                    <input type="radio" name="quiz-answer" value="${esc(key)}" ${current === key ? 'checked' : ''} style="display:none">
+                    <strong>${key.toUpperCase()}.</strong> ${esc(text)}
+                </label>`).join('')}`;
+        container.querySelectorAll('.quiz-opt').forEach(opt => {
+            opt.addEventListener('click', () => {
+                container.querySelectorAll('.quiz-opt').forEach(o => o.classList.remove('selected'));
+                opt.classList.add('selected');
+                quizAnswers[String(q.index)] = opt.querySelector('input').value;
+            });
+        });
+    }
+
     const isLast = quizIndex === quizQuestions.length - 1;
     $('quiz-next').textContent = isLast ? 'Enviar respuestas' : 'Siguiente';
 }
@@ -3655,9 +3793,10 @@ function renderQuizQuestion() {
 $('quiz-next').addEventListener('click', async () => {
     const q = quizQuestions[quizIndex];
     if (!quizAnswers[String(q.index)]) {
-        toast('Selecciona una respuesta');
+        toast(q.type === 'instruccion' ? 'Responde Sí o No' : 'Selecciona una respuesta');
         return;
     }
+    stopInstructionAudio();
     if (quizIndex < quizQuestions.length - 1) {
         quizIndex++;
         renderQuizQuestion();
@@ -3695,10 +3834,13 @@ $('quiz-next').addEventListener('click', async () => {
 });
 
 $('quiz-back').addEventListener('click', () => {
+    stopInstructionAudio();
     if (quizIndex > 0) { quizIndex--; renderQuizQuestion(); }
 });
 
 $('train-result-back').addEventListener('click', async () => {
+    stopInstructionAudio();
+    clearInstructionAudioCache();
     // Reload home to re-check mandatory training
     await loadPendingItems();
     var mandatoryPills = (pendingTrains || []).filter(function(p) { return p.mandatory; });

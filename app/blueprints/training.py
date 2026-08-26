@@ -9,11 +9,69 @@ from flask_login import current_user
 from flask_jwt_extended import jwt_required
 from sqlalchemy.orm import joinedload
 
-from .. import db
-from ..models import (Cleaner, TrainingPill, TrainingQuestion, TrainingCompletion, TrainingAssignment)
-from ..utils import admin_required, _verify_worker_id, _current_worker_id
+from .. import db, app, limiter
+from ..models import (Cleaner, TrainingPill, TrainingQuestion, TrainingCompletion,
+                      TrainingAssignment, TrainingTranslation)
+from ..utils import (admin_required, _verify_worker_id, _current_worker_id,
+                     log_audit, _safe_commit, TRAINING_LANGUAGES)
 
 bp = Blueprint('training', __name__)
+
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+def _question_fields_from_form(idx: int) -> dict:
+    """Lee del formulario los campos de la pregunta `idx`.
+
+    Las preguntas de tipo `instruccion` reutilizan option_a/option_b como
+    Si/No y correct_option='a'. Asi el corrector y el barajado existentes
+    siguen funcionando sin necesidad de columnas nuevas.
+    """
+    qtype = (request.form.get(f'q_{idx}_type') or 'multiple').strip()
+    if qtype not in ('multiple', 'instruccion'):
+        qtype = 'multiple'
+    if qtype == 'instruccion':
+        return {
+            'question_text': request.form[f'q_{idx}_text'].strip(),
+            'question_type': 'instruccion',
+            'option_a': 'Sí', 'option_b': 'No', 'option_c': '', 'option_d': '',
+            'correct_option': 'a',
+            'sort_order': idx,
+        }
+    return {
+        'question_text': request.form[f'q_{idx}_text'].strip(),
+        'question_type': 'multiple',
+        'option_a': request.form.get(f'q_{idx}_a', '').strip(),
+        'option_b': request.form.get(f'q_{idx}_b', '').strip(),
+        'option_c': request.form.get(f'q_{idx}_c', '').strip(),
+        'option_d': request.form.get(f'q_{idx}_d', '').strip(),
+        'correct_option': request.form.get(f'q_{idx}_correct', 'a').strip(),
+        'sort_order': idx,
+    }
+
+
+def _audio_dir() -> str:
+    import os
+    folder = os.path.join(app.config['UPLOAD_FOLDER'], 'training_audio')
+    os.makedirs(folder, exist_ok=True)
+    return folder
+
+
+def _discard_audio(tr: TrainingTranslation) -> None:
+    """Borra el MP3 de una traduccion cuyo texto ha cambiado.
+
+    Un audio que ya no se corresponde con el texto es peor que no tener audio.
+    """
+    import os
+    if not tr.audio_path:
+        return
+    path = os.path.join(app.config['UPLOAD_FOLDER'], tr.audio_path)
+    if os.path.exists(path):
+        try:
+            os.remove(path)
+        except OSError as e:
+            app.logger.error('Error al borrar el audio de la instruccion: %s', e)
+    tr.audio_path = None
 
 
 # ── Admin ────────────────────────────────────────────────────────────────────
@@ -32,11 +90,15 @@ def admin_training():
         'mandatory': p.mandatory or False,
         'assigned_worker_ids': [a.cleaner_id for a in p.assignments],
         'questions': [{
+            'id': q.id,
             'question_text': q.question_text,
+            'question_type': q.question_type or 'multiple',
             'option_a': q.option_a, 'option_b': q.option_b,
             'option_c': q.option_c, 'option_d': q.option_d,
             'correct_option': q.correct_option,
         } for q in p.questions],
+        'has_instructions': any((q.question_type or 'multiple') == 'instruccion'
+                                for q in p.questions),
     } for p in pills}
     workers = Cleaner.query.filter_by(active=True, is_admin=False).order_by(Cleaner.name).all()
     return render_template('admin_training.html', pills=pills,
@@ -66,17 +128,7 @@ def create_training():
     db.session.flush()
     idx = 0
     while request.form.get(f'q_{idx}_text'):
-        q = TrainingQuestion(
-            pill_id=pill.id,
-            question_text=request.form[f'q_{idx}_text'].strip(),
-            option_a=request.form.get(f'q_{idx}_a', '').strip(),
-            option_b=request.form.get(f'q_{idx}_b', '').strip(),
-            option_c=request.form.get(f'q_{idx}_c', '').strip(),
-            option_d=request.form.get(f'q_{idx}_d', '').strip(),
-            correct_option=request.form.get(f'q_{idx}_correct', 'a').strip(),
-            sort_order=idx,
-        )
-        db.session.add(q)
+        db.session.add(TrainingQuestion(pill_id=pill.id, **_question_fields_from_form(idx)))
         idx += 1
     # Assignments for selected mode
     if assign_mode == 'selected':
@@ -109,21 +161,36 @@ def edit_training(pill_id: int):
         for wid in worker_ids:
             db.session.add(TrainingAssignment(
                 pill_id=pill.id, cleaner_id=int(wid), assigned_by=current_user.id))
-    TrainingQuestion.query.filter_by(pill_id=pill.id).delete()
+    # Reconciliar las preguntas en vez de borrarlas y recrearlas: borrarlas se
+    # llevaba por delante las traducciones y los audios de las instrucciones
+    # (y dejaba invalidos los shuffle_map de los tests en curso).
+    existing = {q.id: q for q in pill.questions}
+    seen: set[int] = set()
     idx = 0
     while request.form.get(f'q_{idx}_text'):
-        q = TrainingQuestion(
-            pill_id=pill.id,
-            question_text=request.form[f'q_{idx}_text'].strip(),
-            option_a=request.form.get(f'q_{idx}_a', '').strip(),
-            option_b=request.form.get(f'q_{idx}_b', '').strip(),
-            option_c=request.form.get(f'q_{idx}_c', '').strip(),
-            option_d=request.form.get(f'q_{idx}_d', '').strip(),
-            correct_option=request.form.get(f'q_{idx}_correct', 'a').strip(),
-            sort_order=idx,
-        )
-        db.session.add(q)
+        fields = _question_fields_from_form(idx)
+        qid = request.form.get(f'q_{idx}_id', type=int)
+        q = existing.get(qid) if qid else None
+        if q is not None:
+            was_instruction = (q.question_type or 'multiple') == 'instruccion'
+            text_changed = q.question_text != fields['question_text']
+            for key, value in fields.items():
+                setattr(q, key, value)
+            # Si cambia el texto de una instruccion, sus traducciones y audios
+            # dejan de corresponderse con el original: se descartan.
+            if was_instruction and text_changed:
+                for tr in list(q.translations):
+                    _discard_audio(tr)
+                    db.session.delete(tr)
+            seen.add(q.id)
+        else:
+            db.session.add(TrainingQuestion(pill_id=pill.id, **fields))
         idx += 1
+    for qid, q in existing.items():
+        if qid not in seen:
+            for tr in list(q.translations):
+                _discard_audio(tr)
+            db.session.delete(q)
     db.session.commit()
     flash('Píldora formativa actualizada.', 'success')
     return redirect(url_for('training.admin_training'))
@@ -219,6 +286,213 @@ def ai_generate_questions():
         return jsonify({'questions': questions})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# ── Idiomas y audio de las instrucciones ─────────────────────────────────────
+
+@bp.route('/admin/training/<int:pill_id>/languages')
+@admin_required
+def admin_training_languages(pill_id: int):
+    """Pantalla de gestion de traducciones y audios de una pildora."""
+    pill = db.session.get(TrainingPill, pill_id)
+    if not pill:
+        abort(404)
+    instructions = [q for q in pill.questions
+                    if (q.question_type or 'multiple') == 'instruccion']
+    return render_template('admin_training_languages.html', pill=pill,
+                           instructions=instructions, languages=TRAINING_LANGUAGES)
+
+
+def _get_instruction(q_id: int):
+    """Devuelve la pregunta si existe y es de tipo instruccion."""
+    q = db.session.get(TrainingQuestion, q_id)
+    if not q or (q.question_type or 'multiple') != 'instruccion':
+        return None
+    return q
+
+
+def _upsert_translation(q, lang: str, text: str, yes_label: str, no_label: str):
+    tr = q.translation(lang)
+    if tr is None:
+        tr = TrainingTranslation(question_id=q.id, lang=lang, text=text,
+                                 yes_label=yes_label, no_label=no_label)
+        db.session.add(tr)
+        return tr
+    if tr.text != text:
+        _discard_audio(tr)
+    tr.text = text
+    tr.yes_label = yes_label
+    tr.no_label = no_label
+    tr.generated_at = datetime.now()
+    return tr
+
+
+@bp.route('/api/training/question/<int:q_id>/translate', methods=['POST'])
+@admin_required
+@limiter.limit("5/minute", methods=["POST"])
+def translate_instruction(q_id: int):
+    """Traduce el texto de una instruccion a los idiomas pedidos con IA."""
+    from ..blueprints.assessments import _call_claude
+
+    q = _get_instruction(q_id)
+    if not q:
+        return jsonify({'error': 'La pregunta no existe o no es una instrucción.'}), 404
+
+    data = request.get_json() or {}
+    langs = [l for l in (data.get('langs') or []) if l in TRAINING_LANGUAGES and l != 'es']
+    if not langs:
+        return jsonify({'error': 'Selecciona al menos un idioma.'}), 400
+
+    # El español siempre existe: es el texto original que escribió el administrador.
+    _upsert_translation(q, 'es', q.question_text, 'Sí', 'No')
+
+    names = ', '.join(f"{code} ({TRAINING_LANGUAGES[code]['name']})" for code in langs)
+    system = (
+        "Eres traductor profesional para una residencia de personas mayores. "
+        "Traduces instrucciones de trabajo dirigidas a personal de limpieza y atencion "
+        "que puede tener poca formacion. Usa lenguaje llano, frases cortas y trato de usted. "
+        "No añadas explicaciones ni cambies el significado. "
+        "Traduce tambien las etiquetas de respuesta afirmativa y negativa. "
+        "Responde SOLO con un objeto JSON, sin texto alrededor, con esta forma: "
+        '{"ar": {"text": "...", "yes": "...", "no": "..."}}'
+    )
+    prompt = (f"Traduce este texto a los idiomas {names}.\n\n"
+              f"Texto original en español:\n{q.question_text}")
+
+    try:
+        response = _call_claude(system, prompt)
+        import re as _re
+        match = _re.search(r'\{.*\}', response, _re.DOTALL)
+        if not match:
+            return jsonify({'error': 'La IA no ha devuelto una traducción válida.'}), 502
+        payload = json.loads(match.group())
+    except (ValueError, json.JSONDecodeError) as e:
+        app.logger.error('Error al traducir la instruccion: %s', e)
+        return jsonify({'error': 'No se ha podido generar la traducción.'}), 502
+
+    done = []
+    for lang in langs:
+        entry = payload.get(lang) or {}
+        text = (entry.get('text') or '').strip()
+        if not text:
+            continue
+        _upsert_translation(q, lang, text,
+                            (entry.get('yes') or 'Sí').strip(),
+                            (entry.get('no') or 'No').strip())
+        done.append(lang)
+
+    if not done:
+        return jsonify({'error': 'La IA no ha devuelto ninguna traducción utilizable.'}), 502
+
+    log_audit('translate', 'training_question', q.id, {'langs': done})
+    ok, error = _safe_commit('Error al guardar las traducciones')
+    if not ok:
+        return jsonify({'error': error}), 500
+    return jsonify({'ok': True, 'langs': done,
+                    'translations': _translations_payload(q)})
+
+
+@bp.route('/api/training/question/<int:q_id>/translation/<lang>', methods=['PUT'])
+@admin_required
+def update_translation(q_id: int, lang: str):
+    """Guarda una correccion manual del texto traducido."""
+    q = _get_instruction(q_id)
+    if not q:
+        return jsonify({'error': 'La pregunta no existe o no es una instrucción.'}), 404
+    if lang not in TRAINING_LANGUAGES:
+        return jsonify({'error': 'Idioma no soportado.'}), 400
+
+    data = request.get_json() or {}
+    text = (data.get('text') or '').strip()
+    if not text:
+        return jsonify({'error': 'El texto no puede estar vacío.'}), 400
+
+    _upsert_translation(q, lang, text,
+                        (data.get('yes') or 'Sí').strip(),
+                        (data.get('no') or 'No').strip())
+    log_audit('update_translation', 'training_question', q.id, {'lang': lang})
+    ok, error = _safe_commit('Error al guardar la traducción')
+    if not ok:
+        return jsonify({'error': error}), 500
+    return jsonify({'ok': True, 'translations': _translations_payload(q)})
+
+
+@bp.route('/api/training/question/<int:q_id>/audio', methods=['POST'])
+@admin_required
+@limiter.limit("5/minute", methods=["POST"])
+def generate_instruction_audio(q_id: int):
+    """Genera el MP3 de cada idioma con el TTS de OpenAI."""
+    import os
+    import requests
+
+    q = _get_instruction(q_id)
+    if not q:
+        return jsonify({'error': 'La pregunta no existe o no es una instrucción.'}), 404
+
+    api_key = app.config.get('OPENAI_API_KEY')
+    if not api_key:
+        return jsonify({'error': 'Audio no configurado (falta OPENAI_API_KEY)'}), 503
+
+    data = request.get_json() or {}
+    langs = [l for l in (data.get('langs') or []) if l in TRAINING_LANGUAGES]
+    if not langs:
+        return jsonify({'error': 'Selecciona al menos un idioma.'}), 400
+
+    folder = _audio_dir()
+    done, failed = [], []
+    for lang in langs:
+        tr = q.translation(lang)
+        if not tr or not tr.text.strip():
+            failed.append(lang)
+            continue
+        try:
+            res = requests.post(
+                'https://api.openai.com/v1/audio/speech',
+                headers={'Authorization': f'Bearer {api_key}'},
+                json={
+                    'model': 'gpt-4o-mini-tts',
+                    'voice': TRAINING_LANGUAGES[lang]['voice'],
+                    'input': tr.text,
+                    'response_format': 'mp3',
+                },
+                timeout=60,
+            )
+            if res.status_code != 200:
+                app.logger.error('TTS devolvio %s para el idioma %s', res.status_code, lang)
+                failed.append(lang)
+                continue
+            filename = f'q{q.id}_{lang}.mp3'
+            with open(os.path.join(folder, filename), 'wb') as fh:
+                fh.write(res.content)
+            tr.audio_path = f'training_audio/{filename}'
+            tr.generated_at = datetime.now()
+            done.append(lang)
+        except requests.RequestException as e:
+            app.logger.error('Error de red al generar el audio (%s): %s', lang, e)
+            failed.append(lang)
+
+    if not done:
+        return jsonify({'error': 'No se ha podido generar ningún audio.',
+                        'failed': failed}), 502
+
+    log_audit('generate_audio', 'training_question', q.id, {'langs': done})
+    ok, error = _safe_commit('Error al guardar los audios')
+    if not ok:
+        return jsonify({'error': error}), 500
+    return jsonify({'ok': True, 'langs': done, 'failed': failed,
+                    'translations': _translations_payload(q)})
+
+
+def _translations_payload(q) -> list[dict]:
+    """Estado de cada idioma de una instruccion, para refrescar la pantalla."""
+    return [{
+        'lang': t.lang,
+        'text': t.text,
+        'yes': t.yes_label,
+        'no': t.no_label,
+        'audio_url': (url_for('nfc.serve_upload', filename=t.audio_path)
+                      if t.audio_path else None),
+    } for t in q.translations]
 
 
 # ── Worker API ───────────────────────────────────────────────────────────────
@@ -346,19 +620,44 @@ def training_questions(pill_id: int):
     shuffle_map = {}
     result = []
     for i, q in enumerate(questions):
-        options = [('a', q.option_a), ('b', q.option_b), ('c', q.option_c), ('d', q.option_d)]
-        random.shuffle(options)
-        option_map = {}
-        shuffled_options = {}
-        for new_key, (orig_key, text) in zip(['a', 'b', 'c', 'd'], options):
-            option_map[new_key] = orig_key
-            shuffled_options[new_key] = text
+        qtype = q.question_type or 'multiple'
+        if qtype == 'instruccion':
+            # Si/No siempre en el mismo orden: barajarlas confundiria a quien
+            # acaba de escuchar la instruccion. option_map es la identidad para
+            # que el corrector siga funcionando igual.
+            option_map = {'a': 'a', 'b': 'b'}
+            item = {
+                'index': i,
+                'type': 'instruccion',
+                'question': q.question_text,
+                'options': {'a': q.option_a, 'b': q.option_b},
+                'translations': [{
+                    'lang': t.lang,
+                    'name': TRAINING_LANGUAGES.get(t.lang, {}).get('native', t.lang),
+                    'flag': TRAINING_LANGUAGES.get(t.lang, {}).get('flag', ''),
+                    'rtl': TRAINING_LANGUAGES.get(t.lang, {}).get('rtl', False),
+                    'text': t.text,
+                    'yes': t.yes_label,
+                    'no': t.no_label,
+                    'audio_url': f'/api/uploads/{t.audio_path}' if t.audio_path else None,
+                } for t in sorted(q.translations, key=lambda t: t.lang != 'es')],
+            }
+        else:
+            options = [('a', q.option_a), ('b', q.option_b), ('c', q.option_c), ('d', q.option_d)]
+            random.shuffle(options)
+            option_map = {}
+            shuffled_options = {}
+            for new_key, (orig_key, text) in zip(['a', 'b', 'c', 'd'], options):
+                option_map[new_key] = orig_key
+                shuffled_options[new_key] = text
+            item = {
+                'index': i,
+                'type': 'multiple',
+                'question': q.question_text,
+                'options': shuffled_options,
+            }
         shuffle_map[str(i)] = {'question_id': q.id, 'option_map': option_map}
-        result.append({
-            'index': i,
-            'question': q.question_text,
-            'options': shuffled_options,
-        })
+        result.append(item)
     completion.shuffle_map = json.dumps(shuffle_map)
     db.session.commit()
     return jsonify(result)

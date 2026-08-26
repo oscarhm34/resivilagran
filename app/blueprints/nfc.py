@@ -27,7 +27,7 @@ from ..models import (
 from ..utils import (
     admin_required, _verify_worker_id, _current_worker_id, _safe_commit,
     _check_single_session_conflict, _resolve_nfc_code, _format_duration,
-    _allowed_file, ALLOWED_IMAGE_EXTENSIONS,
+    _allowed_file, ALLOWED_IMAGE_EXTENSIONS, _open_image_oriented,
 )
 
 bp = Blueprint('nfc', __name__)
@@ -37,7 +37,6 @@ bp = Blueprint('nfc', __name__)
 
 def _save_base64_photo(b64_data: str, subfolder: str, cleaner_id: int) -> str:
     """Decodifica base64 (data URI o raw), re-processa com a JPEG via Pillow i retorna el path relatiu."""
-    from PIL import Image
     from io import BytesIO
     if ',' in b64_data:
         b64_data = b64_data.split(',', 1)[1]
@@ -46,7 +45,7 @@ def _save_base64_photo(b64_data: str, subfolder: str, cleaner_id: int) -> str:
     except Exception:
         raise ValueError('Imagen base64 no válida.')
     try:
-        img = Image.open(BytesIO(img_bytes))
+        img = _open_image_oriented(BytesIO(img_bytes))
         img = img.convert('RGB')
         img.thumbnail((800, 800))
         ts = datetime.utcnow().strftime('%Y%m%d%H%M%S')
