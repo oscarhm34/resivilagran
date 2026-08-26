@@ -265,7 +265,11 @@
             <h6 class="mt-3">Asignacion por trabajador <span class="badge bg-success">NUEVO</span></h6>
             <ul>
                 <li>Al crear/editar una pildora, seleccionar <strong>"Todos los trabajadores"</strong> o <strong>"Trabajadores seleccionados"</strong>.</li>
-                <li>Si es "seleccionados", aparece un grid con checkboxes para elegir que trabajadores deben hacer la formacion.</li>
+                <li>Si es "seleccionados", aparece un grid con checkboxes para elegir quien debe hacer la formacion.</li>
+                <li>En la lista aparecen <strong>todas las cuentas activas, incluidas las de administracion</strong>:
+                    direccion y coordinacion tambien hacen las formaciones obligatorias, y ademas permite
+                    asignarse una pildora a uno mismo para probarla antes de darla al equipo.
+                    Las cuentas dadas de baja no aparecen.</li>
                 <li>La vista de resultados muestra solo los trabajadores asignados (o todos si es modo global).</li>
             </ul>
 
@@ -1333,6 +1337,8 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>26/08</td><td><strong>Cuentas de baja bloqueadas:</strong> una cuenta desactivada ya no puede entrar ni al panel ni a la webapp de trabajadoras. Antes seguia entrando aunque estuviera dada de baja.</td></tr>
+                    <tr><td>26/08</td><td><strong>Formulario de pildoras arreglado:</strong> la ventana de crear o editar una pildora ya se puede desplazar cuando tiene varias preguntas. Antes se cortaba por abajo y el boton de guardar quedaba fuera de la pantalla. Ademas, administracion aparece ya en la lista de asignacion.</td></tr>
                     <tr><td>26/08</td><td><strong>Instrucciones habladas en las pildoras:</strong> las pildoras formativas admiten un tipo de pregunta nuevo, la instruccion. La trabajadora elige idioma (castellano, arabe, ingles, frances, rumano o ucraniano), escucha el texto en audio y responde Si o No. Las traducciones se generan con IA y los audios desde el boton Idiomas del listado de pildoras.</td></tr>
                     <tr><td>26/08</td><td><strong>Fotos que salian giradas:</strong> las fotos hechas con el movil ya se guardan con la orientacion correcta en residentes, actividades, selfies e iconos. Las fotos antiguas que quedaron tumbadas se enderezan con los botones de giro que hay al editar el residente.</td></tr>
                     <tr><td>22/08</td><td><strong>La pantalla de inicio se actualiza sola:</strong> la portada del panel se recarga cada 15 segundos, de modo que quien esta conectado, quien esta trabajando y los datos del dia se ven siempre al momento. Hay un interruptor para desactivarlo y la recarga se pausa mientras se escribe o hay una ventana abierta.</td></tr>

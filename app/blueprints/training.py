@@ -20,6 +20,17 @@ bp = Blueprint('training', __name__)
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
+def _trainable_workers():
+    """Personas que pueden recibir formacion.
+
+    Incluye a los administradores: la direccion y la coordinacion tambien hacen
+    las formaciones obligatorias, y ademas necesitan poder asignarse una pildora
+    para probarla antes de darla al resto del equipo.
+    """
+    return Cleaner.query.filter_by(active=True).order_by(Cleaner.name)
+
+
+
 def _question_fields_from_form(idx: int) -> dict:
     """Lee del formulario los campos de la pregunta `idx`.
 
@@ -80,7 +91,7 @@ def _discard_audio(tr: TrainingTranslation) -> None:
 @admin_required
 def admin_training():
     pills = TrainingPill.query.order_by(TrainingPill.created_at.desc()).all()
-    total_workers = Cleaner.query.filter_by(active=True, is_admin=False).count()
+    total_workers = _trainable_workers().count()
     pills_json = {p.id: {
         'title': p.title, 'description': p.description or '',
         'video_url': p.video_url or '',
@@ -100,7 +111,7 @@ def admin_training():
         'has_instructions': any((q.question_type or 'multiple') == 'instruccion'
                                 for q in p.questions),
     } for p in pills}
-    workers = Cleaner.query.filter_by(active=True, is_admin=False).order_by(Cleaner.name).all()
+    workers = _trainable_workers().all()
     return render_template('admin_training.html', pills=pills,
                            total_workers=total_workers, pills_json=pills_json, workers=workers)
 
@@ -237,7 +248,7 @@ def training_results(pill_id: int):
             Cleaner.id.in_(assigned_ids), Cleaner.active == True
         ).order_by(Cleaner.name).all()
     else:
-        workers = Cleaner.query.filter_by(active=True, is_admin=False).order_by(Cleaner.name).all()
+        workers = _trainable_workers().all()
     completed_ids = {c.cleaner_id for c in completions if c.passed}
     pending = [w for w in workers if w.id not in completed_ids]
     return render_template('admin_training_results.html',
@@ -257,7 +268,7 @@ def ai_generate_questions():
     description = data.get('description', '').strip()
 
     if not title:
-        return jsonify({'error': 'Cal un títol'}), 400
+        return jsonify({'error': 'El título es obligatorio'}), 400
 
     system = (
         "Eres un formador de residencias geriatricas. "

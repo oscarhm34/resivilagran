@@ -2,6 +2,15 @@
 {% block title %}Píldoras formativas{% endblock %}
 
 {% block content %}
+<style>
+    /* Bootstrap espera que header/body/footer sean hijos directos de
+       .modal-content para que modal-dialog-scrollable acote la altura del
+       cuerpo. Aqui van dentro de un <form>, que rompe la cadena flex: el
+       cuerpo crecia sin limite, .modal-content lo recortaba con overflow
+       hidden y el boton de guardar quedaba fuera de la pantalla sin scroll. */
+    #pillModal .modal-content > form { display:flex; flex-direction:column; min-height:0; max-height:100%; }
+    #pillModal .modal-body { min-height:0; }
+</style>
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2 style="font-family:'Outfit',system-ui,sans-serif;font-weight:700;font-size:22px;margin:0">
         Píldoras formativas
@@ -31,7 +40,7 @@
                 <td style="font-weight:600">
                     {{ pill.title }}
                     {% if pill.mandatory %}<span class="badge bg-danger ms-1" style="font-size:.6rem">OBLIGATÒRIA</span>{% endif %}
-                    {% if pill.assign_mode == 'selected' %}<span class="badge bg-info ms-1" style="font-size:.6rem">{{ pill.assignments|length }} assignats</span>{% endif %}
+                    {% if pill.assign_mode == 'selected' %}<span class="badge bg-info ms-1" style="font-size:.6rem">{{ pill.assignments|length }} asignados</span>{% endif %}
                 </td>
                 <td>{{ pill.questions|length }}</td>
                 <td>
@@ -122,7 +131,7 @@
                     </div>
 
                     <hr>
-                    <h6 style="font-weight:700">Assignació</h6>
+                    <h6 style="font-weight:700">Asignación</h6>
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Assignar a</label>
@@ -134,15 +143,15 @@
                         <div class="col-md-6 d-flex align-items-end">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="mandatory" id="pill-mandatory">
-                                <label class="form-check-label" for="pill-mandatory"><strong>Obligatòria</strong> <small class="text-muted">(bloqueja webapp)</small></label>
+                                <label class="form-check-label" for="pill-mandatory"><strong>Obligatoria</strong> <small class="text-muted">(bloquea la webapp)</small></label>
                             </div>
                         </div>
                     </div>
                     <div id="assign-workers-section" style="display:none" class="mb-3">
-                        <label class="form-label">Selecciona trabajadores</label>
+                        <label class="form-label">Selecciona a quién se asigna</label>
                         <div class="d-flex gap-1 mb-2">
-                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="document.querySelectorAll('#assign-workers input').forEach(c=>c.checked=true)">Tots</button>
-                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.querySelectorAll('#assign-workers input').forEach(c=>c.checked=false)">Cap</button>
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="document.querySelectorAll('#assign-workers input').forEach(c=>c.checked=true)">Todos</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.querySelectorAll('#assign-workers input').forEach(c=>c.checked=false)">Ninguno</button>
                         </div>
                         <div id="assign-workers" style="max-height:200px;overflow-y:auto;border:1px solid var(--color-border);border-radius:var(--radius-md);padding:8px">
                             {% for w in workers %}
@@ -344,7 +353,7 @@
         }).catch(function() {
             btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generar con IA';
-            status.textContent = 'Error de connexió.';
+            status.textContent = 'Error de conexión.';
             status.style.color = 'var(--color-danger)';
         });
     });

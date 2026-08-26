@@ -42,7 +42,7 @@ def admin_login():
         password = request.form.get('password', '')
         user = Cleaner.query.filter_by(username=username).first()
 
-        if user and user.check_password(password) and user.is_admin:
+        if user and user.check_password(password) and user.is_admin and user.active:
             login_user(user)
             next_page = request.args.get('next', '')
             # Validate: must be relative path, no protocol, no double-slash

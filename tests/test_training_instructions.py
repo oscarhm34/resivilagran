@@ -276,3 +276,25 @@ def test_guardar_traduccion_vacia_se_rechaza(auth_client, db, pill):
                           json={'text': '   '})
 
     assert res.status_code == 400
+
+
+# ── Quien puede recibir formacion ────────────────────────────────────────────
+
+def test_los_administradores_aparecen_en_la_lista_de_asignacion(auth_client, db, admin_user, cleaner_user):
+    """Direccion y coordinacion tambien hacen las formaciones obligatorias."""
+    res = auth_client.get('/admin/training')
+
+    body = res.get_data(as_text=True)
+    assert f'value="{admin_user.id}"' in body
+    assert f'value="{cleaner_user.id}"' in body
+
+
+def test_las_cuentas_dadas_de_baja_no_aparecen(auth_client, db, admin_user):
+    baja = Cleaner(username='exworker', name='Ex Trabajadora', is_admin=False, active=False)
+    baja.set_password('x')
+    db.session.add(baja)
+    db.session.commit()
+
+    body = auth_client.get('/admin/training').get_data(as_text=True)
+
+    assert f'value="{baja.id}"' not in body

@@ -74,6 +74,10 @@ def login():
 
     user = Cleaner.query.filter_by(username=username).first()
     if user and user.check_password(password):
+        # El estado de la cuenta solo se revela tras acertar la contrasena, para
+        # no permitir averiguar que usuarios existen probando nombres.
+        if not user.active:
+            return jsonify({'error': 'Tu cuenta esta desactivada. Contacta con administracion.'}), 403
         access_token = create_access_token(identity=username, expires_delta=timedelta(days=7))
         return jsonify(access_token=access_token, id_cleaner=user.id, cleaner_name=user.name, role=user.role), 200
 
