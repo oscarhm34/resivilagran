@@ -3592,6 +3592,15 @@ async function startTraining(pillId) {
     if (!ok) { toast('Error al cargar la formación'); return; }
     $('trainvid-title').textContent = data.title;
     $('trainvid-desc').textContent = data.description || '';
+    // Una pildora de solo instrucciones no lleva video: mostrar la pantalla del
+    // reproductor dejaba un recuadro negro y obligaba a esperar 30s en balde.
+    if (!data.video_url) {
+        await api(`/api/worker/training/${pillId}/video-complete`, 'POST', {
+            worker_id: parseInt(S.workerId),
+        });
+        await goToQuiz();
+        return;
+    }
     // Convert YouTube URL to embed
     let embedUrl = data.video_url || '';
     const ytMatch = embedUrl.match(/(?:watch\?v=|youtu\.be\/|\/embed\/)([a-zA-Z0-9_-]{11})/);
@@ -3625,6 +3634,17 @@ $('trainvid-back').addEventListener('click', () => {
     show('screen-training-list');
 });
 
+async function goToQuiz() {
+    $('trainvid-iframe').src = '';
+    const qRes = await api(`/api/worker/training/${currentPillId}/questions?worker_id=${S.workerId}`);
+    if (!qRes.ok) { toast(qRes.data.error || 'Error al cargar preguntas'); return; }
+    quizQuestions = qRes.data;
+    quizAnswers = {};
+    quizIndex = 0;
+    renderQuizQuestion();
+    show('screen-training-quiz');
+}
+
 $('trainvid-continue').addEventListener('click', async () => {
     // Mark video as complete
     const { ok, data } = await api(`/api/worker/training/${currentPillId}/video-complete`, 'POST', {
@@ -3638,15 +3658,7 @@ $('trainvid-continue').addEventListener('click', async () => {
         }
         return;
     }
-    $('trainvid-iframe').src = '';
-    // Load questions
-    const qRes = await api(`/api/worker/training/${currentPillId}/questions?worker_id=${S.workerId}`);
-    if (!qRes.ok) { toast(qRes.data.error || 'Error al cargar preguntas'); return; }
-    quizQuestions = qRes.data;
-    quizAnswers = {};
-    quizIndex = 0;
-    renderQuizQuestion();
-    show('screen-training-quiz');
+    await goToQuiz();
 });
 
 // ── Audio de las instrucciones ─────────────────────────────────────────────

@@ -298,3 +298,53 @@ def test_las_cuentas_dadas_de_baja_no_aparecen(auth_client, db, admin_user):
     body = auth_client.get('/admin/training').get_data(as_text=True)
 
     assert f'value="{baja.id}"' not in body
+
+
+# ── Pildoras sin video ───────────────────────────────────────────────────────
+
+@pytest.fixture
+def pill_sin_video(db, admin_user):
+    """Una pildora de solo instrucciones no necesita video."""
+    p = TrainingPill(title='Solo instrucciones', pass_threshold=80,
+                     video_url=None, video_duration_seconds=None,
+                     created_by=admin_user.id)
+    db.session.add(p)
+    db.session.flush()
+    db.session.add(TrainingQuestion(
+        pill_id=p.id, question_text='Lávese las manos antes de atender a cada residente.',
+        question_type='instruccion',
+        option_a='Sí', option_b='No', option_c='', option_d='',
+        correct_option='a', sort_order=0,
+    ))
+    db.session.commit()
+    return p
+
+
+def test_sin_video_no_hay_que_esperar(client, db, pill_sin_video, cleaner_user, worker_headers):
+    """Sin video no hay nada que ver: obligar a esperar 30s no tiene sentido."""
+    c = TrainingCompletion(pill_id=pill_sin_video.id, cleaner_id=cleaner_user.id,
+                           started_at=datetime.now())
+    db.session.add(c)
+    db.session.commit()
+
+    res = client.post(f'/api/worker/training/{pill_sin_video.id}/video-complete',
+                      json={'worker_id': cleaner_user.id}, headers=worker_headers)
+
+    assert res.status_code == 200
+    assert db.session.get(TrainingCompletion, c.id).video_watched is True
+
+
+def test_con_video_se_sigue_esperando(client, db, pill, cleaner_user, worker_headers):
+    """La espera del video sigue vigente cuando la pildora si tiene video."""
+    pill.video_url = 'https://www.youtube.com/watch?v=abcdefghijk'
+    pill.video_duration_seconds = 120
+    c = TrainingCompletion(pill_id=pill.id, cleaner_id=cleaner_user.id,
+                           started_at=datetime.now())
+    db.session.add(c)
+    db.session.commit()
+
+    res = client.post(f'/api/worker/training/{pill.id}/video-complete',
+                      json={'worker_id': cleaner_user.id}, headers=worker_headers)
+
+    assert res.status_code == 400
+    assert res.get_json()['wait'] > 0

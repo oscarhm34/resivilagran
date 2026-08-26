@@ -603,10 +603,13 @@ def training_video_complete(pill_id: int):
     if not completion:
         return jsonify({'error': 'No hay sesión activa'}), 400
     pill = db.session.get(TrainingPill, pill_id)
-    min_secs = (pill.video_duration_seconds or 60) * 0.5
-    elapsed = (datetime.now() - completion.started_at).total_seconds()
-    if elapsed < min_secs:
-        return jsonify({'error': 'Debes ver el vídeo completo', 'wait': int(min_secs - elapsed)}), 400
+    # Una pildora de solo instrucciones no lleva video: no hay nada que ver, asi
+    # que no se hace esperar a nadie delante de un recuadro vacio.
+    if pill.video_url:
+        min_secs = (pill.video_duration_seconds or 60) * 0.5
+        elapsed = (datetime.now() - completion.started_at).total_seconds()
+        if elapsed < min_secs:
+            return jsonify({'error': 'Debes ver el vídeo completo', 'wait': int(min_secs - elapsed)}), 400
     completion.video_watched = True
     db.session.commit()
     return jsonify({'ok': True})
