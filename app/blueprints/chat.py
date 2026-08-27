@@ -31,12 +31,14 @@ def api_chat():
 
 
 @bp.route('/api/transcribe', methods=['POST'])
+@limiter.limit("20/minute")
 @jwt_required()
 def api_transcribe():
     return _transcribe_audio()
 
 
 @bp.route('/admin/transcribe', methods=['POST'])
+@limiter.limit("20/minute")
 @admin_required
 def admin_transcribe():
     return _transcribe_audio()

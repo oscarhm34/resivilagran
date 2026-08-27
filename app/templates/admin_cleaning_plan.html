@@ -84,7 +84,7 @@
 {# ── Uncovered rooms ────────────────────────────────────────── #}
 {% if uncovered %}
 <div class="card mb-4" style="border-color:var(--color-danger)">
-    <div class="card-header d-flex align-items-center gap-2" style="background:#fff5f5;border-color:var(--color-danger);color:var(--color-danger)">
+    <div class="card-header tint-danger d-flex align-items-center gap-2" style="border-color:var(--color-danger);color:var(--color-danger)">
         <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
         <strong>{{ uncovered | length }} habitacion{{ 'es' if uncovered | length != 1 else '' }} necesita{{ 'n' if uncovered | length != 1 else '' }} limpieza y no tiene{{ 'n' if uncovered | length != 1 else '' }} trabajador asignado</strong>
     </div>
@@ -102,7 +102,7 @@
                 </thead>
                 <tbody>
                     {% for u in uncovered %}
-                    <tr style="background:{% if u.priority == 'urgent' %}#fff5f5{% else %}#fff8e6{% endif %}">
+                    <tr class="{{ 'tint-danger' if u.priority == 'urgent' else 'tint-warn' }}">
                         <td class="fw-semibold">{{ u.room.number }}{% if u.room.description %} <small class="text-muted">{{ u.room.description }}</small>{% endif %}</td>
                         <td>{{ u.room.floor.name }}</td>
                         <td>{{ u.room.room_type.name if u.room.room_type else '-' }}</td>
@@ -174,7 +174,7 @@
                     {% set ns = namespace(pending_n=0) %}
                     {% for r in wp.rooms %}
                     {% if r.priority != 'done' %}{% set ns.pending_n = ns.pending_n + 1 %}{% endif %}
-                    <tr style="background:{% if r.priority == 'urgent' %}#fff5f5{% elif r.priority == 'due' %}#fff8e6{% elif r.priority == 'done' %}rgba(209,240,218,.45){% else %}transparent{% endif %}">
+                    <tr class="{% if r.priority == 'urgent' %}tint-danger{% elif r.priority == 'due' %}tint-warn{% elif r.priority == 'done' %}tint-done{% endif %}">
                         <td class="text-center">
                             {% if r.priority == 'done' %}
                             <i class="bi bi-check-lg text-success" aria-hidden="true"></i>

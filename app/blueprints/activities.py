@@ -10,7 +10,7 @@ from sqlalchemy import func, case
 
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
-from .. import db
+from .. import db, limiter
 from ..models import Activity, ActivityParticipation, ActivityTemplate, ActivityPhoto, Resident, Cleaner
 from ..utils import (admin_required, _open_image_oriented,
                      _safe_commit, _safe_flush, log_audit)
@@ -450,6 +450,7 @@ def export_activity_stats():
 # ── AI Activity Suggestions ────────────────────────────────────────────────────
 
 @bp.route('/api/activities/ai-suggest', methods=['POST'])
+@limiter.limit("5/minute")
 @admin_required
 def ai_suggest_activities():
     """Use Claude to suggest activities based on resident profiles and engagement history."""

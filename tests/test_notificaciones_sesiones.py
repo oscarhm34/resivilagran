@@ -165,13 +165,25 @@ class TestEnlaceDelAviso:
         aviso = Notification.query.filter_by(type='stale_session_worker').first()
         assert not aviso.message
 
+    def test_crea_una_copia_para_el_admin_y_otra_para_la_trabajadora(
+            self, app, db, limpieza_abierta, cleaner_user):
+        """El admin necesita la suya para verla en el panel; la de la
+        trabajadora alimenta su app y el push."""
+        _genera(app)
+
+        avisos = Notification.query.filter_by(type='stale_session_worker').all()
+        destinatarios = sorted(a.worker_id or 0 for a in avisos)
+
+        assert destinatarios == [0, cleaner_user.id]
+
     def test_generar_dos_veces_no_duplica_el_aviso(
             self, app, db, limpieza_abierta):
         _genera(app)
         _genera(app)
 
+        # Dos filas: la del admin y la de la trabajadora. Ni una mas.
         assert Notification.query.filter_by(
-            type='stale_session_worker').count() == 1
+            type='stale_session_worker').count() == 2
 
     def test_el_aviso_es_un_enlace_en_el_panel(
             self, app, db, auth_client, limpieza_abierta):
@@ -251,3 +263,100 @@ class TestBorrarRegistroDeLimpieza:
 
         assert resp.status_code in (302, 401, 403)
         assert db.session.get(CleaningRecord, record_id) is not None
+
+
+# ── Relevo de turno ──────────────────────────────────────────────────────────
+
+class TestRelevoDeTurno:
+    """El informe de relevo salia repetido en el panel: una copia del admin mas
+    una por cada trabajadora, todas con el mismo texto dentro."""
+
+    @pytest.fixture()
+    def turnos(self, db):
+        from datetime import time
+        from app.models import ShiftType
+        manana = ShiftType(name='Manana', short_name='M', color='#0d6efd',
+                           start_time=time(7, 0), end_time=time(15, 0),
+                           sort_order=1, active=True)
+        tarde = ShiftType(name='Tarde', short_name='T', color='#fd7e14',
+                          start_time=time(15, 0), end_time=time(22, 0),
+                          sort_order=2, active=True)
+        noche = ShiftType(name='Noche', short_name='N', color='#6f42c1',
+                          start_time=time(22, 0), end_time=time(7, 0),
+                          sort_order=3, active=True)
+        db.session.add_all([manana, tarde, noche])
+        db.session.commit()
+        return {'manana': manana, 'tarde': tarde, 'noche': noche}
+
+    def test_el_turno_siguiente_es_el_que_empieza_despues(self, app, turnos):
+        from app.blueprints.notifications import _turno_siguiente
+        todos = list(turnos.values())
+
+        assert _turno_siguiente(turnos['manana'], todos).id == turnos['tarde'].id
+        assert _turno_siguiente(turnos['tarde'], todos).id == turnos['noche'].id
+
+    def test_el_turno_de_noche_entrega_al_primero_del_dia(self, app, turnos):
+        """La noche acaba a las 07:00 y ninguno empieza despues: vuelve al primero."""
+        from app.blueprints.notifications import _turno_siguiente
+        todos = list(turnos.values())
+
+        assert _turno_siguiente(turnos['noche'], todos).id == turnos['manana'].id
+
+    def test_el_panel_muestra_una_sola_fila_por_relevo(
+            self, auth_client, db, cleaner_user, admin_user):
+        """Es el bug reportado: la misma informacion repetida tres veces."""
+        informe = '<p>Informe de traspaso</p>'
+        db.session.add(Notification(
+            type='shift_handover', title='Traspaso automático — Turno M',
+            message=informe, severity='info'))
+        for destinatario in (cleaner_user.id, admin_user.id):
+            db.session.add(Notification(
+                type='shift_handover', title='Informe del turno anterior (M)',
+                message=informe, severity='info', worker_id=destinatario))
+        db.session.commit()
+
+        html = auth_client.get('/admin/notifications').data.decode('utf-8')
+
+        assert html.count('Informe del turno anterior') == 0
+        assert html.count('Traspaso automático') == 1
+
+    def test_el_filtro_deja_ver_los_avisos_de_las_trabajadoras(
+            self, auth_client, db, cleaner_user):
+        db.session.add(Notification(
+            type='shift_handover', title='Informe del turno anterior (M)',
+            message='<p>x</p>', severity='info', worker_id=cleaner_user.id))
+        db.session.commit()
+
+        por_defecto = auth_client.get('/admin/notifications').data.decode('utf-8')
+        con_filtro = auth_client.get(
+            '/admin/notifications?destinatario=todas').data.decode('utf-8')
+
+        assert 'Informe del turno anterior' not in por_defecto
+        assert 'Informe del turno anterior' in con_filtro
+
+    def test_la_paginacion_conserva_el_filtro(self, auth_client, db, cleaner_user):
+        for i in range(25):
+            db.session.add(Notification(
+                type='worker_note', title=f'Nota {i}', severity='info',
+                worker_id=cleaner_user.id))
+        db.session.commit()
+
+        html = auth_client.get(
+            '/admin/notifications?destinatario=todas').data.decode('utf-8')
+
+        assert 'destinatario=todas' in html, 'los enlaces de pagina pierden el filtro'
+
+
+class TestPromptDelRelevoEnCastellano:
+    """El prompt iba en catalan, y por eso el informe salia en catalan."""
+
+    @pytest.mark.parametrize('catalan', [
+        'ATENCIONS', 'NETEJES', 'INCIDÈNCIES', 'Treballadors', 'AUTOMÀTIC',
+    ])
+    def test_el_generador_no_contiene_catalan(self, catalan):
+        import inspect
+        from app.blueprints import notifications
+
+        codigo = inspect.getsource(notifications._generate_handover_notification)
+
+        assert catalan not in codigo

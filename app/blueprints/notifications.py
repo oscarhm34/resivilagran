@@ -22,13 +22,15 @@ bp = Blueprint('notifications', __name__)
 # ── Helper: duplicate check ────────────────────────────────────────────────
 
 def _notif_exists(notif_type: str, title: str, hours: float = 24,
-                  link: str | None = None) -> bool:
+                  link: str | None = None, worker_id: int | None = None) -> bool:
     """True si ya existe un aviso equivalente en las ultimas N horas.
 
-    Con `link` deduplica por enlace, que es unico por registro. Lo usan los
-    avisos de sesion abierta, cuyo titulo lleva los minutos y cambia a cada
-    pasada; antes se guardaba una clave en `message` para esto, pero eso hacia
-    que la fila del panel se pintara como desplegable en vez de como enlace.
+    Con `link` deduplica por enlace y destinatario. Lo usan los avisos de
+    sesion abierta, cuyo titulo lleva los minutos y cambia a cada pasada; antes
+    se guardaba una clave en `message` para esto, pero eso hacia que la fila del
+    panel se pintara como desplegable en vez de como enlace. Cada sesion genera
+    dos copias, la del admin y la de la trabajadora, y cada una se deduplica por
+    separado.
     """
     cutoff = datetime.now() - timedelta(hours=hours)
     query = Notification.query.filter(
@@ -36,11 +38,32 @@ def _notif_exists(notif_type: str, title: str, hours: float = 24,
         Notification.created_at >= cutoff,
     )
     if link is not None:
-        query = query.filter(Notification.link == link)
+        query = query.filter(Notification.link == link,
+                             Notification.worker_id == worker_id)
     else:
         query = query.filter(
             db.or_(Notification.title == title, Notification.message == title))
     return db.session.query(query.exists()).scalar()
+
+
+def _avisa_sesion_abierta(titulo: str, link: str, cleaner_id: int) -> int:
+    """Crea las dos copias del aviso de sesion abierta.
+
+    La del admin lleva el enlace al listado donde puede cerrarla o borrarla; la
+    de la trabajadora es la que alimenta su PWA y el push. Se cuentan aparte
+    porque el panel solo lista las del admin.
+    """
+    creadas = 0
+    for destinatario in (None, cleaner_id):
+        if _notif_exists('stale_session_worker', '', hours=0.25,
+                         link=link, worker_id=destinatario):
+            continue
+        db.session.add(Notification(
+            type='stale_session_worker', title=titulo, severity='warning',
+            worker_id=destinatario, link=link,
+        ))
+        creadas += 1
+    return creadas
 
 
 # ── Core: generate notifications ───────────────────────────────────────────
@@ -133,14 +156,8 @@ def _generate_notifications() -> int:
         # donde estan los botones de cerrar y eliminar. Ademas hace de clave
         # de deduplicacion: el titulo cambia cada pasada porque lleva minutos.
         link = f'/registros-limpieza?estado=abiertas#rec-{rec.id}'
-        if not _notif_exists('stale_session_worker', '', hours=0.25, link=link):
-            db.session.add(Notification(
-                type='stale_session_worker',
-                title=f"Limpieza en {room_desc} lleva {mins} min abierta",
-                severity='warning',
-                worker_id=rec.cleaner_id, link=link,
-            ))
-            created += 1
+        titulo = f"Limpieza en {room_desc} lleva {mins} min abierta"
+        created += _avisa_sesion_abierta(titulo, link, rec.cleaner_id)
 
     stale_worker_cares = CareRecord.query.filter(
         CareRecord.end_time.is_(None),
@@ -150,14 +167,8 @@ def _generate_notifications() -> int:
         resident_name = rec.resident.name if rec.resident else 'Residente'
         mins = int((now - rec.start_time).total_seconds() / 60)
         link = f'/registros-atencion?estado=abiertas#rec-{rec.id}'
-        if not _notif_exists('stale_session_worker', '', hours=0.25, link=link):
-            db.session.add(Notification(
-                type='stale_session_worker',
-                title=f"Atención con {resident_name} lleva {mins} min abierta",
-                severity='warning',
-                worker_id=rec.worker_id, link=link,
-            ))
-            created += 1
+        titulo = f"Atención con {resident_name} lleva {mins} min abierta"
+        created += _avisa_sesion_abierta(titulo, link, rec.worker_id)
 
     # 5. coverage_gap — tomorrow's shift coverage
     tomorrow = now.date() + timedelta(days=1)
@@ -223,6 +234,28 @@ def _send_pending_pushes():
 
 # ── Auto shift handover ──────────────────────────────────────────────────────
 
+def _turno_siguiente(actual, shift_types):
+    """El turno que empieza justo despues de que termine `actual`.
+
+    Si ninguno empieza mas tarde, el relevo lo recoge el primero del dia
+    siguiente (turno de noche que entrega al de manana).
+    """
+    def minutos(t):
+        return t.hour * 60 + t.minute
+
+    if not actual.end_time:
+        return None
+    fin = minutos(actual.end_time)
+    candidatos = [t for t in shift_types
+                  if t.id != actual.id and t.start_time is not None]
+    if not candidatos:
+        return None
+    posteriores = [t for t in candidatos if minutos(t.start_time) >= fin]
+    if posteriores:
+        return min(posteriores, key=lambda t: minutos(t.start_time))
+    return min(candidatos, key=lambda t: minutos(t.start_time))
+
+
 def _generate_handover_notification() -> int:
     """Auto-generate handover report when a shift ends (within 30 min window). Throttled per shift."""
     now = datetime.now()
@@ -243,7 +276,7 @@ def _generate_handover_notification() -> int:
             continue
 
         # Throttle: check if handover notification already generated for this shift today
-        dedup_title = f'Traspaso automàtic — Torn {st.short_name} {now.strftime("%d/%m/%Y")}'
+        dedup_title = f'Traspaso automático — Turno {st.short_name} {now.strftime("%d/%m/%Y")}'
         if _notif_exists('shift_handover', dedup_title, hours=12):
             continue
 
@@ -276,8 +309,8 @@ def _generate_handover_notification() -> int:
                 c = db.session.get(Cleaner, a.cleaner_id)
                 if c:
                     worker_names.append(c.name)
-            lines.append(f"TRASPASO AUTOMÀTIC — Torn {st.short_name} ({st.name}) — {now.strftime('%d/%m/%Y %H:%M')}")
-            lines.append(f"Treballadors en torn: {len(on_shift)} ({', '.join(worker_names[:10])})")
+            lines.append(f"TRASPASO AUTOMATICO — Turno {st.short_name} ({st.name}) — {now.strftime('%d/%m/%Y %H:%M')}")
+            lines.append(f"Trabajadoras en el turno: {len(on_shift)} ({', '.join(worker_names[:10])})")
 
             # Care records during shift
             from sqlalchemy.orm import joinedload
@@ -288,7 +321,7 @@ def _generate_handover_notification() -> int:
                 joinedload(CR.vital_sign_readings).joinedload(VitalSignReading.vital_sign_type),
             ).filter(CR.start_time >= cutoff).order_by(CR.start_time.desc()).all()
 
-            lines.append(f"\nATENCIONS: {len(care_records)}")
+            lines.append(f"\nATENCIONES: {len(care_records)}")
             notes_list = []
             for cr in care_records:
                 w_name = cr.worker.name if cr.worker else '?'
@@ -308,17 +341,17 @@ def _generate_handover_notification() -> int:
             cleanings = CLR.query.filter(
                 CLR.start_time >= cutoff, CLR.end_time.isnot(None),
             ).count()
-            lines.append(f"\nNETEJES: {cleanings}")
+            lines.append(f"\nLIMPIEZAS: {cleanings}")
 
             # Incidents
             incidents = Inc.query.filter(Inc.created_at >= cutoff).all()
             if incidents:
-                lines.append(f"\nINCIDÈNCIES: {len(incidents)}")
+                lines.append(f"\nINCIDENCIAS: {len(incidents)}")
                 for inc in incidents:
                     lines.append(f"  {inc.title} (sev: {inc.severity})")
 
             if notes_list:
-                lines.append(f"\nNOTES:")
+                lines.append("\nNOTAS:")
                 for n in notes_list[:15]:
                     lines.append(n)
 
@@ -338,21 +371,24 @@ def _generate_handover_notification() -> int:
                 severity='info',
             ))
 
-            # Create notification for each incoming shift worker
-            # Find next shift type by start_time
-            next_shifts = ShiftAssignment.query.filter(
-                ShiftAssignment.date == today,
-                ShiftAssignment.shift_type_id != st.id,
-            ).all()
-            for ns in next_shifts:
-                if ns.cleaner_id not in absent_ids:
-                    db.session.add(Notification(
-                        type='shift_handover',
-                        title=f'Informe del turno anterior ({st.short_name})',
-                        message=html,
-                        severity='info',
-                        worker_id=ns.cleaner_id,
-                    ))
+            # Una copia para cada trabajadora del turno SIGUIENTE. Antes se
+            # cogian todas las asignaciones de todos los demas turnos del dia,
+            # asi que el informe llegaba tambien a quien entraba mucho despues.
+            siguiente = _turno_siguiente(st, shift_types)
+            if siguiente is not None:
+                entrantes = ShiftAssignment.query.filter(
+                    ShiftAssignment.date == today,
+                    ShiftAssignment.shift_type_id == siguiente.id,
+                ).all()
+                for ns in entrantes:
+                    if ns.cleaner_id not in absent_ids:
+                        db.session.add(Notification(
+                            type='shift_handover',
+                            title=f'Informe del turno anterior ({st.short_name})',
+                            message=html,
+                            severity='info',
+                            worker_id=ns.cleaner_id,
+                        ))
 
             ok, error = _safe_commit('Error al generar el relevo de turno')
             if not ok:
@@ -496,8 +532,15 @@ def admin_notifications():
     notif_type = request.args.get('type', '')
     severity = request.args.get('severity', '')
     status = request.args.get('status', '')  # read / unread / ''
+    destinatario = request.args.get('destinatario', '')  # '' = admin / 'todas'
 
     query = Notification.query
+
+    # Un aviso con worker_id va dirigido a esa trabajadora y ella ya lo recibe
+    # en su app. Listarlos aqui hacia que el informe de relevo saliera repetido,
+    # una vez por el admin y otra por cada trabajadora.
+    if destinatario != 'todas':
+        query = query.filter(Notification.worker_id.is_(None))
 
     if notif_type:
         query = query.filter(Notification.type == notif_type)
@@ -515,6 +558,7 @@ def admin_notifications():
         'type': notif_type,
         'severity': severity,
         'status': status,
+        'destinatario': destinatario,
     }
     return render_template('admin_notifications.html',
                            notifications=pagination.items,

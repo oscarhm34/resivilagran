@@ -56,6 +56,13 @@
                     </select>
                 </div>
                 <div class="col-auto">
+                    <label class="form-label mb-0 small" for="f-destinatario">Destinatario</label>
+                    <select name="destinatario" id="f-destinatario" class="form-select form-select-sm" style="min-width:170px">
+                        <option value="">Avisos del administrador</option>
+                        <option value="todas" {% if filters.destinatario == 'todas' %}selected{% endif %}>Incluir los de trabajadoras</option>
+                    </select>
+                </div>
+                <div class="col-auto">
                     <button type="submit" class="btn btn-sm btn-outline-primary">Filtrar</button>
                     <a href="{{ url_for('notifications.admin_notifications') }}" class="btn btn-sm btn-outline-secondary">Limpiar</a>
                 </div>
@@ -129,13 +136,15 @@
             <ul class="pagination pagination-sm mb-0 flex-wrap">
                 <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
                     <a class="page-link" href="{{ url_for('notifications.admin_notifications', page=pagination.prev_num,
-                        type=filters.type, severity=filters.severity, status=filters.status) }}">&laquo;</a>
+                        type=filters.type, severity=filters.severity, status=filters.status,
+                        destinatario=filters.destinatario) }}">&laquo;</a>
                 </li>
                 {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
                 {% if page_num %}
                 <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
                     <a class="page-link" href="{{ url_for('notifications.admin_notifications', page=page_num,
-                        type=filters.type, severity=filters.severity, status=filters.status) }}">{{ page_num }}</a>
+                        type=filters.type, severity=filters.severity, status=filters.status,
+                        destinatario=filters.destinatario) }}">{{ page_num }}</a>
                 </li>
                 {% else %}
                 <li class="page-item disabled"><a class="page-link">&hellip;</a></li>
@@ -143,7 +152,8 @@
                 {% endfor %}
                 <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
                     <a class="page-link" href="{{ url_for('notifications.admin_notifications', page=pagination.next_num,
-                        type=filters.type, severity=filters.severity, status=filters.status) }}">&raquo;</a>
+                        type=filters.type, severity=filters.severity, status=filters.status,
+                        destinatario=filters.destinatario) }}">&raquo;</a>
                 </li>
             </ul>
         </nav>

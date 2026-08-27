@@ -7,7 +7,7 @@ from flask_login import current_user
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy.orm import joinedload
 
-from .. import db
+from .. import db, limiter
 from ..models import (
     Resident, Cleaner, MedicationPrescription, MedicationAdministration, Notification,
 )
@@ -426,6 +426,7 @@ def verify_barcode():
 # ── AI Medication Interaction Checker ──────────────────────────────────────────
 
 @bp.route('/api/medication/interaction-check', methods=['POST'])
+@limiter.limit("5/minute")
 @admin_required
 def check_interactions():
     """Use Claude to check for potential drug interactions."""

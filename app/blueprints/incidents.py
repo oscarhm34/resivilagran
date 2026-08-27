@@ -7,7 +7,7 @@ from flask_jwt_extended import jwt_required
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
 
-from .. import app, db
+from .. import app, db, limiter
 from ..models import Cleaner, Resident, IncidentType, Incident, AppSetting, FallRecord, Notification
 from ..utils import admin_required, _verify_worker_id, _safe_commit, log_audit
 
@@ -416,6 +416,7 @@ def worker_report_incident():
 # ── AI classification for incidents ──────────────────────────────────────────
 
 @bp.route('/api/incidents/ai-classify', methods=['POST'])
+@limiter.limit("5/minute")
 @jwt_required()
 def ai_classify_incident():
     """Use AI to pre-fill incident form fields from free text description."""

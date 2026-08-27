@@ -1098,6 +1098,7 @@ def admin_performance():
 
 
 @bp.route('/api/worker-performance/ai-analysis', methods=['POST'])
+@limiter.limit("2/minute")
 @admin_required
 def ai_worker_performance():
     """AI analysis of worker performance data."""

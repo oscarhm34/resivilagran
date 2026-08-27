@@ -341,6 +341,33 @@
         /* Enlace de salto: en oscuro bg-primary se aclara y el blanco no llega. */
         .visually-hidden-focusable.bg-primary { background: #0069d9 !important; color: #fff !important; }
 
+        /* ── Fondos tintados de filas y cabeceras ───────────────── */
+        /* En oscuro, un fondo claro fijo deja el texto del tema ilegible, asi
+           que cada tinte tinta su propio color de estado en vez del blanco. */
+        .tint-danger  { background: #fff5f5; }
+        .tint-danger-strong { background: #ffeaea; }
+        .tint-info    { background: #f0f8ff; }
+        .tint-muted   { background: #f8f9fa; }
+        .tint-warn    { background: #fff8e6; }
+        .tint-done    { background: rgba(209, 240, 218, .45); }
+        .card-header.tint-warn   { background: #fff3cd; border-color: #ffc107; }
+        .card-header.tint-danger { background: #fff5f5; }
+
+        [data-theme="dark"] .tint-danger,
+        [data-theme="dark"] .card-header.tint-danger { background: rgba(207, 34, 46, .18); }
+        [data-theme="dark"] .tint-danger-strong { background: rgba(207, 34, 46, .28); }
+        [data-theme="dark"] .tint-info   { background: rgba(0, 105, 217, .16); }
+        [data-theme="dark"] .tint-muted  { background: rgba(255, 255, 255, .04); }
+        [data-theme="dark"] .tint-warn   { background: rgba(191, 135, 0, .18); }
+        [data-theme="dark"] .tint-done   { background: rgba(26, 127, 55, .20); }
+        [data-theme="dark"] .card-header.tint-warn { background: rgba(191, 135, 0, .22); border-color: rgba(191, 135, 0, .5); }
+        [data-theme="dark"] .tint-danger td,
+        [data-theme="dark"] .tint-danger-strong td,
+        [data-theme="dark"] .tint-info td,
+        [data-theme="dark"] .tint-muted td,
+        [data-theme="dark"] .tint-warn td,
+        [data-theme="dark"] .tint-done td { color: var(--color-text); }
+
         /* ── Fila enlazada desde una notificacion ───────────────── */
         /* Los avisos de sesion abierta enlazan a #rec-<id> del listado.
            Sin esto, el navegador salta a la fila pero no se sabe cual es. */
@@ -757,30 +784,33 @@
     {% if current_user.is_authenticated %}
     <!-- Chat IA -->
     <button id="chat-fab" title="Asistente IA" aria-label="Abrir asistente IA" style="position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:50%;border:none;background:var(--color-primary,#0069d9);color:#fff;font-size:24px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);z-index:9999;transition:transform .15s" onclick="document.getElementById('chat-dialog').showModal()"><i class="bi bi-chat-dots"></i></button>
-    <dialog id="chat-dialog" role="dialog" aria-modal="true" aria-labelledby="chat-dialog-title" style="border:none;border-radius:16px;padding:0;max-width:420px;width:95vw;height:70vh;max-height:600px;background:#fff;box-shadow:0 20px 60px rgba(0,0,0,.3);position:fixed;bottom:90px;right:24px;margin:0">
-        <div style="padding:14px 18px;border-bottom:1px solid #e0e0e0;display:flex;align-items:center;gap:10px;flex-shrink:0">
+    <dialog id="chat-dialog" role="dialog" aria-modal="true" aria-labelledby="chat-dialog-title" style="border:none;border-radius:16px;padding:0;max-width:420px;width:95vw;height:70vh;max-height:600px;box-shadow:0 20px 60px rgba(0,0,0,.3);position:fixed;bottom:90px;right:24px;margin:0">
+        <div style="padding:14px 18px;border-bottom:1px solid var(--color-border);display:flex;align-items:center;gap:10px;flex-shrink:0">
             <i class="bi bi-robot" style="font-size:20px;color:var(--color-primary)"></i>
             <strong id="chat-dialog-title" style="flex:1;font-size:15px">Asistente La Vila Gran</strong>
-            <button onclick="document.getElementById('chat-dialog').close()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#666">&times;</button>
+            <button onclick="document.getElementById('chat-dialog').close()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--color-text-secondary)">&times;</button>
         </div>
         <div id="chat-messages" style="flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:10px">
             <div class="chat-msg bot">Hola, soy el asistente de La Vila Gran. ¿En qué puedo ayudarte?</div>
         </div>
-        <div style="padding:12px 18px;border-top:1px solid #e0e0e0;display:flex;gap:8px;flex-shrink:0">
-            <button id="chat-mic" title="Hablar" aria-label="Grabar audio" style="width:40px;height:40px;border-radius:50%;border:1.5px solid #d0d7de;background:none;font-size:18px;cursor:pointer;flex-shrink:0"><i class="bi bi-mic"></i></button>
+        <div style="padding:12px 18px;border-top:1px solid var(--color-border);display:flex;gap:8px;flex-shrink:0">
+            <button id="chat-mic" title="Hablar" aria-label="Grabar audio" style="width:40px;height:40px;border-radius:50%;border:1.5px solid var(--color-border);background:none;font-size:18px;cursor:pointer;flex-shrink:0"><i class="bi bi-mic"></i></button>
             <input id="chat-audio-file" type="file" accept="audio/*" style="display:none">
-            <input id="chat-input" type="text" placeholder="Escribe tu pregunta..." style="flex:1;padding:10px 14px;border:1.5px solid #d0d7de;border-radius:20px;font-size:14px;font-family:inherit;outline:none" autocomplete="off">
+            <input id="chat-input" type="text" placeholder="Escribe tu pregunta..." style="flex:1;padding:10px 14px;border:1.5px solid var(--color-border);border-radius:20px;background:var(--color-surface);color:var(--color-text);font-size:14px;font-family:inherit;outline:none" autocomplete="off">
             <button id="chat-send" aria-label="Enviar mensaje" style="width:40px;height:40px;border-radius:50%;border:none;background:var(--color-primary,#0069d9);color:#fff;font-size:16px;cursor:pointer;flex-shrink:0"><i class="bi bi-send"></i></button>
         </div>
     </dialog>
     <style>
-        #chat-dialog{display:none}
+        /* En oscuro el dialogo se quedaba con fondo blanco fijo y el texto
+           del tema encima, tambien blanco: no se leia nada. */
+        #chat-dialog{display:none;background:var(--color-surface);color:var(--color-text)}
         #chat-dialog[open]{display:flex;flex-direction:column}
+        #chat-dialog::backdrop{background:rgba(0,0,0,.35)}
         .chat-msg{padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.5;max-width:85%;word-wrap:break-word;white-space:pre-wrap}
         .chat-msg.user{background:#0069d9;color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
-        .chat-msg.bot{background:#f0f2f5;color:#1f2328;align-self:flex-start;border-bottom-left-radius:4px}
+        .chat-msg.bot{background:var(--color-bg);color:var(--color-text);align-self:flex-start;border-bottom-left-radius:4px}
         .chat-msg.bot strong{font-weight:700}
-        .chat-typing{align-self:flex-start;padding:10px 14px;border-radius:14px;background:#f0f2f5;font-size:14px;color:#999}
+        .chat-typing{align-self:flex-start;padding:10px 14px;border-radius:14px;background:var(--color-bg);font-size:14px;color:var(--color-text-secondary)}
         #chat-mic.recording{background:#cf222e;color:#fff;border-color:#cf222e;animation:pulse-mic 1s infinite}
         #chat-mic.transcribing{background:#bf8700;color:#fff;border-color:#bf8700;pointer-events:none;opacity:.7}
         @keyframes pulse-mic{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}

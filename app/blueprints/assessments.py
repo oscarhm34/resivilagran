@@ -8,7 +8,7 @@ from flask_login import current_user
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy.orm import joinedload
 
-from .. import app, db
+from .. import app, db, limiter
 from ..models import (
     Resident, Cleaner, AssessmentRecord, Notification,
     VitalSignReading, VitalSignType, CareRecord, CleaningRecord,
@@ -369,6 +369,7 @@ def admin_assessment_pfeiffer():
 # ── AI suggestions for assessments ────────────────────────────────────────────
 
 @bp.route('/api/resident/<int:resident_id>/ai-suggest-assessment', methods=['POST'])
+@limiter.limit("5/minute")
 @admin_required
 def ai_suggest_assessment(resident_id: int):
     """Use AI to suggest Barthel or Norton answers based on recent worker notes."""
@@ -467,6 +468,7 @@ Nota: este es un borrador basado en datos del sistema. Debe ser revisado y compl
 }
 
 @bp.route('/api/resident/<int:resident_id>/inspection-report', methods=['POST'])
+@limiter.limit("5/minute")
 @admin_required
 def inspection_report(resident_id: int):
     """Generate formal inspection report for a resident."""
@@ -817,6 +819,7 @@ Usa <strong> para datos importantes, <ul>/<li> para listas.
 Si una seccion no tiene datos, omitela. No uses emojis."""
 
 @bp.route('/api/resident/<int:resident_id>/ai-summary', methods=['POST'])
+@limiter.limit("5/minute")
 @admin_required
 def ai_summary(resident_id: int):
     """Generate AI clinical report for a resident."""
@@ -885,6 +888,7 @@ y un cierre positivo. Usa <strong> para lo mas relevante. Maximo 300 palabras.""
 
 
 @bp.route('/api/resident/<int:resident_id>/family-summary', methods=['POST'])
+@limiter.limit("5/minute")
 @admin_required
 def family_summary(resident_id: int):
     """Generate a family-friendly weekly summary for a resident."""
@@ -941,6 +945,7 @@ Usa <strong>, <ul>/<li>, <table> cuando sea apropiado. No uses emojis.
 Si una seccion no tiene datos, omitela."""
 
 @bp.route('/api/global-ai-report', methods=['POST'])
+@limiter.limit("2/minute")
 @admin_required
 def global_ai_report():
     """Generate AI report for the entire residence."""
@@ -1114,6 +1119,7 @@ Secciones con h3:
 Usa <strong>, <ul>/<li>. No uses emojis. Se breve y directo."""
 
 @bp.route('/api/shift-handover-report', methods=['POST'])
+@limiter.limit("2/minute")
 @admin_required
 def shift_handover_report():
     """Generate AI shift handover summary."""
@@ -1458,6 +1464,7 @@ def compliance_audit():
 
 
 @bp.route('/api/compliance/ai-report', methods=['POST'])
+@limiter.limit("2/minute")
 @admin_required
 def compliance_ai_report():
     """Generate AI narrative report of compliance status."""
@@ -1713,6 +1720,7 @@ FORMATO: Solo contenido HTML (sin <html>/<body>). Muy breve."""
 
 
 @bp.route('/api/daily-digest/generate', methods=['POST'])
+@limiter.limit("2/minute")
 @admin_required
 def generate_daily_digest():
     """Generate daily AI digest for all residents with activity today."""
@@ -1810,6 +1818,7 @@ FORMATO: HTML breve (sin <html>/<body>). Usa <strong> y colores: verde=conseguid
 
 
 @bp.route('/api/resident/<int:resident_id>/care-plan/generate', methods=['POST'])
+@limiter.limit("5/minute")
 @admin_required
 def generate_care_plan(resident_id: int):
     """Generate a new PAI using AI."""
@@ -1859,6 +1868,7 @@ def generate_care_plan(resident_id: int):
 
 
 @bp.route('/api/resident/<int:resident_id>/care-plan/review', methods=['POST'])
+@limiter.limit("5/minute")
 @admin_required
 def review_care_plan(resident_id: int):
     """AI reviews the active care plan against recent data."""
@@ -2004,6 +2014,7 @@ Maximo 20 residentes. Escribe en espanol. Sin emojis."""
 
 
 @bp.route('/api/ai/risk-watchlist', methods=['POST'])
+@limiter.limit("2/minute")
 @admin_required
 def ai_risk_watchlist():
     """AI-generated weekly risk watchlist for all residents."""

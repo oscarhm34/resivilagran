@@ -274,6 +274,7 @@ def training_results(pill_id: int):
 # ── AI Question Generation ───────────────────────────────────────────────────
 
 @bp.route('/api/training/ai-generate-questions', methods=['POST'])
+@limiter.limit("5/minute")
 @admin_required
 def ai_generate_questions():
     """Use AI to generate quiz questions from pill title and description."""

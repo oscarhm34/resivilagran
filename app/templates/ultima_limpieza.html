@@ -92,8 +92,8 @@
 
     {% set never_count = last_cleaning_info | selectattr('last_cleaned_date', 'equalto', 'Nunca') | list | length %}
     {% if never_count > 0 %}
-    <div class="alert mt-3 d-flex align-items-center gap-2"
-         style="background:#fff3cd;border:1px solid #f5c400;border-radius:var(--radius-md);color:#7d5a00">
+    <div class="alert tint-warn mt-3 d-flex align-items-center gap-2"
+         style="border:1px solid #f5c400;border-radius:var(--radius-md)">
         <strong>{{ never_count }}</strong> habitación{{ 'es' if never_count != 1 }} sin limpieza registrada.
     </div>
     {% endif %}

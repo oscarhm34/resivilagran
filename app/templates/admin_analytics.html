@@ -146,7 +146,7 @@
     <!-- Alertas de constantes vitales -->
     {% if abnormal_vitals %}
     <div class="card mt-4">
-        <div class="card-header" style="background:#fff3cd;border-color:#ffc107">
+        <div class="card-header tint-warn">
             <span style="color:#856404">&#9888; Constantes vitales fuera de rango ({{ abnormal_vitals|length }})</span>
         </div>
         <div class="card-body p-0">
@@ -154,7 +154,7 @@
                 <thead><tr><th>Residente</th><th>Constante</th><th>Valor</th><th>Rango</th><th>Fecha</th></tr></thead>
                 <tbody>
                     {% for v in abnormal_vitals %}
-                    <tr style="{% if v.alert == 'alta' %}background:#fff5f5{% else %}background:#f0f8ff{% endif %}">
+                    <tr class="{{ 'tint-danger' if v.alert == 'alta' else 'tint-info' }}">
                         <td><strong>{{ v.resident }}</strong></td>
                         <td>{{ v.type }}</td>
                         <td><strong style="color:{% if v.alert == 'alta' %}var(--color-danger){% else %}var(--color-primary){% endif %}">{{ v.value }} {{ v.unit }}</strong></td>

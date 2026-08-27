@@ -146,7 +146,7 @@
     {# ── Overdue rooms ────────────────────────────────────────────── #}
     {% if overdue_rooms %}
     <div class="card mb-4">
-        <div class="card-header" style="background:#fff5f5">
+        <div class="card-header tint-danger">
             <i class="bi bi-exclamation-triangle me-1" style="color:var(--color-danger)"></i>
             Habitaciones mas atrasadas ({{ sla_overdue }} total)
         </div>
@@ -163,7 +163,7 @@
                 </thead>
                 <tbody>
                     {% for r in overdue_rooms %}
-                    <tr style="background:{% if r.urgency >= 3 %}#ffeaea{% elif r.urgency >= 2 %}#fff5f5{% else %}transparent{% endif %}">
+                    <tr class="{% if r.urgency >= 3 %}tint-danger-strong{% elif r.urgency >= 2 %}tint-danger{% endif %}">
                         <td class="fw-semibold">{{ r.number }}</td>
                         <td class="hide-mobile">{{ r.floor }}</td>
                         <td class="hide-mobile">{{ r.type }}</td>

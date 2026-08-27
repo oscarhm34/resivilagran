@@ -9,7 +9,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
-from .. import db
+from .. import db, limiter
 from ..models import (
     Cleaner, ResidentGroup, ShiftType, ShiftAssignment,
     RotationPattern, RotationPatternDay, WorkerShiftConfig,
@@ -962,6 +962,7 @@ def cuadrantes_validate():
 
 
 @bp.route('/api/shifts/ai-suggestions', methods=['POST'])
+@limiter.limit("5/minute")
 @admin_required
 def ai_shift_suggestions():
     """Use AI to analyze shift patterns and suggest improvements."""
@@ -1062,6 +1063,7 @@ trabajadores sobrecargados o infrautilizados, y mejoras de distribucion."""
 
 
 @bp.route('/api/shifts/ai-suggest-replacement', methods=['POST'])
+@limiter.limit("5/minute")
 @admin_required
 def ai_suggest_replacement():
     """AI suggests best replacement worker for a vacant shift."""

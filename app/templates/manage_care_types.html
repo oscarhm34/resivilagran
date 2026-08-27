@@ -131,7 +131,7 @@
                     </tr>
                     <!-- Vital sign fields for this care type -->
                     {% if ct.vital_sign_types %}
-                    <tr style="background:#f0f8ff">
+                    <tr class="tint-info">
                         <td colspan="5" style="padding:8px 16px 8px 2.5rem">
                             <small class="text-body-secondary fw-bold">🩺 Campos vitales de "{{ ct.name }}":</small>
                             {% for vf in ct.vital_sign_types %}
@@ -147,7 +147,7 @@
                     </tr>
                     {% endif %}
                     <!-- Add vital field form (collapsible) -->
-                    <tr id="vf-add-{{ ct.id }}" style="display:none;background:#f0f8ff">
+                    <tr id="vf-add-{{ ct.id }}" class="tint-info" style="display:none">
                         <td colspan="5" style="padding:8px 16px 12px 2.5rem">
                             <form method="post" action="{{ url_for('care.add_edit_vital_field', care_type_id=ct.id) }}" class="row g-2 align-items-end">
                                 <div class="col-auto"><input type="text" name="vf_name" class="form-control form-control-sm" placeholder="Nombre (ej: Sistólica)" required></div>
@@ -165,7 +165,7 @@
                         </td>
                     </tr>
                     {% for child in ct.children|sort(attribute='sort_order') %}
-                    <tr style="background:var(--bs-tertiary-bg, #f8f9fa)">
+                    <tr class="tint-muted">
                         <td style="font-size:1.2rem;padding-left:2.5rem">
                             {% if child.icon_path %}
                             <img src="{{ url_for('nfc.serve_upload', filename=child.icon_path) }}" style="width:24px;height:24px;object-fit:contain">
@@ -193,7 +193,7 @@
                         </td>
                     </tr>
                     {% if child.vital_sign_types %}
-                    <tr style="background:#f0f8ff">
+                    <tr class="tint-info">
                         <td colspan="5" style="padding:8px 16px 8px 3.5rem">
                             <small class="text-body-secondary fw-bold">🩺 Campos vitales de "{{ child.name }}":</small>
                             {% for vf in child.vital_sign_types %}
@@ -208,7 +208,7 @@
                         </td>
                     </tr>
                     {% endif %}
-                    <tr id="vf-add-{{ child.id }}" style="display:none;background:#f0f8ff">
+                    <tr id="vf-add-{{ child.id }}" class="tint-info" style="display:none">
                         <td colspan="5" style="padding:8px 16px 12px 3.5rem">
                             <form method="post" action="{{ url_for('care.add_edit_vital_field', care_type_id=child.id) }}" class="row g-2 align-items-end">
                                 <div class="col-auto"><input type="text" name="vf_name" class="form-control form-control-sm" placeholder="Nombre (ej: Sistólica)" required></div>

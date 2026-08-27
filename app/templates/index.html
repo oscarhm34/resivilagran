@@ -42,7 +42,7 @@
         <table class="table table-sm mb-0">
             <tbody>
                 {% for v in alertas_vitales %}
-                <tr class="vitals-row {{ 'is-high' if v.alert == 'alta' else 'is-low' }}">
+                <tr class="vitals-row {{ 'is-high tint-danger' if v.alert == 'alta' else 'is-low tint-info' }}">
                     <td class="vitals-name"><strong>{{ v.resident }}</strong></td>
                     <td>{{ v.type }}</td>
                     <td><strong class="vitals-value">{{ v.value }} {{ v.unit }}</strong>
@@ -282,17 +282,10 @@
         font-weight: 700;
         font-size: .85rem;
     }
-    .vitals-row.is-high { background: #fff5f5; }
-    .vitals-row.is-low  { background: #f0f8ff; }
+    /* El fondo lo ponen .tint-danger / .tint-info de base.html */
     .vitals-row.is-high .vitals-value { color: var(--color-danger); }
     .vitals-row.is-low  .vitals-value { color: var(--color-primary); }
     .vitals-name { padding: 8px 12px; }
-
-    /* En oscuro los fondos claros dejaban el texto ilegible: se tinta el
-       propio color de estado en vez de usar un blanco roto. */
-    [data-theme="dark"] .vitals-row.is-high { background: rgba(207, 34, 46, .18); }
-    [data-theme="dark"] .vitals-row.is-low  { background: rgba(0, 105, 217, .16); }
-    [data-theme="dark"] .vitals-row td { color: var(--color-text); }
 
     .home-card {
         border-radius: var(--radius-lg) !important;
