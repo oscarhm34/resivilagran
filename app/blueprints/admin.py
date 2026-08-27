@@ -5,20 +5,20 @@ from flask import (Blueprint, request, jsonify, render_template, redirect,
                    url_for, flash, send_file, abort, current_app)
 from flask_login import login_user, logout_user, login_required, current_user
 from sqlalchemy.orm import joinedload
-from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta
 import pandas as pd
 from io import BytesIO
 import json
 
-from .. import db, limiter
+from .. import app, db, limiter
 from ..models import (Cleaner, Room, CleaningRecord, Floor, RoomType, Resident,
                       CareType, CareRecord, ResidentGroup,
                       VitalSignType, VitalSignReading,
                       ShiftAssignment, ChecklistItem,
                       CleaningTargetTime, AuditLog)
 from ..utils import (admin_required, _format_duration,
-                     _compute_cleaning_stats, _calculate_room_urgency)
+                     _compute_cleaning_stats, _calculate_room_urgency,
+                     _safe_commit, _safe_flush, log_audit)
 
 bp = Blueprint('admin_bp', __name__)
 
@@ -85,7 +85,9 @@ def index():
     for s in stale_cares:
         s.end_time = stale_cutoff
     if stale_count:
-        db.session.commit()
+        ok, error = _safe_commit('Error al cerrar las sesiones colgadas')
+        if not ok:
+            app.logger.error('No se pudieron cerrar las sesiones colgadas: %s', error)
 
     global _last_notif_generation
     now_notif = datetime.now()
@@ -284,7 +286,13 @@ def add_edit_cleaner():
             cleaner.groups = selected_groups
             if password:
                 cleaner.set_password(password)
-            db.session.commit()
+            log_audit('update', 'cleaner', cleaner.id,
+                      {'username': username, 'rol': role, 'admin': is_admin,
+                       'activo': active, 'password_cambiada': bool(password)})
+            ok, error = _safe_commit('Error al actualizar el trabajador')
+            if not ok:
+                flash(error, 'danger')
+                return redirect(url_for('admin_bp.manage_workers'))
             flash('Trabajador actualizado correctamente.', 'success')
         else:
             flash('Trabajador no encontrado.', 'error')
@@ -293,7 +301,17 @@ def add_edit_cleaner():
         new_cleaner.set_password(password)
         new_cleaner.groups = selected_groups
         db.session.add(new_cleaner)
-        db.session.commit()
+        ok, error = _safe_flush('Error al crear el trabajador')
+        if not ok:
+            flash(error, 'danger')
+            return redirect(url_for('admin_bp.manage_workers'))
+        log_audit('create', 'cleaner', new_cleaner.id,
+                  {'username': username, 'rol': role, 'admin': is_admin,
+                   'activo': active})
+        ok, error = _safe_commit('Error al crear el trabajador')
+        if not ok:
+            flash(error, 'danger')
+            return redirect(url_for('admin_bp.manage_workers'))
         flash('Trabajador añadido correctamente.', 'success')
 
     return redirect(url_for('admin_bp.manage_workers'))
@@ -302,16 +320,16 @@ def add_edit_cleaner():
 @bp.route('/cleaners/delete/<int:id>', methods=['POST'])
 @admin_required
 def delete_cleaner(id: int):
-    try:
-        cleaner = db.session.get(Cleaner, id)
-        if cleaner is None:
-            abort(404)
-        db.session.delete(cleaner)
-        db.session.commit()
-        flash('Trabajador eliminado con éxito.', 'success')
-    except IntegrityError:
-        db.session.rollback()
+    cleaner = db.session.get(Cleaner, id)
+    if cleaner is None:
+        abort(404)
+    log_audit('delete', 'cleaner', id, {'username': cleaner.username})
+    db.session.delete(cleaner)
+    ok, _ = _safe_commit()
+    if not ok:
         flash('No se puede eliminar porque tiene registros de limpieza asociados.', 'error')
+    else:
+        flash('Trabajador eliminado con éxito.', 'success')
     return redirect(url_for('admin_bp.manage_workers'))
 
 
@@ -327,7 +345,10 @@ def update_cleaner_groups():
     if not cleaner:
         return jsonify({'error': 'Empleado no encontrado'}), 404
     cleaner.groups = ResidentGroup.query.filter(ResidentGroup.id.in_(group_ids)).all() if group_ids else []
-    db.session.commit()
+    log_audit('update', 'cleaner', cleaner.id, {'grupos': [int(g) for g in group_ids]})
+    ok, error = _safe_commit('Error al actualizar los grupos del trabajador')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True}), 200
 
 
@@ -343,7 +364,10 @@ def update_cleaner_active():
     if not cleaner:
         return jsonify({'error': 'Empleado no encontrado'}), 404
     cleaner.active = bool(active)
-    db.session.commit()
+    log_audit('update', 'cleaner', cleaner.id, {'activo': cleaner.active})
+    ok, error = _safe_commit('Error al cambiar el estado del trabajador')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True}), 200
 
 
@@ -383,13 +407,21 @@ def add_edit_room():
             room.room_type_id = room_type_id
             room.floor_id = floor_id
             room.description = description
-            db.session.commit()
+            log_audit('update', 'room', room.id, {'numero': number})
+            ok, error = _safe_commit('Error al actualizar el espacio')
+            if not ok:
+                flash(error, 'danger')
+                return redirect(url_for('admin_bp.manage_cleaning_zones'))
             flash('Espacio actualizado correctamente.', 'success')
         else:
             flash('Espacio no encontrado.', 'error')
     else:
         db.session.add(Room(number=number, room_type_id=room_type_id, floor_id=floor_id, description=description))
-        db.session.commit()
+        log_audit('create', 'room', None, {'numero': number, 'floor_id': floor_id})
+        ok, error = _safe_commit('Error al crear el espacio')
+        if not ok:
+            flash(error, 'danger')
+            return redirect(url_for('admin_bp.manage_cleaning_zones'))
         flash('Espacio añadido correctamente.', 'success')
 
     return redirect(url_for('admin_bp.manage_cleaning_zones'))
@@ -398,16 +430,16 @@ def add_edit_room():
 @bp.route('/rooms/delete/<int:id>', methods=['POST'])
 @admin_required
 def delete_room(id: int):
-    try:
-        room = db.session.get(Room, id)
-        if room is None:
-            abort(404)
-        db.session.delete(room)
-        db.session.commit()
-        flash('Espacio eliminado con éxito.', 'success')
-    except IntegrityError:
-        db.session.rollback()
+    room = db.session.get(Room, id)
+    if room is None:
+        abort(404)
+    log_audit('delete', 'room', id, {'numero': room.number})
+    db.session.delete(room)
+    ok, _ = _safe_commit()
+    if not ok:
         flash('No se puede eliminar porque está en uso.', 'error')
+    else:
+        flash('Espacio eliminado con éxito.', 'success')
     return redirect(url_for('admin_bp.manage_cleaning_zones'))
 
 
@@ -430,13 +462,21 @@ def add_edit_room_type():
         room_type = db.session.get(RoomType, int(room_type_id))
         if room_type:
             room_type.name = name
-            db.session.commit()
+            log_audit('update', 'room_type', room_type.id, {'nombre': name})
+            ok, error = _safe_commit('Error al actualizar el tipo de espacio')
+            if not ok:
+                flash(error, 'danger')
+                return redirect(url_for('admin_bp.manage_room_types'))
             flash('Tipo de espacio actualizado correctamente.', 'success')
         else:
             flash('Tipo de espacio no encontrado.', 'error')
     else:
         db.session.add(RoomType(name=name))
-        db.session.commit()
+        log_audit('create', 'room_type', None, {'nombre': name})
+        ok, error = _safe_commit('Error al crear el tipo de espacio')
+        if not ok:
+            flash(error, 'danger')
+            return redirect(url_for('admin_bp.manage_room_types'))
         flash('Tipo de espacio añadido correctamente.', 'success')
     return redirect(url_for('admin_bp.manage_room_types'))
 
@@ -444,16 +484,16 @@ def add_edit_room_type():
 @bp.route('/room_types/delete/<int:id>', methods=['POST'])
 @admin_required
 def delete_room_type(id: int):
-    try:
-        room_type = db.session.get(RoomType, id)
-        if room_type is None:
-            abort(404)
-        db.session.delete(room_type)
-        db.session.commit()
-        flash('Tipo de espacio eliminado correctamente.', 'success')
-    except IntegrityError:
-        db.session.rollback()
+    room_type = db.session.get(RoomType, id)
+    if room_type is None:
+        abort(404)
+    log_audit('delete', 'room_type', id, {'nombre': room_type.name})
+    db.session.delete(room_type)
+    ok, _ = _safe_commit()
+    if not ok:
         flash('No se puede eliminar porque está en uso.', 'error')
+    else:
+        flash('Tipo de espacio eliminado correctamente.', 'success')
     return redirect(url_for('admin_bp.manage_room_types'))
 
 
@@ -476,13 +516,21 @@ def add_edit_floor():
         floor = db.session.get(Floor, int(floor_id))
         if floor:
             floor.name = name
-            db.session.commit()
+            log_audit('update', 'floor', floor.id, {'nombre': name})
+            ok, error = _safe_commit('Error al actualizar la planta')
+            if not ok:
+                flash(error, 'danger')
+                return redirect(url_for('admin_bp.manage_floors'))
             flash('Planta actualizada correctamente.', 'success')
         else:
             flash('Planta no encontrada.', 'error')
     else:
         db.session.add(Floor(name=name))
-        db.session.commit()
+        log_audit('create', 'floor', None, {'nombre': name})
+        ok, error = _safe_commit('Error al crear la planta')
+        if not ok:
+            flash(error, 'danger')
+            return redirect(url_for('admin_bp.manage_floors'))
         flash('Planta añadida correctamente.', 'success')
     return redirect(url_for('admin_bp.manage_floors'))
 
@@ -490,16 +538,16 @@ def add_edit_floor():
 @bp.route('/floors/delete/<int:id>', methods=['POST'])
 @admin_required
 def delete_floor(id: int):
-    try:
-        floor = db.session.get(Floor, id)
-        if floor is None:
-            abort(404)
-        db.session.delete(floor)
-        db.session.commit()
-        flash('Planta eliminada correctamente.', 'success')
-    except IntegrityError:
-        db.session.rollback()
+    floor = db.session.get(Floor, id)
+    if floor is None:
+        abort(404)
+    log_audit('delete', 'floor', id, {'nombre': floor.name})
+    db.session.delete(floor)
+    ok, _ = _safe_commit()
+    if not ok:
         flash('No se puede eliminar porque está en uso.', 'error')
+    else:
+        flash('Planta eliminada correctamente.', 'success')
     return redirect(url_for('admin_bp.manage_floors'))
 
 
@@ -513,14 +561,22 @@ def admin_close_session(mode: str, record_id: int):
         rec = db.session.get(CleaningRecord, record_id)
         if rec and not rec.end_time:
             rec.end_time = now
-            db.session.commit()
+            log_audit('update', 'cleaning_record', record_id, {'accion': 'cierre_manual'})
+            ok, error = _safe_commit('Error al cerrar la sesion de limpieza')
+            if not ok:
+                flash(error, 'danger')
+                return redirect(request.referrer or url_for('admin_bp.registros_limpieza'))
             flash(f'Sesión de limpieza cerrada (Hab. {rec.room.number if rec.room else record_id}).', 'success')
         return redirect(request.referrer or url_for('admin_bp.registros_limpieza'))
     elif mode == 'care':
         rec = db.session.get(CareRecord, record_id)
         if rec and not rec.end_time:
             rec.end_time = now
-            db.session.commit()
+            log_audit('update', 'care_record', record_id, {'accion': 'cierre_manual'})
+            ok, error = _safe_commit('Error al cerrar la sesion de atencion')
+            if not ok:
+                flash(error, 'danger')
+                return redirect(request.referrer or url_for('residents.registros_atencion'))
             flash(f'Sesión de atención cerrada ({rec.resident.name if rec.resident else record_id}).', 'success')
         return redirect(request.referrer or url_for('residents.registros_atencion'))
     abort(400)

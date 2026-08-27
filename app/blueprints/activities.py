@@ -12,7 +12,8 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from .. import db
 from ..models import Activity, ActivityParticipation, ActivityTemplate, ActivityPhoto, Resident, Cleaner
-from ..utils import admin_required, _open_image_oriented
+from ..utils import (admin_required, _open_image_oriented,
+                     _safe_commit, _safe_flush, log_audit)
 
 bp = Blueprint('activities', __name__)
 
@@ -148,7 +149,16 @@ def save_activity():
     a.location = request.form.get('location', '').strip() or None
     a.category = request.form.get('category', 'general')
 
-    db.session.commit()
+    ok, error = _safe_flush('Error al guardar la actividad')
+    if not ok:
+        flash(error, 'danger')
+        return redirect(url_for('activities.admin_activities'))
+    log_audit('update' if act_id else 'create', 'activity', a.id,
+              {'titulo': a.title, 'fecha': a.activity_date.isoformat()})
+    ok, error = _safe_commit('Error al guardar la actividad')
+    if not ok:
+        flash(error, 'danger')
+        return redirect(url_for('activities.admin_activities'))
 
     # Create recurring template + future instances if requested (only for new activities)
     if recurring and not act_id:
@@ -184,7 +194,13 @@ def save_activity():
             )
             db.session.add(inst)
 
-        db.session.commit()
+        log_audit('create', 'activity_template', tmpl.id,
+                  {'titulo': tmpl.title, 'recurrencia': recurrence,
+                   'instancias': count})
+        ok, error = _safe_commit('Error al crear la actividad recurrente')
+        if not ok:
+            flash(error, 'danger')
+            return redirect(url_for('activities.admin_activities'))
         flash(f'Actividad recurrente creada: {a.title} ({count + 1} instancias)', 'success')
     else:
         flash(f'Actividad {"actualizada" if act_id else "creada"}: {a.title}', 'success')
@@ -211,12 +227,23 @@ def delete_activity(act_id: int):
                 tmpl = db.session.get(ActivityTemplate, a.template_id)
                 if tmpl:
                     tmpl.active = False
-            db.session.commit()
-            flash('Actividad y futuras instancias eliminadas.', 'success')
+            log_audit('delete', 'activity', act_id,
+                      {'titulo': a.title, 'alcance': 'futuras',
+                       'template_id': a.template_id})
+            ok, error = _safe_commit('Error al eliminar las actividades')
+            if not ok:
+                flash(error, 'danger')
+            else:
+                flash('Actividad y futuras instancias eliminadas.', 'success')
         else:
+            log_audit('delete', 'activity', act_id,
+                      {'titulo': a.title, 'alcance': 'individual'})
             db.session.delete(a)
-            db.session.commit()
-            flash('Actividad eliminada.', 'success')
+            ok, error = _safe_commit('Error al eliminar la actividad')
+            if not ok:
+                flash(error, 'danger')
+            else:
+                flash('Actividad eliminada.', 'success')
         return redirect(url_for('activities.admin_activities', date=act_date))
     return redirect(url_for('activities.admin_activities'))
 
@@ -260,7 +287,12 @@ def generate_template_instances(tmpl_id: int):
             ))
             created += 1
 
-    db.session.commit()
+    log_audit('create', 'activity', None,
+              {'template_id': tmpl_id, 'instancias': created})
+    ok, error = _safe_commit('Error al generar las instancias de la actividad')
+    if not ok:
+        flash(error, 'danger')
+        return redirect(url_for('activities.admin_activities'))
     flash(f'{created} nuevas instancias generadas para "{tmpl.title}".', 'success')
     return redirect(url_for('activities.admin_activities'))
 
@@ -288,7 +320,10 @@ def toggle_template(tmpl_id: int):
     tmpl = db.session.get(ActivityTemplate, tmpl_id)
     if tmpl:
         tmpl.active = not tmpl.active
-        db.session.commit()
+        log_audit('update', 'activity_template', tmpl.id, {'activa': tmpl.active})
+        ok, error = _safe_commit('Error al cambiar el estado de la plantilla')
+        if not ok:
+            flash(error, 'danger')
     return redirect(url_for('activities.admin_activity_templates'))
 
 
@@ -500,7 +535,11 @@ def invite_residents(act_id: int):
                 activity_id=act_id, resident_id=rid, invited=True,
             ))
 
-    db.session.commit()
+    log_audit('update', 'activity', act_id,
+              {'accion': 'invitaciones', 'residentes': len(resident_ids)})
+    ok, error = _safe_commit('Error al guardar las invitaciones')
+    if not ok:
+        return jsonify({'error': error}), 500
     total = ActivityParticipation.query.filter_by(activity_id=act_id).count()
     return jsonify({'ok': True, 'count': total})
 
@@ -523,7 +562,11 @@ def save_participation(act_id: int):
             notes=p.get('notes', '').strip() or None,
         ))
 
-    db.session.commit()
+    log_audit('update', 'activity', act_id,
+              {'accion': 'participacion', 'participantes': len(participants)})
+    ok, error = _safe_commit('Error al guardar la participacion')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True, 'count': len(participants)})
 
 
@@ -563,7 +606,13 @@ def upload_activity_photo(act_id: int):
         caption=caption, uploaded_by=current_user.id,
     )
     db.session.add(photo)
-    db.session.commit()
+    ok, error = _safe_flush('Error al guardar la foto de la actividad')
+    if not ok:
+        return jsonify({'error': error}), 500
+    log_audit('create', 'activity_photo', photo.id, {'activity_id': act_id})
+    ok, error = _safe_commit('Error al guardar la foto de la actividad')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True, 'id': photo.id, 'photo_path': filename})
 
 
@@ -581,8 +630,12 @@ def delete_activity_photo(photo_id: int):
     filepath = os.path.join(current_app.config.get('UPLOAD_FOLDER', 'uploads'), photo.photo_path)
     if os.path.exists(filepath):
         os.remove(filepath)
+    log_audit('delete', 'activity_photo', photo_id,
+              {'activity_id': photo.activity_id})
     db.session.delete(photo)
-    db.session.commit()
+    ok, error = _safe_commit('Error al eliminar la foto de la actividad')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True})
 
 
@@ -657,7 +710,12 @@ def api_confirm_attendance(act_id: int):
             confirmed_by=worker.id, confirmed_at=datetime.now(),
         ))
 
-    db.session.commit()
+    log_audit('update', 'activity_participation', None,
+              {'activity_id': act_id, 'resident_id': resident_id,
+               'estado': status, 'cleaner_id': worker.id})
+    ok, error = _safe_commit('Error al confirmar la asistencia')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True})
 
 
@@ -698,5 +756,12 @@ def api_upload_activity_photo(act_id: int):
         uploaded_by=worker.id,
     )
     db.session.add(photo)
-    db.session.commit()
+    ok, error = _safe_flush('Error al guardar la foto de la actividad')
+    if not ok:
+        return jsonify({'error': error}), 500
+    log_audit('create', 'activity_photo', photo.id,
+              {'activity_id': act_id, 'cleaner_id': worker.id})
+    ok, error = _safe_commit('Error al guardar la foto de la actividad')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True, 'id': photo.id})

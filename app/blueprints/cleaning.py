@@ -14,7 +14,7 @@ from ..models import (
     ShiftAssignment, Absence, RoomType, Floor, CareRecord,
 )
 from ..utils import (
-    admin_required, _verify_worker_id, _safe_commit,
+    admin_required, _verify_worker_id, _safe_commit, log_audit,
     _compute_cleaning_stats, _calculate_room_urgency, _urgency_priority,
 )
 
@@ -731,7 +731,12 @@ def save_cleaning_plan():
             created_by=current_user.id,
         ))
 
-    db.session.commit()
+    log_audit('update', 'daily_cleaning_assignment', None,
+              {'fecha': plan_date.isoformat(), 'asignaciones': len(assignments),
+               'origen': 'manual'})
+    ok, error = _safe_commit('Error al guardar el plan de limpieza')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True, 'count': len(assignments)})
 
 
@@ -835,7 +840,12 @@ def generate_worker_plan():
             cleaner_id=cleaner_id, room_id=rp['room_id'], date=plan_date,
             source='auto', position=pos, created_by=current_user.id,
         ))
-    db.session.commit()
+    log_audit('update', 'daily_cleaning_assignment', None,
+              {'fecha': plan_date.isoformat(), 'cleaner_id': cleaner_id,
+               'asignaciones': len(rooms_plan), 'origen': 'auto'})
+    ok, error = _safe_commit('Error al generar el plan de limpieza')
+    if not ok:
+        return jsonify({'error': error}), 500
 
     return jsonify({'ok': True, 'rooms': [r['room_id'] for r in rooms_plan]})
 
@@ -852,7 +862,12 @@ def clear_cleaning_plan():
     if cleaner_id:
         query = query.filter_by(cleaner_id=cleaner_id)
     count = query.delete()
-    db.session.commit()
+    log_audit('delete', 'daily_cleaning_assignment', None,
+              {'fecha': plan_date.isoformat(), 'cleaner_id': cleaner_id,
+               'eliminadas': count})
+    ok, error = _safe_commit('Error al borrar el plan de limpieza')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True, 'deleted': count})
 
 
@@ -884,7 +899,12 @@ def save_cleaning_assignments():
     CleaningZoneAssignment.query.filter_by(cleaner_id=cleaner_id).delete()
     for fid in floor_ids:
         db.session.add(CleaningZoneAssignment(cleaner_id=cleaner_id, floor_id=int(fid)))
-    db.session.commit()
+    log_audit('update', 'cleaning_zone_assignment', cleaner_id,
+              {'plantas': [int(f) for f in floor_ids]})
+    ok, error = _safe_commit('Error al guardar las zonas de limpieza')
+    if not ok:
+        flash(error, 'danger')
+        return redirect(url_for('cleaning.admin_cleaning_config'))
     flash('Zonas asignadas correctamente.', 'success')
     return redirect(url_for('cleaning.admin_cleaning_config'))
 
@@ -903,6 +923,11 @@ def save_cleaning_targets():
                 db.session.add(CleaningTargetTime(room_type_id=rt.id, target_minutes=val))
         elif existing:
             db.session.delete(existing)
-    db.session.commit()
+    log_audit('update', 'cleaning_target_time', None,
+              {'tipos_espacio': len(room_types)})
+    ok, error = _safe_commit('Error al guardar los tiempos objetivo')
+    if not ok:
+        flash(error, 'danger')
+        return redirect(url_for('cleaning.admin_cleaning_config'))
     flash('Tiempos objetivo guardados.', 'success')
     return redirect(url_for('cleaning.admin_cleaning_config'))

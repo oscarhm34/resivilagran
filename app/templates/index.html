@@ -35,26 +35,24 @@
 
     {# ── Alertas vitales ─────────────────────────────────────────── #}
     {% if alertas_vitales %}
-    <div class="alert mb-4 p-0" style="border:2px solid #dc3545;border-radius:var(--radius-lg);overflow:hidden">
-        <div style="background:#dc3545;color:#fff;padding:10px 16px;font-weight:700;font-size:.85rem">
+    <div class="vitals-alert mb-4">
+        <div class="vitals-alert-head">
             <i class="bi bi-heart-pulse"></i> {{ alertas_vitales|length }} alerta{{ 's' if alertas_vitales|length != 1 }} de constantes vitales hoy
         </div>
-        <div style="padding:0">
-            <table class="table table-sm mb-0">
-                <tbody>
-                    {% for v in alertas_vitales %}
-                    <tr style="background:{% if v.alert == 'alta' %}#fff5f5{% else %}#f0f8ff{% endif %}">
-                        <td style="padding:8px 12px"><strong>{{ v.resident }}</strong></td>
-                        <td>{{ v.type }}</td>
-                        <td><strong style="color:{% if v.alert == 'alta' %}#dc3545{% else %}#0069d9{% endif %}">{{ v.value }} {{ v.unit }}</strong>
-                            <small class="text-body-secondary">({{ v.alert }})</small>
-                        </td>
-                        <td class="text-body-secondary small">{{ v.time }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+        <table class="table table-sm mb-0">
+            <tbody>
+                {% for v in alertas_vitales %}
+                <tr class="vitals-row {{ 'is-high' if v.alert == 'alta' else 'is-low' }}">
+                    <td class="vitals-name"><strong>{{ v.resident }}</strong></td>
+                    <td>{{ v.type }}</td>
+                    <td><strong class="vitals-value">{{ v.value }} {{ v.unit }}</strong>
+                        <small class="text-body-secondary">({{ v.alert }})</small>
+                    </td>
+                    <td class="text-body-secondary small">{{ v.time }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
     {% endif %}
 
@@ -71,7 +69,7 @@
         </div>
         <div class="col-6 col-md-4 col-xl-2">
             <div class="stat-card">
-                <div class="stat-value" style="color:var(--color-success)">{{ atenciones_hoy | default(0) }}</div>
+                <div class="stat-value">{{ atenciones_hoy | default(0) }}</div>
                 <div class="stat-label">Atenciones hoy</div>
                 {% if atenciones_en_curso > 0 %}
                 <div class="stat-trend trend-up"><i class="bi bi-circle-fill" style="font-size:.4rem;vertical-align:middle"></i> {{ atenciones_en_curso }} en curso</div>
@@ -271,6 +269,30 @@
     }
     .stat-trend { font-size: .75rem; margin-top: .35rem; }
     .trend-up   { color: var(--color-success); }
+
+    .vitals-alert {
+        border: 2px solid var(--color-danger);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+    }
+    .vitals-alert-head {
+        background: var(--color-danger);
+        color: #fff;
+        padding: 10px 16px;
+        font-weight: 700;
+        font-size: .85rem;
+    }
+    .vitals-row.is-high { background: #fff5f5; }
+    .vitals-row.is-low  { background: #f0f8ff; }
+    .vitals-row.is-high .vitals-value { color: var(--color-danger); }
+    .vitals-row.is-low  .vitals-value { color: var(--color-primary); }
+    .vitals-name { padding: 8px 12px; }
+
+    /* En oscuro los fondos claros dejaban el texto ilegible: se tinta el
+       propio color de estado en vez de usar un blanco roto. */
+    [data-theme="dark"] .vitals-row.is-high { background: rgba(207, 34, 46, .18); }
+    [data-theme="dark"] .vitals-row.is-low  { background: rgba(0, 105, 217, .16); }
+    [data-theme="dark"] .vitals-row td { color: var(--color-text); }
 
     .home-card {
         border-radius: var(--radius-lg) !important;

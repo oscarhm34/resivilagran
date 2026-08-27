@@ -630,7 +630,7 @@
             <button type="button" class="ai-expand-btn" data-target="mood-notes" data-context="mood">✨ Expandir con IA</button>
             <div class="quick-phrases" data-target="mood-notes" data-context="mood"></div>
         </div>
-        <button id="mood-save" class="btn-cam primary" style="width:100%;padding:14px;border-radius:14px;border:none;background:var(--green);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:'Outfit',system-ui,sans-serif" disabled>Selecciona un estat</button>
+        <button id="mood-save" class="btn-cam primary" style="width:100%;padding:14px;border-radius:14px;border:none;background:var(--green);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:'Outfit',system-ui,sans-serif" disabled>Selecciona un estado</button>
     </div>
 
     <!-- ══ MEAL INTAKE ══ -->
@@ -676,7 +676,7 @@
             <button type="button" class="ai-expand-btn" data-target="meal-notes" data-context="meal">✨ Expandir con IA</button>
             <div class="quick-phrases" data-target="meal-notes" data-context="meal"></div>
         </div>
-        <button id="meal-save" style="width:100%;padding:14px;border-radius:14px;border:none;background:var(--green);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:'Outfit',system-ui,sans-serif" disabled>Selecciona un apat</button>
+        <button id="meal-save" style="width:100%;padding:14px;border-radius:14px;border:none;background:var(--green);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:'Outfit',system-ui,sans-serif" disabled>Selecciona una comida</button>
     </div>
 
     <!-- ══ SELECT ══ -->
@@ -1545,7 +1545,7 @@ function openMoodScreen(residentId, residentName, returnScreen) {
     S_moodReturnScreen = returnScreen || 'screen-home';
     $('mood-resident-name').textContent = residentName;
     $('mood-save').disabled = true;
-    $('mood-save').textContent = 'Selecciona un estat';
+    $('mood-save').textContent = 'Selecciona un estado';
     $('mood-notes').value = '';
     document.querySelectorAll('.mood-btn').forEach(b => { b.style.borderColor = 'transparent'; b.style.background = 'none'; });
     document.querySelectorAll('.mood-flag').forEach(b => { b.style.borderColor = 'var(--border)'; b.style.background = 'var(--surface)'; b.style.color = 'inherit'; });
@@ -1623,7 +1623,7 @@ function openMealScreen(residentId, residentName, returnScreen) {
     S_mealReturnScreen = returnScreen || 'screen-home';
     $('meal-resident-name').textContent = residentName;
     $('meal-save').disabled = true;
-    $('meal-save').textContent = 'Selecciona un apat';
+    $('meal-save').textContent = 'Selecciona una comida';
     $('meal-notes').value = '';
     $('meal-intake').value = 75;
     $('meal-intake-val').textContent = '75%';

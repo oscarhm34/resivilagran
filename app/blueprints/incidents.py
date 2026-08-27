@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 from .. import app, db
 from ..models import Cleaner, Resident, IncidentType, Incident, AppSetting, FallRecord, Notification
-from ..utils import admin_required, _verify_worker_id
+from ..utils import admin_required, _verify_worker_id, _safe_commit, log_audit
 
 bp = Blueprint('incidents', __name__)
 
@@ -120,7 +120,13 @@ def create_incident():
         )
         db.session.add(fall)
 
-    db.session.commit()
+    log_audit('create', 'incident', incident.id,
+              {'severidad': incident.severity, 'es_caida': is_fall,
+               'resident_id': incident.resident_id})
+    ok, error = _safe_commit('Error al crear la incidencia')
+    if not ok:
+        flash(error, 'danger')
+        return redirect(url_for('incidents.admin_incidents'))
 
     # Auto-review PAI if fall incident with resident
     if is_fall and incident.resident_id:
@@ -163,7 +169,12 @@ def edit_incident(id: int):
     incident.location = request.form.get('location', '').strip() or None
     incident.severity = request.form.get('severity', 'medium')
 
-    db.session.commit()
+    log_audit('update', 'incident', incident.id,
+              {'severidad': incident.severity, 'resident_id': incident.resident_id})
+    ok, error = _safe_commit('Error al actualizar la incidencia')
+    if not ok:
+        flash(error, 'danger')
+        return redirect(url_for('incidents.admin_incidents'))
     flash('Incidencia actualizada.', 'success')
     return redirect(url_for('incidents.admin_incidents'))
 
@@ -187,7 +198,11 @@ def update_incident_status(id: int):
         incident.resolved_by = current_user.id
         incident.resolution_notes = request.form.get('resolution_notes', '').strip() or None
 
-    db.session.commit()
+    log_audit('update', 'incident', incident.id, {'estado': new_status})
+    ok, error = _safe_commit('Error al actualizar el estado de la incidencia')
+    if not ok:
+        flash(error, 'danger')
+        return redirect(url_for('incidents.admin_incidents'))
     flash('Estado actualizado.', 'success')
     return redirect(url_for('incidents.admin_incidents'))
 
@@ -199,8 +214,13 @@ def delete_incident(id: int):
     if not incident:
         abort(404)
     db.session.delete(incident)
-    db.session.commit()
-    flash('Incidencia eliminada.', 'success')
+    log_audit('delete', 'incident', id,
+              {'severidad': incident.severity, 'resident_id': incident.resident_id})
+    ok, error = _safe_commit('Error al eliminar la incidencia')
+    if not ok:
+        flash(error, 'danger')
+    else:
+        flash('Incidencia eliminada.', 'success')
     return redirect(url_for('incidents.admin_incidents'))
 
 
@@ -231,7 +251,11 @@ def add_edit_incident_type():
             it.color = request.form.get('color', '').strip() or None
             it.severity = request.form.get('severity', 'medium')
             it.sort_order = int(request.form.get('sort_order', '0') or 0)
-            db.session.commit()
+            log_audit('update', 'incident_type', it.id, {'nombre': name})
+            ok, error = _safe_commit('Error al actualizar el tipo de incidencia')
+            if not ok:
+                flash(error, 'danger')
+                return redirect(url_for('incidents.admin_incident_types'))
             flash('Tipo actualizado correctamente.', 'success')
         else:
             flash('Tipo no encontrado.', 'error')
@@ -244,7 +268,11 @@ def add_edit_incident_type():
             sort_order=int(request.form.get('sort_order', '0') or 0),
         )
         db.session.add(it)
-        db.session.commit()
+        log_audit('create', 'incident_type', None, {'nombre': name})
+        ok, error = _safe_commit('Error al crear el tipo de incidencia')
+        if not ok:
+            flash(error, 'danger')
+            return redirect(url_for('incidents.admin_incident_types'))
         flash('Tipo añadido correctamente.', 'success')
 
     return redirect(url_for('incidents.admin_incident_types'))
@@ -260,8 +288,12 @@ def delete_incident_type(id: int):
         flash('No se puede eliminar un tipo que tiene incidencias asociadas.', 'error')
     else:
         db.session.delete(it)
-        db.session.commit()
-        flash('Tipo eliminado.', 'success')
+        log_audit('delete', 'incident_type', id, {'nombre': it.name})
+        ok, error = _safe_commit('Error al eliminar el tipo de incidencia')
+        if not ok:
+            flash(error, 'danger')
+        else:
+            flash('Tipo eliminado.', 'success')
     return redirect(url_for('incidents.admin_incident_types'))
 
 
@@ -273,7 +305,10 @@ def toggle_incident_type_active():
     if not it:
         return jsonify({'error': 'No encontrado'}), 404
     it.active = data.get('active', True)
-    db.session.commit()
+    log_audit('update', 'incident_type', it.id, {'activo': it.active})
+    ok, error = _safe_commit('Error al cambiar el estado del tipo de incidencia')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True}), 200
 
 
@@ -357,7 +392,13 @@ def worker_report_incident():
         )
         db.session.add(fall)
 
-    db.session.commit()
+    log_audit('create', 'incident', incident.id,
+              {'severidad': incident.severity, 'es_caida': is_fall,
+               'resident_id': incident.resident_id, 'origen': 'trabajadora',
+               'cleaner_id': int(worker_id)})
+    ok, error = _safe_commit('Error al registrar la incidencia')
+    if not ok:
+        return jsonify({'error': error}), 500
 
     # Auto-review PAI if fall incident with resident
     if is_fall and incident.resident_id:

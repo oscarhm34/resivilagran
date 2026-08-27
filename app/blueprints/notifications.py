@@ -5,7 +5,7 @@ from flask import Blueprint, request, jsonify, render_template
 from flask_login import current_user, login_required
 from datetime import datetime, timedelta, date
 
-from .. import db
+from .. import app, db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from ..models import (Notification, VitalSignReading, VitalSignType,
@@ -13,7 +13,7 @@ from ..models import (Notification, VitalSignReading, VitalSignType,
                       Incident, LegalDocument, DocumentSignature,
                       ShiftAssignment, ShiftCoverageRequirement, ShiftType,
                       AppSetting, PushSubscription)
-from ..utils import admin_required
+from ..utils import admin_required, _safe_commit
 import json as _json
 
 bp = Blueprint('notifications', __name__)
@@ -193,7 +193,10 @@ def _generate_notifications() -> int:
                 created += 1
 
     if created:
-        db.session.commit()
+        ok, error = _safe_commit('Error al generar las notificaciones')
+        if not ok:
+            app.logger.error('No se pudieron generar las notificaciones: %s', error)
+            return 0
         # Send push for worker-targeted notifications created in this batch
         _send_pending_pushes()
 
@@ -354,13 +357,16 @@ def _generate_handover_notification() -> int:
                 if ns.cleaner_id not in absent_ids:
                     db.session.add(Notification(
                         type='shift_handover',
-                        title=f'Informe del torn anterior ({st.short_name})',
+                        title=f'Informe del turno anterior ({st.short_name})',
                         message=html,
                         severity='info',
                         worker_id=ns.cleaner_id,
                     ))
 
-            db.session.commit()
+            ok, error = _safe_commit('Error al generar el relevo de turno')
+            if not ok:
+                app.logger.error('No se pudo generar el relevo de turno: %s', error)
+                return 0
             return 1
         except Exception:
             return 0
@@ -388,7 +394,10 @@ def _generate_ai_insights() -> int:
         return 0
 
     AppSetting.set('ai_insights_last_run', datetime.now().isoformat())
-    db.session.commit()
+    ok, error = _safe_commit('Error al guardar la marca de los avisos automaticos')
+    if not ok:
+        app.logger.error('No se pudo guardar la marca de los avisos automaticos: %s', error)
+        return 0
 
     from .assessments import _build_resident_context, _context_to_text
 
@@ -466,7 +475,10 @@ Formato: [{"resident_id": 123, "resident_name": "Nombre", "finding": "Descripcio
             created += 1
 
     if created:
-        db.session.commit()
+        ok, error = _safe_commit('Error al guardar los avisos automaticos')
+        if not ok:
+            app.logger.error('No se pudieron guardar los avisos automaticos: %s', error)
+            return 0
     return created
 
 
@@ -526,7 +538,9 @@ def admin_notifications():
 def mark_read(id: int):
     notif = Notification.query.get_or_404(id)
     notif.read = True
-    db.session.commit()
+    ok, error = _safe_commit('Error al marcar la notificacion como leida')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True})
 
 
@@ -536,7 +550,9 @@ def mark_read(id: int):
 @admin_required
 def mark_all_read():
     Notification.query.filter(Notification.read == False).update({'read': True})  # noqa: E712
-    db.session.commit()
+    ok, error = _safe_commit('Error al marcar las notificaciones como leidas')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True})
 
 
@@ -596,7 +612,9 @@ def worker_mark_read(nid: int):
     if notif.worker_id != worker.id:
         return jsonify({'error': 'No autorizado'}), 403
     notif.read = True
-    db.session.commit()
+    ok, error = _safe_commit('Error al marcar la notificacion como leida')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True})
 
 
@@ -640,7 +658,9 @@ def push_subscribe():
             endpoint=endpoint,
             keys_json=_json.dumps(keys),
         ))
-    db.session.commit()
+    ok, error = _safe_commit('Error al guardar la suscripcion de avisos')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True})
 
 
@@ -652,7 +672,9 @@ def push_unsubscribe():
     endpoint = (data.get('endpoint') or '').strip()
     if endpoint:
         PushSubscription.query.filter_by(endpoint=endpoint).delete()
-        db.session.commit()
+        ok, error = _safe_commit('Error al eliminar la suscripcion de avisos')
+        if not ok:
+            return jsonify({'error': error}), 500
     return jsonify({'ok': True})
 
 
@@ -695,7 +717,9 @@ def send_push_to_worker(worker_id, title, body, url=None):
             # 410 Gone or 404 = subscription expired, remove it
             if '410' in str(e) or '404' in str(e):
                 db.session.delete(sub)
-                db.session.commit()
+                ok, err = _safe_commit('Error al limpiar la suscripcion caducada')
+                if not ok:
+                    app.logger.error('No se pudo limpiar la suscripcion caducada: %s', err)
         except Exception:
             pass
 

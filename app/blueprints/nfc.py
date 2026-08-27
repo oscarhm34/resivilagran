@@ -25,7 +25,7 @@ from ..models import (
     MoodRecord, MealRecord,
 )
 from ..utils import (
-    admin_required, _verify_worker_id, _current_worker_id, _safe_commit,
+    admin_required, _verify_worker_id, _current_worker_id, _safe_commit, log_audit,
     _check_single_session_conflict, _resolve_nfc_code, _format_duration,
     _allowed_file, ALLOWED_IMAGE_EXTENSIONS, _open_image_oriented,
 )
@@ -1299,7 +1299,10 @@ def enroll_selfie():
     )
     db.session.add(selfie)
     cleaner.identity_verified = True
-    db.session.commit()
+    log_audit('create', 'worker_selfie', cleaner.id, {'proposito': 'enrollment'})
+    ok, error = _safe_commit('Error al registrar la foto de identidad')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True})
 
 
@@ -1328,7 +1331,9 @@ def verify_selfie():
         is_reference=False, purpose=purpose,
     )
     db.session.add(selfie)
-    db.session.commit()
+    ok, error = _safe_commit('Error al guardar la foto de verificacion')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True, 'path': path})
 
 
@@ -1411,7 +1416,9 @@ def api_record_mood():
         notes=data.get('notes', '').strip() or None,
     )
     db.session.add(record)
-    db.session.commit()
+    ok, error = _safe_commit('Error al guardar el registro de animo')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True, 'id': record.id})
 
 
@@ -1483,7 +1490,7 @@ def api_record_meal():
     # Alert if low intake
     if intake_pct < 50:
         resident = db.session.get(Resident, resident_id)
-        r_name = resident.name if resident else 'Resident'
+        r_name = resident.name if resident else 'Residente'
         meal_labels = {'breakfast': 'Desayuno', 'lunch': 'Almuerzo', 'snack': 'Merienda', 'dinner': 'Cena'}
         db.session.add(Notification(
             type='vital_alert',
@@ -1492,7 +1499,9 @@ def api_record_meal():
             link=f'/admin/resident/{resident_id}',
         ))
 
-    db.session.commit()
+    ok, error = _safe_commit('Error al guardar el registro de comida')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True})
 
 

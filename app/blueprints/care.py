@@ -11,6 +11,7 @@ from .. import db
 from ..models import CareType, VitalSignType, ChecklistItem
 from ..utils import (
     admin_required, _allowed_file, ALLOWED_IMAGE_EXTENSIONS, _open_image_oriented,
+    _safe_commit, _safe_flush, log_audit,
 )
 
 bp = Blueprint('care', __name__)
@@ -83,7 +84,11 @@ def add_edit_care_type():
                     if os.path.exists(old):
                         os.remove(old)
                     ct.icon_path = None
-                db.session.commit()
+                log_audit('update', 'care_type', ct.id, {'nombre': name})
+                ok, error = _safe_commit('Error al actualizar el tipo de atencion')
+                if not ok:
+                    flash(error, 'danger')
+                    return redirect(url_for('care.manage_care_types'))
                 flash('Tipo actualizado correctamente.', 'success')
             else:
                 flash('Tipo no encontrado.', 'error')
@@ -101,7 +106,11 @@ def add_edit_care_type():
                 ct.icon_path = _save_care_type_icon(icon_file, ct.id)
             elif selected_icon_path:
                 ct.icon_path = selected_icon_path
-            db.session.commit()
+            log_audit('create', 'care_type', ct.id, {'nombre': name})
+            ok, error = _safe_commit('Error al crear el tipo de atencion')
+            if not ok:
+                flash(error, 'danger')
+                return redirect(url_for('care.manage_care_types'))
             flash('Tipo añadido correctamente.', 'success')
     except IntegrityError:
         db.session.rollback()
@@ -115,13 +124,13 @@ def delete_care_type(id: int):
     ct = db.session.get(CareType, id)
     if ct is None:
         abort(404)
-    try:
-        db.session.delete(ct)
-        db.session.commit()
-        flash('Tipo eliminado correctamente.', 'success')
-    except IntegrityError:
-        db.session.rollback()
+    log_audit('delete', 'care_type', id, {'nombre': ct.name})
+    db.session.delete(ct)
+    ok, _ = _safe_commit()
+    if not ok:
         flash('No se puede eliminar porque está en uso.', 'error')
+    else:
+        flash('Tipo eliminado correctamente.', 'success')
     return redirect(url_for('care.manage_care_types'))
 
 
@@ -133,7 +142,10 @@ def toggle_care_type_active():
     if not ct:
         return jsonify({'error': 'No encontrado'}), 404
     ct.active = data.get('active', True)
-    db.session.commit()
+    log_audit('update', 'care_type', ct.id, {'activo': ct.active})
+    ok, error = _safe_commit('Error al cambiar el estado del tipo de atencion')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True}), 200
 
 
@@ -158,13 +170,15 @@ def add_edit_vital_field(care_type_id: int):
         return redirect(url_for('care.manage_care_types'))
     if vf_id:
         vf = db.session.get(VitalSignType, int(vf_id))
-        if vf:
-            vf.name = name
-            vf.unit = unit
-            vf.min_value = float(min_val) if min_val else None
-            vf.max_value = float(max_val) if max_val else None
-            vf.input_type = input_type
-            vf.sort_order = int(sort_order) if sort_order else 0
+        if not vf:
+            flash('Campo de constantes no encontrado.', 'error')
+            return redirect(url_for('care.manage_care_types'))
+        vf.name = name
+        vf.unit = unit
+        vf.min_value = float(min_val) if min_val else None
+        vf.max_value = float(max_val) if max_val else None
+        vf.input_type = input_type
+        vf.sort_order = int(sort_order) if sort_order else 0
     else:
         vf = VitalSignType(
             care_type_id=care_type_id, name=name, unit=unit,
@@ -174,7 +188,16 @@ def add_edit_vital_field(care_type_id: int):
             sort_order=int(sort_order) if sort_order else 0,
         )
         db.session.add(vf)
-    db.session.commit()
+    ok, error = _safe_flush('Error al guardar el campo de constantes')
+    if not ok:
+        flash(error, 'danger')
+        return redirect(url_for('care.manage_care_types'))
+    log_audit('update' if vf_id else 'create', 'vital_sign_type', vf.id,
+              {'nombre': name, 'care_type_id': care_type_id})
+    ok, error = _safe_commit('Error al guardar el campo de constantes')
+    if not ok:
+        flash(error, 'danger')
+        return redirect(url_for('care.manage_care_types'))
     flash(f'Campo vital "{name}" guardado.', 'success')
     return redirect(url_for('care.manage_care_types'))
 
@@ -188,11 +211,18 @@ def delete_vital_field(vf_id: int):
         return redirect(url_for('care.manage_care_types'))
     if vf.readings:
         vf.active = False
-        flash(f'Campo "{vf.name}" desactivado (tiene lecturas asociadas).', 'warning')
+        log_audit('update', 'vital_sign_type', vf_id,
+                  {'nombre': vf.name, 'activo': False})
+        mensaje = (f'Campo "{vf.name}" desactivado (tiene lecturas asociadas).', 'warning')
     else:
+        log_audit('delete', 'vital_sign_type', vf_id, {'nombre': vf.name})
+        mensaje = (f'Campo "{vf.name}" eliminado.', 'success')
         db.session.delete(vf)
-        flash(f'Campo "{vf.name}" eliminado.', 'success')
-    db.session.commit()
+    ok, error = _safe_commit('Error al guardar el campo de constantes')
+    if not ok:
+        flash(error, 'danger')
+    else:
+        flash(*mensaje)
     return redirect(url_for('care.manage_care_types'))
 
 
@@ -221,12 +251,20 @@ def add_edit_checklist_item():
         if item:
             item.text = text
             item.sort_order = int(sort_order) if sort_order else 0
-            db.session.commit()
+            log_audit('update', 'checklist_item', item.id, {'texto': text})
+            ok, error = _safe_commit('Error al actualizar el item del checklist')
+            if not ok:
+                flash(error, 'danger')
+                return redirect(url_for('care.manage_checklist'))
             flash('Item actualizado.', 'success')
     else:
         item = ChecklistItem(text=text, sort_order=int(sort_order) if sort_order else 0)
         db.session.add(item)
-        db.session.commit()
+        log_audit('create', 'checklist_item', None, {'texto': text})
+        ok, error = _safe_commit('Error al crear el item del checklist')
+        if not ok:
+            flash(error, 'danger')
+            return redirect(url_for('care.manage_checklist'))
         flash('Item añadido.', 'success')
     return redirect(url_for('care.manage_checklist'))
 
@@ -237,8 +275,12 @@ def delete_checklist_item(id: int):
     item = db.session.get(ChecklistItem, id)
     if item:
         db.session.delete(item)
-        db.session.commit()
-        flash('Item eliminado.', 'success')
+        log_audit('delete', 'checklist_item', id, {'texto': item.text})
+        ok, error = _safe_commit('Error al eliminar el item del checklist')
+        if not ok:
+            flash(error, 'danger')
+        else:
+            flash('Item eliminado.', 'success')
     return redirect(url_for('care.manage_checklist'))
 
 
@@ -250,5 +292,8 @@ def toggle_checklist_active():
     if not item:
         return jsonify({'error': 'No encontrado'}), 404
     item.active = data.get('active', True)
-    db.session.commit()
+    log_audit('update', 'checklist_item', item.id, {'activo': item.active})
+    ok, error = _safe_commit('Error al cambiar el estado del item del checklist')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True}), 200

@@ -93,3 +93,52 @@ def test_ruta_get_no_revienta_con_bd_vacia(auth_client, path):
     resp = auth_client.get(path)
 
     assert resp.status_code < 500, f'{path} devuelve {resp.status_code}'
+
+
+# ── Barrido de rutas de escritura ──────────────────────────────────────────
+#
+# Sin sesión la petición se corta en el decorador, antes del cuerpo de la vista,
+# así que recorrer los POST no escribe nada en la base de datos.
+
+# Públicas por diseño: son los propios formularios de login.
+ESCRITURAS_PUBLICAS = {
+    'admin_bp.admin_login',
+    'nfc.login',
+}
+
+
+def _rutas_escritura(excluidas):
+    """Reglas que aceptan métodos de escritura, con los parámetros rellenos.
+
+    Todo parámetro dinámico se rellena con 1: sirve tanto para los <int:id>
+    como para los de texto, que lo reciben como "1".
+    """
+    vistas = []
+    for rule in flask_app.url_map.iter_rules():
+        if rule.endpoint in excluidas:
+            continue
+        metodos = (rule.methods or set()) & {'POST', 'PUT', 'PATCH', 'DELETE'}
+        if not metodos:
+            continue
+        path = rule.build({n: 1 for n in rule.arguments}, append_unknown=False)[1]
+        vistas.append((path, sorted(metodos)[0]))
+    return [pytest.param(p, m, id=f'{m} {p}') for p, m in sorted(set(vistas))]
+
+
+RUTAS_ESCRITURA = _rutas_escritura(ESCRITURAS_PUBLICAS)
+
+
+def test_el_barrido_de_escrituras_cubre_rutas():
+    """Guarda contra un filtro que se quede sin nada que recorrer."""
+    assert len(RUTAS_ESCRITURA) > 60
+
+
+@pytest.mark.parametrize('path,metodo', RUTAS_ESCRITURA)
+def test_ruta_de_escritura_no_es_accesible_sin_sesion(client, path, metodo):
+    resp = client.open(path, method=metodo)
+
+    assert resp.status_code in (302, 401, 403), (
+        f'{metodo} {path} responde {resp.status_code} sin autenticación'
+    )
+    if resp.status_code == 302:
+        assert '/login' in resp.headers.get('Location', '')

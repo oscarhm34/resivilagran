@@ -15,7 +15,7 @@ from ..models import (
     Incident, Room, Activity, ActivityParticipation,
     CarePlan, DailyDigest, FallRecord,
 )
-from ..utils import admin_required
+from ..utils import admin_required, _safe_commit, _safe_flush, log_audit
 
 bp = Blueprint('assessments', __name__)
 
@@ -196,7 +196,16 @@ def assessment_barthel():
         if resident and interp_key in DEPENDENCY_MAP:
             resident.dependency_level = DEPENDENCY_MAP[interp_key]
 
-        db.session.commit()
+        ok, error = _safe_flush('Error al guardar la valoracion Barthel')
+        if not ok:
+            flash(error, 'danger')
+            return redirect(request.url)
+        log_audit('create', 'assessment_record', record.id,
+                  {'escala': 'barthel', 'resident_id': resident_id})
+        ok, error = _safe_commit('Error al guardar la valoracion Barthel')
+        if not ok:
+            flash(error, 'danger')
+            return redirect(request.url)
 
         # Auto-review PAI if score indicates decline
         try:
@@ -269,7 +278,16 @@ def assessment_norton():
                 link=f'/admin/resident/{resident_id}',
             ))
 
-        db.session.commit()
+        ok, error = _safe_flush('Error al guardar la valoracion Norton')
+        if not ok:
+            flash(error, 'danger')
+            return redirect(request.url)
+        log_audit('create', 'assessment_record', record.id,
+                  {'escala': 'norton', 'resident_id': resident_id})
+        ok, error = _safe_commit('Error al guardar la valoracion Norton')
+        if not ok:
+            flash(error, 'danger')
+            return redirect(request.url)
 
         # Auto-review PAI if Norton worsened
         try:
@@ -327,7 +345,16 @@ def admin_assessment_pfeiffer():
             assessed_by=current_user.id,
         )
         db.session.add(record)
-        db.session.commit()
+        ok, error = _safe_flush('Error al guardar la valoracion Pfeiffer')
+        if not ok:
+            flash(error, 'danger')
+            return redirect(request.url)
+        log_audit('create', 'assessment_record', record.id,
+                  {'escala': 'pfeiffer', 'resident_id': resident_id})
+        ok, error = _safe_commit('Error al guardar la valoracion Pfeiffer')
+        if not ok:
+            flash(error, 'danger')
+            return redirect(request.url)
         flash(f'Pfeiffer guardado: {errors}/10 errores — {interp_label}', 'success')
         return redirect(url_for('residents.resident_detail', resident_id=resident_id))
 
@@ -1732,7 +1759,11 @@ def generate_daily_digest():
         except Exception:
             continue
 
-    db.session.commit()
+    log_audit('create', 'daily_digest', None,
+              {'fecha': today.isoformat(), 'generados': generated})
+    ok, error = _safe_commit('Error al guardar los resumenes diarios')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'message': f'{generated} resúmenes generados', 'count': generated})
 
 
@@ -1811,7 +1842,13 @@ def generate_care_plan(resident_id: int):
         created_by=current_user.id,
     )
     db.session.add(plan)
-    db.session.commit()
+    ok, error = _safe_flush('Error al guardar el PAI')
+    if not ok:
+        return jsonify({'error': error}), 500
+    log_audit('create', 'care_plan', plan.id, {'resident_id': resident_id})
+    ok, error = _safe_commit('Error al guardar el PAI')
+    if not ok:
+        return jsonify({'error': error}), 500
 
     return jsonify({
         'html': html,
@@ -1856,7 +1893,11 @@ DATOS RECIENTES (últimos 30 días):
 
     plan.ai_review = review_html
     plan.ai_review_date = datetime.now()
-    db.session.commit()
+    log_audit('update', 'care_plan', plan.id,
+              {'resident_id': resident_id, 'campo': 'ai_review'})
+    ok, error = _safe_commit('Error al guardar la revision del PAI')
+    if not ok:
+        return jsonify({'error': error}), 500
 
     return jsonify({
         'html': review_html,
@@ -1929,7 +1970,7 @@ DATOS RECIENTES (14 días):
 
     # Create notification for admin
     resident = db.session.get(Resident, resident_id)
-    r_name = resident.name if resident else 'Resident'
+    r_name = resident.name if resident else 'Residente'
     db.session.add(Notification(
         type='pai_review',
         title=f'Revisión automática PAI: {r_name}',
@@ -1938,7 +1979,11 @@ DATOS RECIENTES (14 días):
         resident_id=resident_id,
         link=f'/admin/resident/{resident_id}',
     ))
-    db.session.commit()
+    log_audit('update', 'care_plan', plan.id,
+              {'resident_id': resident_id, 'campo': 'ai_review', 'origen': 'automatico'})
+    ok, error = _safe_commit('Error al guardar la revision automatica del PAI')
+    if not ok:
+        app.logger.error('No se pudo guardar la revision automatica del PAI: %s', error)
 
 
 # ── Predictive Risk Watchlist ────────────────────────────────────────────────

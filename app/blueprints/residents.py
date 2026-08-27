@@ -24,7 +24,7 @@ from ..models import MedicationPrescription, MedicationAdministration
 from ..utils import (
     admin_required, _format_duration, _allowed_file, _safe_commit,
     ALLOWED_IMAGE_EXTENSIONS, ALLOWED_DOC_EXTENSIONS,
-    _open_image_oriented, log_audit,
+    _open_image_oriented, log_audit, _safe_flush,
 )
 
 bp = Blueprint('residents', __name__)
@@ -194,7 +194,11 @@ def add_edit_resident():
                     if os.path.exists(old_path):
                         os.remove(old_path)
                     r.photo_path = None
-                db.session.commit()
+                log_audit('update', 'resident', r.id, {'nombre': r.name})
+                ok, _ = _safe_commit()
+                if not ok:
+                    flash('El código NFC ya está en uso por otro residente.', 'error')
+                    return redirect(url_for('residents.manage_residents'))
                 flash('Residente actualizado correctamente.', 'success')
             else:
                 flash('Residente no encontrado.', 'error')
@@ -221,7 +225,11 @@ def add_edit_resident():
             photo_file = request.files.get('photo')
             if photo_file and photo_file.filename and _allowed_file(photo_file.filename, ALLOWED_IMAGE_EXTENSIONS):
                 r.photo_path = _save_resident_photo(photo_file, r.id)
-            db.session.commit()
+            log_audit('create', 'resident', r.id, {'nombre': r.name})
+            ok, _ = _safe_commit()
+            if not ok:
+                flash('El código NFC ya está en uso por otro residente.', 'error')
+                return redirect(url_for('residents.manage_residents'))
             flash('Residente añadido correctamente.', 'success')
     except IntegrityError:
         db.session.rollback()
@@ -307,14 +315,14 @@ def update_resident_inline(resident_id: int):
     if 'emergency_contact_relation' in data:
         r.emergency_contact_relation = data['emergency_contact_relation'].strip() or None
 
-    try:
-        db.session.commit()
-        from ..utils import log_audit
-        log_audit('update', 'resident', resident_id, {k: v for k, v in data.items() if k != 'photo'})
-        db.session.commit()
-    except IntegrityError:
-        db.session.rollback()
+    ok, _ = _safe_flush()
+    if not ok:
         return jsonify({'error': 'El código NFC ya está en uso'}), 400
+    log_audit('update', 'resident', resident_id,
+              {'campos': sorted(k for k in data if k != 'photo')})
+    ok, error = _safe_commit('Error al actualizar el residente')
+    if not ok:
+        return jsonify({'error': error}), 500
 
     return jsonify({'ok': True})
 
@@ -326,8 +334,12 @@ def delete_resident(id: int):
     if r is None:
         abort(404)
     try:
+        log_audit('delete', 'resident', id, {'nombre': r.name})
         db.session.delete(r)
-        db.session.commit()
+        ok, _ = _safe_commit()
+        if not ok:
+            flash('No se puede eliminar porque tiene registros de atención asociados.', 'error')
+            return redirect(url_for('residents.manage_residents'))
         flash('Residente eliminado correctamente.', 'success')
     except IntegrityError:
         db.session.rollback()
@@ -367,7 +379,10 @@ def update_resident_active():
     if not r:
         return jsonify({'error': 'Residente no encontrado'}), 404
     r.active = bool(active)
-    db.session.commit()
+    log_audit('update', 'resident', r.id, {'activo': r.active})
+    ok, error = _safe_commit('Error al cambiar el estado del residente')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True}), 200
 
 
@@ -430,7 +445,6 @@ def upload_resident_document(resident_id: int):
     )
     db.session.add(doc)
 
-    from ..utils import log_audit
     log_audit('create', 'resident_document', resident_id,
               {'filename': original, 'doc_type': doc_type})
     ok, error = _safe_commit('Error al guardar el documento')
@@ -458,7 +472,6 @@ def delete_resident_document(doc_id: int):
     resident_id, original = doc.resident_id, doc.original_filename
     db.session.delete(doc)
 
-    from ..utils import log_audit
     log_audit('delete', 'resident_document', resident_id, {'filename': original})
     ok, error = _safe_commit('Error al eliminar el documento')
     if not ok:
@@ -517,13 +530,21 @@ def add_edit_group():
             if g:
                 g.name = name
                 g.color = color
-                db.session.commit()
+                log_audit('update', 'resident_group', g.id, {'nombre': name})
+                ok, _ = _safe_commit()
+                if not ok:
+                    flash('Ya existe un grupo con ese nombre.', 'error')
+                    return redirect(url_for('residents.manage_groups'))
                 flash('Grupo actualizado correctamente.', 'success')
             else:
                 flash('Grupo no encontrado.', 'error')
         else:
             db.session.add(ResidentGroup(name=name, color=color))
-            db.session.commit()
+            log_audit('create', 'resident_group', None, {'nombre': name})
+            ok, _ = _safe_commit()
+            if not ok:
+                flash('Ya existe un grupo con ese nombre.', 'error')
+                return redirect(url_for('residents.manage_groups'))
             flash('Grupo añadido correctamente.', 'success')
     except IntegrityError:
         db.session.rollback()
@@ -539,8 +560,12 @@ def delete_group(id: int):
     if g is None:
         abort(404)
     try:
+        log_audit('delete', 'resident_group', id, {'nombre': g.name})
         db.session.delete(g)
-        db.session.commit()
+        ok, _ = _safe_commit()
+        if not ok:
+            flash('No se puede eliminar porque tiene residentes o trabajadores asignados.', 'error')
+            return redirect(url_for('residents.manage_groups'))
         flash('Grupo eliminado correctamente.', 'success')
     except IntegrityError:
         db.session.rollback()
@@ -568,7 +593,6 @@ def assign_residents_to_group(id: int):
     for r in residents:
         r.group_id = group.id
 
-    from ..utils import log_audit
     log_audit('update', 'resident_group', group.id,
               {'assigned': [r.id for r in residents]})
     ok, error = _safe_commit('Error al asignar los residentes al grupo')
@@ -908,9 +932,14 @@ def delete_care_record(record_id: int):
         return redirect(url_for('residents.registros_atencion'))
     VitalSignReading.query.filter_by(care_record_id=record.id).delete()
     record.care_types.clear()
+    log_audit('delete', 'care_record', record.id,
+              {'resident_id': record.resident_id})
     db.session.delete(record)
-    db.session.commit()
-    flash('Registro de atención eliminado.', 'success')
+    ok, error = _safe_commit('Error al eliminar el registro de atencion')
+    if not ok:
+        flash(error, 'danger')
+    else:
+        flash('Registro de atención eliminado.', 'success')
     return redirect(request.referrer or url_for('residents.registros_atencion'))
 
 
@@ -1001,7 +1030,9 @@ def create_wound(resident_id: int):
         notes=(data.get('notes') or '').strip() or None,
     )
     db.session.add(wound)
-    db.session.commit()
+    ok, error = _safe_flush('Error al registrar la herida')
+    if not ok:
+        return jsonify({'error': error}), 500
 
     # Notification
     resident = db.session.get(Resident, resident_id)
@@ -1015,7 +1046,11 @@ def create_wound(resident_id: int):
         resident_id=resident_id,
         link=f'/admin/resident/{resident_id}',
     ))
-    db.session.commit()
+    log_audit('create', 'wound', wound.id,
+              {'resident_id': resident_id, 'severidad': wound.severity})
+    ok, error = _safe_commit('Error al registrar la herida')
+    if not ok:
+        return jsonify({'error': error}), 500
 
     return jsonify({'ok': True, 'id': wound.id}), 201
 
@@ -1058,7 +1093,11 @@ def update_wound(wound_id: int):
             link=f'/admin/resident/{wound.resident_id}',
         ))
 
-    db.session.commit()
+    log_audit('update', 'wound', wound.id,
+              {'resident_id': wound.resident_id, 'severidad': wound.severity})
+    ok, error = _safe_commit('Error al actualizar la herida')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True})
 
 
@@ -1133,7 +1172,9 @@ def worker_create_wound(resident_id: int):
         reported_by=worker.id,
     )
     db.session.add(wound)
-    db.session.commit()
+    ok, error = _safe_flush('Error al registrar la herida')
+    if not ok:
+        return jsonify({'error': error}), 500
 
     resident = db.session.get(Resident, resident_id)
     r_name = resident.name if resident else 'Residente'
@@ -1144,5 +1185,10 @@ def worker_create_wound(resident_id: int):
         resident_id=resident_id,
         link=f'/admin/resident/{resident_id}',
     ))
-    db.session.commit()
+    log_audit('create', 'wound', wound.id,
+              {'resident_id': resident_id, 'severidad': wound.severity,
+               'cleaner_id': worker.id})
+    ok, error = _safe_commit('Error al registrar la herida')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True, 'id': wound.id}), 201

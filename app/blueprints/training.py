@@ -147,7 +147,11 @@ def create_training():
         for wid in worker_ids:
             db.session.add(TrainingAssignment(
                 pill_id=pill.id, cleaner_id=int(wid), assigned_by=current_user.id))
-    db.session.commit()
+    log_audit('create', 'training_pill', pill.id, {'titulo': pill.title})
+    ok, error = _safe_commit('Error al crear la pildora formativa')
+    if not ok:
+        flash(error, 'danger')
+        return redirect(url_for('training.admin_training'))
     flash('Píldora formativa creada.', 'success')
     return redirect(url_for('training.admin_training'))
 
@@ -202,7 +206,11 @@ def edit_training(pill_id: int):
             for tr in list(q.translations):
                 _discard_audio(tr)
             db.session.delete(q)
-    db.session.commit()
+    log_audit('update', 'training_pill', pill.id, {'titulo': pill.title})
+    ok, error = _safe_commit('Error al actualizar la pildora formativa')
+    if not ok:
+        flash(error, 'danger')
+        return redirect(url_for('training.admin_training'))
     flash('Píldora formativa actualizada.', 'success')
     return redirect(url_for('training.admin_training'))
 
@@ -215,9 +223,13 @@ def delete_training(pill_id: int):
         abort(404)
     TrainingCompletion.query.filter_by(pill_id=pill.id).delete()
     TrainingQuestion.query.filter_by(pill_id=pill.id).delete()
+    log_audit('delete', 'training_pill', pill_id, {'titulo': pill.title})
     db.session.delete(pill)
-    db.session.commit()
-    flash('Píldora formativa eliminada.', 'success')
+    ok, error = _safe_commit('Error al eliminar la pildora formativa')
+    if not ok:
+        flash(error, 'danger')
+    else:
+        flash('Píldora formativa eliminada.', 'success')
     return redirect(url_for('training.admin_training'))
 
 
@@ -228,7 +240,11 @@ def toggle_training(pill_id: int):
     if not pill:
         abort(404)
     pill.active = not pill.active
-    db.session.commit()
+    log_audit('update', 'training_pill', pill_id, {'activa': pill.active})
+    ok, error = _safe_commit('Error al cambiar el estado de la pildora')
+    if not ok:
+        flash(error, 'danger')
+        return redirect(url_for('training.admin_training'))
     flash(f'Píldora {"activada" if pill.active else "desactivada"}.', 'success')
     return redirect(url_for('training.admin_training'))
 
@@ -587,7 +603,9 @@ def start_training(pill_id: int):
         completion.completed_at = None
         completion.score = None
         completion.passed = None
-    db.session.commit()
+    ok, error = _safe_commit('Error al iniciar la formacion')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True, 'completion_id': completion.id})
 
 
@@ -611,7 +629,9 @@ def training_video_complete(pill_id: int):
         if elapsed < min_secs:
             return jsonify({'error': 'Debes ver el vídeo completo', 'wait': int(min_secs - elapsed)}), 400
     completion.video_watched = True
-    db.session.commit()
+    ok, error = _safe_commit('Error al registrar el visionado del video')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True})
 
 
@@ -673,7 +693,9 @@ def training_questions(pill_id: int):
         shuffle_map[str(i)] = {'question_id': q.id, 'option_map': option_map}
         result.append(item)
     completion.shuffle_map = json.dumps(shuffle_map)
-    db.session.commit()
+    ok, error = _safe_commit('Error al preparar el cuestionario')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify(result)
 
 
@@ -710,7 +732,9 @@ def submit_training(pill_id: int):
     completion.answers_json = json.dumps(answers)
     completion.time_spent_seconds = int(
         (completion.completed_at - completion.started_at).total_seconds())
-    db.session.commit()
+    ok, error = _safe_commit('Error al guardar el resultado del cuestionario')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({
         'score': score,
         'passed': completion.passed,

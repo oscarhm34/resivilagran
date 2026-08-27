@@ -9,7 +9,8 @@ from sqlalchemy.orm import joinedload
 
 from .. import app, db
 from ..models import Cleaner, LegalDocument, DocumentSignature
-from ..utils import admin_required, _verify_worker_id, _current_worker_id, _safe_commit
+from ..utils import (admin_required, _verify_worker_id, _current_worker_id,
+                     _safe_commit, _safe_flush, log_audit)
 
 bp = Blueprint('documents', __name__)
 
@@ -38,6 +39,12 @@ def create_document():
         created_by=current_user.id,
     )
     db.session.add(doc)
+    ok, err = _safe_flush('No se pudo crear el documento.')
+    if not ok:
+        flash(err, 'danger')
+        return redirect(url_for('documents.admin_documents'))
+    log_audit('create', 'legal_document', doc.id,
+              {'titulo': title, 'tipo': doc_type or None})
     ok, err = _safe_commit('No se pudo crear el documento.')
     if not ok:
         flash(err, 'danger')
@@ -58,6 +65,7 @@ def edit_document(doc_id: int):
     doc.title = request.form.get('title', '').strip() or doc.title
     doc.content = request.form.get('content', '').strip() or doc.content
     doc.doc_type = request.form.get('doc_type', '').strip() or doc.doc_type
+    log_audit('update', 'legal_document', doc_id, {'titulo': doc.title})
     ok, err = _safe_commit('No se pudo actualizar el documento.')
     if not ok:
         flash(err, 'danger')
@@ -75,6 +83,7 @@ def delete_document(doc_id: int):
     if doc.signatures:
         flash('No se puede eliminar un documento que ya tiene firmas.', 'danger')
         return redirect(url_for('documents.admin_documents'))
+    log_audit('delete', 'legal_document', doc_id, {'titulo': doc.title})
     db.session.delete(doc)
     ok, err = _safe_commit('No se pudo eliminar el documento.')
     if not ok:
@@ -91,6 +100,7 @@ def toggle_document(doc_id: int):
     if not doc:
         abort(404)
     doc.active = not doc.active
+    log_audit('update', 'legal_document', doc_id, {'activo': doc.active})
     ok, err = _safe_commit('No se pudo cambiar el estado del documento.')
     if not ok:
         flash(err, 'danger')
@@ -177,6 +187,8 @@ def sign_document(doc_id: int):
         selfie_path=selfie_path, content_hash=content_hash,
     )
     db.session.add(sig)
+    log_audit('create', 'document_signature', doc_id,
+              {'cleaner_id': int(worker_id)})
     ok, err = _safe_commit('No se pudo registrar la firma.')
     if not ok:
         return jsonify({'error': err}), 500

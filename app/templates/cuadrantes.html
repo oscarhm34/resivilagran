@@ -368,7 +368,7 @@
             <button type="button" class="btn btn-primary btn-sm no-print" id="btn-generate" title="Generar mes desde patrones">
                 <i class="bi bi-magic me-1"></i>Generar mes
             </button>
-            <button type="button" class="btn btn-outline-info btn-sm no-print" id="btn-ai-shifts" title="Suggeriments IA per al quadrant">
+            <button type="button" class="btn btn-outline-info btn-sm no-print" id="btn-ai-shifts" title="Sugerencias de IA para el cuadrante">
                 <i class="bi bi-stars me-1"></i>IA
             </button>
             <button type="button" class="btn btn-outline-warning btn-sm no-print" id="btn-validate" title="Validar cumplimiento laboral">
@@ -389,14 +389,14 @@
             <table class="shift-grid" id="shift-grid">
                 <thead>
                     <tr>
-                        <th>Empleado</th>
+                        <th scope="col">Empleado</th>
                         {% for d in range(1, num_days + 1) %}
-                        <th id="dh-{{ d }}">
+                        <th scope="col" id="dh-{{ d }}">
                             <span class="day-header-num">{{ d }}</span>
                             <span class="day-header-dow" data-day="{{ d }}"></span>
                         </th>
                         {% endfor %}
-                        <th class="no-print" style="min-width:50px">Horas</th>
+                        <th scope="col" class="no-print" style="min-width:50px">Horas</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -473,7 +473,7 @@
         </div>
         <div class="card-body p-0">
             <table class="table table-sm mb-0" id="warnings-table">
-                <thead><tr><th>Trabajador</th><th>Fecha</th><th>Problema</th></tr></thead>
+                <thead><tr><th scope="col">Trabajador</th><th scope="col">Fecha</th><th scope="col">Problema</th></tr></thead>
                 <tbody></tbody>
             </table>
         </div>
@@ -664,7 +664,7 @@
                     <h6 class="mb-2"><i class="bi bi-bar-chart me-1"></i>Distribución</h6>
                     <div class="table-responsive">
                         <table class="table table-sm table-bordered mb-0">
-                            <thead><tr><th></th><th>Mín</th><th>Máx</th><th>Media</th></tr></thead>
+                            <thead><tr><th scope="col"></th><th scope="col">Mín</th><th scope="col">Máx</th><th scope="col">Media</th></tr></thead>
                             <tbody id="gen-fairness-body"></tbody>
                         </table>
                     </div>
@@ -673,7 +673,7 @@
                     <h6 class="mb-2 text-danger"><i class="bi bi-exclamation-triangle me-1"></i>Gaps sin cubrir</h6>
                     <div class="table-responsive">
                         <table class="table table-sm mb-0">
-                            <thead><tr><th>Fecha</th><th>Turno</th><th>Tienen</th><th>Necesitan</th></tr></thead>
+                            <thead><tr><th scope="col">Fecha</th><th scope="col">Turno</th><th scope="col">Tienen</th><th scope="col">Necesitan</th></tr></thead>
                             <tbody id="gen-uncovered-body"></tbody>
                         </table>
                     </div>
@@ -1325,7 +1325,7 @@
             btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-stars me-1"></i>IA';
             if (data.suggestions) {
-                alert('Suggeriments IA:\n\n' + data.suggestions);
+                alert('Sugerencias de IA:\n\n' + data.suggestions);
             } else {
                 showToast(data.error || 'Error', 'error');
             }

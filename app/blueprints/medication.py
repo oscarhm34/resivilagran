@@ -11,7 +11,7 @@ from .. import db
 from ..models import (
     Resident, Cleaner, MedicationPrescription, MedicationAdministration, Notification,
 )
-from ..utils import admin_required
+from ..utils import admin_required, _safe_commit, _safe_flush, log_audit
 
 bp = Blueprint('medication', __name__)
 
@@ -162,12 +162,16 @@ def save_prescription():
     p.start_date = date.fromisoformat(start) if start else None
     p.end_date = date.fromisoformat(end) if end else None
 
-    db.session.commit()
-
-    from ..utils import log_audit
+    ok, error = _safe_flush('Error al guardar la prescripcion')
+    if not ok:
+        flash(error, 'danger')
+        return redirect(url_for('medication.admin_medication'))
     log_audit('update' if presc_id else 'create', 'medication_prescription', p.id,
               {'drug': p.drug_name, 'dose': p.dose, 'resident_id': p.resident_id})
-    db.session.commit()
+    ok, error = _safe_commit('Error al guardar la prescripcion')
+    if not ok:
+        flash(error, 'danger')
+        return redirect(url_for('medication.admin_medication'))
 
     flash(f'Prescripcion {"actualizada" if presc_id else "creada"}: {p.drug_name}', 'success')
     return redirect(url_for('medication.resident_prescriptions', resident_id=p.resident_id))
@@ -179,7 +183,11 @@ def toggle_prescription(presc_id: int):
     p = db.session.get(MedicationPrescription, presc_id)
     if p:
         p.active = not p.active
-        db.session.commit()
+        log_audit('update', 'medication_prescription', p.id,
+                  {'activa': p.active, 'resident_id': p.resident_id})
+        ok, error = _safe_commit('Error al cambiar el estado de la prescripcion')
+        if not ok:
+            return jsonify({'error': error}), 500
     return jsonify({'ok': True, 'active': p.active if p else False})
 
 
@@ -192,8 +200,13 @@ def delete_prescription(presc_id: int):
         return redirect(url_for('medication.admin_medication'))
     resident_id = p.resident_id
     MedicationAdministration.query.filter_by(prescription_id=presc_id).delete()
+    log_audit('delete', 'medication_prescription', presc_id,
+              {'drug': p.drug_name, 'resident_id': resident_id})
     db.session.delete(p)
-    db.session.commit()
+    ok, error = _safe_commit('Error al eliminar la prescripcion')
+    if not ok:
+        flash(error, 'danger')
+        return redirect(url_for('medication.resident_prescriptions', resident_id=resident_id))
     flash('Prescripcion eliminada.', 'success')
     return redirect(url_for('medication.resident_prescriptions', resident_id=resident_id))
 
@@ -239,10 +252,18 @@ def administer_medication():
             message=notes,
             severity='warning',
             resident_id=p.resident_id,
-            link=f'/admin/medication',
+            link='/admin/medication',
         ))
 
-    db.session.commit()
+    ok, error = _safe_flush('Error al registrar la administracion')
+    if not ok:
+        return jsonify({'error': error}), 500
+    log_audit('create', 'medication_administration', admin_rec.id,
+              {'prescription_id': presc_id, 'estado': status,
+               'resident_id': p.resident_id})
+    ok, error = _safe_commit('Error al registrar la administracion')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True})
 
 
@@ -332,7 +353,15 @@ def worker_administer():
             resident_id=p.resident_id, link='/admin/medication',
         ))
 
-    db.session.commit()
+    ok, error = _safe_flush('Error al registrar la administracion')
+    if not ok:
+        return jsonify({'error': error}), 500
+    log_audit('create', 'medication_administration', admin_rec.id,
+              {'prescription_id': presc_id, 'estado': status,
+               'resident_id': p.resident_id, 'cleaner_id': worker.id})
+    ok, error = _safe_commit('Error al registrar la administracion')
+    if not ok:
+        return jsonify({'error': error}), 500
     return jsonify({'ok': True})
 
 

@@ -53,6 +53,7 @@
                         <li><a href="#ia">17. Inteligencia artificial (IA)</a></li>
                         <li><a href="#config">18. Configuracion</a></li>
                         <li><a href="#backups">18b. Copias de seguridad</a></li>
+                        <li><a href="#auditoria">18c. Registro de auditoria</a></li>
                         <li><a href="#changelog">19. Registro de cambios</a></li>
                     </ul>
                 </div>
@@ -1328,6 +1329,48 @@
         </div>
     </div>
 
+    <!-- 18c. Registro de auditoria -->
+    <div class="card mb-4" id="auditoria">
+        <div class="card-header">18c. Registro de auditoria (quien cambio que)</div>
+        <div class="card-body">
+            <p>Cada vez que alguien crea, modifica o borra un dato importante, el sistema
+            guarda una linea con <strong>quien lo hizo, cuando y desde que ordenador</strong>.
+            Sirve para responder a una inspeccion y para aclarar cualquier duda sobre un
+            cambio en la ficha de un residente.</p>
+
+            <h6 class="mt-3">Donde se consulta</h6>
+            <ul>
+                <li>Menu del usuario (arriba a la derecha) &rarr; <strong>Audit trail</strong>.</li>
+                <li>Se muestran las entradas mas recientes primero, con la fecha, el usuario,
+                    la accion (crear, modificar, eliminar) y el dato afectado.</li>
+            </ul>
+
+            <h6 class="mt-3">Que queda registrado</h6>
+            <ul>
+                <li><strong>Residentes:</strong> altas, bajas, cambios de ficha, grupos y documentos.</li>
+                <li><strong>Valoraciones clinicas:</strong> Barthel, Norton y Pfeiffer.</li>
+                <li><strong>Incidencias y caidas:</strong> creacion, edicion, cambio de estado y borrado.</li>
+                <li><strong>Medicacion:</strong> prescripciones y administraciones, tambien las que registra la trabajadora desde la webapp.</li>
+                <li><strong>Heridas</strong> y <strong>planes de atencion (PAI)</strong>.</li>
+                <li><strong>Actividades:</strong> creacion, borrado, invitaciones, participacion y fotos.</li>
+                <li><strong>Empleados y espacios:</strong> altas y bajas de trabajadoras, cambios de rol o de grupo, plantas, habitaciones y tipos de espacio.</li>
+                <li><strong>Formacion y documentos legales:</strong> pildoras, documentos y firmas.</li>
+                <li><strong>Limpieza:</strong> planes diarios, zonas asignadas y tiempos objetivo.</li>
+            </ul>
+
+            <h6 class="mt-3">Que NO se guarda ahi</h6>
+            <p>El registro anota el <em>hecho</em> del cambio, no el contenido clinico. De una
+            valoracion guarda que se hizo un Barthel a un residente, pero no la puntuacion ni
+            las respuestas: esos datos estan en la ficha, que ya es de acceso restringido.
+            Asi el registro se puede consultar sin exponer informacion de salud.</p>
+
+            <div class="alert alert-info mt-3" style="font-size:.85rem">
+                <i class="bi bi-info-circle me-1"></i>Si una operacion falla a medias, no se
+                guarda ni el cambio ni su linea de auditoria: o entra todo o no entra nada.
+            </div>
+        </div>
+    </div>
+
     <!-- 16. Registro de cambios -->
     <div class="card mb-4" id="changelog">
         <div class="card-header">19. Registro de cambios recientes</div>
@@ -1339,6 +1382,10 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>27/08</td><td><strong>Registro de auditoria ampliado:</strong> ahora queda constancia de quien crea, modifica o borra valoraciones clinicas, incidencias, caidas, atenciones, actividades, heridas, planes de atencion, empleados, plantas y habitaciones. Antes solo se registraban los cambios en residentes, turnos y formacion. Se consulta en el menu del usuario, opcion Audit trail, y hay una explicacion en el apartado 18c de esta ayuda.</td></tr>
+                    <tr><td>27/08</td><td><strong>Errores de guardado mas claros:</strong> cuando una operacion no se puede completar (por ejemplo, un codigo NFC repetido o una planta que todavia tiene habitaciones), sale un aviso explicando el motivo en vez de una pantalla de error. El dato queda como estaba, sin cambios a medias.</td></tr>
+                    <tr><td>27/08</td><td><strong>Textos en catalan corregidos:</strong> en la webapp de trabajadoras los botones de animo y de comida decian "Selecciona un estat" y "Selecciona un apat". Tambien estaban en catalan el aviso de sugerencias de IA de los cuadrantes y el titulo del informe de relevo de turno. Todo pasa a castellano.</td></tr>
+                    <tr><td>27/08</td><td><strong>Retoques de accesibilidad:</strong> tildes repuestas en los titulos de pestana de Analiticas, Medicacion, Configuracion y Valoraciones clinicas; la pagina de Documentos legales recupera su titulo principal; y las tablas de cuadrantes, incidencias y documentos marcan bien sus cabeceras para los lectores de pantalla. En la portada, el contador de Atenciones hoy deja de salir siempre en verde, que hacia parecer que un cero era buena noticia.</td></tr>
                     <tr><td>26/08</td><td><strong>Pildoras sin video:</strong> si una pildora no tiene video, la trabajadora ya va directa a las preguntas. Antes le salia un recuadro negro y tenia que esperar medio minuto delante de un reproductor vacio. Util para las pildoras que son solo instrucciones habladas.</td></tr>
                     <tr><td>26/08</td><td><strong>Botones de traducir y generar audio arreglados:</strong> en la pantalla Idiomas, los botones de traducir todo y generar todos los audios daban el aviso "Selecciona al menos un idioma" y no hacian nada. Ademas, la fila del castellano ya aparece rellenada con el texto original.</td></tr>
                     <tr><td>26/08</td><td><strong>Cuentas de baja bloqueadas:</strong> una cuenta desactivada ya no puede entrar ni al panel ni a la webapp de trabajadoras. Antes seguia entrando aunque estuviera dada de baja.</td></tr>
