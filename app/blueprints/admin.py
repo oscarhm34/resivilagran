@@ -589,12 +589,17 @@ def registros_limpieza():
     cleaner_id = request.args.get('cleaner_id', '')
     start_date = request.args.get('start_date', '')
     end_date = request.args.get('end_date', '')
+    estado = request.args.get('estado', '')
 
     query = CleaningRecord.query.options(
         joinedload(CleaningRecord.room).joinedload(Room.room_type),
         joinedload(CleaningRecord.cleaner),
     )
 
+    if estado == 'abiertas':
+        query = query.filter(CleaningRecord.end_time.is_(None))
+    elif estado == 'cerradas':
+        query = query.filter(CleaningRecord.end_time.isnot(None))
     if room_id:
         query = query.filter(CleaningRecord.room_id == room_id)
     if cleaner_id:
@@ -630,6 +635,7 @@ def registros_limpieza():
         'cleaner_id': cleaner_id,
         'start_date': start_date,
         'end_date': end_date,
+        'estado': estado,
     }
 
     return render_template(
@@ -642,6 +648,27 @@ def registros_limpieza():
     )
 
 
+@bp.route('/admin/cleaning-record/<int:record_id>/delete', methods=['POST'])
+@admin_required
+def delete_cleaning_record(record_id: int):
+    record = db.session.get(CleaningRecord, record_id)
+    if not record:
+        flash('Registro no encontrado.', 'error')
+        return redirect(url_for('admin_bp.registros_limpieza'))
+    log_audit('delete', 'cleaning_record', record.id,
+              {'room_id': record.room_id, 'cleaner_id': record.cleaner_id})
+    # Borrado directo, no db.session.delete(): CleaningRecord.room_id no es una
+    # FK real y la relacion se finge con foreign(Room.id), asi que el ORM
+    # intentaria vaciar la clave primaria de Room y revienta.
+    CleaningRecord.query.filter_by(id=record_id).delete(synchronize_session=False)
+    ok, error = _safe_commit('Error al eliminar el registro de limpieza')
+    if not ok:
+        flash(error, 'danger')
+    else:
+        flash('Registro de limpieza eliminado.', 'success')
+    return redirect(request.referrer or url_for('admin_bp.registros_limpieza'))
+
+
 @bp.route('/exportar_excel')
 @admin_required
 def exportar_excel():
@@ -649,8 +676,13 @@ def exportar_excel():
     cleaner_id = request.args.get('cleaner_id', '')
     start_date = request.args.get('start_date', '')
     end_date = request.args.get('end_date', '')
+    estado = request.args.get('estado', '')
 
     query = CleaningRecord.query
+    if estado == 'abiertas':
+        query = query.filter(CleaningRecord.end_time.is_(None))
+    elif estado == 'cerradas':
+        query = query.filter(CleaningRecord.end_time.isnot(None))
     if room_id:
         query = query.filter(CleaningRecord.room_id == room_id)
     if cleaner_id:

@@ -634,8 +634,7 @@
                 <li><strong>Alerta vital (critica):</strong> constantes vitales de un residente fuera de rango (tension alta, glucemia baja, etc.).</li>
                 <li><strong>Incidencia (aviso):</strong> incidentes con severidad critica o alta reportados.</li>
                 <li><strong>Documentos pendientes (info):</strong> hay documentos legales sin firmar por trabajadores.</li>
-                <li><strong>Sesion estancada (aviso):</strong> sesiones de limpieza o atencion llevan mas de 24 horas abiertas.</li>
-                <li><strong>Aviso al trabajador (aviso):</strong> cuando una sesion supera el <em>tiempo maximo configurado</em> (por defecto 2 horas), el trabajador recibe un aviso visual en la app (card roja pulsante + toast). Configurable desde <strong>Configuracion &rarr; Tiempo maximo de sesion</strong>.</li>
+                <li><strong>Sesion abierta demasiado tiempo (aviso):</strong> cuando una limpieza o una atencion supera el <em>tiempo maximo configurado</em> (por defecto 2 horas) se avisa por partida doble: la trabajadora lo ve en su app (card roja pulsante + toast) y el admin recibe una notificacion <strong>que se puede pulsar</strong>. Al pulsarla se abre el listado de registros filtrado por <strong>En curso</strong>, con la sesion en cuestion resaltada y sus botones de <strong>Cerrar</strong> y <strong>Eliminar</strong> a mano. El tiempo maximo se ajusta en <strong>Configuracion &rarr; Tiempo maximo de sesion</strong>.</li>
                 <li><strong>Nota del trabajador (info):</strong> cuando un trabajador anade una observacion al finalizar una atencion o limpieza, se genera una notificacion con el texto de la nota.</li>
                 <li><strong>Alerta IA (info/aviso):</strong> la inteligencia artificial analiza automaticamente los datos de los residentes cada 6 horas y detecta tendencias preocupantes: perdida de independencia, aumento de caidas, deterioro nutricional, constantes vitales con tendencias sostenidas, o residentes con pocas atenciones.</li>
                 <li><strong>Falta de cobertura (info):</strong> turnos de manana no tienen suficientes trabajadores segun los requisitos configurados.</li>
@@ -650,7 +649,8 @@
                 <li>Se actualiza automaticamente cada 60 segundos sin recargar la pagina.</li>
                 <li>Clic en la campana para ver la lista completa con filtros por tipo, severidad y estado.</li>
                 <li>Se pueden marcar como leidas individualmente o todas a la vez.</li>
-                <li>Las notificaciones no se duplican: si ya existe una alerta similar en las ultimas 24h, no se crea otra.</li>
+                <li>Las notificaciones no se duplican: si ya existe una alerta similar en las ultimas 24h, no se crea otra. El aviso de sesion abierta se repite como mucho cada 15 minutos por sesion, aunque el numero de minutos que muestra vaya subiendo.</li>
+                <li>Si una notificacion lleva enlace, su titulo es pulsable y va al sitio donde se puede actuar. Las que ademas traen un texto largo (traspaso de turno, revision PAI, alertas IA) tienen a su derecha una flecha para desplegarlo sin perder el enlace.</li>
             </ul>
 
             <h6 class="mt-3">Actualizacion automatica de la pantalla de inicio</h6>
@@ -678,15 +678,15 @@
         <div class="card-body">
             <h6>Registros</h6>
             <ul>
-                <li><strong>Registros de limpieza:</strong> Consulta con filtros por fecha, trabajador y habitacion. Checklist visible en cada registro. El admin puede <strong>cerrar sesiones abiertas</strong> manualmente.</li>
-                <li><strong>Registros de atencion:</strong> Consulta con filtros por fecha, trabajador, residente y tipo de atencion. Constantes vitales visibles en cada registro. El admin puede <strong>cerrar sesiones abiertas</strong>.</li>
+                <li><strong>Registros de limpieza:</strong> Consulta con filtros por <strong>estado</strong> (En curso / Finalizados), fecha, trabajador y habitacion. Checklist visible en cada registro. El admin puede <strong>cerrar</strong> una sesion abierta o <strong>eliminar</strong> el registro.</li>
+                <li><strong>Registros de atencion:</strong> Consulta con filtros por <strong>estado</strong> (En curso / Finalizados), fecha, trabajador, residente y tipo de atencion. Constantes vitales visibles en cada registro. El admin puede <strong>cerrar</strong> una sesion abierta o <strong>eliminar</strong> el registro.</li>
                 <li><strong>Fichajes por trabajador:</strong> Historial de inicio/fin de sesiones por trabajador y fecha.</li>
                 <li><strong>Ultima limpieza:</strong> Vista rapida de cuando se limpio por ultima vez cada zona.</li>
             </ul>
 
             <h6 class="mt-3">Exportacion a Excel</h6>
             <ul>
-                <li>Tanto limpiezas como atenciones se pueden <strong>exportar a Excel</strong> con los filtros aplicados.</li>
+                <li>Tanto limpiezas como atenciones se pueden <strong>exportar a Excel</strong> con los filtros aplicados, incluido el de estado: si estas viendo solo las sesiones En curso, el Excel sale con esas y no con todo el historico.</li>
                 <li>El Excel de atenciones incluye constantes vitales en una columna separada.</li>
             </ul>
 
@@ -1382,6 +1382,9 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>27/08</td><td><strong>Los avisos de sesion abierta ya llevan a alguna parte:</strong> cuando una limpieza o una atencion lleva demasiado tiempo abierta, ahora se puede pulsar el aviso y se abre directamente el listado de registros filtrado por En curso, con esa sesion resaltada y los botones de Cerrar y Eliminar al lado. Antes el aviso no se podia pulsar y habia que buscar el registro a mano.</td></tr>
+                    <tr><td>27/08</td><td><strong>Filtro de estado en los registros:</strong> los listados de limpiezas y de atenciones tienen un desplegable nuevo, Estado, para ver solo las sesiones En curso o solo las Finalizadas. El boton de Exportar Excel respeta el filtro.</td></tr>
+                    <tr><td>27/08</td><td><strong>Eliminar registros de limpieza:</strong> el listado de limpiezas ya permite borrar un registro, como se podia hacer desde hace tiempo en el de atenciones. Pide confirmacion y queda anotado en el registro de auditoria.</td></tr>
                     <tr><td>27/08</td><td><strong>Registro de auditoria ampliado:</strong> ahora queda constancia de quien crea, modifica o borra valoraciones clinicas, incidencias, caidas, atenciones, actividades, heridas, planes de atencion, empleados, plantas y habitaciones. Antes solo se registraban los cambios en residentes, turnos y formacion. Se consulta en el menu del usuario, opcion Audit trail, y hay una explicacion en el apartado 18c de esta ayuda.</td></tr>
                     <tr><td>27/08</td><td><strong>Errores de guardado mas claros:</strong> cuando una operacion no se puede completar (por ejemplo, un codigo NFC repetido o una planta que todavia tiene habitaciones), sale un aviso explicando el motivo en vez de una pantalla de error. El dato queda como estaba, sin cambios a medias.</td></tr>
                     <tr><td>27/08</td><td><strong>Textos en catalan corregidos:</strong> en la webapp de trabajadoras los botones de animo y de comida decian "Selecciona un estat" y "Selecciona un apat". Tambien estaban en catalan el aviso de sugerencias de IA de los cuadrantes y el titulo del informe de relevo de turno. Todo pasa a castellano.</td></tr>

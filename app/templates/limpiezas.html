@@ -20,6 +20,14 @@
             <form method="GET" action="{{ url_for('admin_bp.registros_limpieza') }}" id="filter-form">
                 <div class="row g-3">
                     <div class="col-sm-6 col-md-3">
+                        <label for="estado" class="form-label">Estado</label>
+                        <select id="estado" name="estado" class="form-select">
+                            <option value="">Todos</option>
+                            <option value="abiertas" {{ 'selected' if filters.estado == 'abiertas' }}>En curso</option>
+                            <option value="cerradas" {{ 'selected' if filters.estado == 'cerradas' }}>Finalizados</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-6 col-md-3">
                         <label for="start_date" class="form-label">Fecha inicio</label>
                         <input type="date" id="start_date" name="start_date"
                                class="form-control"
@@ -66,7 +74,8 @@
                                        room_id=filters.room_id,
                                        cleaner_id=filters.cleaner_id,
                                        start_date=filters.start_date,
-                                       end_date=filters.end_date) }}"
+                                       end_date=filters.end_date,
+                                       estado=filters.estado) }}"
                        class="btn btn-outline-success ms-auto">
                         ↓ Exportar Excel
                     </a>
@@ -93,7 +102,7 @@
                 </thead>
                 <tbody>
                     {% for record in records %}
-                    <tr>
+                    <tr id="rec-{{ record.id }}">
                         <td>{{ record.cleaner.name if record.cleaner else '—' }}</td>
                         <td><strong>{{ record.room.number if record.room else '—' }}</strong></td>
                         <td class="hide-mobile" style="color:var(--color-text-secondary);font-size:.85rem">
@@ -116,6 +125,11 @@
                                 <form method="post" action="{{ url_for('admin_bp.admin_close_session', mode='cleaning', record_id=record.id) }}" style="display:inline" data-confirm="¿Cerrar esta sesión de limpieza?">
                                     <button type="submit" class="btn btn-sm btn-outline-danger ms-1">Cerrar</button>
                                 </form>
+                            {% endif %}
+                            {% if current_user.is_admin %}
+                            <form method="post" action="{{ url_for('admin_bp.delete_cleaning_record', record_id=record.id) }}" style="display:inline" data-confirm="¿Eliminar este registro de limpieza?">
+                                <button type="submit" class="btn btn-sm btn-outline-danger ms-1" aria-label="Eliminar registro" title="Eliminar registro"><i class="bi bi-trash"></i></button>
+                            </form>
                             {% endif %}
                         </td>
                         <td class="text-center">

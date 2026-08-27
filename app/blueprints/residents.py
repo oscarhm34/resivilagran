@@ -692,6 +692,7 @@ def registros_atencion():
     care_type_id = request.args.get('care_type_id', '')
     start_date = request.args.get('start_date', '')
     end_date = request.args.get('end_date', '')
+    estado = request.args.get('estado', '')
 
     query = CareRecord.query.options(
         joinedload(CareRecord.resident),
@@ -701,6 +702,10 @@ def registros_atencion():
         joinedload(CareRecord.vital_sign_readings).joinedload(VitalSignReading.vital_sign_type),
     )
 
+    if estado == 'abiertas':
+        query = query.filter(CareRecord.end_time.is_(None))
+    elif estado == 'cerradas':
+        query = query.filter(CareRecord.end_time.isnot(None))
     if worker_id:
         query = query.filter(CareRecord.worker_id == worker_id)
     if resident_id:
@@ -726,6 +731,7 @@ def registros_atencion():
         'care_type_id': care_type_id,
         'start_date': start_date,
         'end_date': end_date,
+        'estado': estado,
     }
 
     return render_template(
@@ -747,6 +753,7 @@ def exportar_atenciones_excel():
     care_type_id = request.args.get('care_type_id', '')
     start_date = request.args.get('start_date', '')
     end_date = request.args.get('end_date', '')
+    estado = request.args.get('estado', '')
 
     query = CareRecord.query.options(
         joinedload(CareRecord.resident),
@@ -755,6 +762,10 @@ def exportar_atenciones_excel():
         joinedload(CareRecord.care_type),
         joinedload(CareRecord.vital_sign_readings).joinedload(VitalSignReading.vital_sign_type),
     )
+    if estado == 'abiertas':
+        query = query.filter(CareRecord.end_time.is_(None))
+    elif estado == 'cerradas':
+        query = query.filter(CareRecord.end_time.isnot(None))
     if worker_id:
         query = query.filter(CareRecord.worker_id == worker_id)
     if resident_id:

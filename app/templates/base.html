@@ -116,7 +116,10 @@
         [data-theme="dark"] .modal-content { background: #161b22; color: #e6edf3; border-color: #30363d; }
         [data-theme="dark"] .modal-header, [data-theme="dark"] .modal-footer { border-color: #30363d; }
         [data-theme="dark"] .offcanvas { background: #161b22; color: #e6edf3; }
-        [data-theme="dark"] .form-control, [data-theme="dark"] .form-select { background: #0d1117; color: #e6edf3; border-color: #30363d; }
+        [data-theme="dark"] .form-control, [data-theme="dark"] .form-select { background-color: #0d1117; color: #e6edf3; border-color: #30363d; }
+        /* La flecha de Bootstrap es gris oscuro: sobre fondo casi negro
+           no se ve y el select parece una caja de texto. */
+        [data-theme="dark"] .form-select { background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23e6edf3' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e"); }
         [data-theme="dark"] .form-control::placeholder { color: #484f58; }
         [data-theme="dark"] .form-control:focus, [data-theme="dark"] .form-select:focus { border-color: #4da3ff; box-shadow: 0 0 0 .25rem rgba(77,163,255,.15); }
         [data-theme="dark"] .form-label { color: #e6edf3; }
@@ -338,6 +341,20 @@
         /* Enlace de salto: en oscuro bg-primary se aclara y el blanco no llega. */
         .visually-hidden-focusable.bg-primary { background: #0069d9 !important; color: #fff !important; }
 
+        /* ── Fila enlazada desde una notificacion ───────────────── */
+        /* Los avisos de sesion abierta enlazan a #rec-<id> del listado.
+           Sin esto, el navegador salta a la fila pero no se sabe cual es. */
+        tr[id^="rec-"]:target > td {
+            background: var(--color-primary-lt);
+        }
+        tr[id^="rec-"]:target > td:first-child {
+            box-shadow: inset 3px 0 0 0 var(--color-primary);
+        }
+        [data-theme="dark"] tr[id^="rec-"]:target > td {
+            background: rgba(0, 105, 217, .22);
+            color: var(--color-text);
+        }
+
         /* ── Formularios ────────────────────────────────────────── */
         .form-control, .form-select {
             border-color: var(--color-border);
@@ -497,7 +514,7 @@
                            href="{{ url_for('nfc.admin_settings') }}" title="Configuración"><i class="bi bi-gear" aria-hidden="true"></i></a>
                     </li>
                     <li class="nav-item">
-                        <button class="nav-link" id="btn-dark-toggle" title="Mode fosc" style="background:none;border:none;cursor:pointer"><i class="bi bi-moon" aria-hidden="true"></i></button>
+                        <button class="nav-link" id="btn-dark-toggle" title="Modo oscuro" style="background:none;border:none;cursor:pointer"><i class="bi bi-moon" aria-hidden="true"></i></button>
                     </li>
                 </ul>
 
@@ -691,7 +708,7 @@
         function applyTheme(dark) {
             document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
             icon.className = dark ? 'bi bi-sun' : 'bi bi-moon';
-            btn.title = dark ? 'Mode clar' : 'Mode fosc';
+            btn.title = dark ? 'Modo claro' : 'Modo oscuro';
             localStorage.setItem('theme', dark ? 'dark' : 'light');
         }
         var saved = localStorage.getItem('theme');

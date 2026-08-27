@@ -19,6 +19,14 @@
         <div class="card-body">
             <form method="GET" action="{{ url_for('residents.registros_atencion') }}">
                 <div class="row g-3">
+                    <div class="col-sm-6 col-md-2">
+                        <label for="estado" class="form-label">Estado</label>
+                        <select id="estado" name="estado" class="form-select">
+                            <option value="">Todos</option>
+                            <option value="abiertas" {{ 'selected' if filters.estado == 'abiertas' }}>En curso</option>
+                            <option value="cerradas" {{ 'selected' if filters.estado == 'cerradas' }}>Finalizados</option>
+                        </select>
+                    </div>
                     <div class="col-sm-6 col-md-3">
                         <label for="start_date" class="form-label">Fecha inicio</label>
                         <input type="date" id="start_date" name="start_date" class="form-control" value="{{ filters.start_date }}" max="{{ filters.end_date if filters.end_date else '' }}">
@@ -63,7 +71,8 @@
                                        resident_id=filters.resident_id,
                                        care_type_id=filters.care_type_id,
                                        start_date=filters.start_date,
-                                       end_date=filters.end_date) }}"
+                                       end_date=filters.end_date,
+                                       estado=filters.estado) }}"
                        class="btn btn-outline-success ms-auto">
                         ↓ Exportar Excel
                     </a>
@@ -88,7 +97,7 @@
                 </thead>
                 <tbody>
                     {% for record in records %}
-                    <tr>
+                    <tr id="rec-{{ record.id }}">
                         <td>
                             <div class="d-flex align-items-center gap-2">
                                 {% if record.resident and record.resident.photo_path %}

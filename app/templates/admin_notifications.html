@@ -29,7 +29,8 @@
                         <option value="vital_alert" {% if filters.type == 'vital_alert' %}selected{% endif %}>Alerta vital</option>
                         <option value="incident" {% if filters.type == 'incident' %}selected{% endif %}>Incidencia</option>
                         <option value="document_pending" {% if filters.type == 'document_pending' %}selected{% endif %}>Documento pendiente</option>
-                        <option value="stale_session" {% if filters.type == 'stale_session' %}selected{% endif %}>Sesión estancada</option>
+                        <option value="stale_session_worker" {% if filters.type == 'stale_session_worker' %}selected{% endif %}>Sesión abierta demasiado tiempo</option>
+                        <option value="stale_session" {% if filters.type == 'stale_session' %}selected{% endif %}>Sesión estancada (historico)</option>
                         <option value="coverage_gap" {% if filters.type == 'coverage_gap' %}selected{% endif %}>Falta cobertura</option>
                         <option value="worker_note" {% if filters.type == 'worker_note' %}selected{% endif %}>Nota del trabajador</option>
                         <option value="ai_insight" {% if filters.type == 'ai_insight' %}selected{% endif %}>Alerta IA</option>
@@ -87,7 +88,8 @@
                         </td>
                         <td colspan="2">
                             <div>
-                                {% if n.message %}<span class="notif-toggle" style="cursor:pointer" data-id="{{ n.id }}">{{ n.title }}</span>{% elif n.link %}<a href="{{ n.link }}" style="color:inherit;text-decoration:none">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}
+                                {% if n.link %}<a href="{{ n.link }}" style="color:inherit;text-decoration:underline;text-underline-offset:3px">{{ n.title }}</a>{% elif n.message %}<span class="notif-toggle" style="cursor:pointer" data-id="{{ n.id }}">{{ n.title }}</span>{% else %}{{ n.title }}{% endif %}
+                                {% if n.message and n.link %}<button type="button" class="notif-toggle btn btn-sm btn-link p-0 ms-1 align-baseline" data-id="{{ n.id }}" aria-controls="msg-{{ n.id }}" aria-expanded="false" aria-label="Ver detalle del aviso"><i class="bi bi-chevron-down" aria-hidden="true"></i></button>{% endif %}
                             </div>
                             {% if n.message %}
                             <div class="notif-message" id="msg-{{ n.id }}" style="display:none;margin-top:6px;padding:8px 12px;background:var(--color-bg);border-radius:8px;font-weight:400;font-size:.82rem;color:var(--color-text-secondary);{% if n.type not in ('shift_handover', 'pai_review') %}white-space:pre-wrap;{% endif %}line-height:1.5">{% if n.type in ('shift_handover', 'pai_review') %}{{ n.message|safe }}{% else %}{{ n.message }}{% endif %}</div>
@@ -162,7 +164,14 @@
     // Expand/collapse notification message on title click or row click
     function toggleMsg(id) {
         var msg = document.getElementById('msg-' + id);
-        if (msg) msg.style.display = msg.style.display === 'none' ? 'block' : 'none';
+        if (!msg) return;
+        var abierto = msg.style.display === 'none';
+        msg.style.display = abierto ? 'block' : 'none';
+        document.querySelectorAll('.notif-toggle[data-id="' + id + '"]').forEach(function (b) {
+            if (b.hasAttribute('aria-expanded')) b.setAttribute('aria-expanded', String(abierto));
+            var icono = b.querySelector('.bi');
+            if (icono) icono.className = abierto ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
+        });
     }
     document.querySelectorAll('.notif-toggle').forEach(function(el) {
         el.addEventListener('click', function(e) {

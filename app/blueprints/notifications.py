@@ -21,16 +21,26 @@ bp = Blueprint('notifications', __name__)
 
 # ── Helper: duplicate check ────────────────────────────────────────────────
 
-def _notif_exists(notif_type: str, title: str, hours: float = 24) -> bool:
-    """Return True if a notification with same type+title (or message for dedup) exists in the last N hours."""
+def _notif_exists(notif_type: str, title: str, hours: float = 24,
+                  link: str | None = None) -> bool:
+    """True si ya existe un aviso equivalente en las ultimas N horas.
+
+    Con `link` deduplica por enlace, que es unico por registro. Lo usan los
+    avisos de sesion abierta, cuyo titulo lleva los minutos y cambia a cada
+    pasada; antes se guardaba una clave en `message` para esto, pero eso hacia
+    que la fila del panel se pintara como desplegable en vez de como enlace.
+    """
     cutoff = datetime.now() - timedelta(hours=hours)
-    return db.session.query(
-        Notification.query.filter(
-            Notification.type == notif_type,
-            db.or_(Notification.title == title, Notification.message == title),
-            Notification.created_at >= cutoff,
-        ).exists()
-    ).scalar()
+    query = Notification.query.filter(
+        Notification.type == notif_type,
+        Notification.created_at >= cutoff,
+    )
+    if link is not None:
+        query = query.filter(Notification.link == link)
+    else:
+        query = query.filter(
+            db.or_(Notification.title == title, Notification.message == title))
+    return db.session.query(query.exists()).scalar()
 
 
 # ── Core: generate notifications ───────────────────────────────────────────
@@ -108,26 +118,7 @@ def _generate_notifications() -> int:
             ))
             created += 1
 
-    # 4. stale_session — sessions open for more than 24h
-    stale_cleaning = CleaningRecord.query.filter(
-        CleaningRecord.end_time.is_(None),
-        CleaningRecord.start_time < cutoff_24h,
-    ).count()
-    stale_care = CareRecord.query.filter(
-        CareRecord.end_time.is_(None),
-        CareRecord.start_time < cutoff_24h,
-    ).count()
-    stale_total = stale_cleaning + stale_care
-    if stale_total > 0:
-        title = f"{stale_total} sesion{'es' if stale_total != 1 else ''} lleva{'n' if stale_total != 1 else ''} mas de 24h abierta{'s' if stale_total != 1 else ''}"
-        if not _notif_exists('stale_session', title):
-            db.session.add(Notification(
-                type='stale_session', title=title, severity='warning',
-                link='/',
-            ))
-            created += 1
-
-    # 4b. stale_session_worker — per-worker notifications for sessions exceeding threshold
+    # 4. stale_session_worker — un aviso por sesion que pasa del umbral
     max_minutes = int(AppSetting.get('session_max_minutes', '120'))
     stale_threshold = now - timedelta(minutes=max_minutes)
 
@@ -138,15 +129,16 @@ def _generate_notifications() -> int:
     for rec in stale_worker_cleanings:
         room_desc = f'Hab. {rec.room.number}' if rec.room else 'Habitación'
         mins = int((now - rec.start_time).total_seconds() / 60)
-        # Use fixed key (without minutes) to avoid duplicate every minute
-        dedup_key = f"stale_clean_{rec.id}"
-        if not _notif_exists('stale_session_worker', dedup_key, hours=0.25):
+        # El enlace lleva al listado en curso, con la fila resaltada, que es
+        # donde estan los botones de cerrar y eliminar. Ademas hace de clave
+        # de deduplicacion: el titulo cambia cada pasada porque lleva minutos.
+        link = f'/registros-limpieza?estado=abiertas#rec-{rec.id}'
+        if not _notif_exists('stale_session_worker', '', hours=0.25, link=link):
             db.session.add(Notification(
                 type='stale_session_worker',
                 title=f"Limpieza en {room_desc} lleva {mins} min abierta",
-                message=dedup_key,
                 severity='warning',
-                worker_id=rec.cleaner_id, link='/worker',
+                worker_id=rec.cleaner_id, link=link,
             ))
             created += 1
 
@@ -157,14 +149,13 @@ def _generate_notifications() -> int:
     for rec in stale_worker_cares:
         resident_name = rec.resident.name if rec.resident else 'Residente'
         mins = int((now - rec.start_time).total_seconds() / 60)
-        dedup_key = f"stale_care_{rec.id}"
-        if not _notif_exists('stale_session_worker', dedup_key, hours=0.25):
+        link = f'/registros-atencion?estado=abiertas#rec-{rec.id}'
+        if not _notif_exists('stale_session_worker', '', hours=0.25, link=link):
             db.session.add(Notification(
                 type='stale_session_worker',
                 title=f"Atención con {resident_name} lleva {mins} min abierta",
-                message=dedup_key,
                 severity='warning',
-                worker_id=rec.worker_id, link='/worker',
+                worker_id=rec.worker_id, link=link,
             ))
             created += 1
 
@@ -728,9 +719,11 @@ def send_push_for_notification(notification):
     """Send push for a newly created Notification if it has a worker_id."""
     if not notification.worker_id:
         return
+    # `link` apunta al panel de administracion, donde la trabajadora no entra.
+    # Su push abre la PWA, que es donde puede cerrar la sesion.
     send_push_to_worker(
         worker_id=notification.worker_id,
         title=notification.title,
         body=notification.title,
-        url=notification.link,
+        url='/worker',
     )
