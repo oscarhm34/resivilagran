@@ -441,6 +441,25 @@
             .form-check-input { width: 1.35rem; height: 1.35rem; }
             .form-check label, label.form-check { min-height: 44px; display: inline-flex; align-items: center; }
         }
+        /* ---- Impresion --------------------------------------------------
+           Reglas globales para cualquier pagina del panel. Para imprimir
+           solo un bloque concreto (informes dentro de modales) usar el
+           helper printFragment() definido mas abajo. */
+        @media print {
+            .navbar, .footer, #chat-fab, #chat-dialog,
+            .flash-container, #toast-container, .no-print { display: none !important; }
+            body { padding-top: 0 !important; background: #fff !important; }
+        }
+
+        /* Modo "imprimir solo este bloque": printFragment() clona el bloque
+           dentro de #print-root y marca <body class="printing-fragment">. */
+        #print-root { display: none; }
+        @media print {
+            body.printing-fragment > *:not(#print-root) { display: none !important; }
+            body.printing-fragment #print-root { display: block !important; padding: 24px; }
+            #print-root .no-print { display: none !important; }
+            #print-root h3 { color: #333 !important; }
+        }
     </style>
 </head>
 <body>
@@ -779,6 +798,35 @@
         };
     })();
     </script>
+    <script>
+    // Imprime solo el contenedor indicado: lo clona en #print-root (hijo
+    // directo de <body>) para que no le afecten el overflow ni el
+    // position:fixed de los modales, y lo retira al terminar de imprimir.
+    window.printFragment = function(target, opts) {
+        var el = (typeof target === 'string') ? document.getElementById(target) : target;
+        var root = document.getElementById('print-root');
+        if (!el || !root) return;
+        opts = opts || {};
+        var clone = el.cloneNode(true);
+        // Revela la cabecera y el pie del membrete, ocultos en pantalla
+        if (opts.reveal) {
+            clone.querySelectorAll(opts.reveal).forEach(function(n) { n.style.display = 'block'; });
+        }
+        // Evita IDs duplicados mientras el clon esta en el documento
+        clone.removeAttribute('id');
+        clone.querySelectorAll('[id]').forEach(function(n) { n.removeAttribute('id'); });
+        root.innerHTML = '';
+        root.appendChild(clone);
+        document.body.classList.add('printing-fragment');
+        var restore = function() {
+            document.body.classList.remove('printing-fragment');
+            root.innerHTML = '';
+            window.removeEventListener('afterprint', restore);
+        };
+        window.addEventListener('afterprint', restore);
+        window.print();
+    };
+    </script>
     {% block scripts %}{% endblock %}
 
     {% if current_user.is_authenticated %}
@@ -958,5 +1006,8 @@
     })();
     </script>
     {% endif %}
+
+    <!-- Destino del helper printFragment() -->
+    <div id="print-root" aria-hidden="true"></div>
 </body>
 </html>

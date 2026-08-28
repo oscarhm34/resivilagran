@@ -14,7 +14,6 @@
 {% block content %}
 <style>
 @media print {
-    .no-print { display: none !important; }
     .card { border: 1px solid #ddd !important; break-inside: avoid; }
     table { font-size: 12px; }
     .tab-pane { display: block !important; opacity: 1 !important; }
@@ -262,14 +261,6 @@
                 .ai-report-content h3 { font-size:1rem; font-weight:700; color:var(--color-primary); margin-top:20px; margin-bottom:8px; border-bottom:1px solid #eee; padding-bottom:4px; }
                 .ai-report-content ul { padding-left:20px; }
                 .ai-report-content li { margin-bottom:4px; }
-                @media print {
-                    body * { visibility: hidden !important; }
-                    #ai-report-body, #ai-report-body * { visibility: visible !important; }
-                    #ai-report-body { position: absolute; left: 0; top: 0; width: 100%; padding: 30px; }
-                    .report-print-header, .report-print-footer { display: block !important; }
-                    .ai-report-content h3 { color: #333 !important; }
-                    .no-print { display: none !important; }
-                }
             </style>
 
             <!-- Seguimiento de constantes vitales -->
@@ -1083,13 +1074,7 @@ vitalData.forEach((chart, i) => {
     });
 
     document.getElementById('btn-print-report').addEventListener('click', function() {
-        document.getElementById('report-header').style.display = 'block';
-        document.getElementById('report-footer').style.display = 'block';
-        window.print();
-        setTimeout(function() {
-            document.getElementById('report-header').style.display = 'none';
-            document.getElementById('report-footer').style.display = 'none';
-        }, 500);
+        printFragment('ai-report-body', { reveal: '.report-print-header, .report-print-footer' });
     });
 
     document.getElementById('btn-copy-report').addEventListener('click', function() {
@@ -1256,20 +1241,7 @@ vitalData.forEach((chart, i) => {
     });
 
     document.getElementById('btn-insp-print').addEventListener('click', function() {
-        document.getElementById('insp-header').style.display = 'block';
-        document.getElementById('insp-footer').style.display = 'block';
-        // Override print area to use inspection report
-        var style = document.createElement('style');
-        style.id = 'insp-print-style';
-        style.textContent = '@media print { body * { visibility: hidden !important; } #insp-print-area, #insp-print-area * { visibility: visible !important; } #insp-print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 30px; } .report-print-header, .report-print-footer { display: block !important; } .no-print { display: none !important; } .ai-report-content h3 { color: #333 !important; } }';
-        document.head.appendChild(style);
-        window.print();
-        setTimeout(function() {
-            document.getElementById('insp-header').style.display = 'none';
-            document.getElementById('insp-footer').style.display = 'none';
-            var s = document.getElementById('insp-print-style');
-            if (s) s.remove();
-        }, 500);
+        printFragment('insp-print-area', { reveal: '.report-print-header, .report-print-footer' });
     });
 })();
 

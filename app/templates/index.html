@@ -302,13 +302,6 @@
     .gr-content h3 { font-size:1rem; font-weight:700; color:var(--color-primary); margin-top:20px; margin-bottom:8px; border-bottom:1px solid #eee; padding-bottom:4px; }
     .gr-content ul { padding-left:20px; }
     .gr-content li { margin-bottom:4px; }
-    @media print {
-        body * { visibility: hidden !important; }
-        #gr-print-area, #gr-print-area * { visibility: visible !important; }
-        #gr-print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 30px; }
-        .gr-print-header, .gr-print-footer { display: block !important; }
-        .no-print { display: none !important; }
-    }
 </style>
 
 <!-- Modal Informe Global IA -->
@@ -480,11 +473,7 @@
     });
 
     document.getElementById('btn-ho-print').addEventListener('click', function() {
-        document.querySelectorAll('.ho-print-header, .ho-print-footer').forEach(function(el) { el.style.display = 'block'; });
-        window.print();
-        setTimeout(function() {
-            document.querySelectorAll('.ho-print-header, .ho-print-footer').forEach(function(el) { el.style.display = 'none'; });
-        }, 500);
+        printFragment('ho-print-area', { reveal: '.ho-print-header, .ho-print-footer' });
     });
 
     // Global report
@@ -521,11 +510,7 @@
     });
 
     document.getElementById('btn-gr-print').addEventListener('click', function() {
-        document.querySelectorAll('.gr-print-header, .gr-print-footer').forEach(function(el) { el.style.display = 'block'; });
-        window.print();
-        setTimeout(function() {
-            document.querySelectorAll('.gr-print-header, .gr-print-footer').forEach(function(el) { el.style.display = 'none'; });
-        }, 500);
+        printFragment('gr-print-area', { reveal: '.gr-print-header, .gr-print-footer' });
     });
 })();
 </script>
