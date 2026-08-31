@@ -28,7 +28,7 @@
             <div class="card h-100">
                 <div class="card-body text-center py-3">
                     <div style="font-size:2rem;font-weight:800;color:var(--color-text)">{{ total_findings }}</div>
-                    <div class="text-muted" style="font-size:.82rem">Troballes totals</div>
+                    <div class="text-muted" style="font-size:.82rem">Hallazgos totales</div>
                 </div>
             </div>
         </div>
@@ -36,7 +36,7 @@
             <div class="card h-100" {% if critical_count %}style="border-color:var(--color-danger)"{% endif %}>
                 <div class="card-body text-center py-3">
                     <div style="font-size:2rem;font-weight:800;color:{% if critical_count %}var(--color-danger){% else %}var(--color-text-secondary){% endif %}">{{ critical_count }}</div>
-                    <div class="text-muted" style="font-size:.82rem">Crítiques</div>
+                    <div class="text-muted" style="font-size:.82rem">Críticos</div>
                 </div>
             </div>
         </div>
@@ -52,7 +52,7 @@
 
     <!-- Category scores -->
     <div class="card mb-4">
-        <div class="card-header"><i class="bi bi-speedometer2 me-2"></i>Puntuació per àrea</div>
+        <div class="card-header"><i class="bi bi-speedometer2 me-2"></i>Puntuación por área</div>
         <div class="card-body">
             <div class="row g-3">
                 {% for key, label in cat_labels.items() %}

@@ -1358,7 +1358,7 @@ def compliance_audit():
     workers = Cleaner.query.filter_by(active=True).all()
     for pill in pills:
         completed_ids = {tc.cleaner_id for tc in TrainingCompletion.query.filter_by(
-            training_pill_id=pill.id, passed=True).all()}
+            pill_id=pill.id, passed=True).all()}
         pending = [w for w in workers if w.id not in completed_ids]
         if len(pending) > 0:
             findings.append({'category': 'formacion', 'severity': 'info',
@@ -1428,7 +1428,7 @@ def compliance_audit():
     # Formacion score
     if pills and workers:
         total_completions = sum(TrainingCompletion.query.filter_by(
-            training_pill_id=p.id, passed=True).count() for p in pills)
+            pill_id=p.id, passed=True).count() for p in pills)
         max_completions = len(pills) * len(workers)
         scores['formacion'] = round((total_completions / max_completions) * 100) if max_completions else 100
     else:

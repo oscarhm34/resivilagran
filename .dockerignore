@@ -7,6 +7,11 @@ __pycache__
 .env
 instance/
 uploads/
+# Datos de produccion en el NAS: sin excluirlos, el COPY . . del Dockerfile los mete
+# dentro de la imagen. (No arregla el "can't stat pgdata" del build: ese error es de
+# permisos y se salva con sudo. Ver .claude/rules/06-deploy-nas.md)
+pgdata/
+backups/
 *.db
 *.db-journal
 *.db-wal

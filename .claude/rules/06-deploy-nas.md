@@ -25,11 +25,26 @@ El NAS **no tiene git**. Se descarga el zip de GitHub:
 3. Descargar, descomprimir y reconstruir (una línea):
 
 ```
-cd <DEPLOY_DIR> && curl -L https://github.com/oscarhm34/resivilagran/archive/refs/heads/main.zip -o main.zip && 7z x -y main.zip && cp -rf resivilagran-main/app resivilagran-main/run.py resivilagran-main/requirements.txt resivilagran-main/Dockerfile resivilagran-main/docker-compose.yml resivilagran-main/migrations . && rm -rf resivilagran-main main.zip && docker build --no-cache -t nfc2-docker-nfc . && docker-compose up -d
+cd <DEPLOY_DIR> && curl -L https://github.com/oscarhm34/resivilagran/archive/refs/heads/main.zip -o main.zip && 7z x -y main.zip && cp -rf resivilagran-main/app resivilagran-main/run.py resivilagran-main/requirements.txt resivilagran-main/Dockerfile resivilagran-main/.dockerignore resivilagran-main/docker-compose.yml resivilagran-main/migrations . && rm -rf resivilagran-main main.zip && sudo docker build --no-cache -t nfc2-docker-nfc <DEPLOY_DIR> && docker-compose up -d --force-recreate nfc
 ```
 
 **Nunca `cp -rf resivilagran-main/* .`** — sobrescribe `uploads/` e `instance/` y
 borra fotos, la BD y los secretos. Copiar solo los ficheros de código listados.
+
+**El build necesita `sudo`** (comprobado el 31/08/2026). El directorio de deploy
+contiene `pgdata/`, el volumen de PostgreSQL, que pertenece al usuario del contenedor
+(uid 999, permisos 700). El cliente Docker recorre el contexto y muere con
+`error checking context: can't stat '<DEPLOY_DIR>/pgdata'`.
+**Ponerlo en `.dockerignore` NO lo evita:** esta versión del cliente valida el contexto
+antes de aplicar las exclusiones. Aun así `.dockerignore` sigue haciendo falta, para que
+`COPY . .` no meta `pgdata/`, `uploads/` e `instance/` dentro de la imagen.
+
+Pasar la **ruta de contexto completa**, no `.`: el punto final se pierde con facilidad al
+copiar y pegar, y `docker build` falla con `requires exactly 1 argument`.
+
+Arreglo de fondo pendiente: sacar `pgdata` del directorio de build (moverlo fuera o
+pasarlo a volumen con nombre en `docker-compose.yml`) y así quitar el `sudo`. Toca la
+base de datos: hacerlo con backup del día verificado, nunca en mitad de un deploy.
 
 `docker-compose build` falla en este NAS (`mkdir /var/services/homes: file exists`);
 usar `docker build` directamente.

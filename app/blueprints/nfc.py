@@ -235,11 +235,13 @@ def worker_manifest():
         'background_color': '#ffffff',
         'theme_color': '#0069d9',
         'orientation': 'portrait',
+        # icon-192.png es cuadrado de verdad. Antes se declaraba 192x192 apuntando
+        # al banner apaisado (2048x1063) y Android lo deformaba en el escritorio.
         'icons': [{
-            'src': url_for('static', filename='logoLaVilaGranBanner.png'),
+            'src': url_for('static', filename='icon-192.png'),
             'sizes': '192x192',
             'type': 'image/png',
-            'purpose': 'any maskable',
+            'purpose': 'any',
         }],
     })
 

@@ -478,6 +478,16 @@
             </div>
         </div>
 
+        <!-- Aviso de carga fallida: sin esto una pantalla vacía por falta de red
+             es indistinguible de "no tengo nada abierto" -->
+        <div id="home-load-error" style="display:none;background:var(--tint-warn-bg);color:var(--tint-warn-fg);border-radius:14px;padding:14px 16px;margin-bottom:16px">
+            <div style="font-weight:600;margin-bottom:4px">No se han podido cargar tus datos</div>
+            <div style="font-size:13px;color:var(--text-2);margin-bottom:10px">
+                Puede que no haya cobertura. Puedes tener sesiones abiertas que no se ven aquí.
+            </div>
+            <button class="btn-cam primary" id="home-retry" onclick="refreshAll()" style="width:100%;min-height:44px">Reintentar</button>
+        </div>
+
         <!-- Sesiones activas -->
         <div id="active-sessions" style="display:none">
             <div class="section-label" id="active-label">En curso</div>
@@ -1383,7 +1393,10 @@ async function initHome() {
     $('home-name').textContent = S.workerName || '—';
     show('screen-home');
     $('chat-fab').style.display = '';
+    homeLoadError = false;
+    loadQuickPhrases();
     await Promise.all([loadConfig(), loadActiveSessions(), loadHistory(), loadCareTypes(), loadMyGroups(), loadPendingItems(), loadRoute()]);
+    mostrarAvisoDeCarga();
     // Check for mandatory training — block webapp if any
     var mandatoryPills = (pendingTrains || []).filter(function(p) { return p.mandatory; });
     if (mandatoryPills.length) {
@@ -1448,12 +1461,24 @@ async function checkWorkerNotifs() {
 }
 // ── Today's activities ────────────────────────────────────────────────────
 var S_activities = [];
+// Se pone a true en cuanto un cargador de la pantalla de inicio no recibe datos.
+// Sin este aviso, una pantalla vacia por falta de cobertura se lee como "no tengo
+// nada abierto" y la trabajadora vuelve a iniciar una sesion que ya estaba abierta.
+var homeLoadError = false;
+
+function mostrarAvisoDeCarga() {
+    var aviso = $('home-load-error');
+    if (!aviso) return;                 // el bloqueo por formacion obligatoria lo borra
+    aviso.style.display = homeLoadError ? '' : 'none';
+    if (homeLoadError) toast('No se han podido cargar todos tus datos');
+}
 var pendingDocs = [];
 var pendingTrains = [];
 var completedTrains = [];
 async function loadTodayActivities() {
     if (!S.token) return;
     const { ok, data } = await api('/api/activities/today');
+    if (!ok) homeLoadError = true;
     if (!ok || !data || !data.activities || !data.activities.length) {
         $('today-activities').style.display = 'none';
         S_activities = [];
@@ -1714,8 +1739,10 @@ async function refreshAll() {
     btn.style.opacity = '.5';
     btn.textContent = '⟳';
     try {
+        homeLoadError = false;
         await Promise.all([loadActiveSessions(), loadHistory(), loadMyGroups(), loadPendingItems()]);
-        toast('Datos actualizados');
+        mostrarAvisoDeCarga();          // avisa el mismo si algo ha fallado
+        if (!homeLoadError) toast('Datos actualizados');
     } catch (e) { toast('Error al actualizar'); }
     btn.disabled = false;
     btn.style.opacity = '1';
@@ -1725,7 +1752,7 @@ async function refreshAll() {
 async function loadActiveSessions() {
     if (!S.workerId) return;
     const { ok, data } = await api(`/api/worker/active-sessions?worker_id=${S.workerId}`);
-    if (!ok) return;
+    if (!ok) { homeLoadError = true; return; }
     S.sessions = Array.isArray(data) ? data : [];
     renderActiveSessions();
 }
@@ -1924,7 +1951,7 @@ async function cancelByCard(recordId, mode) {
 async function loadHistory() {
     if (!S.workerId) return;
     const { ok, data } = await api(`/api/worker/today?worker_id=${S.workerId}`);
-    if (!ok) return;
+    if (!ok) { homeLoadError = true; return; }
     const sessions = (data.sessions || []).filter(s => s.duration);
     const label = $('hist-label');
     const list  = $('hist-list');
@@ -1986,6 +2013,7 @@ async function loadCareTypes() {
 async function loadMyGroups() {
     if (!S.workerId) return;
     const { ok, data } = await api(`/api/worker/my-groups?worker_id=${S.workerId}`);
+    if (!ok) homeLoadError = true;
     S.myGroupsData = (ok && data.groups) ? data.groups : [];
     const wrap = $('my-groups-btn-wrap');
     if (!S.myGroupsData.length) {
@@ -4434,11 +4462,16 @@ $('route-back').addEventListener('click', function() { show('screen-home'); });
 })();
 
 // ── Quick Phrases ──
-(function() {
+// Se cargan desde initHome(), no al parsear el fichero: al abrir la webapp todavia
+// no hay sesion, la peticion salia con "Bearer null" y el 422 dejaba las frases
+// vacias para el resto de la sesion, porque nadie las volvia a pedir.
+let quickPhrasesCargadas = false;
+function loadQuickPhrases() {
+    if (quickPhrasesCargadas || !S.token) return;
     const containers = document.querySelectorAll('.quick-phrases');
     if (!containers.length) return;
+    quickPhrasesCargadas = true;
 
-    // Fetch phrases once and populate all containers
     fetch('/api/nfc/quick-phrases', {
         headers: { 'Authorization': 'Bearer ' + S.token },
     })
@@ -4465,8 +4498,11 @@ $('route-back').addEventListener('click', function() { show('screen-home'); });
             });
         });
     })
-    .catch(function() { /* silent fail — phrases are optional */ });
-})();
+    .catch(function() {
+        // Que se pueda reintentar en el siguiente initHome() si fallo la red.
+        quickPhrasesCargadas = false;
+    });
+}
 
 // ── Register Service Worker + Push Notifications ──
 if ('serviceWorker' in navigator) {
