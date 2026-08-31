@@ -1154,7 +1154,8 @@ def ai_worker_performance():
             html = html.rsplit('```', 1)[0]
         return jsonify({'html': html.strip()})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        app.logger.error('Error en el analisis de rendimiento con IA: %s', e)
+        return jsonify({'error': 'No se ha podido generar el analisis de rendimiento.'}), 500
 
 
 @bp.route('/admin/audit')

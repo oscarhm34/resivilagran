@@ -9,7 +9,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
-from .. import db, limiter
+from .. import app, db, limiter
 from ..models import (
     Cleaner, ResidentGroup, ShiftType, ShiftAssignment,
     RotationPattern, RotationPatternDay, WorkerShiftConfig,
@@ -1057,7 +1057,8 @@ trabajadores sobrecargados o infrautilizados, y mejoras de distribucion."""
         )
         text = ''.join(b.text for b in resp.content if hasattr(b, 'text'))
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        app.logger.error('Error al sugerir turnos con IA: %s', e)
+        return jsonify({'error': 'No se han podido generar las sugerencias de turnos.'}), 500
 
     return jsonify({'suggestions': text})
 

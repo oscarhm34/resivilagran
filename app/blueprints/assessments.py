@@ -496,7 +496,8 @@ def inspection_report(resident_id: int):
             html = html.rsplit('```', 1)[0]
         html = html.strip()
     except Exception as e:
-        return jsonify({'error': f'Error: {str(e)}'}), 500
+        app.logger.error('Error en la valoracion clinica: %s', e)
+        return jsonify({'error': 'No se ha podido completar la operacion.'}), 500
 
     return jsonify({
         'html': html,
@@ -849,7 +850,8 @@ def ai_summary(resident_id: int):
             summary_html = summary_html.rsplit('```', 1)[0]
         summary_html = summary_html.strip()
     except Exception as e:
-        return jsonify({'error': f'Error al generar informe: {str(e)}'}), 500
+        app.logger.error('Error al generar el informe: %s', e)
+        return jsonify({'error': 'No se ha podido generar el informe.'}), 500
 
     # Build full report metadata
     period_titles = {'today': 'Informe del dia', 'week': 'Informe semanal', 'month': 'Informe mensual'}
@@ -912,7 +914,8 @@ Los datos son internos — tu resumen debe ser PARA LA FAMILIA, sin jerga clinic
             html = html.rsplit('```', 1)[0]
         html = html.strip()
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        app.logger.error('Error al generar el resumen para la familia: %s', e)
+        return jsonify({'error': 'No se ha podido generar el resumen para la familia.'}), 500
 
     return jsonify({
         'html': html,
@@ -1081,7 +1084,8 @@ def global_ai_report():
             html = html.rsplit('```', 1)[0]
         html = html.strip()
     except Exception as e:
-        return jsonify({'error': f'Error al generar informe: {str(e)}'}), 500
+        app.logger.error('Error al generar el informe: %s', e)
+        return jsonify({'error': 'No se ha podido generar el informe.'}), 500
 
     period_titles = {'today': 'Informe del dia', 'week': 'Informe semanal', 'month': 'Informe mensual'}
     return jsonify({
@@ -1261,7 +1265,8 @@ def shift_handover_report():
             html = html.rsplit('```', 1)[0]
         html = html.strip()
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        app.logger.error('Error al generar el informe de relevo: %s', e)
+        return jsonify({'error': 'No se ha podido generar el informe de relevo.'}), 500
 
     return jsonify({
         'html': html,
@@ -1517,7 +1522,8 @@ Escribe en español. Sé breve y directo."""
         if html.endswith('```'):
             html = html.rsplit('```', 1)[0]
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        app.logger.error('Error al generar el informe de cumplimiento: %s', e)
+        return jsonify({'error': 'No se ha podido generar el informe de cumplimiento.'}), 500
 
     return jsonify({'html': html.strip()})
 
@@ -1839,7 +1845,8 @@ def generate_care_plan(resident_id: int):
             html = html.rsplit('```', 1)[0]
         html = html.strip()
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        app.logger.error('Error al generar el plan de atencion: %s', e)
+        return jsonify({'error': 'No se ha podido generar el plan de atencion.'}), 500
 
     # Save as new care plan
     from datetime import date as _date
@@ -1899,7 +1906,8 @@ DATOS RECIENTES (últimos 30 días):
             review_html = review_html.rsplit('```', 1)[0]
         review_html = review_html.strip()
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        app.logger.error('Error al revisar el plan de atencion: %s', e)
+        return jsonify({'error': 'No se ha podido revisar el plan de atencion.'}), 500
 
     plan.ai_review = review_html
     plan.ai_review_date = datetime.now()
@@ -2066,4 +2074,5 @@ def ai_risk_watchlist():
             html = html.rsplit('```', 1)[0]
         return jsonify({'html': html.strip(), 'generated_at': datetime.now().strftime('%d/%m/%Y %H:%M')})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        app.logger.error('Error al calcular la lista de vigilancia: %s', e)
+        return jsonify({'error': 'No se ha podido calcular la lista de residentes a vigilar.'}), 500

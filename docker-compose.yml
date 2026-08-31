@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_DB: cleaning_service
       POSTGRES_USER: nfc_app
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-LaVilaGran2024!}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD en el .env del servidor}
       TZ: Europe/Madrid
     restart: unless-stopped
     mem_limit: 256m
@@ -26,7 +26,7 @@ services:
     env_file: .env
     environment:
       - TZ=Europe/Madrid
-      - DATABASE_URL=postgresql://nfc_app:${DB_PASSWORD:-LaVilaGran2024!}@postgres:5432/cleaning_service
+      - DATABASE_URL=postgresql://nfc_app:${DB_PASSWORD:?falta DB_PASSWORD en el .env del servidor}@postgres:5432/cleaning_service
     depends_on:
       postgres:
         condition: service_healthy

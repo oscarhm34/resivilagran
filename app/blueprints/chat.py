@@ -26,7 +26,7 @@ def api_chat():
         response = chat(message, api_key)
         return jsonify({'response': response}), 200
     except Exception as e:
-        app.logger.error(f'Chatbot error: {e}')
+        app.logger.error('Error del chatbot: %s', e)
         return jsonify({'error': 'Error del chatbot: no se pudo procesar la consulta'}), 500
 
 
@@ -60,7 +60,7 @@ def admin_chat():
         response = chat(message, api_key, is_admin=True)
         return jsonify({'response': response}), 200
     except Exception as e:
-        app.logger.error(f'Chatbot error: {e}')
+        app.logger.error('Error del chatbot: %s', e)
         return jsonify({'error': 'Error del chatbot: no se pudo procesar la consulta'}), 500
 
 
@@ -81,10 +81,10 @@ def _transcribe_audio():
             timeout=30,
         )
         if resp.status_code != 200:
-            app.logger.error(f'Whisper API error: {resp.status_code} {resp.text}')
+            app.logger.error('La API de transcripcion devolvio %s', resp.status_code)
             return jsonify({'error': 'Error en la transcripción'}), 500
         text = resp.json().get('text', '')
         return jsonify({'text': text}), 200
     except Exception as e:
-        app.logger.error(f'Transcribe error: {e}')
+        app.logger.error('Error en la transcripcion: %s', e)
         return jsonify({'error': 'Error en la transcripción'}), 500

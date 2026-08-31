@@ -313,7 +313,8 @@ def ai_generate_questions():
             questions = []
         return jsonify({'questions': questions})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        app.logger.error('Error al generar preguntas con IA: %s', e)
+        return jsonify({'error': 'No se han podido generar las preguntas.'}), 500
 
 
 # ── Idiomas y audio de las instrucciones ─────────────────────────────────────

@@ -1,10 +1,15 @@
 """Migrate data from SQLite to PostgreSQL - Direct connection version."""
+import os
 import sqlite3
 from sqlalchemy import create_engine, text, inspect
 
+# La contrasena se lee del entorno: este repositorio es publico.
+DB_PASSWORD = os.environ['DB_PASSWORD']
+
 src = sqlite3.connect('/app/instance/cleaning_service.db')
 src.row_factory = sqlite3.Row
-pg = create_engine('postgresql://nfc_app:LaVilaGran2024!@postgres:5432/cleaning_service')
+pg = create_engine(
+    f'postgresql://nfc_app:{DB_PASSWORD}@postgres:5432/cleaning_service')
 
 tables = [r[0] for r in src.execute(
     "SELECT name FROM sqlite_master WHERE type='table' "

@@ -11,6 +11,9 @@ instance/
 .codegpt
 Thumbs.db
 app/static/*.apk
+# Documentacion interna que no debe servirse publica en /static/
+app/static/NVR_videovigilancial.pdf
+app/static/qr
 
 # Claude Code — estado local, no versionar
 .claude/worktrees/

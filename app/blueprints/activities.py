@@ -10,7 +10,7 @@ from sqlalchemy import func, case
 
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
-from .. import db, limiter
+from .. import app, db, limiter
 from ..models import Activity, ActivityParticipation, ActivityTemplate, ActivityPhoto, Resident, Cleaner
 from ..utils import (admin_required, _open_image_oriented,
                      _safe_commit, _safe_flush, log_audit)
@@ -512,7 +512,8 @@ def ai_suggest_activities():
             suggestions = []
         return jsonify({'suggestions': suggestions})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        app.logger.error('Error al sugerir actividades con IA: %s', e)
+        return jsonify({'error': 'No se han podido generar las sugerencias de actividades.'}), 500
 
 
 @bp.route('/admin/activities/<int:act_id>/invite', methods=['POST'])

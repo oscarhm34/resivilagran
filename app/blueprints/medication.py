@@ -7,7 +7,7 @@ from flask_login import current_user
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy.orm import joinedload
 
-from .. import db, limiter
+from .. import app, db, limiter
 from ..models import (
     Resident, Cleaner, MedicationPrescription, MedicationAdministration, Notification,
 )
@@ -479,4 +479,5 @@ def check_interactions():
         response = _call_claude(system, prompt)
         return jsonify({'analysis': response, 'drug': new_drug})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        app.logger.error('Error al comprobar interacciones de medicacion: %s', e)
+        return jsonify({'error': 'No se han podido comprobar las interacciones.'}), 500
