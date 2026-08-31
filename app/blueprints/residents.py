@@ -9,6 +9,7 @@ from sqlalchemy.orm import joinedload, subqueryload
 from sqlalchemy.exc import IntegrityError
 import pandas as pd
 from io import BytesIO
+from collections import defaultdict
 import os
 
 from .. import app, db
@@ -734,13 +735,23 @@ def registros_atencion():
         'estado': estado,
     }
 
+    todos_los_tipos = CareType.query.order_by(CareType.sort_order, CareType.name).all()
+    # Agrupado padre -> hijos para el modal de correccion, sin consultas extra.
+    hijos_por_padre = defaultdict(list)
+    for ct in todos_los_tipos:
+        if ct.parent_id:
+            hijos_por_padre[ct.parent_id].append(ct)
+    tipos_agrupados = [(ct, hijos_por_padre.get(ct.id, []))
+                       for ct in todos_los_tipos if not ct.parent_id]
+
     return render_template(
         'registros_atencion.html',
         records=pagination.items,
         pagination=pagination,
         workers=Cleaner.query.filter_by(active=True).order_by(Cleaner.name).all(),
         residents=Resident.query.order_by(Resident.name).all(),
-        care_types=CareType.query.order_by(CareType.name).all(),
+        care_types=todos_los_tipos,
+        tipos_agrupados=tipos_agrupados,
         filters=filters,
     )
 
@@ -933,6 +944,43 @@ def export_resident_care_excel(resident_id: int):
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         download_name=f'atenciones_{safe_name}.xlsx',
     )
+
+
+@bp.route('/admin/care-record/<int:record_id>/edit', methods=['POST'])
+@admin_required
+def edit_care_record(record_id: int):
+    """Corrige los tipos de atencion de un registro ya cerrado.
+
+    Hace falta para los registros antiguos que quedaron sin ningun tipo, y para
+    corregir una seleccion equivocada. Sin esta ruta solo se podian borrar.
+    """
+    record = db.session.get(CareRecord, record_id)
+    if not record:
+        flash('Registro no encontrado.', 'danger')
+        return redirect(request.referrer or url_for('residents.registros_atencion'))
+
+    ids = [int(v) for v in request.form.getlist('care_type_ids') if v.isdigit()]
+    tipos = CareType.query.filter(CareType.id.in_(ids)).all() if ids else []
+    # Corregir no puede ser una via para dejar el registro sin tipo.
+    if not tipos:
+        flash('Selecciona al menos un tipo de atención.', 'warning')
+        return redirect(request.referrer or url_for('residents.registros_atencion'))
+
+    anteriores = sorted(ct.id for ct in record.care_types)
+    record.care_types = tipos
+
+    notas = request.form.get('notes')
+    if notas is not None:
+        record.notes = notas.strip() or None
+
+    log_audit('update', 'care_record', record.id,
+              {'tipos_antes': anteriores, 'tipos_despues': sorted(ct.id for ct in tipos)})
+    ok, error = _safe_commit('Error al guardar los tipos de atencion')
+    if not ok:
+        flash(error, 'danger')
+    else:
+        flash('Registro de atención actualizado.', 'success')
+    return redirect(request.referrer or url_for('residents.registros_atencion'))
 
 
 @bp.route('/admin/care-record/<int:record_id>/delete', methods=['POST'])

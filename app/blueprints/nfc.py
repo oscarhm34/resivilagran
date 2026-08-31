@@ -956,6 +956,21 @@ def finalize_group_care():
         return jsonify({'error': 'Registros no válidos'}), 400
 
     records_by_id = {r.id: r for r in records}
+
+    # Mismo requisito que en el cierre individual: ninguna atencion del grupo se
+    # guarda sin tipo. Se valida todo antes de cerrar nada, para no dejar la
+    # mitad del grupo cerrada y la otra mitad abierta.
+    tipos_por_registro = {}
+    for mapping in record_mapping:
+        rec = records_by_id.get(mapping.get('record_id'))
+        if not rec:
+            continue
+        tipos = [ct for ct in (db.session.get(CareType, ct_id)
+                               for ct_id in mapping.get('care_type_ids', [])) if ct]
+        if not tipos:
+            return jsonify({'error': 'Selecciona al menos un tipo de atención para cada residente'}), 400
+        tipos_por_registro[rec.id] = tipos
+
     now = datetime.now()
     names = []
     all_type_names = set()
@@ -971,11 +986,9 @@ def finalize_group_care():
             rec.notes = notes
             resident_name = rec.resident.name if rec.resident else 'Residente'
             notes_with_names.append((resident_name, notes, rec.resident_id))
-        for ct_id in mapping.get('care_type_ids', []):
-            ct = db.session.get(CareType, ct_id)
-            if ct:
-                rec.care_types.append(ct)
-                all_type_names.add(ct.name)
+        for ct in tipos_por_registro[rec.id]:
+            rec.care_types.append(ct)
+            all_type_names.add(ct.name)
         if rec.resident:
             names.append(rec.resident.name)
 
@@ -1027,23 +1040,26 @@ def finalize_care():
     if not record or record.worker_id != worker_id or record.end_time:
         return jsonify({'error': 'Registro no válido'}), 400
 
+    # El tipo de atencion es obligatorio: un registro sin tipo no dice que se hizo
+    # y ya no hay manera de reconstruirlo. Se valida antes de tocar el registro
+    # para que un rechazo no deje la sesion a medio cerrar.
+    tipos = [ct for ct in (db.session.get(CareType, ct_id) for ct_id in care_type_ids) if ct]
+    if not tipos:
+        return jsonify({'error': 'Selecciona al menos un tipo de atención'}), 400
+
     record.end_time = datetime.now()
     worker_notes = data.get('notes', '').strip()
     if worker_notes:
         record.notes = worker_notes
-    for ct_id in care_type_ids:
-        ct = db.session.get(CareType, ct_id)
-        if ct:
-            record.care_types.append(ct)
+    for ct in tipos:
+        record.care_types.append(ct)
 
     # Validate: if selected care types have vital sign fields, values are required
     provided_vst_ids = {vs.get('vital_sign_type_id') for vs in vital_signs if vs.get('value') not in (None, '')}
-    for ct_id in care_type_ids:
-        ct = db.session.get(CareType, ct_id)
-        if ct:
-            for vst in ct.vital_sign_types:
-                if vst.active and vst.id not in provided_vst_ids:
-                    return jsonify({'error': f'Falta el valor de {vst.name}'}), 400
+    for ct in tipos:
+        for vst in ct.vital_sign_types:
+            if vst.active and vst.id not in provided_vst_ids:
+                return jsonify({'error': f'Falta el valor de {vst.name}'}), 400
 
     # Save vital sign readings
     for vs_data in vital_signs:

@@ -134,6 +134,14 @@
                             </form>
                             {% endif %}
                             {% if current_user.is_admin %}
+                            <button type="button" class="btn btn-sm btn-outline-primary ms-1 btn-editar-tipos"
+                                    data-record-id="{{ record.id }}"
+                                    data-resident="{{ record.resident.name if record.resident else '—' }}"
+                                    data-tipos="{{ record.care_types|map(attribute='id')|join(',') }}"
+                                    data-notes="{{ record.notes or '' }}"
+                                    title="Corregir tipo de atención" aria-label="Corregir tipo de atención">
+                                <i class="bi bi-pencil"></i>
+                            </button>
                             <form method="post" action="{{ url_for('residents.delete_care_record', record_id=record.id) }}" style="display:inline" data-confirm="¿Eliminar este registro de atención?">
                                 <button type="submit" class="btn btn-sm btn-outline-danger ms-1"><i class="bi bi-trash"></i></button>
                             </form>
@@ -195,6 +203,57 @@
     {% endif %}
 </div>
 
+{% if current_user.is_admin %}
+<!-- Corregir el tipo de una atencion ya cerrada -->
+<div class="modal fade" id="modalEditarTipos" tabindex="-1" aria-labelledby="modalEditarTiposLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <form method="post" id="formEditarTipos">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalEditarTiposLabel">Corregir tipo de atención</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3" style="color:var(--color-text-secondary)">
+                        Residente: <strong id="editarTiposResidente"></strong>
+                    </p>
+                    {% for padre, hijos in tipos_agrupados %}
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="care_type_ids"
+                                   value="{{ padre.id }}" id="ct-edit-{{ padre.id }}">
+                            <label class="form-check-label fw-semibold" for="ct-edit-{{ padre.id }}">
+                                {{ padre.name }}{% if not padre.active %} <span class="badge bg-secondary">Inactivo</span>{% endif %}
+                            </label>
+                        </div>
+                        {% for hijo in hijos %}
+                        <div class="form-check ms-4">
+                            <input class="form-check-input" type="checkbox" name="care_type_ids"
+                                   value="{{ hijo.id }}" id="ct-edit-{{ hijo.id }}">
+                            <label class="form-check-label" for="ct-edit-{{ hijo.id }}">
+                                {{ hijo.name }}{% if not hijo.active %} <span class="badge bg-secondary">Inactivo</span>{% endif %}
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p style="color:var(--color-text-secondary)">No hay tipos de atención dados de alta.</p>
+                    {% endfor %}
+                    <div class="mt-3">
+                        <label for="editarTiposNotas" class="form-label">Observaciones</label>
+                        <textarea class="form-control" id="editarTiposNotas" name="notes" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
 <script>
 (function () {
     'use strict';
@@ -209,5 +268,38 @@
         startInput.max = this.value;
     });
 })();
+
+{% if current_user.is_admin %}
+(function () {
+    'use strict';
+    var modalEl = document.getElementById('modalEditarTipos');
+    if (!modalEl) return;
+    var modal = new bootstrap.Modal(modalEl);
+    var form  = document.getElementById('formEditarTipos');
+
+    document.querySelectorAll('.btn-editar-tipos').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            form.action = '/admin/care-record/' + btn.dataset.recordId + '/edit';
+            document.getElementById('editarTiposResidente').textContent = btn.dataset.resident;
+            document.getElementById('editarTiposNotas').value = btn.dataset.notes || '';
+            var marcados = (btn.dataset.tipos || '').split(',').filter(Boolean);
+            form.querySelectorAll('input[name="care_type_ids"]').forEach(function (cb) {
+                cb.checked = marcados.indexOf(cb.value) !== -1;
+            });
+            modal.show();
+        });
+    });
+
+    // Corregir no puede dejar el registro sin tipo: el servidor lo rechaza,
+    // pero avisamos aqui para no perder las observaciones escritas.
+    form.addEventListener('submit', function (e) {
+        var alguno = form.querySelector('input[name="care_type_ids"]:checked');
+        if (!alguno) {
+            e.preventDefault();
+            showToast('Selecciona al menos un tipo de atención.', 'warning');
+        }
+    });
+})();
+{% endif %}
 </script>
 {% endblock %}

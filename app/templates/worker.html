@@ -1177,6 +1177,7 @@ const S = {
     mode:        null,           // 'cleaning' | 'care' (current scan mode)
     sessions:    [],             // active sessions array
     careTypes:   [],
+    careTypesFailed: false,
     pendingCode: null,
     pendingRName:null,
     timerInt:    null,
@@ -1743,7 +1744,7 @@ async function refreshAll() {
     btn.textContent = '⟳';
     try {
         homeLoadError = false;
-        await Promise.all([loadActiveSessions(), loadHistory(), loadMyGroups(), loadPendingItems()]);
+        await Promise.all([loadActiveSessions(), loadHistory(), loadCareTypes(), loadMyGroups(), loadPendingItems()]);
         mostrarAvisoDeCarga();          // avisa el mismo si algo ha fallado
         if (!homeLoadError) toast('Datos actualizados');
     } catch (e) { toast('Error al actualizar'); }
@@ -2009,8 +2010,16 @@ async function loadHistory() {
 
 async function loadCareTypes() {
     const { ok, data } = await api('/api/care-types');
-    if (ok && Array.isArray(data)) S.careTypes = data;
-    else homeLoadError = true;
+    if (ok && Array.isArray(data)) {
+        S.careTypes = data;
+        S.careTypesFailed = false;
+    } else {
+        // Sin esto la pantalla de finalizar dice "no hay tipos configurados"
+        // cuando en realidad hay decenas y lo que fallo fue la peticion.
+        S.careTypesFailed = true;
+        homeLoadError = true;
+    }
+    return !S.careTypesFailed;
 }
 
 // ── Groups ────────────────────────────────────────────────────────────────
@@ -2789,6 +2798,38 @@ $('smd-cancel').addEventListener('click', () => {
 });
 
 // ── Care type screen (end of session) ─────────────────────────────────────
+function bloquearConfirmar(motivo) {
+    // Sin tipo no se puede finalizar, asi que el boton verde solo enganaria.
+    // La sesion se queda abierta: con "Cancelar" vuelve atras y la finaliza
+    // luego, cuando haya conexion o coordinacion haya dado de alta los tipos.
+    const btn = $('ct-confirm');
+    btn.style.display = 'none';
+    btn.disabled = true;
+    btn.title = motivo;
+}
+
+function renderCareTypesError() {
+    // Se muestra solo cuando el reintento tambien ha fallado.
+    $('ct-grid').innerHTML = '<div style="text-align:center;padding:20px 8px">'
+        + '<p style="color:var(--danger,#dc3545);font-size:15px;font-weight:600;margin:0 0 6px">No se han podido cargar los tipos de atención.</p>'
+        + '<p style="color:var(--text-2);font-size:14px;margin:0 0 14px">Comprueba la conexión y vuelve a intentarlo. La atención no se puede finalizar sin indicar el tipo: pulsa Cancelar para volver y finalízala cuando vuelva la conexión, la sesión sigue abierta.</p>'
+        + '<button type="button" id="ct-retry" style="min-height:48px;padding:0 22px;border-radius:12px;border:1px solid var(--blue);background:var(--blue);color:#fff;font-size:16px;font-weight:600">Reintentar</button>'
+        + '</div>';
+    bloquearConfirmar('No se han podido cargar los tipos de atención');
+    const retry = $('ct-retry');
+    if (retry) retry.addEventListener('click', async () => {
+        retry.disabled = true;
+        retry.textContent = 'Cargando…';
+        const okTipos = await loadCareTypes();
+        if (okTipos) showCareTypesEnd(S._ctLastData);
+        else {
+            retry.disabled = false;
+            retry.textContent = 'Reintentar';
+            toast('Sigue sin haber conexión con el servidor');
+        }
+    });
+}
+
 function showCareTypesEnd(data) {
     // Reset group picker
     $('ct-group-picker').style.display = 'none';
@@ -2849,9 +2890,25 @@ function showCareTypesEnd(data) {
         }
     }
 
+    S._ctLastData = data;
+
     const grid = $('ct-grid');
-    if (!S.careTypes.length) {
-        grid.innerHTML = '<p style="color:var(--text-2);font-size:14px;text-align:center;padding:20px 0">No hay tipos de atención configurados.<br>Puedes finalizar igualmente y avisar a coordinación.</p>';
+    $('ct-confirm').textContent = 'Confirmar y finalizar';
+    $('ct-confirm').disabled = false;
+    $('ct-confirm').removeAttribute('title');
+    if (!S.careTypes.length && S.careTypesFailed) {
+        // No es lo mismo que no haya tipos a que no se hayan podido cargar.
+        // Decirle lo primero cuando pasa lo segundo es lo que hizo que se
+        // guardaran atenciones sin tipo sin que nadie lo notara.
+        // Se reintenta solo: lo normal es que ya haya vuelto la conexion.
+        grid.innerHTML = '<p style="color:var(--text-2);font-size:14px;text-align:center;padding:20px 0">Cargando tipos de atención…</p>';
+        loadCareTypes().then(function (okTipos) {
+            if (okTipos) showCareTypesEnd(S._ctLastData);
+            else renderCareTypesError();
+        });
+    } else if (!S.careTypes.length) {
+        grid.innerHTML = '<p style="color:var(--text-2);font-size:14px;text-align:center;padding:20px 0">No hay ningún tipo de atención dado de alta.<br>Avisa a coordinación para que los configure: hasta entonces la atención no se puede finalizar.<br>Pulsa Cancelar para volver, la sesión sigue abierta.</p>';
+        bloquearConfirmar('No hay tipos de atención configurados');
     } else {
         let html = '';
         for (const ct of S.careTypes) {
@@ -3140,7 +3197,7 @@ async function finalizeCare() {
     $('ct-grid').querySelectorAll('.ct-sub-btn.selected, .ct-btn.selected').forEach(btn => {
         selected.push(parseInt(btn.dataset.id));
     });
-    if (!selected.length && S.careTypes.length) {
+    if (!selected.length) {
         toast('Selecciona al menos un tipo de atención');
         return;
     }
