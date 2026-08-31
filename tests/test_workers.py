@@ -36,6 +36,65 @@ class TestManageWorkersPage:
         assert response.status_code == 302
         assert "admin/login" in response.headers["Location"]
 
+    def test_listado_incluye_las_bajas(self, auth_client, db, admin_user):
+        """La tabla se filtra en el navegador, así que el listado trae altas y bajas."""
+        baja = Cleaner(username="exempleada", name="Ana De Baja", active=False)
+        baja.set_password("pass1234")
+        db.session.add(baja)
+        db.session.commit()
+
+        response = auth_client.get("/manage_workers")
+
+        assert response.status_code == 200
+        assert b"Ana De Baja" in response.data
+
+    def test_el_parametro_estado_ya_no_recorta_el_listado(self, auth_client, db, admin_user):
+        """?estado=bajas solo preselecciona el filtro: siguen saliendo todos."""
+        baja = Cleaner(username="exempleada", name="Ana De Baja", active=False)
+        baja.set_password("pass1234")
+        db.session.add(baja)
+        db.session.commit()
+
+        response = auth_client.get("/manage_workers?estado=bajas")
+
+        assert response.status_code == 200
+        assert b"Ana De Baja" in response.data
+        assert admin_user.name.encode() in response.data
+
+    def test_cada_fila_lleva_los_datos_que_usan_los_filtros(self, auth_client, db):
+        """El filtrado en cliente lee data-role, data-active y data-groups del <tr>."""
+        from app.models import ResidentGroup
+
+        grupo = ResidentGroup(name="Planta 1", color="#ff0000")
+        db.session.add(grupo)
+        db.session.flush()
+        worker = Cleaner(username="fatima", name="Fatima", role="limpieza", active=True)
+        worker.set_password("pass1234")
+        worker.groups.append(grupo)
+        db.session.add(worker)
+        db.session.commit()
+        group_id = grupo.id
+
+        html = auth_client.get("/manage_workers").get_data(as_text=True)
+        fila = html.split('data-username="fatima"')[1].split("</tr>")[0]
+
+        assert 'data-role="limpieza"' in fila
+        assert 'data-active="1"' in fila
+        assert f'data-groups="{group_id}"' in fila
+
+    def test_los_empleados_salen_ordenados_por_nombre(self, auth_client, db):
+        """La ordenación por cabecera necesita una base estable."""
+        for username, name in [("zoe", "Zoe"), ("ana", "Ana"), ("marta", "Marta")]:
+            c = Cleaner(username=username, name=name)
+            c.set_password("pass1234")
+            db.session.add(c)
+        db.session.commit()
+
+        html = auth_client.get("/manage_workers").get_data(as_text=True)
+        posiciones = [html.index(f'data-username="{u}"') for u in ("ana", "marta", "zoe")]
+
+        assert posiciones == sorted(posiciones)
+
 
 class TestAddCleaner:
     """Tests de alta de nuevos trabajadores."""

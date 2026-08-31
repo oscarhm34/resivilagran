@@ -391,6 +391,18 @@
             <h6>Empleados</h6>
             <ul>
                 <li>Desde <strong>Personas > Empleados</strong> se gestionan los trabajadores con usuario, contrasena, nombre y permisos de admin.</li>
+                <li>La lista trae <strong>altas y bajas juntas</strong>. Debajo de las cabeceras hay una
+                    <strong>fila de filtros</strong>: texto para Usuario y Nombre, y desplegables para Rol
+                    (incluida la opcion <em>Solo admins</em>), Estado (Activos / De baja) y Grupos
+                    (incluida la opcion <em>Sin grupo</em>).</li>
+                <li>Los filtros <strong>se combinan entre si</strong> y con el buscador de arriba. El contador
+                    de la esquina indica cuantos empleados quedan a la vista, y el boton
+                    <strong>&times;</strong> del final de la fila los quita todos de golpe.</li>
+                <li>Pulsando el titulo de <strong>Usuario, Nombre, Rol o Estado</strong> la tabla se
+                    <strong>ordena</strong> por esa columna; al pulsar otra vez, al reves. La flecha de la
+                    cabecera indica el sentido.</li>
+                <li>Al dar de baja a alguien con el interruptor de la columna Estado, la fila desaparece solo
+                    si el filtro de Estado la excluye; poniendo el filtro en <em>Todos</em> vuelve a verse.</li>
             </ul>
 
             <h6 class="mt-3">Roles de trabajador</h6>
@@ -1402,6 +1414,7 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>31/08</td><td><strong>Filtrar y ordenar la lista de empleados:</strong> la pantalla de Empleados tiene ahora una fila de filtros bajo las cabeceras: se escribe en Usuario o Nombre y se elige Rol, Estado o Grupo en los desplegables, combinandolos entre si. El contador de la esquina dice cuantos quedan a la vista y la equis los quita todos. Pulsando el titulo de una columna la tabla se ordena por ella. Ademas la lista ya carga altas y bajas juntas, asi que desaparece el desplegable de Ver altas / bajas / todos que obligaba a recargar la pagina, y el buscador deja de dar por buenas todas las filas al escribir el nombre de un grupo.</td></tr>
                     <tr><td>31/08</td><td><strong>Elegir los idiomas de una instruccion:</strong> en la pantalla Idiomas de una pildora, cada idioma tiene ahora su casilla. Se marcan solo los que interesen (por ejemplo, castellano y arabe) y el boton pasa a ser Traducir seleccionados. Cada fila tiene ademas su propio boton de traducir y una papelera para quitar ese idioma, que borra su texto y su audio y hace que deje de aparecer en el movil de la trabajadora. El castellano no se puede quitar porque es el texto original. Antes solo se podia traducir a los seis idiomas de golpe.</td></tr>
                     <tr><td>31/08</td><td><strong>Repetir una formacion ya aprobada:</strong> en el inicio de la webapp aparece el apartado Formaciones completadas, con las pildoras que la trabajadora ya aprobo, su nota y la fecha. Pulsando en cualquiera la vuelve a hacer. Tambien hay un boton Repetir formacion en la pantalla de la nota, util para repasar o para reintentar una suspendida. Cada repeticion queda como un intento nuevo y el resultado anterior se sigue viendo en Resultados. Antes, una vez aprobada, la formacion desaparecia y no habia forma de volver a entrar.</td></tr>
                     <tr><td>31/08</td><td><strong>Boton de volver del cuestionario arreglado:</strong> en la primera pregunta de un test, la flecha de volver no hacia nada y la trabajadora quedaba atrapada en el cuestionario. Ahora sale de la formacion. Tambien se ha corregido el boton Volver de la pantalla de la nota, que despues de una formacion obligatoria dejaba la pantalla bloqueada en vez de llevar al inicio.</td></tr>

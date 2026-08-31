@@ -248,13 +248,13 @@ def index():
 @bp.route('/manage_workers')
 @admin_required
 def manage_workers():
-    estado = request.args.get('estado', 'altas')
-    query = Cleaner.query
-    if estado == 'altas':
-        query = query.filter_by(active=True)
-    elif estado == 'bajas':
-        query = query.filter_by(active=False)
-    cleaners = query.all()
+    # La tabla se filtra y se ordena en el navegador desde sus cabeceras, asi que
+    # aqui se cargan todos los empleados. `estado` ya no recorta la consulta: solo
+    # preselecciona el filtro de la columna Estado, para que los enlaces antiguos
+    # del tipo ?estado=bajas sigan llevando a donde llevaban.
+    estado = request.args.get('estado', 'todos')
+    cleaners = Cleaner.query.options(joinedload(Cleaner.groups))\
+        .order_by(Cleaner.name).all()
     groups = ResidentGroup.query.order_by(ResidentGroup.name).all()
     return render_template('manage_workers.html', cleaners=cleaners, groups=groups, estado_filtro=estado)
 

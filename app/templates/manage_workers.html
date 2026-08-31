@@ -19,18 +19,27 @@
         background:color-mix(in srgb, var(--chip-color) 12%, white);
         font-weight:600;
     }
+    /* Fila de filtros bajo las cabeceras */
+    #workers-table thead .filter-row th {
+        background:var(--color-bg);
+        padding:8px 12px;
+        font-weight:400;
+        border-bottom:1px solid var(--color-border);
+    }
+    #workers-table thead .sortable { cursor:pointer; user-select:none; white-space:nowrap; }
+    #workers-table thead .sortable:hover { color:var(--color-primary); }
+    #workers-table thead .sort-icon { font-size:.75rem; opacity:.35; }
+    #workers-table thead .sortable[aria-sort="ascending"] .sort-icon,
+    #workers-table thead .sortable[aria-sort="descending"] .sort-icon {
+        opacity:1; color:var(--color-primary);
+    }
 </style>
 <div class="py-4">
 
     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
         <h1 class="h3 mb-0">Empleados</h1>
         <div class="d-flex align-items-center gap-2">
-            <span class="badge bg-secondary">{{ cleaners|length }} empleado{{ 's' if cleaners|length != 1 }}</span>
-            <select class="form-select form-select-sm" style="width:auto" aria-label="Filtrar empleados por estado" onchange="window.location.href='{{ url_for('admin_bp.manage_workers') }}?estado='+this.value">
-                <option value="altas" {{ 'selected' if estado_filtro == 'altas' }}>Ver altas</option>
-                <option value="bajas" {{ 'selected' if estado_filtro == 'bajas' }}>Ver bajas</option>
-                <option value="todos" {{ 'selected' if estado_filtro == 'todos' }}>Ver todos</option>
-            </select>
+            <span class="badge bg-secondary" id="workers-count" aria-live="polite">{{ cleaners|length }} empleado{{ 's' if cleaners|length != 1 }}</span>
             <button type="button" class="btn btn-primary btn-sm" onclick="openWorkerForm()">
                 <i class="bi bi-plus-lg me-1"></i>Añadir empleado
             </button>
@@ -130,27 +139,82 @@
     <!-- Buscador de tabla -->
     <div class="input-group mb-3" style="max-width:400px">
         <span class="input-group-text"><i class="bi bi-search"></i></span>
-        <input type="text" id="table-search" aria-label="Buscar empleados" class="form-control" placeholder="Buscar por nombre, usuario o grupo...">
+        <input type="text" id="table-search" aria-label="Buscar empleados" class="form-control" placeholder="Buscar por nombre o usuario...">
     </div>
 
     <!-- Tabla de empleados -->
     {% if cleaners %}
     <div class="card">
         <div class="table-responsive">
-            <table class="table table-hover mb-0">
+            <table class="table table-hover mb-0" id="workers-table">
                 <thead>
                     <tr>
-                        <th scope="col">Usuario</th>
-                        <th scope="col">Nombre</th>
-                        <th scope="col">Rol</th>
-                        <th scope="col">Estado</th>
+                        <th scope="col" class="sortable" data-sort="username" role="button" tabindex="0" aria-sort="none">
+                            Usuario <i class="bi bi-chevron-expand sort-icon" aria-hidden="true"></i>
+                        </th>
+                        <th scope="col" class="sortable" data-sort="name" role="button" tabindex="0" aria-sort="none">
+                            Nombre <i class="bi bi-chevron-expand sort-icon" aria-hidden="true"></i>
+                        </th>
+                        <th scope="col" class="sortable" data-sort="role" role="button" tabindex="0" aria-sort="none">
+                            Rol <i class="bi bi-chevron-expand sort-icon" aria-hidden="true"></i>
+                        </th>
+                        <th scope="col" class="sortable" data-sort="active" role="button" tabindex="0" aria-sort="none">
+                            Estado <i class="bi bi-chevron-expand sort-icon" aria-hidden="true"></i>
+                        </th>
                         <th scope="col" class="hide-mobile">Grupos</th>
                         <th scope="col" class="text-end">Acciones</th>
+                    </tr>
+                    <tr class="filter-row">
+                        <th scope="col">
+                            <input type="search" id="f-username" class="form-control form-control-sm"
+                                   placeholder="Usuario…" aria-label="Filtrar por usuario">
+                        </th>
+                        <th scope="col">
+                            <input type="search" id="f-name" class="form-control form-control-sm"
+                                   placeholder="Nombre…" aria-label="Filtrar por nombre">
+                        </th>
+                        <th scope="col">
+                            <select id="f-role" class="form-select form-select-sm" aria-label="Filtrar por rol">
+                                <option value="">Todos</option>
+                                <option value="limpieza">Limpieza</option>
+                                <option value="atenciones">Atenciones</option>
+                                <option value="mixto">Mixto</option>
+                                <option value="gestion">Gestión</option>
+                                <option value="__admin">Solo admins</option>
+                            </select>
+                        </th>
+                        <th scope="col">
+                            <select id="f-active" class="form-select form-select-sm" aria-label="Filtrar por estado">
+                                <option value="">Todos</option>
+                                <option value="1" {{ 'selected' if estado_filtro == 'altas' }}>Activos</option>
+                                <option value="0" {{ 'selected' if estado_filtro == 'bajas' }}>De baja</option>
+                            </select>
+                        </th>
+                        <th scope="col" class="hide-mobile">
+                            <select id="f-group" class="form-select form-select-sm" aria-label="Filtrar por grupo">
+                                <option value="">Todos</option>
+                                <option value="__none">Sin grupo</option>
+                                {% for g in groups %}
+                                <option value="{{ g.id }}">{{ g.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </th>
+                        <th scope="col" class="text-end">
+                            <button type="button" id="f-clear" class="btn btn-sm btn-outline-secondary"
+                                    title="Quitar filtros" aria-label="Quitar filtros">
+                                <i class="bi bi-x-lg" aria-hidden="true"></i>
+                            </button>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for cleaner in cleaners %}
-                    <tr>
+                    <tr data-username="{{ cleaner.username }}"
+                        data-name="{{ cleaner.name }}"
+                        data-role="{{ cleaner.role or 'atenciones' }}"
+                        data-admin="{{ '1' if cleaner.is_admin else '' }}"
+                        data-active="{{ '1' if cleaner.active else '' }}"
+                        data-groups="{{ cleaner.groups|map(attribute='id')|list|join(',') }}">
                         <td><code style="color:var(--color-primary);background:var(--color-primary-lt);padding:1px 6px;border-radius:4px">{{ cleaner.username }}</code></td>
                         <td>{{ cleaner.name }}</td>
                         <td>
@@ -173,7 +237,7 @@
                                        data-id="{{ cleaner.id }}"
                                        {% if cleaner.active %}checked{% endif %}
                                        style="cursor:pointer">
-                                <span style="font-size:.85rem">Activo</span>
+                                <span class="active-label" style="font-size:.85rem">{{ 'Activo' if cleaner.active else 'De baja' }}</span>
                             </label>
                         </td>
                         <td class="hide-mobile">
@@ -224,6 +288,11 @@
                         </td>
                     </tr>
                     {% endfor %}
+                    <tr id="no-results" style="display:none">
+                        <td colspan="6" class="text-center py-4" style="color:var(--color-text-secondary)">
+                            Ningún empleado coincide con los filtros.
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>
@@ -329,7 +398,6 @@
     });
 
     // Inline active toggle via AJAX
-    var estadoFiltro = '{{ estado_filtro }}';
     document.querySelectorAll('.toggle-active').forEach(function (cb) {
         cb.addEventListener('change', async function () {
             var cleanerId = parseInt(this.dataset.id);
@@ -346,11 +414,12 @@
                     // Keep edit button data-active in sync
                     var editBtn = row.querySelector('.edit-cleaner');
                     if (editBtn) editBtn.dataset.active = active ? '1' : '';
-                    if ((estadoFiltro === 'altas' && !active) || (estadoFiltro === 'bajas' && active)) {
-                        row.style.transition = 'opacity .4s';
-                        row.style.opacity = '0';
-                        setTimeout(function () { row.remove(); }, 400);
-                    }
+                    // La fila se oculta sola si el filtro de Estado ya no la admite,
+                    // y vuelve a aparecer al quitar el filtro: no se borra del DOM.
+                    row.dataset.active = active ? '1' : '';
+                    var label = row.querySelector('.active-label');
+                    if (label) label.textContent = active ? 'Activo' : 'De baja';
+                    applyFilters();
                 } else {
                     this.checked = !active;
                     showToast('Error al actualizar', 'error');
@@ -389,6 +458,13 @@
 
                     if (res.ok) {
                         showToast('Estado actualizado', 'success');
+                        // El filtro de grupos y el panel de edicion leen data-groups:
+                        // sin esto se quedaban con los grupos anteriores.
+                        var row = dd.closest('tr');
+                        var editBtn = row ? row.querySelector('.edit-cleaner') : null;
+                        if (row) row.dataset.groups = checked.join(',');
+                        if (editBtn) editBtn.dataset.groups = checked.join(',');
+                        applyFilters();
                     } else {
                         showToast('Error al actualizar', 'error');
                     }
@@ -398,13 +474,123 @@
             });
         });
     });
-    // Client-side table search
-    document.getElementById('table-search').addEventListener('input', function() {
-        var term = this.value.toLowerCase();
-        document.querySelectorAll('tbody tr').forEach(function(row) {
-            row.style.display = row.textContent.toLowerCase().includes(term) ? '' : 'none';
+
+    // ── Filtrado por las cabeceras + buscador global ──────────────────────
+    // Todo pasa por applyFilters(): si cada control tocase row.style.display por
+    // su cuenta, el ultimo en ejecutarse borraria el criterio de los demas.
+    var table = document.getElementById('workers-table');
+
+    function filterControls() {
+        return {
+            search:   document.getElementById('table-search'),
+            username: document.getElementById('f-username'),
+            name:     document.getElementById('f-name'),
+            role:     document.getElementById('f-role'),
+            active:   document.getElementById('f-active'),
+            group:    document.getElementById('f-group'),
+        };
+    }
+
+    function applyFilters() {
+        if (!table) return;
+        var c = filterControls();
+        var term  = (c.search   ? c.search.value   : '').trim().toLowerCase();
+        var user  = (c.username ? c.username.value : '').trim().toLowerCase();
+        var name  = (c.name     ? c.name.value     : '').trim().toLowerCase();
+        var role  = c.role   ? c.role.value   : '';
+        var estado= c.active ? c.active.value : '';
+        var group = c.group  ? c.group.value  : '';
+
+        var rows = table.querySelectorAll('tbody tr[data-username]');
+        var visible = 0;
+        rows.forEach(function (row) {
+            var d = row.dataset;
+            var groups = d.groups ? d.groups.split(',') : [];
+            // El buscador global mira solo usuario, nombre y rol: la celda de
+            // grupos lleva dentro un desplegable con TODOS los grupos, asi que
+            // buscar por textContent daba positivo en todas las filas.
+            var texto = (d.username + ' ' + d.name + ' ' + d.role).toLowerCase();
+            var ok = (!term   || texto.includes(term))
+                  && (!user   || d.username.toLowerCase().includes(user))
+                  && (!name   || d.name.toLowerCase().includes(name))
+                  && (!role   || (role === '__admin' ? d.admin === '1' : d.role === role))
+                  && (!estado || (estado === '1' ? d.active === '1' : d.active !== '1'))
+                  && (!group  || (group === '__none' ? groups.length === 0
+                                                     : groups.indexOf(group) !== -1));
+            row.style.display = ok ? '' : 'none';
+            if (ok) visible++;
         });
+
+        var noResults = document.getElementById('no-results');
+        if (noResults) noResults.style.display = visible === 0 ? '' : 'none';
+
+        var counter = document.getElementById('workers-count');
+        if (counter) {
+            counter.textContent = visible === rows.length
+                ? rows.length + ' empleado' + (rows.length !== 1 ? 's' : '')
+                : visible + ' de ' + rows.length + ' empleados';
+        }
+    }
+
+    Object.values(filterControls()).forEach(function (el) {
+        if (!el) return;
+        el.addEventListener('input', applyFilters);
+        el.addEventListener('change', applyFilters);
     });
+
+    var clearBtn = document.getElementById('f-clear');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function () {
+            Object.values(filterControls()).forEach(function (el) { if (el) el.value = ''; });
+            applyFilters();
+        });
+    }
+
+    // ── Ordenación por cabecera ───────────────────────────────────────────
+    function sortRows(th) {
+        var key = th.dataset.sort;
+        var dir = th.getAttribute('aria-sort') === 'ascending' ? 'descending' : 'ascending';
+        var tbody = table.querySelector('tbody');
+        var rows = Array.from(tbody.querySelectorAll('tr[data-username]'));
+
+        rows.sort(function (a, b) {
+            var va = a.dataset[key] || '';
+            var vb = b.dataset[key] || '';
+            // 'active' es un booleano disfrazado de '1' / '': ordenar por texto
+            // dejaria las bajas primero, que no es lo que se espera.
+            var cmp = key === 'active'
+                ? (vb === '1' ? 1 : 0) - (va === '1' ? 1 : 0)
+                : va.localeCompare(vb, 'es', { sensitivity: 'base' });
+            return dir === 'ascending' ? cmp : -cmp;
+        });
+        rows.forEach(function (row) { tbody.appendChild(row); });
+        // La fila de "sin resultados" tiene que quedarse la ultima.
+        var noResults = document.getElementById('no-results');
+        if (noResults) tbody.appendChild(noResults);
+
+        table.querySelectorAll('thead .sortable').forEach(function (other) {
+            other.setAttribute('aria-sort', 'none');
+            var icon = other.querySelector('.sort-icon');
+            if (icon) icon.className = 'bi bi-chevron-expand sort-icon';
+        });
+        th.setAttribute('aria-sort', dir);
+        var ownIcon = th.querySelector('.sort-icon');
+        if (ownIcon) {
+            ownIcon.className = 'bi sort-icon '
+                + (dir === 'ascending' ? 'bi-chevron-up' : 'bi-chevron-down');
+        }
+    }
+
+    if (table) {
+        table.querySelectorAll('thead .sortable').forEach(function (th) {
+            th.addEventListener('click', function () { sortRows(th); });
+            th.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sortRows(th); }
+            });
+        });
+    }
+
+    applyFilters();   // respeta el ?estado= con el que se haya entrado
 })();
 </script>
 {% endblock %}
