@@ -2010,6 +2010,7 @@ async function loadHistory() {
 async function loadCareTypes() {
     const { ok, data } = await api('/api/care-types');
     if (ok && Array.isArray(data)) S.careTypes = data;
+    else homeLoadError = true;
 }
 
 // ── Groups ────────────────────────────────────────────────────────────────
@@ -2850,7 +2851,7 @@ function showCareTypesEnd(data) {
 
     const grid = $('ct-grid');
     if (!S.careTypes.length) {
-        grid.innerHTML = '<p style="color:var(--text-2);font-size:14px;text-align:center;padding:20px 0">No hay tipos configurados.<br>Añádelos en el panel de administración.</p>';
+        grid.innerHTML = '<p style="color:var(--text-2);font-size:14px;text-align:center;padding:20px 0">No hay tipos de atención configurados.<br>Puedes finalizar igualmente y avisar a coordinación.</p>';
     } else {
         let html = '';
         for (const ct of S.careTypes) {
@@ -3139,7 +3140,10 @@ async function finalizeCare() {
     $('ct-grid').querySelectorAll('.ct-sub-btn.selected, .ct-btn.selected').forEach(btn => {
         selected.push(parseInt(btn.dataset.id));
     });
-    if (!selected.length) { toast('Selecciona al menos un tipo de atención'); return; }
+    if (!selected.length && S.careTypes.length) {
+        toast('Selecciona al menos un tipo de atención');
+        return;
+    }
 
     // Validate vital signs: if fields are visible, ALL must be filled
     const visibleInputs = $('ct-vital-fields').querySelectorAll('.vital-input');
