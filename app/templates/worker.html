@@ -255,7 +255,9 @@
         /* ── SCAN ── */
         #screen-scan { align-items:center; justify-content:space-between; gap:16px; }
         .scan-header { width:100%; display:flex; align-items:center; gap:14px; }
-        .btn-back { background:var(--bg); border:none; width:42px; height:42px; border-radius:50%; font-size:20px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+        /* Mismo motivo que en .pending-card: un <button> no hereda el color del
+           texto, y en modo oscuro la flecha de volver quedaba casi invisible. */
+        .btn-back { background:var(--bg); color:var(--text); border:none; width:42px; height:42px; border-radius:50%; font-size:20px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
         .mode-badge { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:20px; font-size:13px; font-weight:600; }
         .mode-badge.cleaning { background:var(--blue-lt); color:var(--blue); }
         .mode-badge.care     { background:var(--green-lt); color:var(--green); }
@@ -387,7 +389,9 @@
 
         /* ── Pending badges ── */
         .pending-section { display:flex; flex-direction:column; gap:8px; margin-bottom:20px; }
-        .pending-card { display:flex; align-items:center; gap:12px; padding:14px 16px; border-radius:14px; background:var(--bg); cursor:pointer; border:none; width:100%; text-align:left; font-family:inherit; transition:background .15s; }
+        /* `color` explicito: los <button> no heredan el color del texto, asi que
+           en modo oscuro el titulo salia en negro sobre fondo negro. */
+        .pending-card { display:flex; align-items:center; gap:12px; padding:14px 16px; border-radius:14px; background:var(--bg); color:var(--text); cursor:pointer; border:none; width:100%; text-align:left; font-family:inherit; transition:background .15s; }
         .pending-card:hover { background:var(--surface-2); }
         .pending-icon { width:40px; height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
         .pending-icon.docs { background:var(--tint-warn-bg); }
@@ -400,6 +404,36 @@
         .pending-title { font-weight:600; font-size:14px; }
         .pending-sub { font-size:12px; color:var(--text-2); margin-top:1px; }
         .pending-badge { background:var(--danger); color:#fff; border-radius:20px; padding:2px 10px; font-size:12px; font-weight:700; flex-shrink:0; }
+
+        /* ── Mensajería ────────────────────────────────────────────────── */
+        .chat-row { display:flex; align-items:center; gap:12px; width:100%; padding:14px 6px; border:none; background:none; border-bottom:1px solid var(--border); cursor:pointer; font-family:inherit; text-align:left; min-height:72px; }
+        .chat-avatar { width:48px; height:48px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:17px; }
+        .chat-row-info { flex:1; min-width:0; }
+        .chat-row-name { display:block; font-weight:600; font-size:17px; color:var(--text); }
+        .chat-row-preview { display:block; font-size:14px; color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+        .chat-row-meta { text-align:right; flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
+        .chat-row-time { font-size:12px; color:var(--text-2); }
+        .chat-row-badge { background:var(--blue); color:#fff; border-radius:20px; min-width:22px; padding:2px 8px; font-size:12px; font-weight:700; }
+
+        /* El hilo ocupa la pantalla y el escritor queda fijo abajo: la lista se
+           desplaza por dentro, no la página. */
+        #screen-msg { padding:0; }
+        .chat-head { display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid var(--border); background:var(--surface); position:sticky; top:0; z-index:2; }
+        .chat-head-name { font-family:'Outfit',system-ui,sans-serif; font-weight:700; font-size:17px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .msg-body { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:8px; }
+        .chat-bubble { max-width:80%; padding:10px 13px; border-radius:16px; font-size:15px; line-height:1.4; word-wrap:break-word; }
+        .chat-bubble.mine { align-self:flex-end; background:var(--blue); color:#fff; border-bottom-right-radius:5px; }
+        .chat-bubble.theirs { align-self:flex-start; background:var(--bg); border:1px solid var(--border); border-bottom-left-radius:5px; }
+        .chat-bubble.gone { font-style:italic; opacity:.7; }
+        .chat-bubble.pending { opacity:.55; }
+        .chat-author { font-size:12px; font-weight:700; color:var(--blue); margin-bottom:2px; }
+        .chat-meta { font-size:11px; opacity:.75; text-align:right; margin-top:3px; }
+        .chat-compose { display:flex; gap:8px; align-items:center; padding:12px 14px; border-top:1px solid var(--border); background:var(--surface); position:sticky; bottom:0; }
+        .msg-input { flex:1; min-height:48px; border-radius:24px; border:1.5px solid var(--border); padding:12px 16px; font-size:16px; font-family:inherit; background:var(--bg); color:var(--text); }
+        .msg-send { width:48px; height:48px; min-width:48px; border-radius:50%; border:none; background:var(--blue); color:#fff; font-size:20px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+        .msg-send:disabled { opacity:.4; }
+        .chat-empty { text-align:center; color:var(--text-2); font-size:14px; padding:40px 20px; }
+        .chat-aviso { font-size:12px; color:var(--text-2); text-align:center; padding:10px 16px 0; }
 
         /* ── Document viewer ── */
         .doc-content { flex:1; overflow-y:auto; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; font-size:14px; line-height:1.6; margin:12px 0; }
@@ -534,6 +568,16 @@
             <div id="activities-cards"></div>
         </div>
 
+        <!-- Mensajes: siempre visible, es lo primero que se mira al entrar -->
+        <button class="pending-card" id="msg-home-card" style="margin-bottom:20px">
+            <div class="pending-icon" style="background:var(--blue-lt)">💬</div>
+            <div class="pending-info">
+                <div class="pending-title">Mensajes</div>
+                <div class="pending-sub" id="msg-home-sub">Escribe a tus compañeras</div>
+            </div>
+            <span class="pending-badge" id="msg-home-badge" style="background:var(--blue);display:none">0</span>
+        </button>
+
         <!-- Escaneo NFC unificado -->
         <div class="section-label">Escanear o seleccionar</div>
         <div class="mode-cards">
@@ -583,6 +627,48 @@
         <!-- Historial completado hoy -->
         <div class="section-label" id="hist-label">Sin registros hoy</div>
         <div class="hist-list" id="hist-list"></div>
+    </div>
+
+    <!-- ══ MENSAJES: LISTA ══ -->
+    <div id="screen-msgs" class="screen">
+        <div class="scan-header" style="margin-bottom:18px">
+            <button class="btn-back" id="msg-list-back" aria-label="Volver">←</button>
+            <div style="flex:1">
+                <div style="font-family:'Outfit',sans-serif;font-size:20px;font-weight:700">Mensajes</div>
+            </div>
+        </div>
+        <button class="btn-cam primary" id="msg-new" style="width:100%;min-height:48px;margin-bottom:16px">✏️ Nuevo mensaje</button>
+        <div id="msg-list"></div>
+    </div>
+
+    <!-- ══ MENSAJES: CONVERSACIÓN ══ -->
+    <div id="screen-msg" class="screen">
+        <div class="chat-head">
+            <button class="btn-back" id="msg-back" aria-label="Volver">←</button>
+            <div class="chat-head-name" id="msg-title">—</div>
+        </div>
+        <div class="msg-body" id="msg-body"></div>
+        <div class="chat-aviso">
+            Para lo clínico usa las observaciones de la atención: aquí no queda en la ficha del residente.
+        </div>
+        <form class="chat-compose" id="msg-form">
+            <input type="text" class="msg-input" id="msg-input" placeholder="Escribe un mensaje…"
+                   autocomplete="off" maxlength="4000" aria-label="Mensaje">
+            <button type="submit" class="msg-send" id="msg-send" aria-label="Enviar">➤</button>
+        </form>
+    </div>
+
+    <!-- ══ MENSAJES: NUEVA CONVERSACIÓN ══ -->
+    <div id="screen-msg-new" class="screen">
+        <div class="scan-header" style="margin-bottom:18px">
+            <button class="btn-back" id="msg-new-back" aria-label="Volver">←</button>
+            <div style="flex:1">
+                <div style="font-family:'Outfit',sans-serif;font-size:20px;font-weight:700">Nuevo mensaje</div>
+            </div>
+        </div>
+        <input type="search" class="msg-input" id="msg-new-search" placeholder="Buscar compañera…"
+               style="width:100%;margin-bottom:14px" aria-label="Buscar compañera">
+        <div id="msg-new-list"></div>
     </div>
 
     <!-- ══ MY GROUP ══ -->
@@ -1407,6 +1493,9 @@ async function initHome() {
     if (S.config.allow_worker_activities) await loadTodayActivities();
     startGlobalTimer();
     startNotifPolling();
+    loadChats();
+    chatSetDelay(CHAT_IDLE);
+    abrirChatDesdeUrl(window.location.search);
     setInterval(() => { if (S.token && S.sessions.length) loadActiveSessions(); }, 2 * 60 * 1000);
 
     // Show one-time announcement about NFC-only closing
@@ -1744,7 +1833,7 @@ async function refreshAll() {
     btn.textContent = '⟳';
     try {
         homeLoadError = false;
-        await Promise.all([loadActiveSessions(), loadHistory(), loadCareTypes(), loadMyGroups(), loadPendingItems()]);
+        await Promise.all([loadActiveSessions(), loadHistory(), loadCareTypes(), loadMyGroups(), loadPendingItems(), loadChats()]);
         mostrarAvisoDeCarga();          // avisa el mismo si algo ha fallado
         if (!homeLoadError) toast('Datos actualizados');
     } catch (e) { toast('Error al actualizar'); }
@@ -4140,7 +4229,16 @@ $('route-back').addEventListener('click', function() { show('screen-home'); });
 // ── Boot ───────────────────────────────────────────────────────────────────
 (async function boot() {
     if (!S.token) { show('screen-login'); return; }
-    await initHome();
+    try {
+        await initHome();
+    } catch (e) {
+        // Sin este catch, un fallo a media carga dejaba la pantalla de inicio
+        // pintada pero sin cronometro, sin avisos y sin mensajes, y no habia
+        // forma de saberlo: la excepcion se perdia en una promesa sin dueno.
+        console.error('Fallo al iniciar la pantalla de inicio:', e);
+        homeLoadError = true;
+        mostrarAvisoDeCarga();
+    }
 })();
 
 // ── Chat IA ───────────────────────────────────────────────────────────────
@@ -4529,7 +4627,13 @@ $('route-back').addEventListener('click', function() { show('screen-home'); });
 // Se cargan desde initHome(), no al parsear el fichero: al abrir la webapp todavia
 // no hay sesion, la peticion salia con "Bearer null" y el 422 dejaba las frases
 // vacias para el resto de la sesion, porque nadie las volvia a pedir.
-let quickPhrasesCargadas = false;
+// `var` y no `let` a proposito: `boot()` llama a initHome() -> loadQuickPhrases()
+// mientras el script aun se esta evaluando, y esta linea queda mas abajo. Con
+// `let` la lectura caia en la zona muerta temporal y reventaba con
+// "Cannot access 'quickPhrasesCargadas' before initialization", dejando la
+// pantalla de inicio a medias (sin cronometro, sin avisos y sin datos) cada vez
+// que se abria la webapp con la sesion ya guardada.
+var quickPhrasesCargadas = false;
 function loadQuickPhrases() {
     if (quickPhrasesCargadas || !S.token) return;
     const containers = document.querySelectorAll('.quick-phrases');
@@ -4609,6 +4713,351 @@ if ('serviceWorker' in navigator) {
         })
         .catch(function() { /* Push not supported or denied — silent */ });
     }).catch(function() {});
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  MENSAJERIA
+// ══════════════════════════════════════════════════════════════════════════
+// Sin websockets: se sondea. La cadencia se ajusta a lo que esta mirando la
+// trabajadora (4 s con la conversacion abierta, 20 s en el resto de la app) y
+// se para del todo con la pantalla apagada. Con la app cerrada avisa el push.
+
+var CHAT = {
+    list:      [],      // conversaciones
+    open:      null,    // id de la conversacion abierta
+    cursor:    0,       // ultimo message.id conocido
+    since:     null,    // para enterarse de los borrados
+    unread:    0,
+    pollInt:   null,
+    delay:     20000,
+    quietFrom: 0,       // desde cuando no llega nada, para el backoff
+};
+
+var CHAT_FAST = 4000, CHAT_SLOW = 10000, CHAT_IDLE = 20000, CHAT_BACKOFF_MS = 60000;
+
+function chatIniciales(nombre) {
+    var partes = (nombre || '?').trim().split(/\s+/);
+    return ((partes[0] || '')[0] + (partes.length > 1 ? partes[partes.length - 1][0] : '')).toUpperCase();
+}
+
+// `Cleaner` no tiene foto: el color del avatar es lo unico que distingue una
+// fila de otra de un vistazo, asi que tiene que ser estable por conversacion.
+function chatColor(id) {
+    var tonos = ['#0069d9', '#1a7f37', '#bf8700', '#8250df', '#cf222e', '#0f6f7a'];
+    return tonos[Math.abs(id) % tonos.length];
+}
+
+function chatEscapar(t) {
+    var d = document.createElement('div');
+    d.textContent = t == null ? '' : t;
+    return d.innerHTML;
+}
+
+function chatHora(iso) {
+    if (!iso) return '';
+    var d = new Date(iso), hoy = new Date();
+    if (d.toDateString() === hoy.toDateString()) {
+        return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    }
+    return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+}
+
+// ── Lista de conversaciones ───────────────────────────────────────────────
+
+async function loadChats() {
+    const { ok, data } = await api('/api/messaging/conversations');
+    if (!ok || !Array.isArray(data)) { homeLoadError = true; return false; }
+    CHAT.list = data;
+    renderChats();
+    updateChatHomeCard();
+    return true;
+}
+
+function renderChats() {
+    const cont = $('msg-list');
+    if (!cont) return;
+    if (!CHAT.list.length) {
+        cont.innerHTML = '<p class="chat-empty">Todavía no tienes ninguna conversación.<br>'
+            + 'Pulsa "Nuevo mensaje" para escribir a una compañera.</p>';
+        return;
+    }
+    cont.innerHTML = CHAT.list.map(function (c) {
+        return '<button class="chat-row" data-cid="' + c.id + '">'
+            + '<span class="chat-avatar" style="background:' + chatColor(c.id) + '">' + chatEscapar(chatIniciales(c.title)) + '</span>'
+            + '<span class="chat-row-info">'
+            + '<span class="chat-row-name">' + chatEscapar(c.title) + '</span>'
+            + '<span class="chat-row-preview">' + chatEscapar(c.last_message_preview || 'Sin mensajes') + '</span>'
+            + '</span>'
+            + '<span class="chat-row-meta">'
+            + '<span class="chat-row-time">' + chatHora(c.last_message_at) + '</span>'
+            + (c.unread ? '<span class="chat-row-badge">' + c.unread + '</span>' : '')
+            + '</span></button>';
+    }).join('');
+    cont.querySelectorAll('.chat-row').forEach(function (b) {
+        b.addEventListener('click', function () { openChat(parseInt(b.dataset.cid, 10)); });
+    });
+}
+
+function updateChatHomeCard() {
+    const card = $('msg-home-card');
+    if (!card) return;
+    CHAT.unread = CHAT.list.reduce(function (n, c) { return n + (c.unread || 0); }, 0);
+    const badge = $('msg-home-badge');
+    badge.textContent = CHAT.unread > 99 ? '99+' : CHAT.unread;
+    badge.style.display = CHAT.unread ? '' : 'none';
+    const ultima = CHAT.list[0];
+    $('msg-home-sub').textContent = CHAT.unread
+        ? (CHAT.unread === 1 ? '1 mensaje sin leer' : CHAT.unread + ' mensajes sin leer')
+        : (ultima && ultima.last_message_preview ? ultima.last_message_preview : 'Escribe a tus compañeras');
+}
+
+function showChats() {
+    show('screen-msgs');
+    loadChats();
+}
+
+// ── Conversación ──────────────────────────────────────────────────────────
+
+function chatBubble(m) {
+    const mia = m.sender_id === parseInt(S.workerId);
+    const div = document.createElement('div');
+    div.className = 'chat-bubble ' + (mia ? 'mine' : 'theirs') + (m.deleted ? ' gone' : '');
+    div.dataset.mid = m.id;
+    div.innerHTML =
+        (!mia && !m.deleted && CHAT.openKind === 'group'
+            ? '<div class="chat-author">' + chatEscapar(m.sender_name) + '</div>' : '')
+        + '<div>' + (m.deleted ? 'Mensaje eliminado' : chatEscapar(m.body)) + '</div>'
+        + '<div class="chat-meta">' + chatHora(m.created_at) + '</div>';
+    return div;
+}
+
+function renderMessages(mensajes, reemplazar) {
+    const body = $('msg-body');
+    if (reemplazar) body.innerHTML = '';
+    if (reemplazar && !mensajes.length) {
+        body.innerHTML = '<p class="chat-empty">No hay mensajes todavía.<br>Escribe el primero.</p>';
+        return;
+    }
+    const vacio = body.querySelector('.chat-empty');
+    if (vacio && mensajes.length) vacio.remove();
+    mensajes.forEach(function (m) {
+        const previo = body.querySelector('[data-mid="' + m.id + '"]');
+        if (previo) { previo.replaceWith(chatBubble(m)); return; }
+        body.appendChild(chatBubble(m));
+    });
+    body.scrollTop = body.scrollHeight;
+}
+
+async function openChat(cid) {
+    CHAT.open = cid;
+    const conv = CHAT.list.filter(function (c) { return c.id === cid; })[0];
+    CHAT.openKind = conv ? conv.kind : 'direct';
+    $('msg-title').textContent = conv ? conv.title : 'Conversación';
+    $('msg-body').innerHTML = '<p class="chat-empty">Cargando…</p>';
+    show('screen-msg');
+    chatSetDelay(CHAT_FAST);
+
+    const { ok, data } = await api('/api/messaging/conversations/' + cid + '/messages');
+    if (!ok) {
+        $('msg-body').innerHTML = '<p class="chat-empty">No se ha podido abrir la conversación.<br>Comprueba la conexión.</p>';
+        return;
+    }
+    renderMessages(data.messages, true);
+    if (data.messages.length) CHAT.cursor = Math.max(CHAT.cursor, data.messages[data.messages.length - 1].id);
+    markChatRead(data.messages);
+}
+
+async function markChatRead(mensajes) {
+    if (!CHAT.open || !mensajes.length) return;
+    const ultimo = mensajes[mensajes.length - 1].id;
+    await api('/api/messaging/conversations/' + CHAT.open + '/read', 'POST', { up_to_id: ultimo });
+    loadChats();
+}
+
+function chatUuid() {
+    // Suficiente para distinguir un reenvío: no hace falta un UUID criptográfico.
+    return 'w' + S.workerId + '-' + Date.now() + '-' + Math.floor(Math.random() * 100000);
+}
+
+async function sendChatMessage(e) {
+    if (e) e.preventDefault();
+    const input = $('msg-input');
+    const texto = input.value.trim();
+    if (!texto || !CHAT.open) return;
+
+    // Envío optimista: la burbuja aparece ya, en gris. Si la wifi se cae y
+    // vuelve a darle a enviar, el client_uuid evita el mensaje duplicado.
+    const uuid = chatUuid();
+    input.value = '';
+    const provisional = document.createElement('div');
+    provisional.className = 'chat-bubble mine pending';
+    provisional.dataset.uuid = uuid;
+    provisional.innerHTML = '<div>' + chatEscapar(texto) + '</div><div class="chat-meta">⏳</div>';
+    const vacio = $('msg-body').querySelector('.chat-empty');
+    if (vacio) vacio.remove();
+    $('msg-body').appendChild(provisional);
+    $('msg-body').scrollTop = $('msg-body').scrollHeight;
+
+    const { ok, data } = await api('/api/messaging/conversations/' + CHAT.open + '/messages',
+                                  'POST', { body: texto, client_uuid: uuid });
+    if (!ok) {
+        provisional.remove();
+        input.value = texto;              // no perder lo escrito
+        toast((data && data.error) || 'No se ha podido enviar');
+        return;
+    }
+    provisional.replaceWith(chatBubble(data));
+    CHAT.cursor = Math.max(CHAT.cursor, data.id);
+    chatSetDelay(CHAT_FAST);
+    loadChats();
+}
+
+// ── Nueva conversación ────────────────────────────────────────────────────
+
+function showChatNew() {
+    show('screen-msg-new');
+    $('msg-new-search').value = '';
+    loadChatContacts('');
+}
+
+async function loadChatContacts(q) {
+    const cont = $('msg-new-list');
+    const { ok, data } = await api('/api/messaging/contacts?q=' + encodeURIComponent(q || ''));
+    if (!ok || !Array.isArray(data)) {
+        cont.innerHTML = '<p class="chat-empty">No se ha podido cargar la lista.<br>Comprueba la conexión.</p>';
+        return;
+    }
+    if (!data.length) {
+        cont.innerHTML = '<p class="chat-empty">Nadie coincide con esa búsqueda.</p>';
+        return;
+    }
+    cont.innerHTML = data.map(function (c) {
+        return '<button class="chat-row" data-peer="' + c.id + '">'
+            + '<span class="chat-avatar" style="background:' + chatColor(c.id) + '">' + chatEscapar(chatIniciales(c.name)) + '</span>'
+            + '<span class="chat-row-info"><span class="chat-row-name">' + chatEscapar(c.name) + '</span>'
+            + '<span class="chat-row-preview">' + chatEscapar(c.role) + '</span></span></button>';
+    }).join('');
+    cont.querySelectorAll('[data-peer]').forEach(function (b) {
+        b.addEventListener('click', async function () {
+            b.disabled = true;
+            const { ok: ok2, data: d2 } = await api('/api/messaging/conversations/direct',
+                                                    'POST', { peer_id: parseInt(b.dataset.peer, 10) });
+            b.disabled = false;
+            if (!ok2) { toast((d2 && d2.error) || 'No se ha podido abrir la conversación'); return; }
+            await loadChats();
+            openChat(d2.conversation_id);
+        });
+    });
+}
+
+// ── Sondeo ────────────────────────────────────────────────────────────────
+
+function chatSetDelay(ms) {
+    CHAT.quietFrom = Date.now();
+    if (CHAT.delay === ms && CHAT.pollInt) return;
+    CHAT.delay = ms;
+    startChatPolling();
+}
+
+async function chatPoll() {
+    if (!S.token) return;
+    let url = '/api/messaging/poll?cursor=' + CHAT.cursor;
+    if (CHAT.open) url += '&cid=' + CHAT.open;
+    if (CHAT.since) url += '&since=' + encodeURIComponent(CHAT.since);
+
+    const { ok, data } = await api(url);
+    if (!ok || !data) return;
+    CHAT.cursor = data.cursor;
+    CHAT.since = new Date().toISOString();
+
+    if (!data.changed) {
+        // Con la conversación abierta pero en silencio, se afloja el ritmo:
+        // 15 móviles a 4 segundos son demasiadas peticiones para 2 workers.
+        if (CHAT.open && Date.now() - CHAT.quietFrom > CHAT_BACKOFF_MS && CHAT.delay === CHAT_FAST) {
+            CHAT.delay = CHAT_SLOW;
+            startChatPolling();
+        }
+        return;
+    }
+
+    if (data.conversations) {
+        CHAT.list = data.conversations.concat(
+            CHAT.list.filter(function (c) {
+                return !data.conversations.some(function (n) { return n.id === c.id; });
+            })
+        );
+        renderChats();
+        updateChatHomeCard();
+    }
+    if (data.updated) data.updated.forEach(function (u) {
+        // Solo sustituye lo que ya esta en pantalla: una lapida de un mensaje
+        // que nunca se llego a pintar no tiene que aparecer de la nada.
+        const burbuja = $('msg-body').querySelector('[data-mid="' + u.id + '"]');
+        if (burbuja) {
+            burbuja.classList.add('gone');
+            burbuja.innerHTML = '<div>Mensaje eliminado</div>';
+        }
+    });
+    if (data.messages && data.messages.length) {
+        renderMessages(data.messages, false);
+        markChatRead(data.messages);
+        chatSetDelay(CHAT_FAST);
+    } else if (!CHAT.open) {
+        loadChats();
+    }
+}
+
+function startChatPolling() {
+    stopChatPolling();
+    if (!S.token) return;
+    CHAT.pollInt = setInterval(chatPoll, CHAT.delay);
+}
+
+function stopChatPolling() {
+    if (CHAT.pollInt) { clearInterval(CHAT.pollInt); CHAT.pollInt = null; }
+}
+
+// La pantalla apagada o la app en segundo plano no gastan bateria sondeando.
+document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { stopChatPolling(); }
+    else if (S.token) { chatPoll(); startChatPolling(); }
+});
+
+// ── Enganches de la interfaz ──────────────────────────────────────────────
+
+$('msg-list-back').addEventListener('click', function () { CHAT.open = null; chatSetDelay(CHAT_IDLE); show('screen-home'); });
+$('msg-home-card').addEventListener('click', showChats);
+$('msg-new').addEventListener('click', showChatNew);
+$('msg-new-back').addEventListener('click', function () { show('screen-msgs'); });
+$('msg-back').addEventListener('click', function () {
+    CHAT.open = null;
+    chatSetDelay(CHAT_IDLE);
+    showChats();
+});
+$('msg-form').addEventListener('submit', sendChatMessage);
+
+var chatSearchTimer = null;
+$('msg-new-search').addEventListener('input', function () {
+    clearTimeout(chatSearchTimer);
+    const v = this.value;
+    chatSearchTimer = setTimeout(function () { loadChatContacts(v); }, 250);
+});
+
+// ── Enlace directo desde el aviso push ────────────────────────────────────
+
+function abrirChatDesdeUrl(url) {
+    const m = /[?&]chat=(\d+)/.exec(url || '');
+    if (!m || !S.token) return;
+    const cid = parseInt(m[1], 10);
+    loadChats().then(function () { openChat(cid); });
+}
+
+if ('serviceWorker' in navigator) {
+    // Cuando la PWA ya está abierta, el service worker no puede navegar por su
+    // cuenta: manda la URL y la abre la app.
+    navigator.serviceWorker.addEventListener('message', function (ev) {
+        if (ev.data && ev.data.type === 'deeplink') abrirChatDesdeUrl(ev.data.url);
+    });
 }
 </script>
 </body>

@@ -102,6 +102,7 @@ from .blueprints.notifications import bp as notifications_bp  # noqa: E402
 from .blueprints.assessments import bp as assessments_bp  # noqa: E402
 from .blueprints.medication import bp as medication_bp  # noqa: E402
 from .blueprints.activities import bp as activities_bp  # noqa: E402
+from .blueprints.messaging import bp as messaging_bp  # noqa: E402
 app.register_blueprint(nfc_bp)
 app.register_blueprint(training_bp)
 app.register_blueprint(documents_bp)
@@ -116,13 +117,14 @@ app.register_blueprint(notifications_bp)
 app.register_blueprint(assessments_bp)
 app.register_blueprint(medication_bp)
 app.register_blueprint(activities_bp)
+app.register_blueprint(messaging_bp)
 
 # Exempt all blueprints from CSRF — app is internal (local network only)
 # CSRF meta tag + JS auto-injection in base.html provides protection for admin forms
 # API routes use JWT Bearer tokens instead of CSRF
 for _bp in [nfc_bp, chat_bp, notifications_bp, admin_bp, training_bp, documents_bp,
             shifts_bp, cleaning_bp, residents_bp, care_bp, incidents_bp,
-            assessments_bp, medication_bp, activities_bp]:
+            assessments_bp, medication_bp, activities_bp, messaging_bp]:
     csrf.exempt(_bp)
 
 
@@ -131,6 +133,20 @@ def not_found(e: Exception) -> tuple:
     if request.is_json or request.path.startswith('/api/'):
         return jsonify({'error': 'No encontrado'}), 404
     return render_template('404.html'), 404
+
+
+@app.errorhandler(413)
+def payload_too_large(e: Exception) -> tuple:
+    """Fichero mas grande que MAX_CONTENT_LENGTH.
+
+    Flask corta la peticion antes de llegar a la vista, asi que sin este handler
+    la PWA recibe una pagina HTML donde espera JSON y muestra un error generico
+    que no dice nada. El limite por tipo se comprueba dentro de cada endpoint;
+    esto es solo la red de seguridad global.
+    """
+    if request.is_json or request.path.startswith('/api/'):
+        return jsonify({'error': 'El archivo es demasiado grande'}), 413
+    return render_template('500.html'), 413
 
 
 @app.errorhandler(500)

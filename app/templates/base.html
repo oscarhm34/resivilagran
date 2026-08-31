@@ -567,6 +567,12 @@
                 <ul class="navbar-nav ms-auto align-items-center gap-2">
                     {% if current_user.is_authenticated %}
                     <li class="nav-item position-relative">
+                        <a class="nav-link" href="{{ url_for('messaging.admin_messaging') }}" title="Mensajes">
+                            <i class="bi bi-chat-dots" aria-hidden="true"></i>
+                            <span id="msg-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-primary" style="font-size:.6rem;display:none">0</span>
+                        </a>
+                    </li>
+                    <li class="nav-item position-relative">
                         <a class="nav-link" href="{{ url_for('notifications.admin_notifications') }}" title="Notificaciones">
                             <i class="bi bi-bell" aria-hidden="true"></i>
                             <span id="notif-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:.6rem;display:none">0</span>
@@ -742,6 +748,48 @@
         document.addEventListener('visibilitychange', function() {
             if (document.hidden) { stopPolling(); }
             else { startPolling(); }
+        });
+        startPolling();
+    })();
+
+    /* ── Badge de mensajes sin leer (mismo patron que el de notificaciones) ── */
+    (function() {
+        var badge = document.getElementById('msg-badge');
+        if (!badge) return;
+        /* La pagina de mensajes ya sondea por su cuenta y ademas marca leido:
+           un segundo sondeo aqui pelearia con ella por el contador. */
+        if (window.location.pathname.indexOf('/admin/mensajes') === 0) return;
+        var timer = null, cursor = 0, anterior = 0;
+        function comprobar() {
+            fetch('/api/messaging/poll?cursor=' + cursor)
+                .then(function(r) { return r.ok ? r.json() : null; })
+                .then(function(data) {
+                    if (!data) return;
+                    cursor = data.cursor;
+                    var n = data.total_unread || 0;
+                    if (n > 0) {
+                        badge.textContent = n > 99 ? '99+' : n;
+                        badge.style.display = '';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                    if (n > anterior && window.showToast) {
+                        window.showToast('Tienes mensajes nuevos', 'info');
+                    }
+                    anterior = n;
+                })
+                .catch(function() {});
+        }
+        function startPolling() {
+            if (timer) return;
+            comprobar();
+            timer = setInterval(comprobar, 30000);
+        }
+        function stopPolling() {
+            if (timer) { clearInterval(timer); timer = null; }
+        }
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) { stopPolling(); } else { startPolling(); }
         });
         startPolling();
     })();

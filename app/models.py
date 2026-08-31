@@ -910,3 +910,144 @@ class AuditLog(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.now, index=True)
 
     user = db.relationship('Cleaner', foreign_keys=[user_id])
+
+
+# ── MENSAJERIA ──────────────────────────────────────────────────────────────
+#
+# Todo el calculo de "no leidos" y de "visto" se apoya en comparar `message.id`
+# contra unas marcas de agua enteras guardadas en `ConversationMember`. Eso
+# evita la tabla de leidos por mensaje y por usuario, que en un chat crece sin
+# control, pero da por hecho que **`message.id` es monotonamente creciente**:
+# cierto tanto en SQLite (rowid) como en PostgreSQL (secuencia). No sustituir la
+# clave primaria por un UUID ni reordenar ids sin rehacer estos calculos.
+
+class Conversation(db.Model):
+    __tablename__ = 'conversation'
+    id = db.Column(db.Integer, primary_key=True)
+    kind = db.Column(db.String(10), nullable=False, default='direct')  # 'direct' | 'group'
+    title = db.Column(db.String(100), nullable=True)                   # solo grupos
+    # Clave canonica de la conversacion 1-a-1: 'menor-mayor'. Con la restriccion
+    # unica impide que A y B acaben con dos conversaciones abiertas por haber
+    # pulsado a la vez. Los grupos la dejan a NULL, y los dos motores admiten
+    # varios NULL en una columna unica, asi que no hace falta indice parcial.
+    dm_key = db.Column(db.String(32), nullable=True, unique=True)
+    created_by = db.Column(db.Integer,
+                           db.ForeignKey('cleaner.id', name='fk_conversation_created_by'),
+                           nullable=True, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.now, index=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+
+    # Denormalizado para pintar la lista de conversaciones sin una consulta por
+    # fila. `last_message_id` no lleva ForeignKey a proposito: la crearia
+    # circular con `message.conversation_id` y complica los DROP de Alembic.
+    last_message_at = db.Column(db.DateTime, nullable=True, index=True)
+    last_message_preview = db.Column(db.String(140), nullable=True)
+    last_message_id = db.Column(db.Integer, nullable=True, index=True)
+
+    creator = db.relationship('Cleaner', foreign_keys=[created_by])
+    members = db.relationship('ConversationMember', back_populates='conversation',
+                              lazy=True, cascade='all, delete-orphan')
+
+    @staticmethod
+    def direct_key(a_id: int, b_id: int) -> str:
+        return '%d-%d' % (min(a_id, b_id), max(a_id, b_id))
+
+
+class ConversationMember(db.Model):
+    """Estado de una persona dentro de una conversacion.
+
+    No es una tabla de union pura como `cleaner_groups`: aqui vive lo que hace
+    que el chat funcione sin filas por mensaje (marcas de lectura, corte al
+    salir del grupo, vaciado propio, silencio y control de avisos).
+    """
+    __tablename__ = 'conversation_member'
+    id = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(
+        db.Integer, db.ForeignKey('conversation.id', name='fk_convmember_conversation'),
+        nullable=False, index=True)
+    cleaner_id = db.Column(db.Integer,
+                           db.ForeignKey('cleaner.id', name='fk_convmember_cleaner'),
+                           nullable=False, index=True)
+    role = db.Column(db.String(10), nullable=False, default='member')  # 'owner' | 'member'
+    joined_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
+
+    # Salida de un grupo: deja de recibir avisos y su lectura queda congelada en
+    # `left_at_message_id`. Se usa el id y no la fecha para no depender de
+    # empates de datetime, igual que el resto de marcas.
+    left_at = db.Column(db.DateTime, nullable=True, index=True)
+    left_at_message_id = db.Column(db.Integer, nullable=False, default=0)
+
+    last_read_message_id = db.Column(db.Integer, nullable=False, default=0, index=True)
+    last_read_at = db.Column(db.DateTime, nullable=True)
+    cleared_before_id = db.Column(db.Integer, nullable=False, default=0)  # "vaciar para mi"
+
+    muted_until = db.Column(db.DateTime, nullable=True)
+    archived = db.Column(db.Boolean, nullable=False, default=False)
+    last_push_at = db.Column(db.DateTime, nullable=True)  # agrupa avisos, ver blueprint
+
+    conversation = db.relationship('Conversation', back_populates='members')
+    cleaner = db.relationship('Cleaner', foreign_keys=[cleaner_id])
+
+    __table_args__ = (
+        db.UniqueConstraint('conversation_id', 'cleaner_id', name='uq_conversation_member'),
+        db.Index('ix_convmember_cleaner_archived', 'cleaner_id', 'archived'),
+    )
+
+
+class Message(db.Model):
+    __tablename__ = 'message'
+    id = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(
+        db.Integer, db.ForeignKey('conversation.id', name='fk_message_conversation'),
+        nullable=False, index=True)
+    sender_id = db.Column(db.Integer,
+                          db.ForeignKey('cleaner.id', name='fk_message_sender'),
+                          nullable=False, index=True)
+    # 'text' | 'image' | 'audio' | 'video' | 'system'
+    kind = db.Column(db.String(10), nullable=False, default='text')
+    body = db.Column(db.Text, nullable=True)
+    # Lo genera el movil antes de enviar: si la wifi se cae y la trabajadora
+    # reintenta, el servidor reconoce el reenvio en vez de duplicar el mensaje.
+    client_uuid = db.Column(db.String(36), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.now, index=True)
+    edited_at = db.Column(db.DateTime, nullable=True)
+
+    # Borrado "para todos": se conserva la fila como lapida para no abrir huecos
+    # en la paginacion por id, que es como avanza el historial.
+    deleted_at = db.Column(db.DateTime, nullable=True, index=True)
+    deleted_by_id = db.Column(db.Integer,
+                              db.ForeignKey('cleaner.id', name='fk_message_deleted_by'),
+                              nullable=True)
+
+    conversation = db.relationship('Conversation', foreign_keys=[conversation_id])
+    sender = db.relationship('Cleaner', foreign_keys=[sender_id])
+    attachments = db.relationship('MessageAttachment', back_populates='message',
+                                  lazy=True, cascade='all, delete-orphan')
+
+    __table_args__ = (
+        db.UniqueConstraint('sender_id', 'client_uuid', name='uq_message_client_uuid'),
+        db.Index('ix_message_conversation_id_id', 'conversation_id', 'id'),
+        db.Index('ix_message_conversation_created', 'conversation_id', 'created_at'),
+    )
+
+
+class MessageAttachment(db.Model):
+    __tablename__ = 'message_attachment'
+    id = db.Column(db.Integer, primary_key=True)
+    message_id = db.Column(db.Integer,
+                           db.ForeignKey('message.id', name='fk_attachment_message'),
+                           nullable=False, index=True)
+    media_type = db.Column(db.String(10), nullable=False)  # 'image' | 'audio' | 'video'
+    file_path = db.Column(db.String(255), nullable=False)  # relativo a UPLOAD_FOLDER
+    thumb_path = db.Column(db.String(255), nullable=True)
+    # De la lista blanca del servidor, nunca el Content-Type que declara el
+    # cliente: es lo que se devuelve al servir el fichero.
+    mime_type = db.Column(db.String(50), nullable=False)
+    size_bytes = db.Column(db.Integer, nullable=False, default=0)
+    duration_seconds = db.Column(db.Integer, nullable=True)
+    width = db.Column(db.Integer, nullable=True)
+    height = db.Column(db.Integer, nullable=True)
+    original_filename = db.Column(db.String(255), nullable=True)  # solo para mostrar
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
+
+    message = db.relationship('Message', back_populates='attachments')

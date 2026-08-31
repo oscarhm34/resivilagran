@@ -1,0 +1,367 @@
+{% extends "base.html" %}
+{% block title %}Mensajes{% endblock %}
+
+{% block content %}
+<style>
+    .msg-lista { max-height: calc(100vh - var(--navbar-height) - 260px); overflow-y: auto; }
+    .msg-hilo  { height: calc(100vh - var(--navbar-height) - 320px); overflow-y: auto; }
+
+    .msg-item {
+        display: flex; gap: 12px; align-items: center; width: 100%; text-align: left;
+        padding: 12px 16px; border: none; background: none; cursor: pointer;
+        border-bottom: 1px solid var(--color-border);
+    }
+    .msg-item:hover, .msg-item.activa { background: var(--color-primary-lt); }
+    .msg-avatar {
+        width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        color: #fff; font-weight: 600; font-size: 15px;
+    }
+    .msg-item-info { flex: 1; min-width: 0; }
+    .msg-item-nombre { font-weight: 600; color: var(--color-text); }
+    .msg-item-preview {
+        font-size: 13px; color: var(--color-text-secondary);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .msg-item-badge {
+        background: var(--color-primary); color: #fff; border-radius: 10px;
+        font-size: 12px; padding: 1px 8px; font-weight: 600;
+    }
+
+    .burbuja {
+        max-width: 72%; padding: 8px 12px; border-radius: var(--radius-lg);
+        margin-bottom: 10px; word-wrap: break-word; position: relative;
+    }
+    .burbuja.propia { margin-left: auto; background: var(--color-primary-lt); }
+    .burbuja.ajena  { background: var(--color-bg); border: 1px solid var(--color-border); }
+    .burbuja.borrada { font-style: italic; color: var(--color-text-secondary); }
+    .burbuja-autor { font-size: 12px; font-weight: 600; color: var(--color-primary-dk); margin-bottom: 2px; }
+    .burbuja-hora  { font-size: 11px; color: var(--color-text-secondary); text-align: right; margin-top: 2px; }
+
+    @media (max-width: 767.98px) {
+        .msg-layout.viendo-hilo #col-lista { display: none; }
+        .msg-layout:not(.viendo-hilo) #col-hilo { display: none; }
+        .msg-hilo { height: calc(100vh - var(--navbar-height) - 240px); }
+    }
+
+    [data-theme="dark"] .msg-item:hover,
+    [data-theme="dark"] .msg-item.activa { background: rgba(255,255,255,.06); }
+    [data-theme="dark"] .burbuja.propia { background: var(--color-primary-dk); color: #fff; }
+    [data-theme="dark"] .burbuja.ajena  { background: var(--color-surface); }
+    [data-theme="dark"] .burbuja-autor  { color: var(--color-primary-lt); }
+</style>
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h1 class="h4 mb-0"><i class="bi bi-chat-dots me-2" aria-hidden="true"></i>Mensajes</h1>
+    <button type="button" class="btn btn-primary btn-sm" id="btn-nueva-conversacion">
+        <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Nueva conversación
+    </button>
+</div>
+
+<div class="alert alert-info d-flex align-items-start gap-2" role="note">
+    <i class="bi bi-shield-lock mt-1" aria-hidden="true"></i>
+    <div>
+        Solo ves las conversaciones de las que formas parte. El contenido de las
+        demás no es accesible desde el panel, ni siquiera como administrador.
+    </div>
+</div>
+
+<div class="row g-3 msg-layout">
+    <div class="col-md-4" id="col-lista">
+        <div class="card h-100">
+            <div class="card-body p-0">
+                <div id="lista-conversaciones" class="msg-lista">
+                    <p class="text-center p-4 mb-0" style="color:var(--color-text-secondary)">Cargando…</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8" id="col-hilo">
+        <div class="card h-100 d-flex flex-column">
+            <div class="card-header d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary d-md-none" id="btn-volver-lista"
+                        aria-label="Volver a la lista">
+                    <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                </button>
+                <span id="hilo-titulo">Selecciona una conversación</span>
+            </div>
+            <div class="card-body msg-hilo" id="hilo">
+                <p class="text-center mt-5" style="color:var(--color-text-secondary)">
+                    Elige una conversación de la izquierda para leerla.
+                </p>
+            </div>
+            <div class="card-footer" id="composer" style="display:none">
+                <form class="d-flex gap-2" id="form-enviar">
+                    <input type="text" class="form-control" id="campo-mensaje"
+                           placeholder="Escribe un mensaje…" autocomplete="off" maxlength="4000"
+                           aria-label="Mensaje">
+                    <button type="submit" class="btn btn-primary" id="btn-enviar">
+                        <i class="bi bi-send" aria-hidden="true"></i>
+                        <span class="visually-hidden">Enviar</span>
+                    </button>
+                </form>
+                <div class="small mt-2" style="color:var(--color-text-secondary)">
+                    Para lo clínico usa Incidencias o las observaciones de la atención:
+                    ahí queda registrado en la ficha del residente.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Nueva conversacion -->
+<div class="modal fade" id="modalNueva" tabindex="-1" aria-labelledby="modalNuevaLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalNuevaLabel">Nueva conversación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <input type="search" class="form-control mb-3" id="buscar-contacto"
+                       placeholder="Buscar por nombre…" aria-label="Buscar persona">
+                <div id="lista-contactos"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+    'use strict';
+
+    var YO = {{ current_user.id }};
+    var conversaciones = [];
+    var abierta = null;
+    var cursor = 0;
+    var sondeoInt = null;
+    var modalNueva = null;
+
+    function $(id) { return document.getElementById(id); }
+
+    function iniciales(nombre) {
+        var partes = (nombre || '?').trim().split(/\s+/);
+        return ((partes[0] || '')[0] + (partes.length > 1 ? partes[partes.length - 1][0] : '')).toUpperCase();
+    }
+
+    // Color estable por persona: `Cleaner` no tiene foto, así que el avatar es
+    // lo único que distingue una fila de otra de un vistazo.
+    function colorDe(id) {
+        var tonos = ['#0069d9', '#1a7f37', '#bf8700', '#8250df', '#cf222e', '#0f6f7a'];
+        return tonos[Math.abs(id) % tonos.length];
+    }
+
+    function escapar(t) {
+        var d = document.createElement('div');
+        d.textContent = t == null ? '' : t;
+        return d.innerHTML;
+    }
+
+    function hora(iso) {
+        if (!iso) return '';
+        var d = new Date(iso);
+        var hoy = new Date();
+        if (d.toDateString() === hoy.toDateString()) {
+            return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        }
+        return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+    }
+
+    // ── Lista ────────────────────────────────────────────────────────────
+    function pintarLista() {
+        var cont = $('lista-conversaciones');
+        if (!conversaciones.length) {
+            cont.innerHTML = '<p class="text-center p-4 mb-0" style="color:var(--color-text-secondary)">'
+                + 'No tienes ninguna conversación todavía.</p>';
+            return;
+        }
+        cont.innerHTML = conversaciones.map(function (c) {
+            return '<button type="button" class="msg-item' + (abierta === c.id ? ' activa' : '') + '" data-id="' + c.id + '">'
+                + '<span class="msg-avatar" style="background:' + colorDe(c.id) + '">' + escapar(iniciales(c.title)) + '</span>'
+                + '<span class="msg-item-info">'
+                + '<span class="msg-item-nombre d-block">' + escapar(c.title) + '</span>'
+                + '<span class="msg-item-preview d-block">' + escapar(c.last_message_preview || 'Sin mensajes') + '</span>'
+                + '</span>'
+                + '<span class="text-end" style="flex-shrink:0">'
+                + '<span class="d-block" style="font-size:11px;color:var(--color-text-secondary)">' + hora(c.last_message_at) + '</span>'
+                + (c.unread ? '<span class="msg-item-badge">' + c.unread + '</span>' : '')
+                + '</span></button>';
+        }).join('');
+        cont.querySelectorAll('.msg-item').forEach(function (b) {
+            b.addEventListener('click', function () { abrir(parseInt(b.dataset.id, 10)); });
+        });
+    }
+
+    async function cargarLista() {
+        try {
+            var res = await fetch('/api/messaging/conversations');
+            if (!res.ok) return;
+            conversaciones = await res.json();
+            pintarLista();
+        } catch (e) { /* sin conexión: se reintenta en el siguiente sondeo */ }
+    }
+
+    // ── Hilo ─────────────────────────────────────────────────────────────
+    function pintarMensajes(mensajes, reemplazar) {
+        var hilo = $('hilo');
+        if (reemplazar) hilo.innerHTML = '';
+        if (reemplazar && !mensajes.length) {
+            hilo.innerHTML = '<p class="hilo-vacio text-center mt-5" style="color:var(--color-text-secondary)">'
+                + 'Todavía no hay mensajes. Escribe el primero.</p>';
+            return;
+        }
+        // El primer mensaje tiene que sustituir al aviso de hilo vacío, no
+        // quedarse debajo.
+        var vacio = hilo.querySelector('.hilo-vacio');
+        if (vacio && mensajes.length) vacio.remove();
+        mensajes.forEach(function (m) {
+            if (hilo.querySelector('[data-msg="' + m.id + '"]')) return;
+            var propia = m.sender_id === YO;
+            var div = document.createElement('div');
+            div.className = 'burbuja ' + (propia ? 'propia' : 'ajena') + (m.deleted ? ' borrada' : '');
+            div.dataset.msg = m.id;
+            div.innerHTML =
+                (!propia && !m.deleted ? '<div class="burbuja-autor">' + escapar(m.sender_name) + '</div>' : '')
+                + '<div>' + (m.deleted ? 'Mensaje eliminado' : escapar(m.body)) + '</div>'
+                + '<div class="burbuja-hora">' + hora(m.created_at) + '</div>';
+            hilo.appendChild(div);
+        });
+        hilo.scrollTop = hilo.scrollHeight;
+    }
+
+    async function abrir(cid) {
+        abierta = cid;
+        document.querySelector('.msg-layout').classList.add('viendo-hilo');
+        var conv = conversaciones.filter(function (c) { return c.id === cid; })[0];
+        $('hilo-titulo').textContent = conv ? conv.title : 'Conversación';
+        $('composer').style.display = '';
+        pintarLista();
+
+        var res = await fetch('/api/messaging/conversations/' + cid + '/messages');
+        if (!res.ok) {
+            window.showToast('No se pudo abrir la conversación', 'error');
+            return;
+        }
+        var datos = await res.json();
+        pintarMensajes(datos.messages, true);
+        marcarLeido(datos.messages);
+    }
+
+    async function marcarLeido(mensajes) {
+        if (!mensajes.length || !abierta) return;
+        var ultimo = mensajes[mensajes.length - 1].id;
+        await fetch('/api/messaging/conversations/' + abierta + '/read', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ up_to_id: ultimo }),
+        });
+        cargarLista();
+    }
+
+    $('form-enviar').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var campo = $('campo-mensaje');
+        var texto = campo.value.trim();
+        if (!texto || !abierta) return;
+        campo.value = '';
+        var res = await fetch('/api/messaging/conversations/' + abierta + '/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ body: texto }),
+        });
+        if (!res.ok) {
+            campo.value = texto;   // no perder lo escrito
+            window.showToast('No se pudo enviar el mensaje', 'error');
+            return;
+        }
+        pintarMensajes([await res.json()], false);
+        cargarLista();
+    });
+
+    $('btn-volver-lista').addEventListener('click', function () {
+        document.querySelector('.msg-layout').classList.remove('viendo-hilo');
+    });
+
+    // ── Nueva conversación ───────────────────────────────────────────────
+    async function cargarContactos(q) {
+        var res = await fetch('/api/messaging/contacts?q=' + encodeURIComponent(q || ''));
+        if (!res.ok) return;
+        var gente = await res.json();
+        $('lista-contactos').innerHTML = gente.length ? gente.map(function (c) {
+            return '<button type="button" class="msg-item" data-peer="' + c.id + '">'
+                + '<span class="msg-avatar" style="background:' + colorDe(c.id) + '">' + escapar(iniciales(c.name)) + '</span>'
+                + '<span class="msg-item-info"><span class="msg-item-nombre d-block">' + escapar(c.name) + '</span>'
+                + '<span class="msg-item-preview d-block">' + escapar(c.role) + '</span></span></button>';
+        }).join('') : '<p class="text-center py-3 mb-0" style="color:var(--color-text-secondary)">Sin resultados.</p>';
+
+        $('lista-contactos').querySelectorAll('[data-peer]').forEach(function (b) {
+            b.addEventListener('click', async function () {
+                var res2 = await fetch('/api/messaging/conversations/direct', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ peer_id: parseInt(b.dataset.peer, 10) }),
+                });
+                if (!res2.ok) {
+                    window.showToast('No se pudo abrir la conversación', 'error');
+                    return;
+                }
+                var datos = await res2.json();
+                modalNueva.hide();
+                await cargarLista();
+                abrir(datos.conversation_id);
+            });
+        });
+    }
+
+    $('btn-nueva-conversacion').addEventListener('click', function () {
+        modalNueva = modalNueva || new bootstrap.Modal($('modalNueva'));
+        $('buscar-contacto').value = '';
+        cargarContactos('');
+        modalNueva.show();
+    });
+
+    var buscarTimer = null;
+    $('buscar-contacto').addEventListener('input', function () {
+        clearTimeout(buscarTimer);
+        var v = this.value;
+        buscarTimer = setTimeout(function () { cargarContactos(v); }, 250);
+    });
+
+    // ── Sondeo ───────────────────────────────────────────────────────────
+    // Mismo patrón que el badge de notificaciones: se para con la pestaña
+    // oculta, para no sondear en segundo plano toda la jornada.
+    async function sondear() {
+        try {
+            var url = '/api/messaging/poll?cursor=' + cursor + (abierta ? '&cid=' + abierta : '');
+            var res = await fetch(url);
+            if (!res.ok) return;
+            var datos = await res.json();
+            cursor = datos.cursor;
+            if (!datos.changed) return;
+            if (datos.messages && datos.messages.length) {
+                pintarMensajes(datos.messages, false);
+                marcarLeido(datos.messages);
+            }
+            cargarLista();
+        } catch (e) { /* reintenta en el siguiente ciclo */ }
+    }
+
+    function arrancarSondeo() {
+        pararSondeo();
+        sondeoInt = setInterval(sondear, 30000);
+    }
+    function pararSondeo() {
+        if (sondeoInt) { clearInterval(sondeoInt); sondeoInt = null; }
+    }
+
+    document.addEventListener('visibilitychange', function () {
+        if (document.hidden) { pararSondeo(); } else { sondear(); arrancarSondeo(); }
+    });
+
+    cargarLista();
+    sondear();
+    arrancarSondeo();
+})();
+</script>
+{% endblock %}

@@ -54,7 +54,8 @@
                         <li><a href="#config">18. Configuracion</a></li>
                         <li><a href="#backups">18b. Copias de seguridad</a></li>
                         <li><a href="#auditoria">18c. Registro de auditoria</a></li>
-                        <li><a href="#changelog">19. Registro de cambios</a></li>
+                        <li><a href="#mensajes">19. Mensajeria interna</a></li>
+                        <li><a href="#changelog">20. Registro de cambios</a></li>
                     </ul>
                 </div>
             </div>
@@ -1403,9 +1404,58 @@
         </div>
     </div>
 
-    <!-- 16. Registro de cambios -->
+    <!-- 19. Mensajeria interna -->
+    <div class="card mb-4" id="mensajes">
+        <div class="card-header">19. Mensajeria interna <span class="badge bg-success">NUEVO</span></div>
+        <div class="card-body">
+            <p>Mensajeria entre las personas que usan la aplicacion, dentro del propio sistema.
+               Existe para que los avisos del dia a dia dejen de ir por WhatsApp personal: alli
+               circulan los telefonos particulares y las fotos acaban en el movil de cada una,
+               fuera de la residencia y fuera de cualquier copia de seguridad.</p>
+
+            <h6>Donde esta</h6>
+            <ul>
+                <li><strong>Panel:</strong> icono del bocadillo en la barra superior, al lado de la campana.
+                    El numero azul son los mensajes sin leer.</li>
+                <li><strong>Webapp de trabajadoras:</strong> tarjeta <strong>Mensajes</strong> en la pantalla
+                    de inicio, encima de "Escanear o seleccionar".</li>
+            </ul>
+
+            <h6>Como se usa</h6>
+            <ul>
+                <li><strong>Escribir a alguien:</strong> "Nuevo mensaje", se busca por nombre y se abre la
+                    conversacion. Cada pareja tiene una sola conversacion, no se duplica.</li>
+                <li><strong>Mensajes nuevos:</strong> llegan solos, sin recargar. Con la webapp cerrada llega
+                    un aviso al movil; al tocarlo se abre esa conversacion.</li>
+                <li><strong>Eliminar:</strong> quien escribe un mensaje puede eliminarlo durante la primera
+                    hora. Queda la marca "Mensaje eliminado" para todo el mundo.</li>
+                <li><strong>Vaciar una conversacion:</strong> solo desaparece de la vista de quien lo pide;
+                    la otra persona la sigue viendo entera.</li>
+            </ul>
+
+            <h6>Privacidad: quien lee que</h6>
+            <p>Un administrador <strong>solo ve las conversaciones de las que forma parte</strong>. No hay
+               ninguna pantalla del panel que muestre conversaciones ajenas, y tampoco se pueden alcanzar
+               por otra via. Es deliberado: lo que se habla en un chat de residencia menciona a residentes,
+               asi que son datos de salud.</p>
+            <p>Por el mismo motivo, el <strong>aviso que llega al movil no incluye el texto</strong> del
+               mensaje, solo quien escribe. El aviso viaja por servidores de Google o Mozilla, y ahi no
+               tiene por que pasar el nombre de un residente.</p>
+
+            <h6>Que NO debe ir por aqui</h6>
+            <p>Lo clinico va a <strong>Incidencias</strong> o a las observaciones de la atencion, que quedan
+               en la ficha del residente y salen en los informes. Un chat no deja rastro clinico y ademas
+               se borra solo pasado un tiempo, asi que un aviso importante escrito solo aqui se pierde.</p>
+
+            <h6>Cuanto se conserva</h6>
+            <p>Los mensajes se guardan <strong>un año</strong>. Despues se eliminan automaticamente. Una
+               politica de conservacion escrita y aplicada es lo que exige proteccion de datos.</p>
+        </div>
+    </div>
+
+    <!-- 20. Registro de cambios -->
     <div class="card mb-4" id="changelog">
-        <div class="card-header">19. Registro de cambios recientes</div>
+        <div class="card-header">20. Registro de cambios recientes</div>
         <div class="card-body">
 
             <h6>Agosto 2026</h6>
@@ -1414,6 +1464,8 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>31/08</td><td><strong>La webapp volvia a cargarse entera al abrirla:</strong> si se abria con la sesion ya iniciada (lo normal, el acceso dura una semana), la pantalla de inicio se quedaba a medias: solo salia el nombre, sin sesiones en curso, sin pendientes, sin cronometro y sin avisos. Habia que cerrar sesion y volver a entrar para que funcionase. Ademas, en modo oscuro el titulo de las tarjetas de pendientes y la flecha de volver eran casi invisibles.</td></tr>
+                    <tr><td>31/08</td><td><strong>Mensajeria interna:</strong> ya se puede escribir a una compañera desde la aplicacion, sin usar WhatsApp personal. En el panel esta en el icono del bocadillo de la barra superior; en la webapp, en la tarjeta "Mensajes" de la pantalla de inicio. Los mensajes llegan solos y, con la webapp cerrada, avisan al movil. El administrador solo ve las conversaciones de las que forma parte: las demas no son accesibles desde el panel. El aviso del movil no incluye el texto del mensaje, solo quien escribe. Lo clinico sigue yendo a Incidencias o a las observaciones de la atencion. Ver la seccion 19 de esta ayuda.</td></tr>
                     <tr><td>31/08</td><td><strong>El tipo de atencion vuelve a ser obligatorio:</strong> ninguna atencion se puede finalizar sin indicar el tipo, ni desde la webapp ni desde el servidor, ni en las atenciones de grupo. Dos registros se habian guardado sin tipo porque la webapp no consiguio cargar la lista y anuncio que no habia ninguno configurado, cuando si los habia; sin tipo el registro no dice que se hizo y ya no hay forma de reconstruirlo. Ahora la webapp distingue las dos situaciones, reintenta la carga sola al finalizar y, si aun asi no lo consigue, explica que hay que volver a intentarlo mas tarde: la sesion se queda abierta, no se cierra a medias. El boton de recargar de la webapp tambien actualiza los tipos, que antes se quedaban vacios toda la sesion. Y en Registros de atencion hay un boton de lapiz para asignar el tipo a los registros antiguos que quedaron sin ninguno.</td></tr>
                     <tr><td>31/08</td><td><strong>Control del estado de administracion de medicacion:</strong> al registrar una dosis desde el movil, el estado (administrado, rechazado, omitido o no disponible) se comprueba contra la lista valida antes de guardarlo. Antes se aceptaba cualquier valor que llegase. Se han anadido tambien las primeras pruebas automaticas de medicacion y de las reglas laborales de los cuadrantes (descanso minimo entre turnos, horas semanales y dias seguidos), que no tenian ninguna.</td></tr>
                     <tr><td>31/08</td><td><strong>Textos en catalan corregidos y botones mas grandes:</strong> en la webapp de trabajadoras los botones de estado de animo salian en catalan (Agitat, Trist, Cooperatiu...), igual que los mensajes de Guardant y de error. Todo pasa a castellano. Lo que queda guardado en el historial no cambia, asi que los registros antiguos siguen siendo comparables. Ademas los botones de animo de la pantalla de finalizar atencion y las etiquetas del historial eran demasiado pequenos para el dedo: pasan a 40 pixeles. En el panel se han traducido los avisos de Error de connexio, la cabecera Usuari del registro de auditoria y el titulo del estado de animo de la ficha del residente.</td></tr>

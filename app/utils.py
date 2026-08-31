@@ -3,9 +3,9 @@ from __future__ import annotations
 from functools import wraps
 from datetime import datetime, timedelta, date, time as dt_time
 
-from flask import abort, request, jsonify, redirect, url_for, flash
+from flask import abort, request, jsonify, redirect, url_for, flash, g
 from flask_login import login_required, current_user
-from flask_jwt_extended import get_jwt_identity
+from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 
 from . import app, db
@@ -26,6 +26,53 @@ def admin_required(f):
             abort(403)
         return f(*args, **kwargs)
     return decorated
+
+
+def dual_auth(f):
+    """Acepta las dos identidades de la app: JWT (PWA) y cookie (panel).
+
+    La mensajeria es la primera funcionalidad que comparten los dos mundos: una
+    conversacion tiene de un lado a una trabajadora en la PWA y del otro a una
+    gestora en el panel, y la pertenencia a esa conversacion se comprueba igual
+    venga de donde venga. Duplicar cada ruta (como hace `chat.py`, donde el
+    comportamiento si difiere) daria dos sitios donde olvidarse de comprobarla,
+    que es justo lo que sostiene la privacidad de las conversaciones.
+
+    El usuario resuelto queda en `g.dual_user`; se lee con `current_dual_user()`.
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        user = None
+        if (request.headers.get('Authorization') or '').startswith('Bearer '):
+            try:
+                verify_jwt_in_request()
+            except Exception:
+                return jsonify({'error': 'No autorizado'}), 401
+            user = Cleaner.query.filter_by(username=get_jwt_identity()).first()
+        elif current_user.is_authenticated:
+            user = current_user
+            # El blueprint esta exento de CSRF y la cookie viaja sola: sin esto,
+            # una pagina externa podria escribir en nombre de quien tenga la
+            # sesion abierta. `base.html` ya inyecta la cabecera en los no-GET,
+            # y un formulario cross-site no puede ponerla.
+            if request.method not in ('GET', 'HEAD', 'OPTIONS') and not (
+                    request.headers.get('X-CSRFToken')
+                    or request.headers.get('X-Requested-With')):
+                return jsonify({'error': 'No autorizado'}), 403
+
+        if not user:
+            return jsonify({'error': 'No autorizado'}), 401
+        if not user.active:
+            return jsonify({'error': 'Tu usuario esta desactivado'}), 403
+
+        g.dual_user = user
+        return f(*args, **kwargs)
+    return decorated
+
+
+def current_dual_user():
+    """Cleaner resuelto por `dual_auth` en la peticion en curso."""
+    return getattr(g, 'dual_user', None)
 
 
 # ── Auth helpers ─────────────────────────────────────────────────────────────
@@ -105,6 +152,79 @@ ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'webp', 'gif'}
 
 def _allowed_file(filename: str, allowed: set) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed
+
+
+# Audio y video: la extension se deriva del MIME contra este mapa cerrado, nunca
+# del nombre que manda el cliente. Sin ffmpeg no se puede reprocesar el fichero
+# como se hace con las imagenes, asi que la defensa son tres capas: mapa cerrado,
+# firma binaria (`_sniff_media`) y, al servirlo, Content-Type de lista blanca con
+# `X-Content-Type-Options: nosniff`.
+AUDIO_MIME_EXTENSIONS = {
+    'audio/webm': 'webm',
+    'audio/ogg': 'ogg',
+    'audio/mp4': 'm4a',
+    'audio/x-m4a': 'm4a',
+    'audio/mpeg': 'mp3',
+    'audio/wav': 'wav',
+    'audio/x-wav': 'wav',
+}
+VIDEO_MIME_EXTENSIONS = {
+    'video/mp4': 'mp4',
+    'video/webm': 'webm',
+    'video/quicktime': 'mov',
+}
+ALLOWED_AUDIO_EXTENSIONS = set(AUDIO_MIME_EXTENSIONS.values())
+ALLOWED_VIDEO_EXTENSIONS = set(VIDEO_MIME_EXTENSIONS.values())
+
+
+def _sniff_media(header: bytes, media_type: str) -> bool:
+    """Comprueba la firma binaria de un audio o un video.
+
+    Un `.webm` que en realidad es un HTML con JavaScript dentro es el ataque
+    obvio contra un almacen de ficheros que no se reprocesan. Mirar los primeros
+    bytes no es infalible, pero descarta el fichero disfrazado, que es el caso
+    real. La defensa que de verdad cierra el agujero es servirlo con `nosniff`.
+    """
+    if len(header) < 12:
+        return False
+    ebml = bytes.fromhex("1a45dfa3")          # webm / matroska
+    mp3_raw = (bytes.fromhex("fffb"), bytes.fromhex("fff3"), bytes.fromhex("fff2"))
+    if media_type == "audio":
+        return (
+            header.startswith(ebml)
+            or header.startswith(b"OggS")             # ogg / opus
+            or header[4:8] == b"ftyp"                 # mp4 / m4a
+            or header.startswith(b"ID3")              # mp3 con etiquetas
+            or header[:2] in mp3_raw                  # mp3 crudo
+            or (header.startswith(b"RIFF") and header[8:12] == b"WAVE")
+        )
+    if media_type == "video":
+        return header.startswith(ebml) or header[4:8] == b"ftyp"
+    return False
+
+
+def _save_image_stream(source, folder: str, basename: str,
+                       max_side: int = 1280, quality: int = 82) -> tuple:
+    """Reprocesa una imagen con Pillow y la guarda como JPEG.
+
+    Ese reprocesado (abrir, corregir EXIF, convertir a RGB, redimensionar y
+    reescribir) es lo que descarta cualquier carga util escondida en el fichero
+    original, asi que es la defensa antifichero-malicioso de todo lo que sube un
+    usuario. Vive aqui para que no haya dos copias que endurecer por separado:
+    `_save_base64_photo` de `blueprints/nfc.py` tambien la usa.
+
+    Devuelve (nombre_de_fichero, ancho, alto).
+    """
+    import os
+    from PIL import Image  # noqa: F401  (se usa a traves de _open_image_oriented)
+
+    img = _open_image_oriented(source)
+    img = img.convert('RGB')
+    img.thumbnail((max_side, max_side))
+    os.makedirs(folder, exist_ok=True)
+    filename = f'{basename}.jpg'
+    img.save(os.path.join(folder, filename), 'JPEG', quality=quality, optimize=True)
+    return filename, img.width, img.height
 
 
 def _open_image_oriented(source):

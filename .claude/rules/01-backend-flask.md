@@ -17,12 +17,21 @@ from __future__ import annotations
 |---|---|---|
 | Panel admin (web, Jinja2) | `@admin_required` (de `app/utils.py`) | `current_user` (Flask-Login) |
 | App/PWA de trabajadoras | `@jwt_required()` | `get_jwt_identity()` → `username` |
+| Los dos a la vez (mensajería) | `@dual_auth` (de `app/utils.py`) | `current_dual_user()` |
 
 - `@admin_required` ya incluye `@login_required` y comprueba `current_user.is_admin`.
 - Para páginas de solo lectura accesibles a cualquier usuario logueado, `@login_required`.
 - En rutas JWT que reciben un `worker_id` del cliente, **validarlo siempre** con
   `_verify_worker_id(worker_id)` — nunca confiar en el ID que envía el cliente.
 - Endpoints de login o de escritura sensible llevan `@limiter.limit("10/minute", methods=["POST"])`.
+- `@dual_auth` es la excepción, no la norma: solo para funcionalidad que **la misma
+  persona** usa desde las dos superficies (hoy, la mensajería, donde una conversación
+  tiene a una trabajadora de un lado y a una gestora del otro). Acepta Bearer o cookie,
+  rechaza al usuario con `active=False`, y en las escrituras autenticadas por cookie
+  exige la cabecera `X-CSRFToken` que `base.html` ya inyecta — sin eso, un blueprint
+  exento de CSRF aceptaría escrituras cross-site con la sesión del admin.
+  Si el comportamiento difiere entre los dos mundos, duplicar rutas como hace
+  `blueprints/chat.py`.
 
 ## Commits a base de datos
 

@@ -28,6 +28,7 @@ from ..utils import (
     admin_required, _verify_worker_id, _current_worker_id, _safe_commit, log_audit,
     _check_single_session_conflict, _resolve_nfc_code, _format_duration,
     _allowed_file, ALLOWED_IMAGE_EXTENSIONS, _open_image_oriented,
+    _save_image_stream,
 )
 
 bp = Blueprint('nfc', __name__)
@@ -45,15 +46,13 @@ def _save_base64_photo(b64_data: str, subfolder: str, cleaner_id: int) -> str:
     except Exception:
         raise ValueError('Imagen base64 no válida.')
     try:
-        img = _open_image_oriented(BytesIO(img_bytes))
-        img = img.convert('RGB')
-        img.thumbnail((800, 800))
         ts = datetime.utcnow().strftime('%Y%m%d%H%M%S')
-        filename = f'{cleaner_id}_{ts}.jpg'
         folder = os.path.join(app.config['UPLOAD_FOLDER'], subfolder)
-        os.makedirs(folder, exist_ok=True)
-        filepath = os.path.join(folder, filename)
-        img.save(filepath, 'JPEG', quality=85, optimize=True)
+        # El reprocesado vive en utils para que no haya dos copias de la misma
+        # defensa que endurecer por separado.
+        filename, _w, _h = _save_image_stream(
+            BytesIO(img_bytes), folder, f'{cleaner_id}_{ts}',
+            max_side=800, quality=85)
     except (OSError, IOError) as e:
         app.logger.error('Error saving photo: %s', e)
         raise ValueError('No se pudo guardar la foto.')
@@ -1258,6 +1257,18 @@ def cancel_session():
 #  UPLOADS — Servir fitxers
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _is_messaging_path(upload_dir: str, safe_path: str) -> bool:
+    """True si el fichero pertenece a una conversacion.
+
+    Estas dos rutas sirven cualquier fichero a cualquier usuario autenticado: no
+    saben de quien es. Para los adjuntos de mensajeria eso permitiria descargar
+    la conversacion ajena adivinando el path, asi que se cierran aqui y solo se
+    sirven por `/api/messaging/attachments/<id>`, que si comprueba pertenencia.
+    """
+    rel = os.path.relpath(safe_path, upload_dir)
+    return rel.split(os.sep)[0] == 'messaging'
+
+
 @bp.route('/uploads/<path:filename>')
 @login_required
 def serve_upload(filename: str):
@@ -1265,6 +1276,8 @@ def serve_upload(filename: str):
     safe_path = os.path.normpath(os.path.join(upload_dir, filename))
     if not safe_path.startswith(upload_dir):
         abort(403)
+    if _is_messaging_path(upload_dir, safe_path):
+        abort(404)
     return send_from_directory(upload_dir, filename)
 
 
@@ -1275,6 +1288,8 @@ def api_serve_upload(filename: str):
     safe_path = os.path.normpath(os.path.join(upload_dir, filename))
     if not safe_path.startswith(upload_dir):
         abort(403)
+    if _is_messaging_path(upload_dir, safe_path):
+        abort(404)
     return send_from_directory(upload_dir, filename)
 
 

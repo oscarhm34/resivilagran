@@ -1,5 +1,5 @@
 // La Vila Gran — Service Worker (cache-first for app shell)
-const CACHE_NAME = 'lavilagran-v1';
+const CACHE_NAME = 'lavilagran-v2';
 const SHELL_URLS = [
     '/worker',
     'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css',
@@ -42,7 +42,8 @@ self.addEventListener('push', function(event) {
             badge: '/static/icon-192.png',
             data: { url: data.url || '/worker' },
             vibrate: [200, 100, 200],
-            tag: 'lavilagran-' + Date.now(),
+            tag: data.tag || 'lavilagran',
+            renotify: true,
         })
     );
 });
@@ -53,7 +54,12 @@ self.addEventListener('notificationclick', function(event) {
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
             for (var c of clientList) {
-                if (c.url.includes('/worker') && 'focus' in c) return c.focus();
+                if (c.url.includes('/worker') && 'focus' in c) {
+                    // La ventana ya esta abierta: el service worker no puede
+                    // navegarla, asi que le pasa el destino y lo abre la app.
+                    if ('postMessage' in c) c.postMessage({ type: 'deeplink', url: url });
+                    return c.focus();
+                }
             }
             return clients.openWindow(url);
         })

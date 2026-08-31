@@ -1,0 +1,601 @@
+"""Mensajeria interna entre usuarios de la aplicacion.
+
+Es la primera funcionalidad que comparten la PWA de trabajadoras y el panel de
+administracion, porque una conversacion tiene de un lado a una trabajadora con
+su JWT y del otro a una gestora con su cookie de sesion. De ahi el decorador
+`dual_auth` en vez de duplicar cada ruta.
+
+Invariante del modulo: **ninguna consulta que devuelva mensajes o adjuntos se
+escribe sin pasar por `_require_membership()`**. Es lo unico que sostiene el
+requisito de que el administrador no lee conversaciones ajenas, asi que no hay
+atajos: tambien las rutas de solo lectura pasan por ahi.
+"""
+from __future__ import annotations
+
+from datetime import datetime, timedelta
+
+from flask import Blueprint, request, jsonify, render_template
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import joinedload
+
+from .. import app, db, limiter
+from ..models import Cleaner, Conversation, ConversationMember, Message
+from ..utils import admin_required, dual_auth, current_dual_user, _safe_commit
+
+bp = Blueprint('messaging', __name__)
+
+PREVIEW_MAX = 140
+PAGE_SIZE = 50
+DELETE_WINDOW_MINUTES = 60
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  HELPERS
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _require_membership(conversation_id: int):
+    """Devuelve mi ConversationMember, o None si no tengo nada que hacer aqui.
+
+    Quien llama responde **404**, nunca 403: un 403 confirmaria que esa
+    conversacion existe, y eso ya es informacion sobre conversaciones ajenas.
+    """
+    user = current_dual_user()
+    if not user:
+        return None
+    return ConversationMember.query.filter_by(
+        conversation_id=conversation_id, cleaner_id=user.id).first()
+
+
+def _visible_messages(member: ConversationMember):
+    """Consulta base de los mensajes que este miembro puede ver.
+
+    Recorta por los dos cortes propios: lo vaciado por el (`cleared_before_id`)
+    y, si salio de un grupo, lo dicho despues de irse (`left_at_message_id`).
+    """
+    q = Message.query.filter(
+        Message.conversation_id == member.conversation_id,
+        Message.id > member.cleared_before_id,
+    )
+    if member.left_at is not None:
+        q = q.filter(Message.id <= member.left_at_message_id)
+    return q
+
+
+def _unread_counts(cleaner_id: int) -> dict:
+    """{conversation_id: no_leidos} de todas mis conversaciones, en una consulta.
+
+    Sin esto la lista de conversaciones haria una consulta por fila.
+    """
+    rows = (
+        db.session.query(Message.conversation_id, func.count(Message.id))
+        .join(ConversationMember,
+              ConversationMember.conversation_id == Message.conversation_id)
+        .filter(
+            ConversationMember.cleaner_id == cleaner_id,
+            Message.id > ConversationMember.last_read_message_id,
+            Message.id > ConversationMember.cleared_before_id,
+            Message.sender_id != cleaner_id,
+            Message.deleted_at.is_(None),
+        )
+        .group_by(Message.conversation_id)
+        .all()
+    )
+    return {cid: n for cid, n in rows}
+
+
+def _read_watermarks(conversation_id: int, me_id: int) -> tuple:
+    """(visto_por_todos, visto_por_alguien) segun las marcas de los demas.
+
+    De estos dos enteros salen los ticks de todo el hilo, sin guardar una fila
+    de "leido" por mensaje y por persona.
+    """
+    rows = (
+        db.session.query(ConversationMember.last_read_message_id)
+        .filter(
+            ConversationMember.conversation_id == conversation_id,
+            ConversationMember.cleaner_id != me_id,
+            ConversationMember.left_at.is_(None),
+        ).all()
+    )
+    valores = [r[0] for r in rows]
+    if not valores:
+        return 0, 0
+    return min(valores), max(valores)
+
+
+def _preview_for(msg: Message) -> str:
+    """Resumen de una linea para la lista de conversaciones."""
+    if msg.deleted_at:
+        return 'Mensaje eliminado'
+    etiquetas = {'image': '📷 Foto', 'audio': '🎤 Nota de voz', 'video': '🎬 Vídeo'}
+    if msg.kind in etiquetas:
+        return etiquetas[msg.kind]
+    return (msg.body or '')[:PREVIEW_MAX]
+
+
+def _touch_conversation(conv: Conversation, msg: Message) -> None:
+    conv.last_message_at = msg.created_at
+    conv.last_message_id = msg.id
+    conv.last_message_preview = _preview_for(msg)
+
+
+def _peer_of(conv: Conversation, me_id: int):
+    """La otra persona de una conversacion 1-a-1."""
+    otro = ConversationMember.query.filter(
+        ConversationMember.conversation_id == conv.id,
+        ConversationMember.cleaner_id != me_id,
+    ).first()
+    return otro.cleaner if otro else None
+
+
+def _conversation_title(conv: Conversation, me_id: int) -> str:
+    if conv.kind == 'group':
+        return conv.title or 'Grupo'
+    peer = _peer_of(conv, me_id)
+    return peer.name if peer else 'Conversación'
+
+
+def _message_json(msg: Message) -> dict:
+    if msg.deleted_at:
+        return {
+            'id': msg.id, 'sender_id': msg.sender_id, 'kind': msg.kind,
+            'body': None, 'deleted': True,
+            'created_at': msg.created_at.isoformat(), 'attachment': None,
+        }
+    adj = msg.attachments[0] if msg.attachments else None
+    return {
+        'id': msg.id,
+        'sender_id': msg.sender_id,
+        'sender_name': msg.sender.name if msg.sender else '',
+        'kind': msg.kind,
+        'body': msg.body,
+        'deleted': False,
+        'created_at': msg.created_at.isoformat(),
+        'attachment': {
+            'id': adj.id, 'media_type': adj.media_type,
+            'duration_seconds': adj.duration_seconds,
+            'width': adj.width, 'height': adj.height,
+            'has_thumb': bool(adj.thumb_path),
+        } if adj else None,
+    }
+
+
+def _my_conversations(cleaner_id: int, archived: bool = False):
+    return (
+        db.session.query(Conversation, ConversationMember)
+        .join(ConversationMember,
+              ConversationMember.conversation_id == Conversation.id)
+        .filter(
+            ConversationMember.cleaner_id == cleaner_id,
+            ConversationMember.archived == archived,
+            Conversation.is_active.is_(True),
+        )
+        .options(joinedload(Conversation.members))
+        .order_by(Conversation.last_message_at.desc().nullslast(),
+                  Conversation.id.desc())
+    )
+
+
+def _serialize_conversations(pares, unread: dict, me_id: int) -> list:
+    salida = []
+    for conv, member in pares:
+        salida.append({
+            'id': conv.id,
+            'kind': conv.kind,
+            'title': _conversation_title(conv, me_id),
+            'last_message_preview': conv.last_message_preview,
+            'last_message_at': conv.last_message_at.isoformat() if conv.last_message_at else None,
+            'unread': unread.get(conv.id, 0),
+            'muted': bool(member.muted_until and member.muted_until > datetime.now()),
+            'left': member.left_at is not None,
+            'member_count': len([m for m in conv.members if m.left_at is None]),
+        })
+    return salida
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  CONVERSACIONES
+# ══════════════════════════════════════════════════════════════════════════════
+
+@bp.route('/api/messaging/conversations', methods=['GET'])
+@dual_auth
+def list_conversations():
+    me = current_dual_user()
+    archivadas = request.args.get('archived') == '1'
+    pares = _my_conversations(me.id, archived=archivadas).all()
+    unread = _unread_counts(me.id)
+    return jsonify(_serialize_conversations(pares, unread, me.id)), 200
+
+
+@bp.route('/api/messaging/conversations/direct', methods=['POST'])
+@limiter.limit('30/minute')
+@dual_auth
+def open_direct():
+    """Abre (o recupera) la conversacion 1-a-1 con otra persona."""
+    me = current_dual_user()
+    data = request.json or {}
+    peer_id = data.get('peer_id')
+    if not isinstance(peer_id, int) or peer_id == me.id:
+        return jsonify({'error': 'Destinatario no válido'}), 400
+
+    peer = db.session.get(Cleaner, peer_id)
+    if not peer or not peer.active:
+        return jsonify({'error': 'Destinatario no válido'}), 400
+
+    clave = Conversation.direct_key(me.id, peer_id)
+    conv = Conversation.query.filter_by(dm_key=clave).first()
+    if conv:
+        return jsonify({'conversation_id': conv.id, 'created': False}), 200
+
+    conv = Conversation(kind='direct', dm_key=clave, created_by=me.id)
+    db.session.add(conv)
+    db.session.flush()
+    db.session.add(ConversationMember(conversation_id=conv.id, cleaner_id=me.id))
+    db.session.add(ConversationMember(conversation_id=conv.id, cleaner_id=peer_id))
+
+    try:
+        db.session.commit()
+    except IntegrityError:
+        # Los dos moviles han pulsado a la vez: gana el que llego primero y este
+        # se queda con la conversacion que ya existe.
+        db.session.rollback()
+        conv = Conversation.query.filter_by(dm_key=clave).first()
+        if not conv:
+            return jsonify({'error': 'No se pudo abrir la conversación'}), 500
+        return jsonify({'conversation_id': conv.id, 'created': False}), 200
+
+    return jsonify({'conversation_id': conv.id, 'created': True}), 201
+
+
+@bp.route('/api/messaging/contacts', methods=['GET'])
+@dual_auth
+def list_contacts():
+    me = current_dual_user()
+    q = (request.args.get('q') or '').strip()
+    consulta = Cleaner.query.filter(Cleaner.active.is_(True), Cleaner.id != me.id)
+    if q:
+        consulta = consulta.filter(Cleaner.name.ilike(f'%{q}%'))
+    personas = consulta.order_by(Cleaner.name).limit(100).all()
+    return jsonify([
+        {'id': c.id, 'name': c.name, 'role': c.role} for c in personas
+    ]), 200
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  MENSAJES
+# ══════════════════════════════════════════════════════════════════════════════
+
+@bp.route('/api/messaging/conversations/<int:cid>/messages', methods=['GET'])
+@dual_auth
+def list_messages(cid: int):
+    member = _require_membership(cid)
+    if not member:
+        return jsonify({'error': 'No encontrado'}), 404
+
+    q = _visible_messages(member)
+    before_id = request.args.get('before_id', type=int)
+    after_id = request.args.get('after_id', type=int)
+    if before_id:
+        q = q.filter(Message.id < before_id)
+    if after_id:
+        q = q.filter(Message.id > after_id)
+
+    limite = min(request.args.get('limit', PAGE_SIZE, type=int) or PAGE_SIZE, PAGE_SIZE)
+    filas = (q.options(joinedload(Message.sender), joinedload(Message.attachments))
+              .order_by(Message.id.desc()).limit(limite + 1).all())
+    hay_mas = len(filas) > limite
+    filas = list(reversed(filas[:limite]))
+
+    visto_todos, visto_alguien = _read_watermarks(cid, member.cleaner_id)
+    return jsonify({
+        'messages': [_message_json(m) for m in filas],
+        'has_more': hay_mas,
+        'read_min': visto_todos,
+        'read_max': visto_alguien,
+        'my_last_read': member.last_read_message_id,
+    }), 200
+
+
+@bp.route('/api/messaging/conversations/<int:cid>/messages', methods=['POST'])
+@limiter.limit('120/minute')
+@dual_auth
+def send_message(cid: int):
+    member = _require_membership(cid)
+    if not member or member.left_at is not None:
+        return jsonify({'error': 'No encontrado'}), 404
+
+    data = request.json or {}
+    cuerpo = (data.get('body') or '').strip()
+    if not cuerpo:
+        return jsonify({'error': 'El mensaje está vacío'}), 400
+    if len(cuerpo) > 4000:
+        return jsonify({'error': 'El mensaje es demasiado largo'}), 400
+
+    client_uuid = (data.get('client_uuid') or '').strip() or None
+    if client_uuid:
+        # Reenvio tras un corte de cobertura: devolver el mismo mensaje en vez
+        # de duplicarlo.
+        previo = Message.query.filter_by(
+            sender_id=member.cleaner_id, client_uuid=client_uuid).first()
+        if previo:
+            return jsonify(_message_json(previo)), 200
+
+    msg = Message(conversation_id=cid, sender_id=member.cleaner_id,
+                  kind='text', body=cuerpo, client_uuid=client_uuid)
+    db.session.add(msg)
+    db.session.flush()
+
+    conv = db.session.get(Conversation, cid)
+    _touch_conversation(conv, msg)
+    # Quien escribe ha leido lo suyo.
+    member.last_read_message_id = msg.id
+    member.last_read_at = datetime.now()
+
+    ok, err = _safe_commit('Error al enviar el mensaje')
+    if not ok:
+        return jsonify({'error': err}), 500
+
+    _notify_new_message(conv, msg)
+    return jsonify(_message_json(msg)), 201
+
+
+@bp.route('/api/messaging/messages/<int:mid>/delete', methods=['POST'])
+@dual_auth
+def delete_message(mid: int):
+    me = current_dual_user()
+    msg = db.session.get(Message, mid)
+    if not msg:
+        return jsonify({'error': 'No encontrado'}), 404
+    if not _require_membership(msg.conversation_id):
+        return jsonify({'error': 'No encontrado'}), 404
+    if msg.sender_id != me.id:
+        return jsonify({'error': 'Solo puedes eliminar tus propios mensajes'}), 403
+    if msg.deleted_at:
+        return jsonify({'ok': True}), 200
+    if datetime.now() - msg.created_at > timedelta(minutes=DELETE_WINDOW_MINUTES):
+        return jsonify({
+            'error': f'Solo se puede eliminar durante los primeros {DELETE_WINDOW_MINUTES} minutos'
+        }), 400
+
+    _delete_attachment_files(msg)
+    msg.deleted_at = datetime.now()
+    msg.deleted_by_id = me.id
+    msg.body = None
+
+    conv = db.session.get(Conversation, msg.conversation_id)
+    if conv and conv.last_message_id == msg.id:
+        conv.last_message_preview = 'Mensaje eliminado'
+
+    ok, err = _safe_commit('Error al eliminar el mensaje')
+    if not ok:
+        return jsonify({'error': err}), 500
+    return jsonify({'ok': True}), 200
+
+
+def _delete_attachment_files(msg: Message) -> None:
+    """Borra del disco los ficheros de un mensaje. Definido aqui desde la fase 1
+    para que el borrado no deje huerfanos cuando lleguen los adjuntos."""
+    import os
+    for adj in list(msg.attachments):
+        for rel in (adj.file_path, adj.thumb_path):
+            if not rel:
+                continue
+            try:
+                os.remove(os.path.join(app.config['UPLOAD_FOLDER'], rel))
+            except OSError:
+                pass
+        db.session.delete(adj)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  ESTADO POR MIEMBRO
+# ══════════════════════════════════════════════════════════════════════════════
+
+@bp.route('/api/messaging/conversations/<int:cid>/read', methods=['POST'])
+@dual_auth
+def mark_read(cid: int):
+    member = _require_membership(cid)
+    if not member:
+        return jsonify({'error': 'No encontrado'}), 404
+
+    data = request.json or {}
+    hasta = data.get('up_to_id')
+    if not isinstance(hasta, int):
+        return jsonify({'error': 'Falta el mensaje hasta el que se ha leído'}), 400
+
+    # La marca nunca retrocede: dos pestanas abiertas o un poll que llega tarde
+    # no pueden resucitar mensajes ya leidos.
+    if hasta > member.last_read_message_id:
+        member.last_read_message_id = hasta
+        member.last_read_at = datetime.now()
+        ok, err = _safe_commit('Error al marcar como leído')
+        if not ok:
+            return jsonify({'error': err}), 500
+
+    return jsonify({'ok': True, 'unread': _unread_counts(member.cleaner_id).get(cid, 0)}), 200
+
+
+@bp.route('/api/messaging/conversations/<int:cid>/mute', methods=['POST'])
+@dual_auth
+def mute_conversation(cid: int):
+    member = _require_membership(cid)
+    if not member:
+        return jsonify({'error': 'No encontrado'}), 404
+    horas = (request.json or {}).get('hours', 0)
+    if not isinstance(horas, int) or horas < 0 or horas > 24 * 30:
+        return jsonify({'error': 'Duración no válida'}), 400
+    member.muted_until = datetime.now() + timedelta(hours=horas) if horas else None
+    ok, err = _safe_commit('Error al silenciar la conversación')
+    if not ok:
+        return jsonify({'error': err}), 500
+    return jsonify({'ok': True}), 200
+
+
+@bp.route('/api/messaging/conversations/<int:cid>/clear', methods=['POST'])
+@dual_auth
+def clear_conversation(cid: int):
+    """Vacia la conversacion **solo para quien lo pide**."""
+    member = _require_membership(cid)
+    if not member:
+        return jsonify({'error': 'No encontrado'}), 404
+    ultimo = db.session.query(func.max(Message.id)).filter(
+        Message.conversation_id == cid).scalar() or 0
+    member.cleared_before_id = ultimo
+    if ultimo > member.last_read_message_id:
+        member.last_read_message_id = ultimo
+    ok, err = _safe_commit('Error al vaciar la conversación')
+    if not ok:
+        return jsonify({'error': err}), 500
+    return jsonify({'ok': True}), 200
+
+
+@bp.route('/api/messaging/conversations/<int:cid>/archive', methods=['POST'])
+@dual_auth
+def archive_conversation(cid: int):
+    member = _require_membership(cid)
+    if not member:
+        return jsonify({'error': 'No encontrado'}), 404
+    member.archived = bool((request.json or {}).get('archived', True))
+    ok, err = _safe_commit('Error al archivar la conversación')
+    if not ok:
+        return jsonify({'error': err}), 500
+    return jsonify({'ok': True}), 200
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  SONDEO
+# ══════════════════════════════════════════════════════════════════════════════
+
+@bp.route('/api/messaging/poll', methods=['GET'])
+@dual_auth
+def poll():
+    """Delta desde `cursor`. Sin limite de peticiones a proposito.
+
+    Los contadores de Flask-Limiter viven en memoria y por worker (hay dos), asi
+    que un limite aqui daria 429 aleatorios segun a que worker caiga el sondeo.
+    El coste real de esta ruta son dos consultas agregadas indexadas y, cuando
+    no hay novedades, una respuesta de ~40 bytes.
+    """
+    me = current_dual_user()
+    cursor = request.args.get('cursor', 0, type=int)
+    cid = request.args.get('cid', type=int)
+    since = request.args.get('since')
+
+    ultimo = db.session.query(func.max(Message.id)).join(
+        ConversationMember,
+        ConversationMember.conversation_id == Message.conversation_id,
+    ).filter(ConversationMember.cleaner_id == me.id).scalar() or 0
+
+    unread = _unread_counts(me.id)
+    total = sum(unread.values())
+
+    if ultimo <= cursor and not cid:
+        return jsonify({'cursor': ultimo, 'changed': False, 'total_unread': total}), 200
+
+    pares = [
+        (conv, member) for conv, member in _my_conversations(me.id).all()
+        if (conv.last_message_id or 0) > cursor
+    ]
+    salida = {
+        'cursor': ultimo,
+        'total_unread': total,
+        'conversations': _serialize_conversations(pares, unread, me.id),
+    }
+
+    if cid:
+        member = _require_membership(cid)
+        if not member:
+            return jsonify({'error': 'No encontrado'}), 404
+        nuevos = (_visible_messages(member)
+                  .filter(Message.id > cursor)
+                  .options(joinedload(Message.sender), joinedload(Message.attachments))
+                  .order_by(Message.id).limit(PAGE_SIZE).all())
+        salida['messages'] = [_message_json(m) for m in nuevos]
+        visto_todos, visto_alguien = _read_watermarks(cid, me.id)
+        salida['read_min'] = visto_todos
+        salida['read_max'] = visto_alguien
+
+        # Un mensaje borrado no cambia de id, asi que no entra por `id > cursor`:
+        # sin esto la lapida no llegaria nunca a quien ya tenia el hilo abierto.
+        if since:
+            try:
+                desde = datetime.fromisoformat(since)
+            except ValueError:
+                desde = None
+            if desde:
+                borrados = _visible_messages(member).filter(
+                    Message.deleted_at.isnot(None), Message.deleted_at >= desde).all()
+                salida['updated'] = [{'id': m.id, 'deleted': True} for m in borrados]
+
+    # `changed` dice si hay algo que pintar, no si venia un `cid`. Con la
+    # conversacion abierta y en silencio tiene que salir False, o el cliente no
+    # afloja nunca el ritmo del sondeo.
+    salida['changed'] = bool(salida['conversations']
+                             or salida.get('messages')
+                             or salida.get('updated'))
+    return jsonify(salida), 200
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  AVISOS
+# ══════════════════════════════════════════════════════════════════════════════
+
+PUSH_COALESCE_MINUTES = 5
+
+
+def _notify_new_message(conv: Conversation, msg: Message) -> None:
+    """Aviso push a los demas miembros.
+
+    El cuerpo **nunca lleva el texto del mensaje**: lo escribe una trabajadora y
+    puede nombrar a un residente, y el push viaja por un servicio externo. Ver
+    la regla de seguridad sobre datos de salud.
+
+    `send_push_to_worker` es sincrono y hace un POST por suscripcion dentro de
+    esta peticion, asi que se agrupa: como mucho un aviso cada cinco minutos por
+    persona y conversacion. El resto se ve al abrir la app.
+    """
+    from .notifications import send_push_to_worker
+
+    ahora = datetime.now()
+    corte = ahora - timedelta(minutes=PUSH_COALESCE_MINUTES)
+    titulo = conv.title or (msg.sender.name if msg.sender else 'Mensaje nuevo')
+    cuerpo = ('Nuevo mensaje en el grupo' if conv.kind == 'group'
+              else 'Te ha enviado un mensaje')
+
+    destinatarios = ConversationMember.query.filter(
+        ConversationMember.conversation_id == conv.id,
+        ConversationMember.cleaner_id != msg.sender_id,
+        ConversationMember.left_at.is_(None),
+    ).all()
+
+    avisados = False
+    for m in destinatarios:
+        if m.muted_until and m.muted_until > ahora:
+            continue
+        if m.last_push_at and m.last_push_at > corte:
+            continue
+        m.last_push_at = ahora
+        avisados = True
+        try:
+            send_push_to_worker(m.cleaner_id, titulo, cuerpo,
+                                url=f'/worker?chat={conv.id}', tag=f'chat-{conv.id}')
+        except Exception as e:  # el aviso nunca puede tumbar el envio
+            app.logger.error('Error al enviar el aviso de mensaje: %s', e)
+
+    if avisados:
+        ok, err = _safe_commit('Error al registrar el aviso')
+        if not ok:
+            app.logger.error('No se pudo registrar el aviso de mensaje: %s', err)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  PANEL DE ADMINISTRACION
+# ══════════════════════════════════════════════════════════════════════════════
+
+@bp.route('/admin/mensajes')
+@admin_required
+def admin_messaging():
+    """Pagina del panel. Los datos los pide por `/api/messaging/...`, que
+    comprueba pertenencia: desde aqui no se ve ninguna conversacion ajena."""
+    return render_template('admin_messaging.html')

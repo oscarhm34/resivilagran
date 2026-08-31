@@ -727,7 +727,7 @@ def push_unsubscribe():
     return jsonify({'ok': True})
 
 
-def send_push_to_worker(worker_id, title, body, url=None):
+def send_push_to_worker(worker_id, title, body, url=None, tag=None):
     """Send a web push notification to all subscriptions of a worker."""
     from flask import current_app
     priv_key = current_app.config.get('VAPID_PRIVATE_KEY')
@@ -748,6 +748,9 @@ def send_push_to_worker(worker_id, title, body, url=None):
         'title': title,
         'body': body[:200] if body else '',
         'url': url or '/worker',
+        # Agrupa los avisos de una misma conversacion: sin `tag`, el service
+        # worker apila uno nuevo por mensaje y la barra de Android se llena.
+        'tag': tag or 'lavilagran',
     })
 
     for sub in subs:
