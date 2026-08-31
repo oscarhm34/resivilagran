@@ -245,6 +245,10 @@ class TestEditCleaner:
             follow_redirects=True,
         )
         assert response.status_code == 200
+        # El nombre del test promete un aviso: comprobarlo, y que no se haya
+        # creado un empleado fantasma con ese id inexistente.
+        assert Cleaner.query.filter_by(username="ghost").first() is None
+        assert "no encontrado" in response.get_data(as_text=True).lower()
 
 
 class TestDeleteCleaner:

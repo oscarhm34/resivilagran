@@ -139,6 +139,9 @@ class TestAddEditRoom:
             follow_redirects=True,
         )
         assert response.status_code == 200
+        # Lo que importa no es el 200, sino que no se haya creado una habitacion
+        # fantasma al editar un id inexistente.
+        assert Room.query.filter_by(number="X").first() is None
 
     def test_add_room_requires_auth(self, client, floor, room_type, db):
         """Sin sesión redirige a login."""

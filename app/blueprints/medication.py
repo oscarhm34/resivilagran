@@ -330,6 +330,11 @@ def worker_administer():
     status = data.get('status', 'given')
     notes = data.get('notes', '').strip() or None
 
+    # Es un registro de administracion de farmacos: sin lista blanca se guardaba
+    # cualquier cadena que llegase del cliente como estado.
+    if status not in STATUS_LABELS:
+        return jsonify({'error': 'Estado de administracion no valido'}), 400
+
     p = db.session.get(MedicationPrescription, presc_id)
     if not p:
         return jsonify({'error': 'Prescripcion no encontrada'}), 404

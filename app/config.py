@@ -50,10 +50,34 @@ def _vapid_keys():
 _VAPID_PRIVATE, _VAPID_PUBLIC = _vapid_keys()
 
 
+def _database_uri() -> str:
+    """URI de la base de datos, con red de seguridad para produccion.
+
+    Sin esta guarda, un DATABASE_URL ausente (un typo en el compose, un .env mal
+    montado) no fallaba: la app arrancaba contra un SQLite vacio dentro del
+    contenedor, `db.create_all()` le creaba el esquema y todo parecia funcionar
+    mientras se escribian atenciones y medicacion en una base que se pierde al
+    recrear el contenedor.
+
+    El fallback a SQLite se conserva en local y en los tests, que dependen de el.
+    Solo se exige DATABASE_URL dentro de un contenedor, que es donde corre
+    produccion (/.dockerenv lo crea Docker).
+    """
+    url = os.environ.get('DATABASE_URL')
+    if url:
+        return url
+    if os.path.exists('/.dockerenv'):
+        raise RuntimeError(
+            'Falta DATABASE_URL. La aplicacion no arranca contra SQLite dentro '
+            'del contenedor: los datos se perderian al recrearlo. Revisa '
+            'DB_PASSWORD y DATABASE_URL en el .env del servidor.')
+    return 'sqlite:///cleaning_service.db'
+
+
 class Config:
     SECRET_KEY = _persistent_secret('SECRET_KEY', '.secret_key')
     JWT_SECRET_KEY = _persistent_secret('JWT_SECRET_KEY', '.jwt_secret_key')
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///cleaning_service.db'
+    SQLALCHEMY_DATABASE_URI = _database_uri()
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'uploads')
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB

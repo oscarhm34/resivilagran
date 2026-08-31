@@ -45,6 +45,13 @@ def make_record(cleaner_id, room_id, start_offset_days=0, duration_minutes=20,
     return record
 
 
+def filas(response):
+    """Solo el cuerpo de la tabla: la pagina lleva los numeros de habitacion
+    tambien en el desplegable de filtros, y ahi salen todos siempre."""
+    html = response.get_data(as_text=True)
+    return html.split('<tbody>')[1].split('</tbody>')[0]
+
+
 # ── GET /registros-limpieza ───────────────────────────────────────────────────
 
 class TestRegistrosLimpieza:
@@ -89,31 +96,42 @@ class TestRegistrosLimpieza:
         assert response.status_code == 200
         assert cleaner_user.name.encode() in response.data
 
-    def test_filter_by_start_date(self, auth_client, cleaner_user, room):
+    def test_filter_by_start_date(self, auth_client, cleaner_user, room, second_room):
         """Filtrar por start_date excluye registros anteriores a esa fecha."""
-        # Registro de hace 10 días
-        make_record(cleaner_user.id, room.id, start_offset_days=10)
-        # Registro de hoy
-        make_record(cleaner_user.id, room.id, start_offset_days=0)
+        make_record(cleaner_user.id, second_room.id, start_offset_days=10)  # fuera
+        make_record(cleaner_user.id, room.id, start_offset_days=0)          # dentro
 
         today_str = datetime.now().strftime("%Y-%m-%d")
         response = auth_client.get(
             f"/registros-limpieza?start_date={today_str}"
         )
         assert response.status_code == 200
+        assert room.number in filas(response)
+        assert second_room.number not in filas(response)
 
-    def test_filter_by_end_date(self, auth_client, cleaner_user, room):
+    def test_filter_by_end_date(self, auth_client, cleaner_user, room, second_room):
         """Filtrar por end_date excluye registros posteriores a esa fecha."""
+        make_record(cleaner_user.id, room.id, start_offset_days=10)         # dentro
+        make_record(cleaner_user.id, second_room.id, start_offset_days=0)   # fuera
+
         yesterday_str = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
         response = auth_client.get(
             f"/registros-limpieza?end_date={yesterday_str}"
         )
         assert response.status_code == 200
+        assert room.number in filas(response)
+        assert second_room.number not in filas(response)
 
-    def test_pagination_page_param_is_accepted(self, auth_client, db):
-        """El parámetro page no causa error aunque no haya resultados."""
-        response = auth_client.get("/registros-limpieza?page=2")
-        assert response.status_code == 200
+    def test_pagination_page_param_is_accepted(self, auth_client, db, cleaner_user, room):
+        """La segunda página no repite lo que ya salía en la primera."""
+        make_record(cleaner_user.id, room.id, start_offset_days=0)
+
+        primera = auth_client.get("/registros-limpieza?page=1")
+        segunda = auth_client.get("/registros-limpieza?page=2")
+
+        assert segunda.status_code == 200
+        assert room.number in filas(primera)
+        assert room.number not in filas(segunda)
 
     def test_no_records_renders_empty_page(self, auth_client, db):
         """Sin registros la página renderiza sin errores (lista vacía)."""
