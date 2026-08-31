@@ -611,10 +611,24 @@ def worker_notifications():
     if not worker:
         return jsonify({'count': 0, 'notifications': []}), 200
 
-    try:
-        _generate_notifications()
-    except Exception:
-        pass
+    # La PWA sondea cada 5 minutos y por trabajadora. Regenerar aqui el sistema
+    # entero de avisos (documentos, cobertura, relevo, incidencias) eran decenas de
+    # consultas x N trabajadoras x 12 veces/hora solo para leer un contador. Se
+    # limita con la misma marca en AppSetting que ya usan los insights de IA.
+    ultima = AppSetting.get('worker_notifs_last_run', '')
+    hay_que_generar = True
+    if ultima:
+        try:
+            if (datetime.now() - datetime.fromisoformat(ultima)).total_seconds() < 600:
+                hay_que_generar = False
+        except (ValueError, TypeError):
+            pass
+    if hay_que_generar:
+        AppSetting.set('worker_notifs_last_run', datetime.now().isoformat())
+        try:
+            _generate_notifications()
+        except Exception as e:
+            app.logger.error('Error al generar los avisos de la trabajadora: %s', e)
 
     cutoff = datetime.now() - timedelta(days=2)
     notifs = Notification.query.filter(

@@ -724,14 +724,25 @@ def ultima_limpieza():
     now = datetime.now()
     last_cleaning_info = []
 
+    # Antes se lanzaba una consulta por habitacion, mas otra por el nombre de la
+    # limpiadora: ~120 viajes a la base de datos con 60 habitaciones. Ahora son
+    # dos: el maximo por habitacion y los registros correspondientes.
+    ultimas = dict(
+        db.session.query(CleaningRecord.room_id, db.func.max(CleaningRecord.end_time))
+        .filter(CleaningRecord.end_time.isnot(None))
+        .group_by(CleaningRecord.room_id).all()
+    )
+    registros = {}
+    if ultimas:
+        for r in (CleaningRecord.query
+                  .options(joinedload(CleaningRecord.cleaner))
+                  .filter(CleaningRecord.end_time.in_(ultimas.values()))
+                  .filter(CleaningRecord.room_id.in_(ultimas.keys())).all()):
+            if ultimas.get(r.room_id) == r.end_time:
+                registros[r.room_id] = r
+
     for room in rooms:
-        last_record = (
-            CleaningRecord.query
-            .filter_by(room_id=room.id)
-            .filter(CleaningRecord.end_time.isnot(None))
-            .order_by(CleaningRecord.end_time.desc())
-            .first()
-        )
+        last_record = registros.get(room.id)
         if last_record:
             hours_since = (now - last_record.end_time).total_seconds() / 3600
             last_cleaning_info.append({

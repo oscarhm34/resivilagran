@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, date
 
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from sqlalchemy import and_
+from sqlalchemy import and_, func
 from sqlalchemy.orm import joinedload
 
 from .. import db
@@ -577,10 +577,14 @@ def admin_cleaning_analytics():
 
     # Coverage gaps: rooms not cleaned in last 7 days
     week_ago = datetime.now() - timedelta(days=7)
-    last_cleaned = {}
-    for r in CleaningRecord.query.filter(CleaningRecord.end_time.isnot(None)).all():
-        if r.room_id not in last_cleaned or r.start_time > last_cleaned[r.room_id]:
-            last_cleaned[r.room_id] = r.start_time
+    # La ultima limpieza de cada habitacion se resuelve con un GROUP BY. Antes se
+    # traia el historico entero de cleaning_record para calcular un maximo en
+    # Python: con un ano de operacion son decenas de miles de objetos por carga.
+    last_cleaned = dict(
+        db.session.query(CleaningRecord.room_id, func.max(CleaningRecord.start_time))
+        .filter(CleaningRecord.end_time.isnot(None))
+        .group_by(CleaningRecord.room_id).all()
+    )
 
     coverage_gaps = []
     for room in rooms:

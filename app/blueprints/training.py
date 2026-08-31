@@ -7,7 +7,7 @@ from datetime import datetime
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash, abort
 from flask_login import current_user
 from flask_jwt_extended import jwt_required
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 from .. import db, app, limiter
 from ..models import (Cleaner, TrainingPill, TrainingQuestion, TrainingCompletion,
@@ -90,8 +90,20 @@ def _discard_audio(tr: TrainingTranslation) -> None:
 @bp.route('/admin/training')
 @admin_required
 def admin_training():
-    pills = TrainingPill.query.order_by(TrainingPill.created_at.desc()).all()
+    # selectinload evita una consulta por pildora al leer preguntas y asignaciones.
+    pills = TrainingPill.query.options(
+        selectinload(TrainingPill.questions),
+        selectinload(TrainingPill.assignments),
+    ).order_by(TrainingPill.created_at.desc()).all()
     total_workers = _trainable_workers().count()
+    # El conteo de aprobados se hace con un GROUP BY: la plantilla cargaba en
+    # memoria todas las finalizaciones de cada pildora solo para contarlas, sobre
+    # una tabla que crece con cada intento de cada trabajadora.
+    completed_by_pill = dict(
+        db.session.query(TrainingCompletion.pill_id, db.func.count())
+        .filter(TrainingCompletion.passed.is_(True))
+        .group_by(TrainingCompletion.pill_id).all()
+    )
     pills_json = {p.id: {
         'title': p.title, 'description': p.description or '',
         'video_url': p.video_url or '',
@@ -113,7 +125,8 @@ def admin_training():
     } for p in pills}
     workers = _trainable_workers().all()
     return render_template('admin_training.html', pills=pills,
-                           total_workers=total_workers, pills_json=pills_json, workers=workers)
+                           total_workers=total_workers, pills_json=pills_json,
+                           workers=workers, completed_by_pill=completed_by_pill)
 
 
 @bp.route('/admin/training/create', methods=['POST'])

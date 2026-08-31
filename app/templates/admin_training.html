@@ -34,12 +34,12 @@
         </thead>
         <tbody>
             {% for pill in pills %}
-            {% set completed = pill.completions|selectattr('passed')|list|length %}
+            {% set completed = completed_by_pill.get(pill.id, 0) %}
             {% set passed_pct = (completed / total_workers * 100)|round|int if total_workers else 0 %}
             <tr>
                 <td style="font-weight:600">
                     {{ pill.title }}
-                    {% if pill.mandatory %}<span class="badge bg-danger ms-1" style="font-size:.6rem">OBLIGATÒRIA</span>{% endif %}
+                    {% if pill.mandatory %}<span class="badge bg-danger ms-1" style="font-size:.6rem">OBLIGATORIA</span>{% endif %}
                     {% if pill.assign_mode == 'selected' %}<span class="badge bg-info ms-1" style="font-size:.6rem">{{ pill.assignments|length }} asignados</span>{% endif %}
                 </td>
                 <td>{{ pill.questions|length }}</td>

@@ -830,15 +830,18 @@ def resident_detail(resident_id: int):
     for record in pagination.items:
         record.duration = _format_duration(record.start_time, record.end_time)
 
-    # Vital signs chart data: all readings for this resident, grouped by type
-    all_readings = db.session.query(VitalSignReading).join(CareRecord).filter(
-        CareRecord.resident_id == resident_id
-    ).join(VitalSignReading.vital_sign_type).order_by(CareRecord.start_time.asc()).all()
+    # Graficas de constantes: ultimos 12 meses, no el historico entero. La fecha se
+    # selecciona en la propia consulta en vez de navegar r.care_record.start_time,
+    # que disparaba un SELECT por cada lectura.
+    un_ano_atras = datetime.now() - timedelta(days=365)
+    lecturas = db.session.query(
+        VitalSignReading.value, CareRecord.start_time, VitalSignType,
+    ).join(CareRecord, VitalSignReading.care_record_id == CareRecord.id)     .join(VitalSignType, VitalSignReading.vital_sign_type_id == VitalSignType.id)     .filter(CareRecord.resident_id == resident_id,
+             CareRecord.start_time >= un_ano_atras)     .order_by(CareRecord.start_time.asc()).all()
 
     vital_charts = {}
-    for r in all_readings:
-        vst = r.vital_sign_type
-        if not vst or not r.care_record or not r.care_record.start_time or r.value is None:
+    for valor, medido_en, vst in lecturas:
+        if valor is None or not medido_en:
             continue
         key = vst.id
         if key not in vital_charts:
@@ -850,8 +853,8 @@ def resident_detail(resident_id: int):
                 'labels': [],
                 'data': [],
             }
-        vital_charts[key]['labels'].append(r.care_record.start_time.strftime('%d/%m/%Y %H:%M'))
-        vital_charts[key]['data'].append(float(r.value))
+        vital_charts[key]['labels'].append(medido_en.strftime('%d/%m/%Y %H:%M'))
+        vital_charts[key]['data'].append(float(valor))
 
     # Care activity heatmap: count care records per day (last 6 months)
     six_months_ago = datetime.now() - timedelta(days=180)
