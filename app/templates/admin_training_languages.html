@@ -30,8 +30,10 @@
 <div class="alert alert-secondary">
     <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
     La trabajadora elige el idioma en su móvil, escucha la instrucción y responde
-    <strong>Sí</strong> o <strong>No</strong>. Solo aparecen los idiomas que tengan texto
-    traducido. Si cambias el texto en español, hay que volver a traducir y a generar el audio.
+    <strong>Sí</strong> o <strong>No</strong>. En el móvil <strong>solo aparecen los idiomas
+    que tengan texto traducido</strong>: marca con las casillas los que quieras usar
+    (por ejemplo, solo español y árabe) y quita con la papelera los que no.
+    Si cambias el texto en español, hay que volver a traducir y a generar el audio.
 </div>
 
 {% for q in instructions %}
@@ -40,10 +42,10 @@
         <strong>Instrucción {{ loop.index }}</strong>
         <div class="d-flex gap-2">
             <button type="button" class="btn btn-sm btn-outline-primary translate-all-btn">
-                <i class="bi bi-translate me-1" aria-hidden="true"></i>Traducir todo con IA
+                <i class="bi bi-translate me-1" aria-hidden="true"></i>Traducir seleccionados
             </button>
             <button type="button" class="btn btn-sm btn-outline-success audio-all-btn">
-                <i class="bi bi-volume-up me-1" aria-hidden="true"></i>Generar todos los audios
+                <i class="bi bi-volume-up me-1" aria-hidden="true"></i>Generar audios seleccionados
             </button>
         </div>
     </div>
@@ -55,16 +57,25 @@
             <table class="table table-sm align-middle">
                 <thead>
                     <tr>
+                        <th style="width:40px">
+                            <input type="checkbox" class="form-check-input lang-check-all" checked
+                                   title="Marcar o desmarcar todos los idiomas"
+                                   aria-label="Marcar o desmarcar todos los idiomas">
+                        </th>
                         <th style="width:150px">Idioma</th>
                         <th>Texto</th>
                         <th style="width:110px">Sí / No</th>
-                        <th style="width:210px">Audio</th>
+                        <th style="width:250px">Audio</th>
                     </tr>
                 </thead>
                 <tbody>
                 {% for code, meta in languages.items() %}
                     {% set tr = q.translation(code) %}
                     <tr data-lang="{{ code }}">
+                        <td>
+                            <input type="checkbox" class="form-check-input lang-check" checked
+                                   aria-label="Seleccionar {{ meta.name }}">
+                        </td>
                         <td>
                             <span aria-hidden="true">{{ meta.flag }}</span>
                             {{ meta.native }}
@@ -94,6 +105,13 @@
                                 {% endif %}
                             </div>
                             <div class="d-flex gap-1">
+                                {% if code != 'es' %}
+                                <button type="button" class="btn btn-sm btn-outline-primary gen-tr-btn"
+                                        title="Traducir solo este idioma con IA"
+                                        aria-label="Traducir solo este idioma con IA">
+                                    <i class="bi bi-translate" aria-hidden="true"></i>
+                                </button>
+                                {% endif %}
                                 <button type="button" class="btn btn-sm btn-outline-secondary save-tr-btn"
                                         title="Guardar el texto" aria-label="Guardar el texto">
                                     <i class="bi bi-save" aria-hidden="true"></i>
@@ -102,6 +120,12 @@
                                         title="Generar el audio" aria-label="Generar el audio">
                                     <i class="bi bi-mic" aria-hidden="true"></i>
                                 </button>
+                                {% if code != 'es' %}
+                                <button type="button" class="btn btn-sm btn-outline-danger del-tr-btn"
+                                        title="Quitar este idioma" aria-label="Quitar este idioma">
+                                    <i class="bi bi-trash" aria-hidden="true"></i>
+                                </button>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
@@ -125,9 +149,12 @@
         btn.classList.toggle('disabled', on);
     }
 
-    function langsOf(card) {
-        return Array.prototype.map.call(card.querySelectorAll('tr[data-lang]'),
-                                        function (row) { return row.dataset.lang; });
+    // Solo se traduce y se genera audio de los idiomas marcados: asi se puede
+    // ofrecer, por ejemplo, unicamente castellano y arabe.
+    function selectedLangsOf(card) {
+        return Array.prototype.filter.call(card.querySelectorAll('tr[data-lang]'),
+                function (row) { return row.querySelector('.lang-check').checked; })
+            .map(function (row) { return row.dataset.lang; });
     }
 
     function rowOf(card, lang) {
@@ -182,10 +209,27 @@
             .finally(function () { busy(btn, false); });
     }
 
+    document.querySelectorAll('.lang-check-all').forEach(function (master) {
+        var card = master.closest('[data-question]');
+        master.addEventListener('change', function () {
+            card.querySelectorAll('.lang-check').forEach(function (chk) {
+                chk.checked = master.checked;
+            });
+        });
+        card.querySelectorAll('.lang-check').forEach(function (chk) {
+            chk.addEventListener('change', function () {
+                master.checked = Array.prototype.every.call(
+                    card.querySelectorAll('.lang-check'),
+                    function (c) { return c.checked; });
+            });
+        });
+    });
+
     document.querySelectorAll('.translate-all-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
             var card = btn.closest('[data-question]');
-            var langs = langsOf(card).filter(function (l) { return l !== 'es'; });
+            var langs = selectedLangsOf(card).filter(function (l) { return l !== 'es'; });
+            if (!langs.length) { alert('Marca al menos un idioma distinto del español.'); return; }
             post('/api/training/question/' + card.dataset.question + '/translate',
                  { langs: langs }, btn, card, 'Traducciones generadas. Revísalas antes de crear el audio.');
         });
@@ -194,8 +238,19 @@
     document.querySelectorAll('.audio-all-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
             var card = btn.closest('[data-question]');
+            var langs = selectedLangsOf(card);
+            if (!langs.length) { alert('Marca al menos un idioma.'); return; }
             post('/api/training/question/' + card.dataset.question + '/audio',
-                 { langs: langsOf(card) }, btn, card, 'Audios generados.');
+                 { langs: langs }, btn, card, 'Audios generados.');
+        });
+    });
+
+    document.querySelectorAll('.gen-tr-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var card = btn.closest('[data-question]');
+            var lang = btn.closest('tr[data-lang]').dataset.lang;
+            post('/api/training/question/' + card.dataset.question + '/translate',
+                 { langs: [lang] }, btn, card, null);
         });
     });
 
@@ -205,6 +260,37 @@
             var lang = btn.closest('tr[data-lang]').dataset.lang;
             post('/api/training/question/' + card.dataset.question + '/audio',
                  { langs: [lang] }, btn, card, null);
+        });
+    });
+
+    document.querySelectorAll('.del-tr-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var card = btn.closest('[data-question]');
+            var row  = btn.closest('tr[data-lang]');
+            if (!confirm('¿Quitar el idioma de esta instrucción? Se borran el texto y el audio, '
+                         + 'y dejará de aparecer en el móvil de la trabajadora.')) return;
+            busy(btn, true);
+            fetch('/api/training/question/' + card.dataset.question + '/translation/' + row.dataset.lang, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+            })
+                .then(function (res) { return res.json().then(function (d) { return { ok: res.ok, data: d }; }); })
+                .then(function (r) {
+                    if (!r.ok) { alert(r.data.error || 'No se ha podido quitar el idioma.'); return; }
+                    // La respuesta ya no incluye este idioma: la fila se limpia a mano.
+                    row.querySelector('.tr-text').value = '';
+                    row.querySelector('.tr-yes').value  = 'Sí';
+                    row.querySelector('.tr-no').value   = 'No';
+                    row.querySelector('.audio-slot').innerHTML =
+                        '<span class="status-badge text-body-secondary" style="font-size:.8rem">'
+                        + '<i class="bi bi-dash-circle me-1" aria-hidden="true"></i>Sin audio</span>';
+                    var chk = row.querySelector('.lang-check');
+                    chk.checked = false;
+                    chk.dispatchEvent(new Event('change'));
+                    applyTranslations(card, r.data.translations || []);
+                })
+                .catch(function () { alert('Error de conexión con el servidor.'); })
+                .finally(function () { busy(btn, false); });
         });
     });
 

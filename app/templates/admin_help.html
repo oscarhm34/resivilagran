@@ -293,9 +293,16 @@
                 <li>Despues de guardar la pildora, aparece en el listado un boton
                     <strong><i class="bi bi-translate"></i> Idiomas</strong>. Ahi se prepara cada idioma:
                     castellano, arabe, ingles, frances, rumano y ucraniano.</li>
-                <li><strong>Traducir todo con IA</strong> rellena de golpe los seis idiomas. Las traducciones
-                    se pueden corregir a mano en la misma tabla y guardarlas con el boton del disquete.</li>
-                <li><strong>Generar todos los audios</strong> crea el archivo de voz de cada idioma.
+                <li><strong>Elegir que idiomas se usan:</strong> cada fila de la tabla tiene una casilla.
+                    Marca solo los idiomas que quieras ofrecer (por ejemplo, castellano y arabe) y pulsa
+                    <strong>Traducir seleccionados</strong>. La casilla de la cabecera marca o desmarca todas.</li>
+                <li>Tambien se puede traducir <strong>un idioma suelto</strong> con el boton de las dos letras
+                    <i class="bi bi-translate"></i> de esa fila. Las traducciones se pueden corregir a mano
+                    en la misma tabla y guardarlas con el boton del disquete.</li>
+                <li><strong>Quitar un idioma:</strong> el boton de la papelera borra el texto y el audio de esa
+                    fila, y ese idioma deja de aparecer en el movil de la trabajadora. El castellano no se puede
+                    quitar: es el texto original.</li>
+                <li><strong>Generar audios seleccionados</strong> crea el archivo de voz de los idiomas marcados.
                     Tambien se puede generar uno solo con el boton del microfono de esa fila.
                     Debajo queda un reproductor para comprobar como suena antes de publicarlo.</li>
                 <li><strong>Importante:</strong> si se cambia el texto de una instruccion, sus traducciones y
@@ -319,6 +326,18 @@
                 <li>Se muestra una pantalla de bloqueo con el titulo de la pildora y un boton para empezar.</li>
                 <li>Despues de completar, si quedan mas formaciones obligatorias, se muestra la siguiente.</li>
                 <li>Una vez todas completadas, accede a la home normalmente.</li>
+            </ul>
+
+            <h6 class="mt-3">Repetir una formacion <span class="badge bg-success">NUEVO</span></h6>
+            <ul>
+                <li>Cuando una trabajadora aprueba una pildora, esta deja de salir en <em>Pendiente</em> pero
+                    aparece en el inicio de la webapp bajo <strong>Formacion &rarr; Formaciones completadas</strong>.</li>
+                <li>Al entrar ahi ve las que ya aprobo con su nota y la fecha, y pulsando en cualquiera la
+                    vuelve a hacer desde el principio.</li>
+                <li>Tambien hay un boton <strong>Repetir formacion</strong> en la pantalla de la nota, justo
+                    al terminar. Sirve tanto para repasar una aprobada como para reintentar una suspendida.</li>
+                <li>Cada repeticion queda como un intento nuevo: el resultado anterior no se pierde y se sigue
+                    viendo en <strong>Resultados</strong>.</li>
             </ul>
         </div>
     </div>
@@ -1383,6 +1402,9 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>31/08</td><td><strong>Elegir los idiomas de una instruccion:</strong> en la pantalla Idiomas de una pildora, cada idioma tiene ahora su casilla. Se marcan solo los que interesen (por ejemplo, castellano y arabe) y el boton pasa a ser Traducir seleccionados. Cada fila tiene ademas su propio boton de traducir y una papelera para quitar ese idioma, que borra su texto y su audio y hace que deje de aparecer en el movil de la trabajadora. El castellano no se puede quitar porque es el texto original. Antes solo se podia traducir a los seis idiomas de golpe.</td></tr>
+                    <tr><td>31/08</td><td><strong>Repetir una formacion ya aprobada:</strong> en el inicio de la webapp aparece el apartado Formaciones completadas, con las pildoras que la trabajadora ya aprobo, su nota y la fecha. Pulsando en cualquiera la vuelve a hacer. Tambien hay un boton Repetir formacion en la pantalla de la nota, util para repasar o para reintentar una suspendida. Cada repeticion queda como un intento nuevo y el resultado anterior se sigue viendo en Resultados. Antes, una vez aprobada, la formacion desaparecia y no habia forma de volver a entrar.</td></tr>
+                    <tr><td>31/08</td><td><strong>Boton de volver del cuestionario arreglado:</strong> en la primera pregunta de un test, la flecha de volver no hacia nada y la trabajadora quedaba atrapada en el cuestionario. Ahora sale de la formacion. Tambien se ha corregido el boton Volver de la pantalla de la nota, que despues de una formacion obligatoria dejaba la pantalla bloqueada en vez de llevar al inicio.</td></tr>
                     <tr><td>28/08</td><td><strong>Impresion de informes corregida:</strong> al imprimir el Resumen del dia de la residencia, el Traspaso de turno o los informes de la ficha del residente se perdian secciones enteras y salian hojas en blanco, porque solo se imprimia la parte del informe que cabia en la ventana. Ahora sale el documento completo, con membrete y pie, y sin el menu ni los botones.</td></tr>
                     <tr><td>27/08</td><td><strong>El informe de cambio de turno ya no sale repetido:</strong> aparecia tantas veces como trabajadoras lo recibian, porque la lista mezclaba los avisos del administrador con los enviados a cada trabajadora. Ahora la lista muestra los del administrador y hay un filtro de Destinatario para ver tambien los de ellas.</td></tr>
                     <tr><td>27/08</td><td><strong>El relevo llega al turno correcto:</strong> el informe se enviaba a las trabajadoras de todos los demas turnos del dia, no solo al que entraba. Quien empezaba de noche recibia el relevo de la manana. Ahora lo recibe unicamente el turno siguiente.</td></tr>

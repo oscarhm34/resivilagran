@@ -357,7 +357,7 @@ def _upsert_translation(q, lang: str, text: str, yes_label: str, no_label: str):
 
 @bp.route('/api/training/question/<int:q_id>/translate', methods=['POST'])
 @admin_required
-@limiter.limit("5/minute", methods=["POST"])
+@limiter.limit("30/minute", methods=["POST"])
 def translate_instruction(q_id: int):
     """Traduce el texto de una instruccion a los idiomas pedidos con IA."""
     from ..blueprints.assessments import _call_claude
@@ -445,9 +445,38 @@ def update_translation(q_id: int, lang: str):
     return jsonify({'ok': True, 'translations': _translations_payload(q)})
 
 
+@bp.route('/api/training/question/<int:q_id>/translation/<lang>', methods=['DELETE'])
+@admin_required
+def delete_translation(q_id: int, lang: str):
+    """Retira un idioma de la instruccion.
+
+    La trabajadora solo ve en el movil los idiomas que tienen texto, asi que
+    borrar la traduccion es la forma de dejar de ofrecer ese idioma.
+    """
+    q = _get_instruction(q_id)
+    if not q:
+        return jsonify({'error': 'La pregunta no existe o no es una instrucción.'}), 404
+    if lang not in TRAINING_LANGUAGES:
+        return jsonify({'error': 'Idioma no soportado.'}), 400
+    if lang == 'es':
+        return jsonify({'error': 'El español es el texto original y no se puede quitar.'}), 400
+
+    tr = q.translation(lang)
+    if tr is None:
+        return jsonify({'ok': True, 'translations': _translations_payload(q)})
+
+    _discard_audio(tr)
+    db.session.delete(tr)
+    log_audit('delete_translation', 'training_question', q.id, {'lang': lang})
+    ok, error = _safe_commit('Error al quitar la traducción')
+    if not ok:
+        return jsonify({'error': error}), 500
+    return jsonify({'ok': True, 'translations': _translations_payload(q)})
+
+
 @bp.route('/api/training/question/<int:q_id>/audio', methods=['POST'])
 @admin_required
-@limiter.limit("5/minute", methods=["POST"])
+@limiter.limit("20/minute", methods=["POST"])
 def generate_instruction_audio(q_id: int):
     """Genera el MP3 de cada idioma con el TTS de OpenAI."""
     import os
@@ -525,33 +554,61 @@ def _translations_payload(q) -> list[dict]:
 
 # ── Worker API ───────────────────────────────────────────────────────────────
 
+def _pills_for_worker(worker_id: int) -> list:
+    """Pildoras activas que le corresponden a esa persona, sin filtrar por estado."""
+    all_pills = TrainingPill.query.filter_by(active=True)\
+        .order_by(TrainingPill.created_at).all()
+    assigned_pill_ids = {a.pill_id for a in
+        TrainingAssignment.query.filter_by(cleaner_id=worker_id).all()}
+    return [p for p in all_pills
+            if p.assign_mode == 'all'
+            or (p.assign_mode == 'selected' and p.id in assigned_pill_ids)]
+
+
 @bp.route('/api/worker/pending-training')
 @jwt_required()
 def pending_training():
     worker_id = _current_worker_id()
     if not worker_id:
         return jsonify({'error': 'Trabajador no encontrado'}), 404
-    passed = db.session.query(TrainingCompletion.pill_id)\
-        .filter_by(cleaner_id=worker_id, passed=True).subquery()
-    all_pending = TrainingPill.query.filter_by(active=True)\
-        .filter(~TrainingPill.id.in_(passed))\
-        .order_by(TrainingPill.created_at).all()
-
-    # Filter by assignment mode
-    assigned_pill_ids = {a.pill_id for a in
-        TrainingAssignment.query.filter_by(cleaner_id=worker_id).all()}
-    pills = []
-    for p in all_pending:
-        if p.assign_mode == 'all':
-            pills.append(p)
-        elif p.assign_mode == 'selected' and p.id in assigned_pill_ids:
-            pills.append(p)
+    passed_ids = {row[0] for row in db.session.query(TrainingCompletion.pill_id)
+                  .filter_by(cleaner_id=worker_id, passed=True).all()}
+    pills = [p for p in _pills_for_worker(worker_id) if p.id not in passed_ids]
 
     return jsonify([{
         'id': p.id, 'title': p.title,
         'description': p.description or '',
         'question_count': len(p.questions),
         'mandatory': p.mandatory or False,
+    } for p in pills])
+
+
+@bp.route('/api/worker/completed-training')
+@jwt_required()
+def completed_training():
+    """Formaciones ya aprobadas, para poder repasarlas o repetirlas."""
+    worker_id = _current_worker_id()
+    if not worker_id:
+        return jsonify({'error': 'Trabajador no encontrado'}), 404
+
+    best = {}
+    completions = TrainingCompletion.query\
+        .filter_by(cleaner_id=worker_id, passed=True)\
+        .order_by(TrainingCompletion.completed_at).all()
+    for c in completions:
+        best[c.pill_id] = c          # se queda la mas reciente
+
+    pills = [p for p in _pills_for_worker(worker_id) if p.id in best]
+    pills.sort(key=lambda p: best[p.id].completed_at or datetime.min, reverse=True)
+
+    return jsonify([{
+        'id': p.id, 'title': p.title,
+        'description': p.description or '',
+        'question_count': len(p.questions),
+        'mandatory': p.mandatory or False,
+        'score': best[p.id].score,
+        'completed_at': (best[p.id].completed_at.strftime('%d/%m/%Y')
+                         if best[p.id].completed_at else ''),
     } for p in pills])
 
 
@@ -590,9 +647,15 @@ def start_training(pill_id: int):
             _save_base64_photo(photo, 'selfies', int(worker_id))
         except ValueError:
             pass
-    completion = TrainingCompletion.query.filter_by(
-        pill_id=pill_id, cleaner_id=int(worker_id), passed=False,
-    ).first()
+    # Un intento aun sin corregir tiene passed = NULL, no False: hay que buscarlo
+    # con is_(None) o se crearia una fila nueva en cada arranque. Un intento ya
+    # aprobado no se reutiliza nunca: repetir la formacion abre un intento nuevo
+    # y deja intacto el historico.
+    completion = TrainingCompletion.query.filter(
+        TrainingCompletion.pill_id == pill_id,
+        TrainingCompletion.cleaner_id == int(worker_id),
+        TrainingCompletion.passed.is_(None),
+    ).order_by(TrainingCompletion.started_at.desc()).first()
     if not completion:
         completion = TrainingCompletion(
             pill_id=pill_id, cleaner_id=int(worker_id),

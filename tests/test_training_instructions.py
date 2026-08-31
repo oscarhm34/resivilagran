@@ -348,3 +348,173 @@ def test_con_video_se_sigue_esperando(client, db, pill, cleaner_user, worker_hea
 
     assert res.status_code == 400
     assert res.get_json()['wait'] > 0
+
+
+# ── Traducir y quitar un idioma suelto ───────────────────────────────────────
+
+def test_traducir_un_solo_idioma_no_toca_los_demas(auth_client, db, pill, monkeypatch):
+    """Se puede ofrecer solo castellano y arabe sin generar el resto de idiomas."""
+    from app.blueprints import assessments
+    monkeypatch.setattr(
+        assessments, '_call_claude',
+        lambda system, prompt: '{"ar": {"text": "نص", "yes": "نعم", "no": "لا"}}')
+    instr = next(q for q in pill.questions if q.question_type == 'instruccion')
+
+    res = auth_client.post(f'/api/training/question/{instr.id}/translate',
+                           json={'langs': ['ar']})
+
+    assert res.status_code == 200
+    langs = {t.lang for t in TrainingTranslation.query.filter_by(question_id=instr.id)}
+    assert langs == {'es', 'ar'}   # el español es el texto original, siempre está
+
+
+def test_quitar_un_idioma_borra_texto_y_audio(auth_client, db, pill):
+    instr = next(q for q in pill.questions if q.question_type == 'instruccion')
+
+    res = auth_client.delete(f'/api/training/question/{instr.id}/translation/ar')
+
+    assert res.status_code == 200
+    assert TrainingTranslation.query.filter_by(question_id=instr.id, lang='ar').first() is None
+    assert all(t['lang'] != 'ar' for t in res.get_json()['translations'])
+
+
+def test_el_castellano_no_se_puede_quitar(auth_client, db, pill):
+    """Es el texto original que escribió el administrador."""
+    instr = next(q for q in pill.questions if q.question_type == 'instruccion')
+
+    res = auth_client.delete(f'/api/training/question/{instr.id}/translation/es')
+
+    assert res.status_code == 400
+
+
+def test_quitar_un_idioma_de_una_pregunta_de_test_devuelve_404(auth_client, db, pill):
+    multiple = next(q for q in pill.questions if q.question_type == 'multiple')
+
+    res = auth_client.delete(f'/api/training/question/{multiple.id}/translation/ar')
+
+    assert res.status_code == 404
+
+
+def test_quitar_un_idioma_requiere_admin(client, db, pill):
+    instr = next(q for q in pill.questions if q.question_type == 'instruccion')
+
+    res = client.delete(f'/api/training/question/{instr.id}/translation/ar')
+
+    assert res.status_code in (302, 401, 403)
+
+
+# ── Repetir una formación aprobada ───────────────────────────────────────────
+
+def _aprobada(db, pill, cleaner_user, score=100):
+    c = TrainingCompletion(
+        pill_id=pill.id, cleaner_id=cleaner_user.id,
+        started_at=datetime.now() - timedelta(minutes=10),
+        completed_at=datetime.now() - timedelta(minutes=5),
+        score=score, passed=True, video_watched=True,
+    )
+    db.session.add(c)
+    db.session.commit()
+    return c
+
+
+def test_las_aprobadas_salen_en_completadas_y_no_en_pendientes(
+        client, db, pill, cleaner_user, worker_headers):
+    _aprobada(db, pill, cleaner_user, score=90)
+
+    pendientes = client.get(f'/api/worker/pending-training?worker_id={cleaner_user.id}',
+                            headers=worker_headers).get_json()
+    completadas = client.get(f'/api/worker/completed-training?worker_id={cleaner_user.id}',
+                             headers=worker_headers).get_json()
+
+    assert [p['id'] for p in pendientes] == []
+    assert [p['id'] for p in completadas] == [pill.id]
+    assert completadas[0]['score'] == 90
+
+
+def test_una_formacion_suspendida_no_cuenta_como_completada(
+        client, db, pill, cleaner_user, worker_headers):
+    db.session.add(TrainingCompletion(
+        pill_id=pill.id, cleaner_id=cleaner_user.id,
+        started_at=datetime.now(), completed_at=datetime.now(),
+        score=20, passed=False, video_watched=True,
+    ))
+    db.session.commit()
+
+    res = client.get(f'/api/worker/completed-training?worker_id={cleaner_user.id}',
+                     headers=worker_headers)
+
+    assert res.get_json() == []
+
+
+def test_completadas_requiere_jwt(client, db, pill):
+    res = client.get('/api/worker/completed-training')
+
+    assert res.status_code == 401
+
+
+def test_repetir_una_aprobada_abre_un_intento_nuevo(client, db, pill, cleaner_user, worker_headers):
+    """El histórico de la formación aprobada no se pisa al repetirla."""
+    aprobada = _aprobada(db, pill, cleaner_user)
+
+    res = client.post(f'/api/worker/training/{pill.id}/start',
+                      json={'worker_id': cleaner_user.id}, headers=worker_headers)
+
+    assert res.status_code == 200
+    intentos = TrainingCompletion.query.filter_by(
+        pill_id=pill.id, cleaner_id=cleaner_user.id).all()
+    assert len(intentos) == 2
+    assert db.session.get(TrainingCompletion, aprobada.id).passed is True
+    assert res.get_json()['completion_id'] != aprobada.id
+
+
+def test_dos_arranques_seguidos_no_duplican_el_intento(client, db, pill, cleaner_user, worker_headers):
+    """Un intento sin corregir tiene passed = NULL: hay que reutilizarlo, no duplicarlo."""
+    primero = client.post(f'/api/worker/training/{pill.id}/start',
+                          json={'worker_id': cleaner_user.id}, headers=worker_headers)
+    segundo = client.post(f'/api/worker/training/{pill.id}/start',
+                          json={'worker_id': cleaner_user.id}, headers=worker_headers)
+
+    assert primero.get_json()['completion_id'] == segundo.get_json()['completion_id']
+    assert TrainingCompletion.query.filter_by(
+        pill_id=pill.id, cleaner_id=cleaner_user.id).count() == 1
+
+
+def test_ciclo_completo_de_repeticion(client, db, pill_sin_video, cleaner_user, worker_headers):
+    """Aprobar, verla en completadas, repetirla y volver a aprobarla."""
+    url = f'/api/worker/training/{pill_sin_video.id}'
+
+    def hacerla():
+        client.post(f'{url}/start', json={'worker_id': cleaner_user.id}, headers=worker_headers)
+        client.post(f'{url}/video-complete', json={'worker_id': cleaner_user.id},
+                    headers=worker_headers)
+        preguntas = client.get(f'{url}/questions?worker_id={cleaner_user.id}',
+                               headers=worker_headers).get_json()
+        respuestas = {str(q['index']): 'a' for q in preguntas}   # Sí a todo
+        return client.post(f'{url}/submit',
+                           json={'worker_id': cleaner_user.id, 'answers': respuestas},
+                           headers=worker_headers)
+
+    primera = hacerla()
+    assert primera.get_json()['passed'] is True
+
+    completadas = client.get(f'/api/worker/completed-training?worker_id={cleaner_user.id}',
+                             headers=worker_headers).get_json()
+    assert [p['id'] for p in completadas] == [pill_sin_video.id]
+
+    segunda = hacerla()
+    assert segunda.get_json()['passed'] is True
+    assert TrainingCompletion.query.filter_by(
+        pill_id=pill_sin_video.id, cleaner_id=cleaner_user.id).count() == 2
+
+
+def test_la_pantalla_de_idiomas_trae_los_controles_por_idioma(auth_client, db, pill):
+    res = auth_client.get(f'/admin/training/{pill.id}/languages')
+    html = res.get_data(as_text=True)
+
+    assert res.status_code == 200
+    assert 'lang-check' in html          # casilla por idioma
+    assert 'gen-tr-btn' in html          # traducir solo ese idioma
+    assert 'del-tr-btn' in html          # quitar ese idioma
+    # El castellano no lleva ni traducir ni papelera: es el texto original.
+    fila_es = html.split('data-lang="es"')[1].split('</tr>')[0]
+    assert 'gen-tr-btn' not in fila_es and 'del-tr-btn' not in fila_es

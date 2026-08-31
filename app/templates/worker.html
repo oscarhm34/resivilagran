@@ -506,6 +506,19 @@
             </button>
         </div>
 
+        <!-- Formaciones ya aprobadas: se pueden repasar o repetir -->
+        <div id="training-history-section" style="display:none">
+            <div class="section-label">Formación</div>
+            <button class="pending-card" id="training-history-card" onclick="showTrainList()">
+                <div class="pending-icon training">🎓</div>
+                <div class="pending-info">
+                    <div class="pending-title">Formaciones completadas</div>
+                    <div class="pending-sub" id="training-history-sub">—</div>
+                </div>
+                <div style="font-size:18px;color:var(--text-2)">→</div>
+            </button>
+        </div>
+
         <!-- Actividades de hoy (compact card) -->
         <div id="today-activities" style="display:none">
             <div id="activities-cards"></div>
@@ -999,7 +1012,7 @@
     <div id="screen-training-list" class="screen">
         <div class="scan-header">
             <button class="btn-back" id="train-back" aria-label="Volver">←</button>
-            <span class="mode-badge mode-badge-training">🎓 Formaciones pendientes</span>
+            <span class="mode-badge mode-badge-training">🎓 Formaciones</span>
         </div>
         <div id="train-list" style="margin-top:12px;flex:1;overflow-y:auto"></div>
     </div>
@@ -1042,6 +1055,7 @@
         <div id="train-result-score" style="font-size:48px;font-weight:800;font-family:'Outfit',monospace;letter-spacing:-2px"></div>
         <div id="train-result-detail" style="font-size:14px;color:var(--text-2);text-align:center"></div>
         <div class="spacer"></div>
+        <button class="btn-cam primary" id="train-result-retry" style="width:100%">Repetir formación</button>
         <button class="btn-cam secondary" id="train-result-back" style="width:100%">Volver</button>
     </div>
 
@@ -1411,6 +1425,7 @@ function showMandatoryTrainingBlock(pill) {
         + '</div>';
     show('screen-home');
     document.getElementById('btn-start-mandatory').addEventListener('click', function() {
+        trainingEntry = 'mandatory';
         startTraining(pill.id);
     });
 }
@@ -1435,6 +1450,7 @@ async function checkWorkerNotifs() {
 var S_activities = [];
 var pendingDocs = [];
 var pendingTrains = [];
+var completedTrains = [];
 async function loadTodayActivities() {
     if (!S.token) return;
     const { ok, data } = await api('/api/activities/today');
@@ -3411,34 +3427,50 @@ $('selfie-save').addEventListener('click', async () => {
 // ══════════════════════════════════════════════════════════════════════════
 
 async function loadPendingItems() {
-    const [docsRes, trainRes] = await Promise.all([
+    const [docsRes, trainRes, doneRes] = await Promise.all([
         api(`/api/worker/pending-documents?worker_id=${S.workerId}`),
         api(`/api/worker/pending-training?worker_id=${S.workerId}`),
+        api(`/api/worker/completed-training?worker_id=${S.workerId}`),
     ]);
     pendingDocs = docsRes.ok ? docsRes.data : [];
     pendingTrains = trainRes.ok ? trainRes.data : [];
+    completedTrains = doneRes.ok ? doneRes.data : [];
 
+    // showMandatoryTrainingBlock() reescribe el interior de screen-home, asi que
+    // estas tarjetas pueden no existir. Sin las guardas, un TypeError aqui aborta
+    // al que nos haya llamado (por ejemplo, el boton Volver del resultado).
     const section = $('pending-section');
     const docsCard = $('pending-docs-card');
     const trainCard = $('pending-train-card');
+    const histSection = $('training-history-section');
 
-    if (pendingDocs.length) {
-        docsCard.style.display = '';
-        $('pending-docs-count').textContent = pendingDocs.length;
-        $('pending-docs-sub').textContent = pendingDocs.length + ' documento' + (pendingDocs.length > 1 ? 's' : '');
-    } else {
-        docsCard.style.display = 'none';
+    if (docsCard) {
+        docsCard.style.display = pendingDocs.length ? '' : 'none';
+        if (pendingDocs.length) {
+            $('pending-docs-count').textContent = pendingDocs.length;
+            $('pending-docs-sub').textContent = pendingDocs.length + ' documento' + (pendingDocs.length > 1 ? 's' : '');
+        }
     }
 
-    if (pendingTrains.length) {
-        trainCard.style.display = '';
-        $('pending-train-count').textContent = pendingTrains.length;
-        $('pending-train-sub').textContent = pendingTrains.length + ' formación' + (pendingTrains.length > 1 ? 'es' : '');
-    } else {
-        trainCard.style.display = 'none';
+    if (trainCard) {
+        trainCard.style.display = pendingTrains.length ? '' : 'none';
+        if (pendingTrains.length) {
+            $('pending-train-count').textContent = pendingTrains.length;
+            $('pending-train-sub').textContent = pendingTrains.length + ' formación' + (pendingTrains.length > 1 ? 'es' : '');
+        }
     }
 
-    section.style.display = (pendingDocs.length || pendingTrains.length) ? '' : 'none';
+    if (histSection) {
+        histSection.style.display = completedTrains.length ? '' : 'none';
+        if (completedTrains.length) {
+            $('training-history-sub').textContent = completedTrains.length
+                + ' formación' + (completedTrains.length > 1 ? 'es' : '') + ' · pulsa para repasarlas';
+        }
+    }
+
+    if (section) {
+        section.style.display = (pendingDocs.length || pendingTrains.length) ? '' : 'none';
+    }
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -3560,24 +3592,67 @@ let quizAnswers = {};
 let quizIndex = 0;
 let trainVideoTimer = null;
 
-function showTrainList() {
-    const list = $('train-list');
-    if (!pendingTrains.length) {
-        list.innerHTML = '<p class="sel-empty">No hay formaciones pendientes</p>';
-    } else {
-        list.innerHTML = pendingTrains.map(p => `
+function trainCardHtml(p, sub) {
+    return `
             <button class="pending-card" data-pill-id="${p.id}" style="margin-bottom:8px">
                 <div class="pending-icon training">🎓</div>
                 <div class="pending-info">
-                    <div class="pending-title">${p.title}</div>
-                    <div class="pending-sub">${p.question_count} preguntas</div>
+                    <div class="pending-title">${esc(p.title)}</div>
+                    <div class="pending-sub">${sub}</div>
                 </div>
                 <div style="font-size:18px;color:var(--text-2)">→</div>
-            </button>`).join('');
-        list.querySelectorAll('[data-pill-id]').forEach(btn =>
-            btn.addEventListener('click', () => startTraining(parseInt(btn.dataset.pillId))));
+            </button>`;
+}
+
+function showTrainList() {
+    const list = $('train-list');
+    let html = '';
+    if (pendingTrains.length) {
+        html += '<div class="section-label">Pendientes</div>'
+             + pendingTrains.map(p => trainCardHtml(p, p.question_count + ' preguntas')).join('');
     }
+    if (completedTrains.length) {
+        html += `<div class="section-label" style="margin-top:${html ? '18px' : '0'}">Completadas</div>`
+             + completedTrains.map(p => trainCardHtml(p,
+                   `✓ Aprobada ${p.score}%${p.completed_at ? ' · ' + p.completed_at : ''} · pulsa para repetir`
+               )).join('');
+    }
+    if (!html) html = '<p class="sel-empty">No hay formaciones pendientes</p>';
+    list.innerHTML = html;
+    list.querySelectorAll('[data-pill-id]').forEach(btn =>
+        btn.addEventListener('click', () => {
+            trainingEntry = 'list';
+            startTraining(parseInt(btn.dataset.pillId));
+        }));
     show('screen-training-list');
+}
+
+// 'mandatory' cuando se entra desde la pantalla de bloqueo: en ese caso salir de
+// la formacion recarga, porque showMandatoryTrainingBlock() ha destruido el inicio
+// y hay que volver a evaluar si queda formacion obligatoria pendiente.
+let trainingEntry = 'list';
+
+function cleanupTraining() {
+    stopInstructionAudio();
+    clearInstructionAudioCache();
+    clearInterval(trainVideoTimer);
+    $('trainvid-iframe').src = '';
+}
+
+// Salir a medias de la formacion: vuelve al listado.
+async function abortTraining() {
+    cleanupTraining();
+    if (trainingEntry === 'mandatory') { location.reload(); return; }
+    await loadPendingItems();
+    showTrainList();
+}
+
+// Terminar la formacion: vuelve al inicio.
+async function leaveTraining() {
+    cleanupTraining();
+    if (trainingEntry === 'mandatory') { location.reload(); return; }
+    await loadPendingItems();
+    show('screen-home');
 }
 
 async function startTraining(pillId) {
@@ -3627,12 +3702,8 @@ async function startTraining(pillId) {
     show('screen-training-video');
 }
 
-$('train-back').addEventListener('click', () => show('screen-home'));
-$('trainvid-back').addEventListener('click', () => {
-    clearInterval(trainVideoTimer);
-    $('trainvid-iframe').src = '';
-    show('screen-training-list');
-});
+$('train-back').addEventListener('click', () => leaveTraining());
+$('trainvid-back').addEventListener('click', () => abortTraining());
 
 async function goToQuiz() {
     $('trainvid-iframe').src = '';
@@ -3847,22 +3918,19 @@ $('quiz-next').addEventListener('click', async () => {
 
 $('quiz-back').addEventListener('click', () => {
     stopInstructionAudio();
-    if (quizIndex > 0) { quizIndex--; renderQuizQuestion(); }
+    // En la primera pregunta no hay pregunta anterior: se sale del cuestionario,
+    // que antes dejaba a la trabajadora atrapada con un boton que no hacia nada.
+    if (quizIndex > 0) { quizIndex--; renderQuizQuestion(); return; }
+    abortTraining();
 });
 
-$('train-result-back').addEventListener('click', async () => {
+$('train-result-retry').addEventListener('click', () => {
     stopInstructionAudio();
     clearInstructionAudioCache();
-    // Reload home to re-check mandatory training
-    await loadPendingItems();
-    var mandatoryPills = (pendingTrains || []).filter(function(p) { return p.mandatory; });
-    if (mandatoryPills.length) {
-        // Still more mandatory training — reload full home to show block screen
-        location.reload();
-    } else {
-        show('screen-home');
-    }
+    startTraining(currentPillId);
 });
+
+$('train-result-back').addEventListener('click', () => leaveTraining());
 
 // ── Cleaning Route ───────────────────────────────────────────────────────
 async function loadRoute() {
