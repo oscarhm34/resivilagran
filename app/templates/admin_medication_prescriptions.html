@@ -291,7 +291,7 @@ function checkInteractions() {
                 }
                 video.onloadedmetadata = function() { scanFrame(); };
             } catch(e) {
-                alert('No s\'ha pogut accedir a la càmera. Introdueix el codi manualment.');
+                showToast('No se ha podido acceder a la cámara. Introduce el código a mano.', 'error');
             }
         } else {
             // Fallback: prompt manual

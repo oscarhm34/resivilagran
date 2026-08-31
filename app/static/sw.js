@@ -30,7 +30,7 @@ self.addEventListener('activate', function(event) {
 
 // ── Push Notifications ──
 self.addEventListener('push', function(event) {
-    var data = { title: 'La Vila Gran', body: 'Nova notificació', url: '/worker' };
+    var data = { title: 'La Vila Gran', body: 'Nueva notificación', url: '/worker' };
     try {
         if (event.data) data = event.data.json();
     } catch(e) {}

@@ -129,9 +129,9 @@
         <i class="bi bi-person-fill" aria-hidden="true"></i>
         <strong class="me-2">{{ wp.worker.name }}</strong>
         {% if wp.worker.role == 'mixto' %}
-        <span class="badge" style="background:#e8d5f5;color:#6f42c1;font-size:.7rem">Mixto</span>
+        <span class="status-badge status-tint" style="--tint:#6f42c1;font-size:.7rem">Mixto</span>
         {% else %}
-        <span class="badge" style="background:#dbeafe;color:#0550ae;font-size:.7rem">Limpieza</span>
+        <span class="status-badge status-tint" style="--tint:var(--color-primary);font-size:.7rem">Limpieza</span>
         {% endif %}
         {% if wp.shift %}
         <span class="badge" style="background-color:{{ wp.shift.color }};color:#fff;font-size:.75rem">
@@ -182,19 +182,19 @@
                             <span class="text-muted">{{ ns.pending_n }}</span>
                             {% endif %}
                         </td>
-                        <td class="fw-semibold">{{ r.room.number }}{% if r.get('extra') %} <span class="badge" style="background:#e8f0fe;color:#1a73e8;font-size:.65rem">Extra</span>{% endif %}{% if r.room.description %} <small class="text-muted fw-normal">{{ r.room.description }}</small>{% endif %}</td>
+                        <td class="fw-semibold">{{ r.room.number }}{% if r.get('extra') %} <span class="status-badge status-tint" style="--tint:var(--color-primary);font-size:.65rem">Extra</span>{% endif %}{% if r.room.description %} <small class="text-muted fw-normal">{{ r.room.description }}</small>{% endif %}</td>
                         <td class="hide-mobile">{{ r.room.floor.name }}</td>
                         <td class="hide-mobile">{{ r.room.room_type.name if r.room.room_type else '-' }}</td>
                         <td>~{{ r.estimated_min }}&thinsp;min</td>
                         <td>
                             {% if r.priority == 'urgent' %}
-                            <span class="badge" style="background:#ffddd9;color:var(--color-danger);font-size:.72rem">Atrasada {{ r.days_since }}d</span>
+                            <span class="status-badge status-tint" style="--tint:var(--color-danger);font-size:.72rem">Atrasada {{ r.days_since }}d</span>
                             {% elif r.priority == 'due' %}
-                            <span class="badge" style="background:#fff3cd;color:var(--color-warning);font-size:.72rem">Toca hoy</span>
+                            <span class="status-badge status-tint" style="--tint:var(--color-warning);font-size:.72rem">Toca hoy</span>
                             {% elif r.priority == 'done' %}
-                            <span class="badge" style="background:#d1f0da;color:var(--color-success);font-size:.72rem">Hecha</span>
+                            <span class="status-badge status-tint" style="--tint:var(--color-success);font-size:.72rem">Hecha</span>
                             {% else %}
-                            <span class="badge" style="background:#f0f0f0;color:var(--color-text-secondary);font-size:.72rem">Al día</span>
+                            <span class="status-badge status-tint" style="--tint:var(--color-text-secondary);font-size:.72rem">Al día</span>
                             {% endif %}
                         </td>
                     </tr>

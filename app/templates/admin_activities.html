@@ -39,7 +39,7 @@
         </div>
         <div style="display:grid;grid-template-columns:repeat(7,1fr)">
             {% for day in days %}
-            <div style="min-height:80px;border-right:1px solid var(--color-border);border-bottom:1px solid var(--color-border);padding:2px;{% if day.month != month %}opacity:.4{% endif %};{% if day == today %}background:rgba(13,110,253,.05){% elif day.weekday() >= 5 %}background:#fafafa{% endif %}">
+            <div style="min-height:80px;border-right:1px solid var(--color-border);border-bottom:1px solid var(--color-border);padding:2px;{% if day.month != month %}opacity:.4{% endif %};{% if day == today %}background:rgba(13,110,253,.05){% elif day.weekday() >= 5 %}background:var(--color-bg){% endif %}">
                 <div class="text-end" style="font-size:.7rem;{% if day == today %}font-weight:700;color:var(--color-primary){% else %}color:var(--color-text-secondary){% endif %}">{{ day.day }}</div>
                 {% for a in by_day.get(day, [])[:3] %}
                 <div class="act-item" style="font-size:.6rem;padding:1px 4px;margin-bottom:1px;border-radius:4px;background:{{ cat_colors.get(a.category, '#6c757d') }}20;border-left:2px solid {{ cat_colors.get(a.category, '#6c757d') }};cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
@@ -61,7 +61,7 @@
     <div class="row g-2">
         {% for day in days %}
         <div class="col" style="min-width:140px">
-            <div class="card h-100 {% if day == today %}border-primary{% endif %}" style="{% if day.weekday() >= 5 %}background:#f8f9fa{% endif %}">
+            <div class="card h-100 {% if day == today %}border-primary{% endif %}" style="{% if day.weekday() >= 5 %}background:var(--color-bg){% endif %}">
                 <div class="card-header text-center py-2" style="font-size:.78rem;{% if day == today %}background:var(--color-primary);color:#fff{% endif %}">
                     <div class="fw-bold">{{ day_names_long[day.weekday()] }}</div>
                     <div>{{ day.strftime('%d/%m') }}</div>
@@ -90,7 +90,7 @@
                                 {% if p.resident and p.resident.photo_path %}
                                 <img src="{{ url_for('nfc.serve_upload', filename=p.resident.photo_path) }}" style="width:18px;height:18px;border-radius:50%;object-fit:cover;border:1.5px solid {% if p.engagement == 'participated' %}#198754{% elif p.engagement == 'absent' %}#dc3545{% else %}#ccc{% endif %};margin-left:-4px" alt="">
                                 {% else %}
-                                <div style="width:18px;height:18px;border-radius:50%;background:#e9ecef;border:1.5px solid {% if p.engagement == 'participated' %}#198754{% elif p.engagement == 'absent' %}#dc3545{% else %}#ccc{% endif %};margin-left:-4px;font-size:8px;display:flex;align-items:center;justify-content:center">👤</div>
+                                <div style="width:18px;height:18px;border-radius:50%;background:var(--color-bg);border:1.5px solid {% if p.engagement == 'participated' %}#198754{% elif p.engagement == 'absent' %}#dc3545{% else %}#ccc{% endif %};margin-left:-4px;font-size:8px;display:flex;align-items:center;justify-content:center">👤</div>
                                 {% endif %}
                                 {% endfor %}
                                 {% if invited|length > 4 %}<span style="font-size:.6rem;color:var(--color-text-secondary);margin-left:2px">+{{ invited|length - 4 }}</span>{% endif %}
@@ -202,7 +202,7 @@
                         {% if r.photo_path %}
                         <img src="{{ url_for('nfc.serve_upload', filename=r.photo_path) }}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid transparent" alt="">
                         {% else %}
-                        <div style="width:48px;height:48px;border-radius:50%;background:#e9ecef;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:1.2rem;border:2px solid transparent">👤</div>
+                        <div style="width:48px;height:48px;border-radius:50%;background:var(--color-bg);margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:1.2rem;border:2px solid transparent">👤</div>
                         {% endif %}
                         <div style="font-size:.7rem;font-weight:600;margin-top:4px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.name.split(' ')[0] }}</div>
                         <div style="font-size:.6rem;color:var(--color-text-secondary)">{{ r.room_number or '' }}</div>
@@ -242,7 +242,7 @@
     .invite-card.selected { border-color: var(--color-primary) !important; background: rgba(13,110,253,.06); }
     .invite-card.selected img, .invite-card.selected div:first-child { border-color: var(--color-primary) !important; }
     .invite-card:hover { border-color: var(--color-primary); }
-    .btn-outline-purple { color: #6f42c1; border-color: #6f42c1; }
+    .btn-outline-purple { color: #8b5cf6; border-color: #8b5cf6; background: var(--color-surface); }
     .btn-outline-purple:hover { color: #fff; background-color: #6f42c1; border-color: #6f42c1; }
     .ai-suggestion-card { border-left: 3px solid #6f42c1; background: #f8f6ff; border-radius: 8px; padding: 12px; margin-bottom: 8px; }
     .ai-suggestion-card .cat-badge { font-size: .7rem; padding: 2px 8px; border-radius: 12px; color: #fff; }
@@ -418,7 +418,7 @@
             document.getElementById('ai-suggest-results').style.display = '';
         }).catch(function(err) {
             document.getElementById('ai-suggest-loading').style.display = 'none';
-            document.getElementById('ai-suggest-error').textContent = 'Error de connexio: ' + err.message;
+            document.getElementById('ai-suggest-error').textContent = 'Error de conexión: ' + err.message;
             document.getElementById('ai-suggest-error').style.display = '';
         });
     });

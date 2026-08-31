@@ -74,7 +74,7 @@
                     {% if resident.diagnoses or resident.allergies or resident.current_medication %}
                     <div class="col-md-6">
                         {% if resident.diagnoses %}<div class="mb-3"><div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Diagnósticos</div><div style="font-size:.9rem">{{ resident.diagnoses }}</div></div>{% endif %}
-                        {% if resident.allergies %}<div class="mb-3"><div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Alergias</div><div class="p-2" style="background:#fff3cd;border-left:3px solid #ffc107;border-radius:4px;font-size:.9rem;color:#856404"><i class="bi bi-exclamation-triangle me-1"></i>{{ resident.allergies }}</div></div>{% endif %}
+                        {% if resident.allergies %}<div class="mb-3"><div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Alergias</div><div class="p-2 status-tint" style="--tint:var(--color-warning);border-left:3px solid var(--color-warning);border-radius:4px;font-size:.9rem"><i class="bi bi-exclamation-triangle me-1"></i>{{ resident.allergies }}</div></div>{% endif %}
                         {% if resident.current_medication %}<div class="mb-3"><div style="font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Medicación actual</div><div style="font-size:.9rem">{{ resident.current_medication }}</div></div>{% endif %}
                     </div>
                     {% endif %}
@@ -274,8 +274,8 @@
                                 <span style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--color-text-secondary)">{{ chart.name }}</span>
                                 {% if chart.data|length > 1 %}
                                 {% set diff = chart.data[-1] - chart.data[-2] %}
-                                <span style="font-size:.75rem;font-weight:600;padding:2px 8px;border-radius:20px;
-                                    {% if diff < 0 %}background:#d4edda;color:#198754{% elif diff > 0 %}background:#f8d7da;color:#dc3545{% else %}background:#e9ecef;color:#6c757d{% endif %}">
+                                <span class="status-tint" style="font-size:.75rem;font-weight:600;padding:2px 8px;border-radius:20px;
+                                    {% if diff < 0 %}--tint:var(--color-success){% elif diff > 0 %}--tint:var(--color-danger){% else %}--tint:var(--color-text-secondary){% endif %}">
                                     {{ '↓' if diff < 0 else '↑' if diff > 0 else '→' }} {{ diff|abs|round(1) }} {{ chart.unit }}
                                 </span>
                                 {% endif %}
@@ -324,7 +324,7 @@
 
             <!-- Mood chart -->
             <div class="card mb-4">
-                <div class="card-header"><i class="bi bi-emoji-smile me-1"></i><strong>Estado de ánimo</strong> <span class="text-muted" style="font-size:.78rem">(ultims 30 dies)</span></div>
+                <div class="card-header"><i class="bi bi-emoji-smile me-1"></i><strong>Estado de ánimo</strong> <span class="text-muted" style="font-size:.78rem">(últimos 30 días)</span></div>
                 <div class="card-body" style="height:200px">
                     <canvas id="moodChart"></canvas>
                 </div>
@@ -1134,7 +1134,7 @@ vitalData.forEach((chart, i) => {
     document.getElementById('btn-save-edit').addEventListener('click', function() {
         var btn = this;
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Guardant...';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Guardando…';
         fetch('/api/resident/{{ resident.id }}/update', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -1235,7 +1235,7 @@ vitalData.forEach((chart, i) => {
             }).catch(function() {
                 btn.disabled = false;
                 btn.innerHTML = origHtml;
-                contentEl.innerHTML = '<div class="alert alert-danger">Error de connexio</div>';
+                contentEl.innerHTML = '<div class="alert alert-danger">Error de conexión</div>';
             });
         });
     });
@@ -1271,7 +1271,7 @@ document.getElementById('btn-generate-pai').addEventListener('click', function()
         }
     }).catch(function() {
         btn.disabled = false; btn.innerHTML = '<i class="bi bi-clipboard-pulse me-1"></i>PAI';
-        _content.innerHTML = '<div class="alert alert-danger">Error de connexio.</div>';
+        _content.innerHTML = '<div class="alert alert-danger">Error de conexión.</div>';
     });
 });
 
@@ -1299,7 +1299,7 @@ document.getElementById('btn-review-pai').addEventListener('click', function() {
         }
     }).catch(function() {
         btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Revisar PAI';
-        _content.innerHTML = '<div class="alert alert-danger">Error de connexio.</div>';
+        _content.innerHTML = '<div class="alert alert-danger">Error de conexión.</div>';
     });
 });
 

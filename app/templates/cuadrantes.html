@@ -997,17 +997,22 @@
                 var reqKey = stId + '_' + daySuffix;
                 var minReq = (COVERAGE_REQS && COVERAGE_REQS[reqKey]) ? COVERAGE_REQS[reqKey].min : 0;
                 var idealReq = (COVERAGE_REQS && COVERAGE_REQS[reqKey]) ? COVERAGE_REQS[reqKey].ideal : 0;
-                var covClass = '';
+                var covClass = '', covIcono = '', covTexto = '';
                 if (minReq > 0) {
                     if (cnt < minReq) {
-                        covClass = ' cov-danger';
+                        covClass = ' cov-danger'; covIcono = '⚠';   // triangulo
+                        covTexto = 'Por debajo del minimo (' + cnt + ' de ' + minReq + ')';
                     } else if (idealReq > 0 && cnt < idealReq) {
-                        covClass = ' cov-warn';
+                        covClass = ' cov-warn'; covIcono = '•';     // punto
+                        covTexto = 'Cubierto al minimo, por debajo del ideal (' + cnt + ' de ' + idealReq + ')';
                     } else {
-                        covClass = ' cov-ok';
+                        covClass = ' cov-ok'; covIcono = '✓';       // check
+                        covTexto = 'Cobertura correcta (' + cnt + ')';
                     }
                 }
-                html += '<span class="coverage-pill' + covClass + '" style="background:' + countsBySn[sn].color + '">' +
+                html += '<span class="coverage-pill' + covClass + '" style="background:' + countsBySn[sn].color + '"'
+                    + (covTexto ? ' title="' + covTexto + '" aria-label="' + covTexto + '"' : '') + '>' +
+                    (covIcono ? '<span aria-hidden="true" style="margin-right:2px">' + covIcono + '</span>' : '') +
                     sn + cnt;
                 if (minReq > 0) {
                     html += '<small style="opacity:.7">/' + minReq;
@@ -1332,7 +1337,7 @@
         }).catch(function() {
             btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-stars me-1"></i>IA';
-            showToast('Error de connexio', 'error');
+            showToast('Error de conexión', 'error');
         });
     });
 

@@ -140,7 +140,7 @@
         .act-res-photo { width:36px; height:36px; border-radius:50%; object-fit:cover; flex-shrink:0; }
         .act-res-name { flex:1; font-size:14px; font-weight:600; }
         .act-res-room { font-size:11px; color:var(--text-2); }
-        .act-btn-confirm { width:36px; height:36px; border-radius:50%; border:2px solid var(--border); background:none; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .15s; }
+        .act-btn-confirm { width:44px; height:44px; border-radius:50%; border:2px solid var(--border); background:none; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .15s; }
         .act-btn-confirm.yes { border-color:#198754; background:#19875420; color:#198754; }
         .act-btn-confirm.no { border-color:#dc3545; background:#dc354520; color:#dc3545; }
         .act-btn-confirm:active { transform:scale(.9); }
@@ -175,16 +175,16 @@
 
         /* ── Care details per resident ── */
         .care-tag-btn {
-            font-size:11px; color:var(--green); font-weight:600;
+            font-size:12px; color:var(--green); font-weight:600;
             background:var(--green-lt); border:1px solid rgba(26,127,55,.2);
-            border-radius:10px; padding:2px 7px; cursor:pointer;
+            border-radius:10px; padding:8px 12px; min-height:36px; cursor:pointer;
             font-family:inherit; transition:background .15s;
         }
         .care-tag-btn:active { background:rgba(26,127,55,.2); }
         .clean-tag-btn {
-            font-size:11px; color:var(--blue); font-weight:600;
+            font-size:12px; color:var(--blue); font-weight:600;
             background:var(--blue-lt); border:1px solid rgba(0,105,217,.2);
-            border-radius:10px; padding:2px 7px; cursor:pointer;
+            border-radius:10px; padding:8px 12px; min-height:36px; cursor:pointer;
             font-family:inherit; transition:background .15s;
         }
         .clean-tag-btn:active { background:rgba(0,105,217,.2); }
@@ -635,14 +635,14 @@
         <div style="padding:0 0 12px">
             <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:8px">Conducta (opcional):</div>
             <div id="mood-flags" style="display:flex;flex-wrap:wrap;gap:6px">
-                <button class="mood-flag" data-flag="Agitat" style="font-size:12px;padding:6px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Agitat</button>
-                <button class="mood-flag" data-flag="Confos" style="font-size:12px;padding:6px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Confós</button>
-                <button class="mood-flag" data-flag="Cooperatiu" style="font-size:12px;padding:6px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Cooperatiu</button>
-                <button class="mood-flag" data-flag="Tranquil" style="font-size:12px;padding:6px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Tranquil</button>
-                <button class="mood-flag" data-flag="Trist" style="font-size:12px;padding:6px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Trist</button>
-                <button class="mood-flag" data-flag="Content" style="font-size:12px;padding:6px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Content</button>
-                <button class="mood-flag" data-flag="Agressiu" style="font-size:12px;padding:6px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Agressiu</button>
-                <button class="mood-flag" data-flag="Somnolent" style="font-size:12px;padding:6px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Somnolent</button>
+                <button class="mood-flag" data-flag="Agitat" style="font-size:12px;padding:9px 14px;min-height:40px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Agitado</button>
+                <button class="mood-flag" data-flag="Confos" style="font-size:12px;padding:9px 14px;min-height:40px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Confuso</button>
+                <button class="mood-flag" data-flag="Cooperatiu" style="font-size:12px;padding:9px 14px;min-height:40px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Cooperativo</button>
+                <button class="mood-flag" data-flag="Tranquil" style="font-size:12px;padding:9px 14px;min-height:40px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Tranquilo</button>
+                <button class="mood-flag" data-flag="Trist" style="font-size:12px;padding:9px 14px;min-height:40px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Triste</button>
+                <button class="mood-flag" data-flag="Content" style="font-size:12px;padding:9px 14px;min-height:40px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Contento</button>
+                <button class="mood-flag" data-flag="Agressiu" style="font-size:12px;padding:9px 14px;min-height:40px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Agresivo</button>
+                <button class="mood-flag" data-flag="Somnolent" style="font-size:12px;padding:9px 14px;min-height:40px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s">Somnoliento</button>
             </div>
         </div>
         <div style="padding:0 0 12px">
@@ -818,12 +818,12 @@
                 <button class="ct-mood-btn" data-score="5" style="font-size:1.6rem;background:none;border:2px solid transparent;border-radius:12px;padding:4px 8px;cursor:pointer">😊</button>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center">
-                <button class="ct-mood-flag" data-flag="Agitat" style="font-size:11px;padding:4px 10px;border-radius:16px;border:1px solid var(--border);background:var(--surface);cursor:pointer">Agitat</button>
-                <button class="ct-mood-flag" data-flag="Confos" style="font-size:11px;padding:4px 10px;border-radius:16px;border:1px solid var(--border);background:var(--surface);cursor:pointer">Confós</button>
-                <button class="ct-mood-flag" data-flag="Cooperatiu" style="font-size:11px;padding:4px 10px;border-radius:16px;border:1px solid var(--border);background:var(--surface);cursor:pointer">Cooperatiu</button>
-                <button class="ct-mood-flag" data-flag="Tranquil" style="font-size:11px;padding:4px 10px;border-radius:16px;border:1px solid var(--border);background:var(--surface);cursor:pointer">Tranquil</button>
-                <button class="ct-mood-flag" data-flag="Trist" style="font-size:11px;padding:4px 10px;border-radius:16px;border:1px solid var(--border);background:var(--surface);cursor:pointer">Trist</button>
-                <button class="ct-mood-flag" data-flag="Content" style="font-size:11px;padding:4px 10px;border-radius:16px;border:1px solid var(--border);background:var(--surface);cursor:pointer">Content</button>
+                <button class="ct-mood-flag" data-flag="Agitat" style="font-size:12px;padding:9px 14px;min-height:40px;border-radius:16px;border:1px solid var(--border);background:var(--surface);cursor:pointer">Agitado</button>
+                <button class="ct-mood-flag" data-flag="Confos" style="font-size:12px;padding:9px 14px;min-height:40px;border-radius:16px;border:1px solid var(--border);background:var(--surface);cursor:pointer">Confuso</button>
+                <button class="ct-mood-flag" data-flag="Cooperatiu" style="font-size:12px;padding:9px 14px;min-height:40px;border-radius:16px;border:1px solid var(--border);background:var(--surface);cursor:pointer">Cooperativo</button>
+                <button class="ct-mood-flag" data-flag="Tranquil" style="font-size:12px;padding:9px 14px;min-height:40px;border-radius:16px;border:1px solid var(--border);background:var(--surface);cursor:pointer">Tranquilo</button>
+                <button class="ct-mood-flag" data-flag="Trist" style="font-size:12px;padding:9px 14px;min-height:40px;border-radius:16px;border:1px solid var(--border);background:var(--surface);cursor:pointer">Triste</button>
+                <button class="ct-mood-flag" data-flag="Content" style="font-size:12px;padding:9px 14px;min-height:40px;border-radius:16px;border:1px solid var(--border);background:var(--surface);cursor:pointer">Contento</button>
             </div>
         </div>
         <!-- Wound registration -->
@@ -1492,14 +1492,14 @@ async function loadTodayActivities() {
         var pctDone = act.total_invited ? Math.round(act.total_confirmed / act.total_invited * 100) : 0;
         html += '<div class="act-compact" data-act-idx="' + data.activities.indexOf(act) + '" style="border-left:3px solid ' + act.category_color + '">';
         html += '<div style="flex:1;min-width:0">';
-        html += '<div style="font-weight:700;font-size:14px">' + act.title + '</div>';
+        html += '<div style="font-weight:700;font-size:14px">' + esc(act.title) + '</div>';
         html += '<div style="font-size:11px;color:var(--text-2)">';
         if (act.start_time) html += act.start_time;
         if (act.location) html += ' · ' + act.location;
         html += '</div></div>';
         html += '<div style="text-align:center;flex-shrink:0">';
         html += '<div style="font-size:18px;font-weight:800;color:' + act.category_color + '">' + act.total_confirmed + '/' + act.total_invited + '</div>';
-        html += '<div style="font-size:10px;color:var(--text-2)">confirmats</div>';
+        html += '<div style="font-size:10px;color:var(--text-2)">confirmados</div>';
         html += '</div>';
         html += '<div style="flex-shrink:0;font-size:20px;color:var(--text-2)">›</div>';
         html += '</div>';
@@ -1521,7 +1521,7 @@ function openActivityDetail(idx) {
     if (act.start_time) meta += act.start_time;
     if (act.end_time) meta += ' - ' + act.end_time;
     if (act.location) meta += ' · ' + act.location;
-    meta += ' · ' + act.total_confirmed + '/' + act.total_invited + ' confirmats';
+    meta += ' · ' + act.total_confirmed + '/' + act.total_invited + ' confirmados';
     $('act-detail-meta').textContent = meta;
     $('activity-badge').style.background = act.category_color + '20';
     $('activity-badge').style.color = act.category_color;
@@ -1535,11 +1535,11 @@ function openActivityDetail(idx) {
         } else {
             html += '<div class="act-res-photo" style="background:#e9ecef;display:flex;align-items:center;justify-content:center;font-size:16px">👤</div>';
         }
-        html += '<div style="flex:1"><div class="act-res-name">' + p.name + '</div>';
-        html += '<div class="act-res-room">Hab. ' + p.room_number + '</div></div>';
+        html += '<div style="flex:1"><div class="act-res-name">' + esc(p.name) + '</div>';
+        html += '<div class="act-res-room">Hab. ' + esc(p.room_number) + '</div></div>';
         if (!p.confirmed) {
-            html += '<button class="act-btn-confirm" data-actid="' + act.id + '" data-rid="' + p.resident_id + '" data-status="participated" title="Ha vingut">✓</button>';
-            html += '<button class="act-btn-confirm" data-actid="' + act.id + '" data-rid="' + p.resident_id + '" data-status="absent" title="No ha vingut" style="margin-left:4px">✗</button>';
+            html += '<button class="act-btn-confirm" data-actid="' + act.id + '" data-rid="' + p.resident_id + '" data-status="participated" title="Ha venido">✓</button>';
+            html += '<button class="act-btn-confirm" data-actid="' + act.id + '" data-rid="' + p.resident_id + '" data-status="absent" title="No ha venido" style="margin-left:4px">✗</button>';
         } else if (p.engagement === 'participated') {
             html += '<div class="act-btn-confirm yes">✓</div>';
             html += '';
@@ -1562,7 +1562,7 @@ function openActivityDetail(idx) {
             var st = btn.dataset.status;
             const { ok } = await api('/api/activities/' + actId + '/confirm', 'POST', {resident_id: rid, status: st});
             if (ok) {
-                toast(st === 'participated' ? 'Assistencia confirmada' : 'Marcat com absent');
+                toast(st === 'participated' ? 'Asistencia confirmada' : 'Marcado como ausente');
                 await loadTodayActivities();
                 // Refresh current detail
                 var newAct = S_activities.find(function(a) { return a.id === actId; });
@@ -1589,7 +1589,7 @@ function openMoodScreen(residentId, residentName, returnScreen) {
     $('mood-save').textContent = 'Selecciona un estado';
     $('mood-notes').value = '';
     document.querySelectorAll('.mood-btn').forEach(b => { b.style.borderColor = 'transparent'; b.style.background = 'none'; });
-    document.querySelectorAll('.mood-flag').forEach(b => { b.style.borderColor = 'var(--border)'; b.style.background = 'var(--surface)'; b.style.color = 'inherit'; });
+    document.querySelectorAll('.mood-flag').forEach(b => { b.dataset.active = '0'; b.setAttribute('aria-pressed', 'false'); b.style.borderColor = 'var(--border)'; b.style.background = 'var(--surface)'; b.style.color = 'inherit'; });
     show('screen-mood');
 }
 
@@ -1606,8 +1606,11 @@ document.querySelectorAll('.mood-btn').forEach(function(btn) {
 });
 
 document.querySelectorAll('.mood-flag').forEach(function(btn) {
+    btn.setAttribute('aria-pressed', 'false');
     btn.addEventListener('click', function() {
-        var isActive = btn.style.background === 'rgb(245, 158, 11)';
+        var isActive = btn.dataset.active === '1';
+        btn.dataset.active = isActive ? '0' : '1';
+        btn.setAttribute('aria-pressed', isActive ? 'false' : 'true');
         btn.style.background = isActive ? 'var(--surface)' : '#f59e0b';
         btn.style.color = isActive ? 'inherit' : '#fff';
         btn.style.borderColor = isActive ? 'var(--border)' : '#f59e0b';
@@ -1618,10 +1621,10 @@ $('mood-save').addEventListener('click', async function() {
     if (!S_moodScore || !S_moodResidentId) return;
     var flags = [];
     document.querySelectorAll('.mood-flag').forEach(function(b) {
-        if (b.style.background === 'rgb(245, 158, 11)') flags.push(b.dataset.flag);
+        if (b.dataset.active === '1') flags.push(b.dataset.flag);
     });
     $('mood-save').disabled = true;
-    $('mood-save').textContent = 'Guardant...';
+    $('mood-save').textContent = 'Guardando…';
     const { ok } = await api('/api/mood', 'POST', {
         resident_id: S_moodResidentId,
         mood_score: S_moodScore,
@@ -1633,7 +1636,7 @@ $('mood-save').addEventListener('click', async function() {
         show(S_moodReturnScreen);
     } else {
         $('mood-save').disabled = false;
-        $('mood-save').textContent = 'Error — torna a provar';
+        $('mood-save').textContent = 'Error — inténtalo de nuevo';
     }
 });
 
@@ -1707,7 +1710,7 @@ document.querySelectorAll('.meal-fluid-btn').forEach(function(btn) {
 $('meal-save').addEventListener('click', async function() {
     if (!S_mealType || !S_mealResidentId) return;
     $('meal-save').disabled = true;
-    $('meal-save').textContent = 'Guardant...';
+    $('meal-save').textContent = 'Guardando…';
     const { ok } = await api('/api/meal', 'POST', {
         resident_id: S_mealResidentId,
         meal_type: S_mealType,
@@ -1720,7 +1723,7 @@ $('meal-save').addEventListener('click', async function() {
         show(S_mealReturnScreen);
     } else {
         $('meal-save').disabled = false;
-        $('meal-save').textContent = 'Error — torna a provar';
+        $('meal-save').textContent = 'Error — inténtalo de nuevo';
     }
 });
 
@@ -4421,7 +4424,7 @@ $('route-back').addEventListener('click', function() { show('screen-home'); });
                 }
             } catch(e) {
                 labelEl.textContent = '🎙 Escriba de voz';
-                toast('Error de connexió');
+                toast('Error de conexión');
             }
         };
     }
