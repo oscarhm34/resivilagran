@@ -4854,7 +4854,7 @@ var CHAT_FAST = 4000, CHAT_SLOW = 10000, CHAT_IDLE = 20000, CHAT_BACKOFF_MS = 60
 
 // Se sube a mano en cada cambio de la webapp. Sirve para saber, mirando el
 // movil, que version esta ejecutando de verdad.
-var APP_BUILD = '2026-09-01 · 4';
+var APP_BUILD = '2026-09-01 · 5';
 
 function chatIniciales(nombre) {
     var partes = (nombre || '?').trim().split(/\s+/);
@@ -5501,7 +5501,16 @@ $('msg-body').addEventListener('click', function (e) {
     const yaAbierto = burbuja && burbuja.nextElementSibling
         && burbuja.nextElementSibling.classList.contains('chat-del');
     cerrarBorrado();
-    if (!burbuja || yaAbierto) return;
+    if (!burbuja) {
+        // Tocar el mensaje de otra persona no hacia nada, y un silencio se lee
+        // como que la aplicacion esta rota. Mejor decir por que no se puede.
+        const ajena = e.target.closest('.chat-bubble.theirs');
+        if (ajena && !ajena.classList.contains('gone')) {
+            toast('Solo puedes eliminar los mensajes que escribes tú');
+        }
+        return;
+    }
+    if (yaAbierto) return;
 
     const caja = document.createElement('div');
     caja.className = 'chat-del';
