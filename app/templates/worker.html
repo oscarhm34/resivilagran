@@ -428,6 +428,11 @@
         .chat-bubble.pending { opacity:.55; }
         .chat-author { font-size:12px; font-weight:700; color:var(--blue); margin-bottom:2px; }
         .chat-meta { font-size:11px; opacity:.75; text-align:right; margin-top:3px; }
+        /* Un ✓ enviado, ✓✓ leido. La diferencia es de forma y no solo de color:
+           la burbuja propia es azul solido, asi que un tick azul no se veria, y
+           ademas un estado no debe distinguirse unicamente por el color. */
+        .chat-tick { margin-left:5px; letter-spacing:-2px; opacity:.6; }
+        .chat-tick.visto { opacity:1; font-weight:700; }
         .chat-compose { display:flex; gap:8px; align-items:center; padding:12px 14px; border-top:1px solid var(--border); background:var(--surface); position:sticky; bottom:0; }
         .msg-input { flex:1; min-height:48px; border-radius:24px; border:1.5px solid var(--border); padding:12px 16px; font-size:16px; font-family:inherit; background:var(--bg); color:var(--text); }
         .msg-send { width:48px; height:48px; min-width:48px; border-radius:50%; border:none; background:var(--blue); color:#fff; font-size:20px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
@@ -4994,6 +4999,7 @@ if ('serviceWorker' in navigator) {
 
 var CHAT = {
     list:      [],      // conversaciones
+    readMin:   0,       // hasta donde han leido TODOS los demas
     open:      null,    // id de la conversacion abierta
     cursor:    0,       // ultimo message.id conocido
     since:     null,    // para enterarse de los borrados
@@ -5007,7 +5013,7 @@ var CHAT_FAST = 4000, CHAT_SLOW = 10000, CHAT_IDLE = 20000, CHAT_BACKOFF_MS = 60
 
 // Se sube a mano en cada cambio de la webapp. Sirve para saber, mirando el
 // movil, que version esta ejecutando de verdad.
-var APP_BUILD = '2026-09-01 · 7';
+var APP_BUILD = '2026-09-01 · 8';
 
 function chatIniciales(nombre) {
     var partes = (nombre || '?').trim().split(/\s+/);
@@ -5111,7 +5117,9 @@ function chatBubble(m) {
         (!mia && !m.deleted && CHAT.openKind === 'group'
             ? '<div class="chat-author">' + chatEscapar(m.sender_name) + '</div>' : '')
         + (m.deleted ? '<div>Mensaje eliminado</div>' : chatAdjuntoHtml(m))
-        + '<div class="chat-meta">' + chatHora(m.created_at) + '</div>';
+        + '<div class="chat-meta">' + chatHora(m.created_at)
+        + (mia && !m.deleted ? '<span class="chat-tick" data-tick="' + m.id + '">✓</span>' : '')
+        + '</div>';
     if (!m.deleted && m.attachment) chatPrepararAdjunto(div, m.attachment);
     return div;
 }
@@ -5156,7 +5164,9 @@ async function openChat(cid) {
         $('msg-body').innerHTML = '<p class="chat-empty">No se ha podido abrir la conversación.<br>Comprueba la conexión.</p>';
         return;
     }
+    CHAT.readMin = data.read_min || 0;
     renderMessages(data.messages, true);
+    pintarVistos();
     if (data.messages.length) CHAT.cursor = Math.max(CHAT.cursor, data.messages[data.messages.length - 1].id);
     markChatRead(data.messages);
 }
@@ -5201,9 +5211,25 @@ async function sendChatMessage(e) {
         return;
     }
     provisional.replaceWith(chatBubble(data));
+    pintarVistos();
     CHAT.cursor = Math.max(CHAT.cursor, data.id);
     chatSetDelay(CHAT_FAST);
     loadChats();
+}
+
+// ── Visto ─────────────────────────────────────────────────────────────────
+// `readMin` es hasta donde han leido TODOS los demas miembros. En un grupo el
+// doble tick no aparece hasta que lo lee el ultimo, que es lo que la gente ya
+// entiende de otras aplicaciones.
+
+function pintarVistos() {
+    const hasta = CHAT.readMin || 0;
+    $('msg-body').querySelectorAll('[data-tick]').forEach(t => {
+        const leido = parseInt(t.dataset.tick, 10) <= hasta;
+        t.textContent = leido ? '✓✓' : '✓';
+        t.classList.toggle('visto', leido);
+        t.title = leido ? 'Leído' : 'Enviado';
+    });
 }
 
 // ── Adjuntos ──────────────────────────────────────────────────────────────
@@ -5603,6 +5629,7 @@ async function chatPoll() {
             burbuja.innerHTML = '<div>Mensaje eliminado</div>';
         }
     });
+    if (data.read_min !== undefined) CHAT.readMin = data.read_min;
     if (data.messages && data.messages.length) {
         renderMessages(data.messages, false);
         markChatRead(data.messages);
@@ -5610,6 +5637,9 @@ async function chatPoll() {
     } else if (!CHAT.open) {
         loadChats();
     }
+    // Tambien cuando no llega ningun mensaje nuevo: lo que ha cambiado puede ser
+    // justamente que la otra persona acaba de leer.
+    if (CHAT.open) pintarVistos();
 }
 
 function startChatPolling() {

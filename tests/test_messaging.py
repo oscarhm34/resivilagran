@@ -1284,3 +1284,63 @@ def test_si_se_vuelve_de_una_pagina_propia_se_respeta(auth_client, db, grupo):
                            headers={'Referer': 'http://localhost/admin/mensajes'})
 
     assert res.headers['Location'].endswith('/admin/mensajes')
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  VISTO (doble check)
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_un_mensaje_sin_leer_no_llega_a_la_marca_de_visto(
+        client, db, direct_conversation, worker_headers):
+    """`read_min` es hasta donde han leido TODOS los demas."""
+    mid = _enviar(client, worker_headers, direct_conversation.id, 'Hola').get_json()['id']
+
+    res = client.get(f'/api/messaging/conversations/{direct_conversation.id}/messages',
+                     headers=worker_headers)
+
+    assert res.get_json()['read_min'] < mid
+
+
+def test_cuando_el_destinatario_lo_lee_la_marca_lo_alcanza(
+        client, db, direct_conversation, worker_headers, second_headers):
+    mid = _enviar(client, worker_headers, direct_conversation.id, 'Hola').get_json()['id']
+    client.post(f'/api/messaging/conversations/{direct_conversation.id}/read',
+                headers=second_headers, json={'up_to_id': mid})
+
+    res = client.get(f'/api/messaging/conversations/{direct_conversation.id}/messages',
+                     headers=worker_headers)
+
+    assert res.get_json()['read_min'] >= mid
+
+
+def test_en_un_grupo_no_cuenta_como_visto_hasta_que_lo_leen_todos(
+        client, db, grupo, cleaner_user, second_cleaner, worker_headers,
+        second_headers, auth_client):
+    """El doble check azul solo sale cuando lo ha leido el ultimo."""
+    mid = _enviar(client, worker_headers, grupo.id, 'Entramos a las 15:00').get_json()['id']
+
+    client.post(f'/api/messaging/conversations/{grupo.id}/read',
+                headers=second_headers, json={'up_to_id': mid})
+    res = client.get(f'/api/messaging/conversations/{grupo.id}/messages',
+                     headers=worker_headers)
+    assert res.get_json()['read_min'] < mid, 'falta el administrador por leerlo'
+
+    auth_client.post(f'/api/messaging/conversations/{grupo.id}/read',
+                     headers={'X-CSRFToken': 'x'}, json={'up_to_id': mid})
+    res = client.get(f'/api/messaging/conversations/{grupo.id}/messages',
+                     headers=worker_headers)
+    assert res.get_json()['read_min'] >= mid
+
+
+def test_el_sondeo_avisa_de_que_lo_han_leido_sin_mensajes_nuevos(
+        client, db, direct_conversation, worker_headers, second_headers):
+    """Lo unico que cambia es que la otra persona acaba de leer."""
+    mid = _enviar(client, worker_headers, direct_conversation.id, 'Hola').get_json()['id']
+    client.post(f'/api/messaging/conversations/{direct_conversation.id}/read',
+                headers=second_headers, json={'up_to_id': mid})
+
+    res = client.get(
+        f'/api/messaging/poll?cursor={mid}&cid={direct_conversation.id}',
+        headers=worker_headers)
+
+    assert res.get_json()['read_min'] >= mid

@@ -44,6 +44,10 @@
     }
     .burbuja-autor { font-size: 12px; font-weight: 600; color: var(--color-primary-dk); margin-bottom: 2px; }
     .burbuja-hora  { font-size: 11px; color: var(--color-text-secondary); text-align: right; margin-top: 2px; }
+    /* Un ✓ enviado, ✓✓ leído: la diferencia es de forma, no solo de color. */
+    .burbuja-tick { margin-left: 5px; letter-spacing: -2px; opacity: .55; }
+    .burbuja-tick.visto { opacity: 1; font-weight: 700; color: var(--color-primary); }
+    [data-theme="dark"] .burbuja-tick.visto { color: var(--color-primary-lt); }
     .burbuja-borrar {
         position: absolute; top: 2px; left: -28px; border: none; background: none;
         color: var(--color-text-secondary); cursor: pointer; padding: 2px 6px;
@@ -343,6 +347,19 @@
         return '<audio controls preload="none" src="' + base + '"></audio>' + texto;
     }
 
+    // `read_min` es hasta donde han leído todos los demás miembros: en un grupo
+    // el doble tick no sale hasta que lo lee el último.
+    var readMin = 0;
+
+    function pintarVistos() {
+        $('hilo').querySelectorAll('[data-tick]').forEach(function (t) {
+            var leido = parseInt(t.dataset.tick, 10) <= readMin;
+            t.textContent = leido ? '✓✓' : '✓';
+            t.classList.toggle('visto', leido);
+            t.title = leido ? 'Leído' : 'Enviado';
+        });
+    }
+
     function pintarMensajes(mensajes, reemplazar) {
         var hilo = $('hilo');
         if (reemplazar) hilo.innerHTML = '';
@@ -372,7 +389,10 @@
                 (!propia && !m.deleted && esGrupo
                     ? '<div class="burbuja-autor">' + escapar(m.sender_name) + '</div>' : '')
                 + (m.deleted ? '<div>Mensaje eliminado</div>' : adjuntoHtml(m))
-                + '<div class="burbuja-hora">' + hora(m.created_at) + '</div>'
+                + '<div class="burbuja-hora">' + hora(m.created_at)
+                + (propia && !m.deleted
+                    ? '<span class="burbuja-tick" data-tick="' + m.id + '">✓</span>' : '')
+                + '</div>'
                 + (propia && !m.deleted
                     ? '<button type="button" class="burbuja-borrar" title="Eliminar para todos"'
                       + ' aria-label="Eliminar mensaje"><i class="bi bi-trash"></i></button>'
@@ -421,7 +441,9 @@
             return;
         }
         var datos = await res.json();
+        readMin = datos.read_min || 0;
         pintarMensajes(datos.messages, true);
+        pintarVistos();
         marcarLeido(datos.messages);
     }
 
@@ -453,6 +475,7 @@
             return;
         }
         pintarMensajes([await res.json()], false);
+        pintarVistos();
         cargarLista();
     });
 
@@ -768,9 +791,11 @@
             if (!res.ok) return;
             var datos = await res.json();
             cursor = datos.cursor;
+            if (datos.read_min !== undefined) { readMin = datos.read_min; pintarVistos(); }
             if (!datos.changed) return;
             if (datos.messages && datos.messages.length) {
                 pintarMensajes(datos.messages, false);
+                pintarVistos();
                 marcarLeido(datos.messages);
             }
             cargarLista();
