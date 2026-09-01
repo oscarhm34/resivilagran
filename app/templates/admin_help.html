@@ -1425,12 +1425,22 @@
             <ul>
                 <li><strong>Escribir a alguien:</strong> "Nuevo mensaje", se busca por nombre y se abre la
                     conversacion. Cada pareja tiene una sola conversacion, no se duplica.</li>
+                <li><strong>Grupos:</strong> desde el panel, boton <strong>Nuevo grupo</strong> en Mensajes.
+                    Se le pone nombre ("Turno de tarde", "Planta 2") y se marca quien entra. Los grupos solo
+                    los crea la administracion, para que no se llenen de grupos duplicados que nadie limpia;
+                    las conversaciones de dos personas las abre cualquiera.</li>
+                <li><strong>Quien entra y quien sale:</strong> quien creo el grupo puede anadir o sacar gente,
+                    y cualquiera puede salirse. Todo queda anotado dentro del propio hilo ("Carmen ha anadido
+                    a Marta"), asi que nadie desaparece sin explicacion. Quien entra despues <strong>no ve lo
+                    que se hablo antes</strong>: se entra en un grupo, no se abre un archivo.</li>
                 <li><strong>Mensajes nuevos:</strong> llegan solos, sin recargar. Con la webapp cerrada llega
                     un aviso al movil; al tocarlo se abre esa conversacion.</li>
                 <li><strong>Eliminar:</strong> quien escribe un mensaje puede eliminarlo durante la primera
                     hora. Queda la marca "Mensaje eliminado" para todo el mundo.</li>
                 <li><strong>Vaciar una conversacion:</strong> solo desaparece de la vista de quien lo pide;
                     la otra persona la sigue viendo entera.</li>
+                <li><strong>Silenciar:</strong> desde el boton ⓘ de la conversacion en la webapp. Deja de
+                    avisar al movil durante 8 horas, pero los mensajes siguen llegando.</li>
             </ul>
 
             <h6>Privacidad: quien lee que</h6>
@@ -1446,6 +1456,12 @@
             <p>Lo clinico va a <strong>Incidencias</strong> o a las observaciones de la atencion, que quedan
                en la ficha del residente y salen en los informes. Un chat no deja rastro clinico y ademas
                se borra solo pasado un tiempo, asi que un aviso importante escrito solo aqui se pierde.</p>
+
+            <h6>Administrar los grupos</h6>
+            <p>En <strong>Gestion &rarr; Grupos de mensajes</strong> se ven todos los grupos con sus miembros,
+               se pueden renombrar y se pueden <strong>archivar</strong>. Archivar retira el grupo de la lista
+               de todo el mundo pero <strong>no borra nada</strong>: si hace falta se reactiva y vuelve con su
+               historial. Esa pantalla muestra quien esta en cada grupo, nunca lo que se habla dentro.</p>
 
             <h6>Cuanto se conserva</h6>
             <p>Los mensajes se guardan <strong>un año</strong>. Despues se eliminan automaticamente. Una
@@ -1465,6 +1481,7 @@
                 </thead>
                 <tbody>
                     <tr><td>31/08</td><td><strong>La webapp volvia a cargarse entera al abrirla:</strong> si se abria con la sesion ya iniciada (lo normal, el acceso dura una semana), la pantalla de inicio se quedaba a medias: solo salia el nombre, sin sesiones en curso, sin pendientes, sin cronometro y sin avisos. Habia que cerrar sesion y volver a entrar para que funcionase. Ademas, en modo oscuro el titulo de las tarjetas de pendientes y la flecha de volver eran casi invisibles.</td></tr>
+                    <tr><td>01/09</td><td><strong>Grupos de mensajes:</strong> ademas de las conversaciones de dos personas, ya se pueden crear grupos ("Turno de tarde", "Planta 2") desde Mensajes &rarr; Nuevo grupo, en el panel. Los crea la administracion; dentro, quien lo creo anade o saca gente y cualquiera puede salirse, y cada cambio queda anotado en el propio hilo. Quien entra despues no ve lo que se hablo antes. En Gestion &rarr; Grupos de mensajes se renombran y se archivan (archivar los retira de la lista sin borrar nada). En la webapp, el boton ⓘ de cada conversacion muestra los participantes y permite silenciarla, vaciarla o salir del grupo.</td></tr>
                     <tr><td>31/08</td><td><strong>Mensajeria interna:</strong> ya se puede escribir a una compañera desde la aplicacion, sin usar WhatsApp personal. En el panel esta en el icono del bocadillo de la barra superior; en la webapp, en la tarjeta "Mensajes" de la pantalla de inicio. Los mensajes llegan solos y, con la webapp cerrada, avisan al movil. El administrador solo ve las conversaciones de las que forma parte: las demas no son accesibles desde el panel. El aviso del movil no incluye el texto del mensaje, solo quien escribe. Lo clinico sigue yendo a Incidencias o a las observaciones de la atencion. Ver la seccion 19 de esta ayuda.</td></tr>
                     <tr><td>31/08</td><td><strong>El tipo de atencion vuelve a ser obligatorio:</strong> ninguna atencion se puede finalizar sin indicar el tipo, ni desde la webapp ni desde el servidor, ni en las atenciones de grupo. Dos registros se habian guardado sin tipo porque la webapp no consiguio cargar la lista y anuncio que no habia ninguno configurado, cuando si los habia; sin tipo el registro no dice que se hizo y ya no hay forma de reconstruirlo. Ahora la webapp distingue las dos situaciones, reintenta la carga sola al finalizar y, si aun asi no lo consigue, explica que hay que volver a intentarlo mas tarde: la sesion se queda abierta, no se cierra a medias. El boton de recargar de la webapp tambien actualiza los tipos, que antes se quedaban vacios toda la sesion. Y en Registros de atencion hay un boton de lapiz para asignar el tipo a los registros antiguos que quedaron sin ninguno.</td></tr>
                     <tr><td>31/08</td><td><strong>Control del estado de administracion de medicacion:</strong> al registrar una dosis desde el movil, el estado (administrado, rechazado, omitido o no disponible) se comprueba contra la lista valida antes de guardarlo. Antes se aceptaba cualquier valor que llegase. Se han anadido tambien las primeras pruebas automaticas de medicacion y de las reglas laborales de los cuadrantes (descanso minimo entre turnos, horas semanales y dias seguidos), que no tenian ninguna.</td></tr>

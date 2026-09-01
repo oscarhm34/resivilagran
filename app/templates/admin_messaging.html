@@ -35,6 +35,13 @@
     .burbuja.propia { margin-left: auto; background: var(--color-primary-lt); }
     .burbuja.ajena  { background: var(--color-bg); border: 1px solid var(--color-border); }
     .burbuja.borrada { font-style: italic; color: var(--color-text-secondary); }
+    /* Los avisos del grupo (altas, bajas, cambios de nombre) no son de nadie:
+       van centrados y sin cola, para que no se lean como un mensaje mas. */
+    .burbuja.sistema {
+        max-width: 100%; margin: 4px auto 10px; text-align: center;
+        background: none; border: none; font-size: .85rem;
+        color: var(--color-text-secondary);
+    }
     .burbuja-autor { font-size: 12px; font-weight: 600; color: var(--color-primary-dk); margin-bottom: 2px; }
     .burbuja-hora  { font-size: 11px; color: var(--color-text-secondary); text-align: right; margin-top: 2px; }
 
@@ -52,9 +59,14 @@
 </style>
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <h1 class="h4 mb-0"><i class="bi bi-chat-dots me-2" aria-hidden="true"></i>Mensajes</h1>
-    <button type="button" class="btn btn-primary btn-sm" id="btn-nueva-conversacion">
-        <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Nueva conversación
-    </button>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-primary btn-sm" id="btn-nuevo-grupo">
+            <i class="bi bi-people me-1" aria-hidden="true"></i>Nuevo grupo
+        </button>
+        <button type="button" class="btn btn-primary btn-sm" id="btn-nueva-conversacion">
+            <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Nueva conversación
+        </button>
+    </div>
 </div>
 
 <div class="alert alert-info d-flex align-items-start gap-2" role="note">
@@ -127,6 +139,32 @@
 </div>
 {% endblock %}
 {% block scripts %}
+<!-- Grupo nuevo -->
+<div class="modal fade" id="modalGrupo" tabindex="-1" aria-labelledby="modalGrupoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalGrupoLabel">Nuevo grupo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <label for="grupo-nombre" class="form-label">Nombre del grupo</label>
+                <input type="text" class="form-control mb-3" id="grupo-nombre" maxlength="100"
+                       placeholder="Turno de tarde, Planta 2…">
+                <label class="form-label">Quién entra</label>
+                <input type="search" class="form-control mb-2" id="grupo-buscar"
+                       placeholder="Buscar por nombre…" aria-label="Buscar persona">
+                <div id="grupo-contactos" style="max-height:320px;overflow-y:auto"></div>
+            </div>
+            <div class="modal-footer">
+                <span class="me-auto small" style="color:var(--color-text-secondary)" id="grupo-contador">Nadie seleccionado</span>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="grupo-crear">Crear grupo</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 (function () {
     'use strict';
@@ -215,14 +253,22 @@
         // quedarse debajo.
         var vacio = hilo.querySelector('.hilo-vacio');
         if (vacio && mensajes.length) vacio.remove();
+        var esGrupo = (conversaciones.filter(function (c) { return c.id === abierta; })[0] || {}).kind === 'group';
         mensajes.forEach(function (m) {
             if (hilo.querySelector('[data-msg="' + m.id + '"]')) return;
-            var propia = m.sender_id === YO;
             var div = document.createElement('div');
-            div.className = 'burbuja ' + (propia ? 'propia' : 'ajena') + (m.deleted ? ' borrada' : '');
             div.dataset.msg = m.id;
+            if (m.kind === 'system') {
+                div.className = 'burbuja sistema';
+                div.innerHTML = escapar(m.body);
+                hilo.appendChild(div);
+                return;
+            }
+            var propia = m.sender_id === YO;
+            div.className = 'burbuja ' + (propia ? 'propia' : 'ajena') + (m.deleted ? ' borrada' : '');
             div.innerHTML =
-                (!propia && !m.deleted ? '<div class="burbuja-autor">' + escapar(m.sender_name) + '</div>' : '')
+                (!propia && !m.deleted && esGrupo
+                    ? '<div class="burbuja-autor">' + escapar(m.sender_name) + '</div>' : '')
                 + '<div>' + (m.deleted ? 'Mensaje eliminado' : escapar(m.body)) + '</div>'
                 + '<div class="burbuja-hora">' + hora(m.created_at) + '</div>';
             hilo.appendChild(div);
@@ -234,7 +280,11 @@
         abierta = cid;
         document.querySelector('.msg-layout').classList.add('viendo-hilo');
         var conv = conversaciones.filter(function (c) { return c.id === cid; })[0];
-        $('hilo-titulo').textContent = conv ? conv.title : 'Conversación';
+        $('hilo-titulo').textContent = conv
+            ? (conv.kind === 'group'
+                ? conv.title + ' · ' + conv.member_count + ' miembros'
+                : conv.title)
+            : 'Conversación';
         $('composer').style.display = '';
         pintarLista();
 
@@ -319,6 +369,74 @@
         $('buscar-contacto').value = '';
         cargarContactos('');
         modalNueva.show();
+    });
+
+    // ── Grupo nuevo ──────────────────────────────────────────────────────
+    var modalGrupo = null;
+    var elegidos = {};   // se mantiene aunque cambie la búsqueda
+
+    function pintarContador() {
+        var n = Object.keys(elegidos).length;
+        $('grupo-contador').textContent = n === 0 ? 'Nadie seleccionado'
+            : (n === 1 ? '1 persona' : n + ' personas');
+    }
+
+    async function cargarContactosGrupo(q) {
+        var res = await fetch('/api/messaging/contacts?q=' + encodeURIComponent(q || ''));
+        if (!res.ok) return;
+        var gente = await res.json();
+        $('grupo-contactos').innerHTML = gente.map(function (c) {
+            return '<div class="form-check py-1">'
+                + '<input class="form-check-input" type="checkbox" value="' + c.id + '" id="gc-' + c.id + '"'
+                + (elegidos[c.id] ? ' checked' : '') + '>'
+                + '<label class="form-check-label" for="gc-' + c.id + '">' + escapar(c.name)
+                + ' <span style="color:var(--color-text-secondary)">· ' + escapar(c.role) + '</span></label>'
+                + '</div>';
+        }).join('') || '<p class="mb-0" style="color:var(--color-text-secondary)">Sin resultados.</p>';
+
+        $('grupo-contactos').querySelectorAll('input[type=checkbox]').forEach(function (cb) {
+            cb.addEventListener('change', function () {
+                if (cb.checked) { elegidos[cb.value] = true; } else { delete elegidos[cb.value]; }
+                pintarContador();
+            });
+        });
+    }
+
+    $('btn-nuevo-grupo').addEventListener('click', function () {
+        modalGrupo = modalGrupo || new bootstrap.Modal($('modalGrupo'));
+        elegidos = {};
+        $('grupo-nombre').value = '';
+        $('grupo-buscar').value = '';
+        pintarContador();
+        cargarContactosGrupo('');
+        modalGrupo.show();
+    });
+
+    var grupoBuscarTimer = null;
+    $('grupo-buscar').addEventListener('input', function () {
+        clearTimeout(grupoBuscarTimer);
+        var v = this.value;
+        grupoBuscarTimer = setTimeout(function () { cargarContactosGrupo(v); }, 250);
+    });
+
+    $('grupo-crear').addEventListener('click', async function () {
+        var titulo = $('grupo-nombre').value.trim();
+        var ids = Object.keys(elegidos).map(Number);
+        if (!titulo) { window.showToast('Ponle un nombre al grupo', 'warning'); return; }
+        if (!ids.length) { window.showToast('Elige al menos una persona', 'warning'); return; }
+
+        this.disabled = true;
+        var res = await fetch('/api/messaging/conversations/group', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: titulo, member_ids: ids }),
+        });
+        this.disabled = false;
+        var datos = await res.json();
+        if (!res.ok) { window.showToast(datos.error || 'No se pudo crear el grupo', 'error'); return; }
+        modalGrupo.hide();
+        await cargarLista();
+        abrir(datos.conversation_id);
     });
 
     var buscarTimer = null;

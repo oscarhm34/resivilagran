@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Grupos de mensajes{% endblock %}
+
+{% block content %}
+<style>
+    .grupo-card { border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--color-surface); padding:16px; margin-bottom:12px; }
+    .grupo-card.archivado { opacity:.65; }
+    .grupo-nombre { font-weight:600; font-size:1.05rem; color:var(--color-text); }
+    .grupo-miembros { color:var(--color-text-secondary); font-size:.9rem; margin-top:4px; }
+    .grupo-acciones { display:flex; gap:8px; flex-wrap:wrap; }
+    [data-theme="dark"] .grupo-card { background:var(--color-surface); }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h1 class="h4 mb-0"><i class="bi bi-people me-2" aria-hidden="true"></i>Grupos de mensajes</h1>
+    <a href="{{ url_for('messaging.admin_messaging') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-chat-dots me-1" aria-hidden="true"></i>Ir a Mensajes
+    </a>
+</div>
+
+<div class="alert alert-info d-flex align-items-start gap-2" role="note">
+    <i class="bi bi-shield-lock mt-1" aria-hidden="true"></i>
+    <div>
+        Aquí se ve <strong>quién está en cada grupo</strong>, no lo que se habla.
+        Para leer un grupo hay que ser miembro, también siendo administrador.
+        Los grupos se crean desde <strong>Mensajes → Nuevo grupo</strong>.
+    </div>
+</div>
+
+{% if not grupos %}
+    <p style="color:var(--color-text-secondary)">Todavía no hay ningún grupo.</p>
+{% endif %}
+
+{% for g in grupos %}
+{% set activos = g.members | selectattr('left_at', 'none') | list %}
+<div class="grupo-card {% if not g.is_active %}archivado{% endif %}">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div style="flex:1;min-width:240px">
+            <div class="grupo-nombre">
+                {{ g.title }}
+                {% if not g.is_active %}<span class="badge bg-secondary ms-1">Archivado</span>{% endif %}
+            </div>
+            <div class="grupo-miembros">
+                {{ activos | length }} miembro{{ '' if activos | length == 1 else 's' }}:
+                {% for m in activos %}{{ m.cleaner.name if m.cleaner else '—' }}{% if m.role == 'owner' %} (creador){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
+            </div>
+            {% if g.last_message_at %}
+            <div class="grupo-miembros">Última actividad: {{ g.last_message_at.strftime('%d/%m/%Y %H:%M') }}</div>
+            {% endif %}
+        </div>
+        <div class="grupo-acciones">
+            <form method="POST" action="{{ url_for('messaging.admin_rename_group', cid=g.id) }}" class="d-flex gap-2">
+                <label class="visually-hidden" for="titulo-{{ g.id }}">Nombre del grupo</label>
+                <input type="text" class="form-control form-control-sm" id="titulo-{{ g.id }}"
+                       name="title" value="{{ g.title }}" maxlength="100" style="min-width:180px">
+                <button type="submit" class="btn btn-sm btn-outline-primary" title="Renombrar">
+                    <i class="bi bi-check-lg" aria-hidden="true"></i>
+                    <span class="visually-hidden">Renombrar</span>
+                </button>
+            </form>
+            <form method="POST" action="{{ url_for('messaging.admin_archive_group', cid=g.id) }}"
+                  data-confirm="{% if g.is_active %}¿Archivar «{{ g.title }}»? Dejará de verse en la lista de todos, pero no se borra nada.{% else %}¿Reactivar «{{ g.title }}»?{% endif %}">
+                <button type="submit" class="btn btn-sm {% if g.is_active %}btn-outline-danger{% else %}btn-outline-success{% endif %}">
+                    <i class="bi {% if g.is_active %}bi-archive{% else %}bi-arrow-counterclockwise{% endif %} me-1" aria-hidden="true"></i>
+                    {{ 'Archivar' if g.is_active else 'Reactivar' }}
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

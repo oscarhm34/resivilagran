@@ -433,6 +433,12 @@
         .msg-send { width:48px; height:48px; min-width:48px; border-radius:50%; border:none; background:var(--blue); color:#fff; font-size:20px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
         .msg-send:disabled { opacity:.4; }
         .chat-empty { text-align:center; color:var(--text-2); font-size:14px; padding:40px 20px; }
+        /* Altas, bajas y cambios de nombre: no son de nadie, van centrados. */
+        .chat-system { align-self:center; max-width:90%; text-align:center; font-size:13px; color:var(--text-2); padding:6px 12px; }
+        .chat-info-btn { background:none; border:none; color:var(--text-2); font-size:22px; cursor:pointer; padding:4px 8px; }
+        .chat-member { display:flex; align-items:center; gap:12px; padding:12px 6px; border-bottom:1px solid var(--border); }
+        .chat-danger-btn { width:100%; min-height:48px; border-radius:14px; border:1.5px solid var(--danger); background:none; color:var(--danger); font-size:16px; font-weight:600; font-family:inherit; cursor:pointer; margin-top:10px; }
+        .chat-plain-btn { width:100%; min-height:48px; border-radius:14px; border:1.5px solid var(--border); background:none; color:var(--text); font-size:16px; font-family:inherit; cursor:pointer; margin-top:10px; }
         .chat-aviso { font-size:12px; color:var(--text-2); text-align:center; padding:10px 16px 0; }
 
         /* ── Document viewer ── */
@@ -646,16 +652,41 @@
         <div class="chat-head">
             <button class="btn-back" id="msg-back" aria-label="Volver">←</button>
             <div class="chat-head-name" id="msg-title">—</div>
+            <button class="chat-info-btn" id="msg-info-btn" aria-label="Información de la conversación" title="Información">ⓘ</button>
         </div>
         <div class="msg-body" id="msg-body"></div>
-        <div class="chat-aviso">
+        <div class="chat-aviso" id="msg-clinico">
             Para lo clínico usa las observaciones de la atención: aquí no queda en la ficha del residente.
+        </div>
+        <div class="chat-aviso" id="msg-readonly" style="display:none;padding-bottom:16px">
+            Ya no estás en este grupo. Puedes leer lo que había, pero no escribir.
         </div>
         <form class="chat-compose" id="msg-form">
             <input type="text" class="msg-input" id="msg-input" placeholder="Escribe un mensaje…"
                    autocomplete="off" maxlength="4000" aria-label="Mensaje">
             <button type="submit" class="msg-send" id="msg-send" aria-label="Enviar">➤</button>
         </form>
+    </div>
+
+    <!-- ══ MENSAJES: INFORMACIÓN ══ -->
+    <div id="screen-msg-info" class="screen">
+        <div class="scan-header" style="margin-bottom:18px">
+            <button class="btn-back" id="msg-info-back" aria-label="Volver">←</button>
+            <div style="flex:1">
+                <div style="font-family:'Outfit',sans-serif;font-size:20px;font-weight:700" id="msg-info-title">—</div>
+                <div style="font-size:13px;color:var(--text-2)" id="msg-info-sub"></div>
+            </div>
+        </div>
+        <div class="section-label">Participantes</div>
+        <div id="msg-info-members"></div>
+        <div style="margin-top:20px">
+            <button class="chat-plain-btn" id="msg-info-mute">🔕 Silenciar 8 horas</button>
+            <button class="chat-plain-btn" id="msg-info-clear">🧹 Vaciar la conversación para mí</button>
+            <button class="chat-danger-btn" id="msg-info-leave" style="display:none">🚪 Salir del grupo</button>
+        </div>
+        <p style="font-size:12px;color:var(--text-2);margin-top:14px;text-align:center">
+            Vaciar solo te afecta a ti: los demás siguen viendo la conversación entera.
+        </p>
     </div>
 
     <!-- ══ MENSAJES: NUEVA CONVERSACIÓN ══ -->
@@ -4819,6 +4850,13 @@ function showChats() {
 // ── Conversación ──────────────────────────────────────────────────────────
 
 function chatBubble(m) {
+    if (m.kind === 'system') {
+        const aviso = document.createElement('div');
+        aviso.className = 'chat-system';
+        aviso.dataset.mid = m.id;
+        aviso.textContent = m.body || '';
+        return aviso;
+    }
     const mia = m.sender_id === parseInt(S.workerId);
     const div = document.createElement('div');
     div.className = 'chat-bubble ' + (mia ? 'mine' : 'theirs') + (m.deleted ? ' gone' : '');
@@ -4852,8 +4890,16 @@ async function openChat(cid) {
     CHAT.open = cid;
     const conv = CHAT.list.filter(function (c) { return c.id === cid; })[0];
     CHAT.openKind = conv ? conv.kind : 'direct';
-    $('msg-title').textContent = conv ? conv.title : 'Conversación';
+    $('msg-title').textContent = conv
+        ? (conv.kind === 'group' ? conv.title + ' · ' + conv.member_count + ' personas' : conv.title)
+        : 'Conversación';
     $('msg-body').innerHTML = '<p class="chat-empty">Cargando…</p>';
+    // Quien salio del grupo lo conserva en solo lectura: dejarle el escritor
+    // seria invitarla a escribir para que el servidor lo rechace.
+    const fuera = !!(conv && conv.left);
+    $('msg-form').style.display = fuera ? 'none' : '';
+    $('msg-clinico').style.display = fuera ? 'none' : '';
+    $('msg-readonly').style.display = fuera ? '' : 'none';
     show('screen-msg');
     chatSetDelay(CHAT_FAST);
 
@@ -5021,6 +5067,78 @@ function stopChatPolling() {
 document.addEventListener('visibilitychange', function () {
     if (document.hidden) { stopChatPolling(); }
     else if (S.token) { chatPoll(); startChatPolling(); }
+});
+
+// ── Información de la conversación ────────────────────────────────────────
+
+var CHAT_INFO = null;
+
+async function showChatInfo() {
+    if (!CHAT.open) return;
+    const { ok, data } = await api('/api/messaging/conversations/' + CHAT.open + '/info');
+    if (!ok) { toast('No se ha podido cargar la información'); return; }
+    CHAT_INFO = data;
+
+    $('msg-info-title').textContent = data.title;
+    $('msg-info-sub').textContent = data.kind === 'group'
+        ? data.members.length + (data.members.length === 1 ? ' participante' : ' participantes')
+        : 'Conversación individual';
+    $('msg-info-mute').textContent = data.muted ? '🔔 Quitar el silencio' : '🔕 Silenciar 8 horas';
+    $('msg-info-leave').style.display = (data.kind === 'group' && !data.left) ? '' : 'none';
+
+    $('msg-info-members').innerHTML = data.members.map(function (m) {
+        return '<div class="chat-member">'
+            + '<span class="chat-avatar" style="background:' + chatColor(m.id) + '">' + chatEscapar(chatIniciales(m.name)) + '</span>'
+            + '<span class="chat-row-info"><span class="chat-row-name">' + chatEscapar(m.name)
+            + (m.is_me ? ' (tú)' : '') + '</span>'
+            + (m.role === 'owner' ? '<span class="chat-row-preview">Creó el grupo</span>' : '')
+            + '</span></div>';
+    }).join('');
+
+    show('screen-msg-info');
+}
+
+$('msg-info-btn').addEventListener('click', showChatInfo);
+$('msg-info-back').addEventListener('click', function () { show('screen-msg'); });
+
+$('msg-info-mute').addEventListener('click', async function () {
+    const horas = (CHAT_INFO && CHAT_INFO.muted) ? 0 : 8;
+    const { ok } = await api('/api/messaging/conversations/' + CHAT.open + '/mute', 'POST', { hours: horas });
+    if (!ok) { toast('No se ha podido cambiar el aviso'); return; }
+    toast(horas ? 'Silenciada durante 8 horas' : 'Volverás a recibir avisos');
+    showChatInfo();
+    loadChats();
+});
+
+$('msg-info-clear').addEventListener('click', async function () {
+    const { ok } = await api('/api/messaging/conversations/' + CHAT.open + '/clear', 'POST');
+    if (!ok) { toast('No se ha podido vaciar'); return; }
+    toast('Conversación vaciada');
+    $('msg-body').innerHTML = '<p class="chat-empty">No hay mensajes todavía.<br>Escribe el primero.</p>';
+    show('screen-msg');
+    loadChats();
+});
+
+$('msg-info-leave').addEventListener('click', async function () {
+    // Sin confirm() nativo: rompe la experiencia de la PWA. Dos toques a
+    // proposito, porque salir de un grupo no se deshace solo.
+    if (this.dataset.confirmando !== '1') {
+        this.dataset.confirmando = '1';
+        this.textContent = '¿Seguro? Pulsa otra vez para salir';
+        setTimeout(() => {
+            this.dataset.confirmando = '0';
+            this.textContent = '🚪 Salir del grupo';
+        }, 4000);
+        return;
+    }
+    this.dataset.confirmando = '0';
+    this.textContent = '🚪 Salir del grupo';
+    const { ok, data } = await api('/api/messaging/conversations/' + CHAT.open + '/leave', 'POST');
+    if (!ok) { toast((data && data.error) || 'No se ha podido salir'); return; }
+    toast('Has salido del grupo');
+    CHAT.open = null;
+    await loadChats();
+    showChats();
 });
 
 // ── Enganches de la interfaz ──────────────────────────────────────────────

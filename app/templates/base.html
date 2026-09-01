@@ -521,13 +521,14 @@
                         </ul>
                     </li>
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {% if request.endpoint in ('documents.admin_documents','documents.document_signatures','training.admin_training','training.training_results','incidents.admin_incidents','incidents.admin_incident_types') %}active{% endif %}"
+                        <a class="nav-link dropdown-toggle {% if request.endpoint in ('documents.admin_documents','documents.document_signatures','training.admin_training','training.training_results','incidents.admin_incidents','incidents.admin_incident_types','messaging.admin_messaging_groups') %}active{% endif %}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-folder me-1" aria-hidden="true"></i>Gestión
                         </a>
                         <ul class="dropdown-menu shadow-sm" style="border-color:var(--color-border);border-radius:var(--radius-md)">
                             <li><a class="dropdown-item" href="{{ url_for('documents.admin_documents') }}"><i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Documentos legales</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('training.admin_training') }}"><i class="bi bi-play-circle me-1" aria-hidden="true"></i>Píldoras formativas</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('messaging.admin_messaging_groups') }}"><i class="bi bi-people me-1" aria-hidden="true"></i>Grupos de mensajes</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ url_for('incidents.admin_incidents') }}"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Incidencias</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('incidents.admin_incident_types') }}"><i class="bi bi-tags me-1" aria-hidden="true"></i>Tipos de incidencia</a></li>

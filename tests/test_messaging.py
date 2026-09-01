@@ -472,3 +472,255 @@ def test_la_pagina_de_mensajes_se_pinta_para_el_admin(auth_client, db):
 
     assert res.status_code == 200
     assert 'Solo ves las conversaciones de las que formas parte' in res.get_data(as_text=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  GRUPOS
+# ══════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture
+def third_cleaner(db):
+    user = Cleaner(username='limpiadora3', name='Rosa Prieto', is_admin=False)
+    user.set_password('limpia123')
+    db.session.add(user)
+    db.session.commit()
+    return user
+
+
+@pytest.fixture
+def third_headers(db, third_cleaner, app):
+    with app.app_context():
+        token = create_access_token(identity=third_cleaner.username)
+    return {'Authorization': f'Bearer {token}'}
+
+
+@pytest.fixture
+def grupo(auth_client, db, admin_user, cleaner_user, second_cleaner):
+    """Grupo creado por el admin con las dos trabajadoras dentro."""
+    res = auth_client.post('/api/messaging/conversations/group',
+                           headers={'X-CSRFToken': 'x'},
+                           json={'title': 'Turno de tarde',
+                                 'member_ids': [cleaner_user.id, second_cleaner.id]})
+    assert res.status_code == 201, res.get_data(as_text=True)
+    return db.session.get(Conversation, res.get_json()['conversation_id'])
+
+
+def _sistema(db, cid):
+    return [m.body for m in Message.query.filter_by(
+        conversation_id=cid, kind='system').order_by(Message.id).all()]
+
+
+# ── Quién puede crear grupos ────────────────────────────────────────────────
+
+def test_una_trabajadora_no_puede_crear_grupos(
+        client, db, second_cleaner, worker_headers):
+    """Los 1-a-1 los abre cualquiera; los canales del centro los monta coordinación."""
+    res = client.post('/api/messaging/conversations/group', headers=worker_headers,
+                      json={'title': 'Mi grupo', 'member_ids': [second_cleaner.id]})
+
+    assert res.status_code == 403
+    assert Conversation.query.filter_by(kind='group').count() == 0
+
+
+def test_el_admin_crea_el_grupo_con_sus_miembros(grupo, db, admin_user,
+                                                 cleaner_user, second_cleaner):
+    dentro = {m.cleaner_id for m in grupo.members if m.left_at is None}
+
+    assert grupo.title == 'Turno de tarde'
+    assert dentro == {admin_user.id, cleaner_user.id, second_cleaner.id}
+    # Quien lo crea manda: puede sacar gente aunque deje de ser administrador.
+    creador = [m for m in grupo.members if m.cleaner_id == admin_user.id][0]
+    assert creador.role == 'owner'
+
+
+def test_crear_un_grupo_sin_nombre_se_rechaza(auth_client, db, cleaner_user):
+    res = auth_client.post('/api/messaging/conversations/group',
+                           headers={'X-CSRFToken': 'x'},
+                           json={'title': '  ', 'member_ids': [cleaner_user.id]})
+
+    assert res.status_code == 400
+
+
+def test_crear_un_grupo_sin_nadie_se_rechaza(auth_client, db):
+    res = auth_client.post('/api/messaging/conversations/group',
+                           headers={'X-CSRFToken': 'x'},
+                           json={'title': 'Yo solo', 'member_ids': []})
+
+    assert res.status_code == 400
+
+
+def test_crear_un_grupo_deja_constancia_en_la_auditoria(grupo, db):
+    from app.models import AuditLog
+    registros = AuditLog.query.filter_by(table_name='conversation').all()
+
+    assert len(registros) == 1
+    assert registros[0].action == 'create'
+    # Nunca el contenido de los mensajes, solo quién está dentro.
+    assert 'Turno de tarde' in (registros[0].details or '')
+
+
+# ── Conversar en grupo ──────────────────────────────────────────────────────
+
+def test_los_miembros_ven_el_grupo_en_su_lista(client, db, grupo, worker_headers):
+    res = client.get('/api/messaging/conversations', headers=worker_headers)
+
+    fila = res.get_json()[0]
+    assert fila['kind'] == 'group'
+    assert fila['title'] == 'Turno de tarde'
+    assert fila['member_count'] == 3
+
+
+def test_quien_no_esta_en_el_grupo_no_lo_ve(client, db, grupo, third_headers):
+    res = client.get(f'/api/messaging/conversations/{grupo.id}/messages',
+                     headers=third_headers)
+
+    assert res.status_code == 404
+
+
+def test_un_mensaje_al_grupo_lo_reciben_los_demas(
+        client, db, grupo, worker_headers, second_headers):
+    _enviar(client, worker_headers, grupo.id, 'Llego diez minutos tarde')
+
+    res = client.get('/api/messaging/conversations', headers=second_headers)
+
+    # El aviso de creación del grupo también cuenta como novedad.
+    assert res.get_json()[0]['unread'] == 2
+    assert res.get_json()[0]['last_message_preview'] == 'Llego diez minutos tarde'
+
+
+# ── Altas y bajas ───────────────────────────────────────────────────────────
+
+def test_el_creador_anade_a_alguien_y_queda_anotado(
+        auth_client, db, grupo, third_cleaner):
+    res = auth_client.post(f'/api/messaging/conversations/{grupo.id}/members',
+                           headers={'X-CSRFToken': 'x'},
+                           json={'member_ids': [third_cleaner.id]})
+
+    assert res.status_code == 200
+    assert any('Rosa Prieto' in t for t in _sistema(db, grupo.id))
+
+
+def test_un_miembro_normal_no_puede_anadir_gente(
+        client, db, grupo, third_cleaner, worker_headers):
+    res = client.post(f'/api/messaging/conversations/{grupo.id}/members',
+                      headers=worker_headers, json={'member_ids': [third_cleaner.id]})
+
+    assert res.status_code == 403
+
+
+def test_quien_entra_despues_no_ve_lo_hablado_antes(
+        auth_client, client, db, grupo, third_cleaner, third_headers, worker_headers):
+    """Se entra en un grupo, no se abre un archivo."""
+    _enviar(client, worker_headers, grupo.id, 'Esto es de antes')
+    auth_client.post(f'/api/messaging/conversations/{grupo.id}/members',
+                     headers={'X-CSRFToken': 'x'}, json={'member_ids': [third_cleaner.id]})
+
+    res = client.get(f'/api/messaging/conversations/{grupo.id}/messages',
+                     headers=third_headers)
+
+    cuerpos = [m['body'] for m in res.get_json()['messages']]
+    assert 'Esto es de antes' not in cuerpos
+
+
+def test_sacar_del_grupo_congela_lo_que_ve_esa_persona(
+        auth_client, client, db, grupo, cleaner_user, worker_headers, second_headers):
+    auth_client.post(f'/api/messaging/conversations/{grupo.id}/members/{cleaner_user.id}/remove',
+                     headers={'X-CSRFToken': 'x'})
+
+    _enviar(client, second_headers, grupo.id, 'Esto ya no lo ve')
+    res = client.get(f'/api/messaging/conversations/{grupo.id}/messages',
+                     headers=worker_headers)
+
+    cuerpos = [m['body'] for m in res.get_json()['messages']]
+    assert 'Esto ya no lo ve' not in cuerpos
+
+
+def test_quien_sale_del_grupo_no_puede_seguir_escribiendo(
+        client, db, grupo, worker_headers):
+    client.post(f'/api/messaging/conversations/{grupo.id}/leave', headers=worker_headers)
+
+    res = _enviar(client, worker_headers, grupo.id, 'Una más')
+
+    assert res.status_code == 404
+
+
+def test_salir_del_grupo_deja_un_aviso_en_el_hilo(client, db, grupo, worker_headers):
+    client.post(f'/api/messaging/conversations/{grupo.id}/leave', headers=worker_headers)
+
+    assert any('ha salido del grupo' in t for t in _sistema(db, grupo.id))
+
+
+def test_no_se_puede_sacar_a_quien_creo_el_grupo(auth_client, db, grupo, admin_user):
+    res = auth_client.post(
+        f'/api/messaging/conversations/{grupo.id}/members/{admin_user.id}/remove',
+        headers={'X-CSRFToken': 'x'})
+
+    assert res.status_code == 400
+
+
+def test_de_una_conversacion_individual_no_se_sale(
+        client, db, direct_conversation, worker_headers):
+    res = client.post(f'/api/messaging/conversations/{direct_conversation.id}/leave',
+                      headers=worker_headers)
+
+    assert res.status_code == 400
+
+
+# ── Ficha de la conversación ────────────────────────────────────────────────
+
+def test_la_ficha_lista_a_los_participantes(client, db, grupo, worker_headers):
+    res = client.get(f'/api/messaging/conversations/{grupo.id}/info',
+                     headers=worker_headers)
+
+    datos = res.get_json()
+    assert datos['kind'] == 'group'
+    assert len(datos['members']) == 3
+    assert datos['can_manage'] is False        # miembro normal
+    assert any(m['is_me'] for m in datos['members'])
+
+
+def test_la_ficha_de_un_grupo_ajeno_no_se_puede_pedir(
+        client, db, grupo, third_headers):
+    res = client.get(f'/api/messaging/conversations/{grupo.id}/info',
+                     headers=third_headers)
+
+    assert res.status_code == 404
+
+
+# ── Panel de administración ─────────────────────────────────────────────────
+
+def test_la_pagina_de_grupos_exige_admin(client, db):
+    res = client.get('/admin/mensajes/grupos')
+
+    assert res.status_code in (302, 401, 403)
+
+
+def test_la_pagina_de_grupos_lista_los_grupos_sin_su_contenido(
+        auth_client, client, db, grupo, worker_headers):
+    _enviar(client, worker_headers, grupo.id, 'Un secreto del grupo')
+
+    res = auth_client.get('/admin/mensajes/grupos')
+
+    texto = res.get_data(as_text=True)
+    assert res.status_code == 200
+    assert 'Turno de tarde' in texto
+    assert 'Un secreto del grupo' not in texto
+
+
+def test_renombrar_el_grupo_lo_anota_en_el_hilo(auth_client, db, grupo):
+    auth_client.post(f'/admin/mensajes/grupos/{grupo.id}/renombrar',
+                     data={'title': 'Turno de noche'}, follow_redirects=True)
+
+    assert db.session.get(Conversation, grupo.id).title == 'Turno de noche'
+    assert any('Turno de noche' in t for t in _sistema(db, grupo.id))
+
+
+def test_archivar_el_grupo_lo_saca_de_la_lista_sin_borrar_nada(
+        auth_client, client, db, grupo, worker_headers):
+    _enviar(client, worker_headers, grupo.id, 'Queda guardado')
+
+    auth_client.post(f'/admin/mensajes/grupos/{grupo.id}/archivar', follow_redirects=True)
+
+    lista = client.get('/api/messaging/conversations', headers=worker_headers).get_json()
+    assert lista == []
+    assert Message.query.filter_by(conversation_id=grupo.id).count() > 0

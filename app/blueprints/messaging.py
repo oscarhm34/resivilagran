@@ -14,14 +14,17 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from flask import Blueprint, request, jsonify, render_template
+from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash
+from flask_login import current_user
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 from .. import app, db, limiter
 from ..models import Cleaner, Conversation, ConversationMember, Message
-from ..utils import admin_required, dual_auth, current_dual_user, _safe_commit
+from ..utils import (
+    admin_required, dual_auth, current_dual_user, _safe_commit, log_audit,
+)
 
 bp = Blueprint('messaging', __name__)
 
@@ -599,3 +602,292 @@ def admin_messaging():
     """Pagina del panel. Los datos los pide por `/api/messaging/...`, que
     comprueba pertenencia: desde aqui no se ve ninguna conversacion ajena."""
     return render_template('admin_messaging.html')
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  GRUPOS
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _puede_gestionar_grupos(user) -> bool:
+    """Quien crea y administra los grupos.
+
+    Los 1-a-1 los abre cualquiera; los grupos no, para que no proliferen
+    duplicados que luego nadie limpia. Un grupo es un canal medio oficial de la
+    residencia ("Turno de tarde"), asi que lo monta coordinacion.
+    """
+    return bool(user.is_admin)
+
+
+def _add_system_message(conv: Conversation, actor_id: int, texto: str) -> Message:
+    """Deja constancia en el hilo de un cambio en el grupo.
+
+    Sin esto, alguien desaparece del grupo y nadie sabe si se fue o lo sacaron.
+    """
+    msg = Message(conversation_id=conv.id, sender_id=actor_id,
+                  kind='system', body=texto)
+    db.session.add(msg)
+    db.session.flush()
+    _touch_conversation(conv, msg)
+    return msg
+
+
+def _miembros_activos(cid: int):
+    return ConversationMember.query.filter(
+        ConversationMember.conversation_id == cid,
+        ConversationMember.left_at.is_(None),
+    ).all()
+
+
+def _ultimo_mensaje_id(cid: int) -> int:
+    return db.session.query(func.max(Message.id)).filter(
+        Message.conversation_id == cid).scalar() or 0
+
+
+def _incorporar(conv: Conversation, cleaner_id: int, role: str = 'member'):
+    """Alta de un miembro, reutilizando su fila si ya estuvo dentro.
+
+    Al reincorporarse no se le devuelve lo que se hablo mientras estaba fuera:
+    se entro en un grupo, no se abre un archivo.
+    """
+    m = ConversationMember.query.filter_by(
+        conversation_id=conv.id, cleaner_id=cleaner_id).first()
+    ultimo = _ultimo_mensaje_id(conv.id)
+    if m:
+        if m.left_at is None:
+            return None                      # ya estaba dentro
+        m.left_at = None
+        m.left_at_message_id = 0
+        m.joined_at = datetime.now()
+        m.cleared_before_id = ultimo
+        m.last_read_message_id = max(m.last_read_message_id, ultimo)
+        m.archived = False
+    else:
+        m = ConversationMember(
+            conversation_id=conv.id, cleaner_id=cleaner_id, role=role,
+            cleared_before_id=ultimo, last_read_message_id=ultimo)
+        db.session.add(m)
+    return m
+
+
+@bp.route('/api/messaging/conversations/group', methods=['POST'])
+@limiter.limit('10/minute')
+@dual_auth
+def create_group():
+    me = current_dual_user()
+    if not _puede_gestionar_grupos(me):
+        return jsonify({'error': 'Solo la administración puede crear grupos'}), 403
+
+    data = request.json or {}
+    titulo = (data.get('title') or '').strip()
+    if not titulo:
+        return jsonify({'error': 'Ponle un nombre al grupo'}), 400
+    if len(titulo) > 100:
+        return jsonify({'error': 'El nombre del grupo es demasiado largo'}), 400
+
+    ids = {i for i in (data.get('member_ids') or []) if isinstance(i, int)}
+    ids.discard(me.id)
+    personas = Cleaner.query.filter(Cleaner.id.in_(ids), Cleaner.active.is_(True)).all() if ids else []
+    if not personas:
+        return jsonify({'error': 'Elige al menos una persona para el grupo'}), 400
+
+    conv = Conversation(kind='group', title=titulo, created_by=me.id)
+    db.session.add(conv)
+    db.session.flush()
+    db.session.add(ConversationMember(conversation_id=conv.id, cleaner_id=me.id, role='owner'))
+    for p in personas:
+        db.session.add(ConversationMember(conversation_id=conv.id, cleaner_id=p.id))
+
+    _add_system_message(conv, me.id, f'{me.name} ha creado el grupo «{titulo}»')
+    log_audit('create', 'conversation', conv.id,
+              {'nombre': titulo, 'miembros': sorted(p.id for p in personas)})
+    ok, err = _safe_commit('Error al crear el grupo')
+    if not ok:
+        return jsonify({'error': err}), 500
+    return jsonify({'conversation_id': conv.id}), 201
+
+
+@bp.route('/api/messaging/conversations/<int:cid>/info', methods=['GET'])
+@dual_auth
+def conversation_info(cid: int):
+    member = _require_membership(cid)
+    if not member:
+        return jsonify({'error': 'No encontrado'}), 404
+    conv = db.session.get(Conversation, cid)
+    me = current_dual_user()
+
+    miembros = (ConversationMember.query
+                .filter(ConversationMember.conversation_id == cid,
+                        ConversationMember.left_at.is_(None))
+                .options(joinedload(ConversationMember.cleaner)).all())
+    return jsonify({
+        'id': conv.id,
+        'kind': conv.kind,
+        'title': _conversation_title(conv, me.id),
+        'muted': bool(member.muted_until and member.muted_until > datetime.now()),
+        'archived': member.archived,
+        'left': member.left_at is not None,
+        'can_manage': conv.kind == 'group' and (
+            member.role == 'owner' or _puede_gestionar_grupos(me)),
+        'members': [
+            {'id': m.cleaner_id,
+             'name': m.cleaner.name if m.cleaner else '—',
+             'role': m.role,
+             'is_me': m.cleaner_id == me.id}
+            for m in sorted(miembros, key=lambda m: (m.role != 'owner',
+                                                     m.cleaner.name if m.cleaner else ''))
+        ],
+    }), 200
+
+
+@bp.route('/api/messaging/conversations/<int:cid>/members', methods=['POST'])
+@dual_auth
+def add_members(cid: int):
+    me = current_dual_user()
+    member = _require_membership(cid)
+    conv = db.session.get(Conversation, cid)
+    if not member or not conv or conv.kind != 'group':
+        return jsonify({'error': 'No encontrado'}), 404
+    if member.role != 'owner' and not _puede_gestionar_grupos(me):
+        return jsonify({'error': 'No puedes cambiar los miembros de este grupo'}), 403
+
+    ids = {i for i in ((request.json or {}).get('member_ids') or []) if isinstance(i, int)}
+    personas = Cleaner.query.filter(Cleaner.id.in_(ids), Cleaner.active.is_(True)).all() if ids else []
+    if not personas:
+        return jsonify({'error': 'Elige a quién quieres añadir'}), 400
+
+    anadidas = [p for p in personas if _incorporar(conv, p.id) is not None]
+    if anadidas:
+        nombres = ', '.join(p.name for p in anadidas)
+        _add_system_message(conv, me.id, f'{me.name} ha añadido a {nombres}')
+        log_audit('update', 'conversation', conv.id,
+                  {'accion': 'anadir_miembros', 'ids': sorted(p.id for p in anadidas)})
+
+    ok, err = _safe_commit('Error al añadir al grupo')
+    if not ok:
+        return jsonify({'error': err}), 500
+    return jsonify({'ok': True, 'added': len(anadidas)}), 200
+
+
+@bp.route('/api/messaging/conversations/<int:cid>/members/<int:uid>/remove', methods=['POST'])
+@dual_auth
+def remove_member(cid: int, uid: int):
+    me = current_dual_user()
+    member = _require_membership(cid)
+    conv = db.session.get(Conversation, cid)
+    if not member or not conv or conv.kind != 'group':
+        return jsonify({'error': 'No encontrado'}), 404
+    if member.role != 'owner' and not _puede_gestionar_grupos(me):
+        return jsonify({'error': 'No puedes cambiar los miembros de este grupo'}), 403
+
+    objetivo = ConversationMember.query.filter_by(
+        conversation_id=cid, cleaner_id=uid).first()
+    if not objetivo or objetivo.left_at is not None:
+        return jsonify({'error': 'Esa persona no está en el grupo'}), 404
+    if objetivo.role == 'owner':
+        return jsonify({'error': 'No se puede sacar a quien creó el grupo'}), 400
+
+    objetivo.left_at = datetime.now()
+    objetivo.left_at_message_id = _ultimo_mensaje_id(cid)
+    persona = db.session.get(Cleaner, uid)
+    _add_system_message(conv, me.id,
+                        f'{me.name} ha sacado del grupo a {persona.name if persona else "alguien"}')
+    log_audit('update', 'conversation', conv.id, {'accion': 'quitar_miembro', 'id': uid})
+
+    ok, err = _safe_commit('Error al sacar del grupo')
+    if not ok:
+        return jsonify({'error': err}), 500
+    return jsonify({'ok': True}), 200
+
+
+@bp.route('/api/messaging/conversations/<int:cid>/leave', methods=['POST'])
+@dual_auth
+def leave_group(cid: int):
+    me = current_dual_user()
+    member = _require_membership(cid)
+    conv = db.session.get(Conversation, cid)
+    if not member or not conv:
+        return jsonify({'error': 'No encontrado'}), 404
+    if conv.kind != 'group':
+        # De un 1-a-1 no se sale: se archiva, que es lo que espera la gente.
+        return jsonify({'error': 'De una conversación individual no se puede salir'}), 400
+    if member.left_at is not None:
+        return jsonify({'ok': True}), 200
+
+    member.left_at = datetime.now()
+    member.left_at_message_id = _ultimo_mensaje_id(cid)
+    _add_system_message(conv, me.id, f'{me.name} ha salido del grupo')
+
+    ok, err = _safe_commit('Error al salir del grupo')
+    if not ok:
+        return jsonify({'error': err}), 500
+    return jsonify({'ok': True}), 200
+
+
+# ── Gestion de grupos desde el panel ─────────────────────────────────────────
+
+@bp.route('/admin/mensajes/grupos')
+@admin_required
+def admin_messaging_groups():
+    """Lista de grupos. Muestra nombre y miembros, nunca el contenido del hilo."""
+    grupos = (Conversation.query
+              .filter(Conversation.kind == 'group')
+              .options(joinedload(Conversation.members)
+                       .joinedload(ConversationMember.cleaner))
+              .order_by(Conversation.is_active.desc(),
+                        Conversation.last_message_at.desc().nullslast(),
+                        Conversation.id.desc())
+              .all())
+    return render_template(
+        'admin_messaging_groups.html',
+        grupos=grupos,
+        personas=Cleaner.query.filter_by(active=True).order_by(Cleaner.name).all(),
+    )
+
+
+@bp.route('/admin/mensajes/grupos/<int:cid>/renombrar', methods=['POST'])
+@admin_required
+def admin_rename_group(cid: int):
+    conv = db.session.get(Conversation, cid)
+    if not conv or conv.kind != 'group':
+        flash('Grupo no encontrado.', 'danger')
+        return redirect(url_for('messaging.admin_messaging_groups'))
+
+    titulo = (request.form.get('title') or '').strip()
+    if not titulo:
+        flash('Ponle un nombre al grupo.', 'warning')
+        return redirect(url_for('messaging.admin_messaging_groups'))
+
+    anterior = conv.title
+    conv.title = titulo[:100]
+    if anterior != conv.title:
+        _add_system_message(conv, current_user.id,
+                            f'{current_user.name} ha renombrado el grupo a «{conv.title}»')
+    log_audit('update', 'conversation', conv.id,
+              {'accion': 'renombrar', 'antes': anterior, 'despues': conv.title})
+    ok, error = _safe_commit('Error al renombrar el grupo')
+    flash(error if not ok else 'Grupo actualizado.', 'danger' if not ok else 'success')
+    return redirect(url_for('messaging.admin_messaging_groups'))
+
+
+@bp.route('/admin/mensajes/grupos/<int:cid>/archivar', methods=['POST'])
+@admin_required
+def admin_archive_group(cid: int):
+    """Retira el grupo de circulacion sin borrar lo que se dijo.
+
+    Borrarlo dejaria a los miembros sin el historial de un canal que quiza haga
+    falta consultar; archivarlo solo lo saca de la lista.
+    """
+    conv = db.session.get(Conversation, cid)
+    if not conv or conv.kind != 'group':
+        flash('Grupo no encontrado.', 'danger')
+        return redirect(url_for('messaging.admin_messaging_groups'))
+
+    conv.is_active = not conv.is_active
+    log_audit('update', 'conversation', conv.id,
+              {'accion': 'archivar' if not conv.is_active else 'reactivar'})
+    ok, error = _safe_commit('Error al archivar el grupo')
+    if not ok:
+        flash(error, 'danger')
+    else:
+        flash('Grupo archivado.' if not conv.is_active else 'Grupo reactivado.', 'success')
+    return redirect(url_for('messaging.admin_messaging_groups'))
