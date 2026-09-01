@@ -30,7 +30,7 @@ from ..utils import (
     _check_single_session_conflict, _resolve_nfc_code, _format_duration,
     _allowed_file, ALLOWED_IMAGE_EXTENSIONS, _open_image_oriented,
     _save_image_stream, _falta_para_cerrar, _aviso_falta,
-    MIN_SESSION_SECONDS_DEFAULT,
+    MIN_SESSION_SECONDS_DEFAULT, _tipos_de_atencion_a_esta_hora,
 )
 
 bp = Blueprint('nfc', __name__)
@@ -310,6 +310,7 @@ def api_care_types():
             'name': ct.name,
             'icon': ct.icon or '',
             'icon_url': f'/api/uploads/{ct.icon_path}' if ct.icon_path else None,
+            'instructions': ct.instructions or None,
         }
         vital_fields = [{'id': vs.id, 'name': vs.name, 'unit': vs.unit,
                          'min_value': vs.min_value, 'max_value': vs.max_value,
@@ -843,6 +844,8 @@ def nfc_scan():
                 'resident_id': resident.id,
                 'resident_name': resident.name,
                 'start_time': active_this.start_time.isoformat(),
+                'suggested_care_type_ids': [
+                    ct.id for ct in _tipos_de_atencion_a_esta_hora(active_this.start_time)],
                 'photo_url': f'/api/uploads/{resident.photo_path}' if resident.photo_path else None,
             }), 200
 
@@ -860,15 +863,30 @@ def nfc_scan():
         ok, err = _safe_commit()
         if not ok:
             return jsonify({'error': err}), 500
-        return jsonify({
+        # El texto va entero en la respuesta y no se busca en la copia que
+        # tiene el movil: esa se carga una sola vez al entrar y ya hemos visto
+        # que a veces falla. Las instrucciones no pueden depender de eso.
+        toca = _tipos_de_atencion_a_esta_hora(now)
+        salida = {
             'action': 'started',
             'type': 'care',
             'record_id': record.id,
+            'resident_id': resident.id,
             'subject': resident.name,
-            'subject_sub': '',
+            'subject_sub': ', '.join(ct.name for ct in toca),
             'start_time': now.isoformat(),
             'photo_url': f'/api/uploads/{resident.photo_path}' if resident.photo_path else None,
-        }), 200
+        }
+        con_instrucciones = [ct for ct in toca if ct.instructions]
+        if toca:
+            salida['care_hint'] = {
+                'name': ', '.join(ct.name for ct in toca),
+                'icon': toca[0].icon or '',
+                'instructions': '\n\n'.join(
+                    f'{ct.name}\n{ct.instructions}' if len(con_instrucciones) > 1 else ct.instructions
+                    for ct in con_instrucciones) or None,
+            }
+        return jsonify(salida), 200
 
     return jsonify({'error': 'Modo no válido. Use "cleaning" o "care"'}), 400
 
@@ -937,6 +955,8 @@ def end_session():
             'resident_id': record.resident_id,
             'resident_name': r.name if r else 'Residente',
             'start_time': record.start_time.isoformat(),
+            'suggested_care_type_ids': [
+                ct.id for ct in _tipos_de_atencion_a_esta_hora(record.start_time)],
             'photo_url': f'/api/uploads/{r.photo_path}' if r and r.photo_path else None,
         }), 200
 

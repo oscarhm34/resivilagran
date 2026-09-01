@@ -77,6 +77,27 @@
                         <label for="sort_order" class="form-label">Orden</label>
                         <input type="number" id="sort_order" name="sort_order" class="form-control" value="0" min="0">
                     </div>
+                    <div class="col-sm-2">
+                        <label for="start_time" class="form-label">Desde</label>
+                        <input type="time" id="start_time" name="start_time" class="form-control">
+                    </div>
+                    <div class="col-sm-2">
+                        <label for="end_time" class="form-label">Hasta</label>
+                        <input type="time" id="end_time" name="end_time" class="form-control">
+                    </div>
+                    <div class="col-12">
+                        <label for="instructions" class="form-label">
+                            Instrucciones
+                            <small class="text-body-secondary">
+                                — Qué hay que hacer en esta atención. La trabajadora las ve en el móvil
+                                al iniciarla, antes de empezar. Si además pones un horario, este tipo
+                                aparecerá ya marcado al finalizar las atenciones de esa franja.
+                                Para una atención de noche puedes poner, por ejemplo, de 21:00 a 01:00.
+                            </small>
+                        </label>
+                        <textarea id="instructions" name="instructions" class="form-control" rows="3"
+                                  placeholder="Subir la persiana, asear, vestir y sentar en el sillón."></textarea>
+                    </div>
                     <div class="col-auto d-flex gap-2">
                         <button type="submit" class="btn btn-primary" id="submit-btn">Añadir</button>
                         <button type="button" class="btn btn-outline-secondary" id="cancel-btn" style="display:none">Cancelar</button>
@@ -95,6 +116,7 @@
                     <tr>
                         <th scope="col">Icono</th>
                         <th scope="col">Nombre</th>
+                        <th scope="col">Horario</th>
                         <th scope="col">Orden</th>
                         <th scope="col">Estado</th>
                         <th scope="col" class="text-end">Acciones</th>
@@ -108,7 +130,20 @@
                             <img src="{{ url_for('nfc.serve_upload', filename=ct.icon_path) }}" style="width:32px;height:32px;object-fit:contain">
                             {% else %}{{ ct.icon or '❤️' }}{% endif %}
                         </td>
-                        <td><strong>{{ ct.name }}</strong></td>
+                        <td>
+                            <strong>{{ ct.name }}</strong>
+                            {% if ct.instructions %}
+                            <span class="badge bg-info-subtle text-info-emphasis ms-1"
+                                  title="{{ ct.instructions }}">con instrucciones</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if ct.start_time and ct.end_time %}
+                            {{ ct.start_time.strftime('%H:%M') }} – {{ ct.end_time.strftime('%H:%M') }}
+                            {% else %}
+                            <span class="text-body-secondary">—</span>
+                            {% endif %}
+                        </td>
                         <td>{{ ct.sort_order }}</td>
                         <td>
                             <label class="form-check m-0 d-flex align-items-center gap-1" style="cursor:pointer">
@@ -123,7 +158,10 @@
                                     data-id="{{ ct.id }}" data-name="{{ ct.name }}"
                                     data-icon="{{ ct.icon or '' }}" data-parent="{{ ct.parent_id or '' }}"
                                     data-sort="{{ ct.sort_order }}"
-                                    data-icon-path="{{ ct.icon_path or '' }}">Editar</button>
+                                    data-icon-path="{{ ct.icon_path or '' }}"
+                                    data-start="{{ ct.start_time.strftime('%H:%M') if ct.start_time else '' }}"
+                                    data-end="{{ ct.end_time.strftime('%H:%M') if ct.end_time else '' }}"
+                                    data-instructions="{{ ct.instructions or '' }}">Editar</button>
                             <button type="button" class="btn btn-sm btn-outline-danger delete-btn"
                                     data-name="{{ ct.name }}"
                                     data-action="{{ url_for('care.delete_care_type', id=ct.id) }}">Eliminar</button>
@@ -132,7 +170,7 @@
                     <!-- Vital sign fields for this care type -->
                     {% if ct.vital_sign_types %}
                     <tr class="tint-info">
-                        <td colspan="5" style="padding:8px 16px 8px 2.5rem">
+                        <td colspan="6" style="padding:8px 16px 8px 2.5rem">
                             <small class="text-body-secondary fw-bold">🩺 Campos vitales de "{{ ct.name }}":</small>
                             {% for vf in ct.vital_sign_types %}
                             <div class="d-flex align-items-center gap-2 mt-1" style="font-size:.85rem">
@@ -148,7 +186,7 @@
                     {% endif %}
                     <!-- Add vital field form (collapsible) -->
                     <tr id="vf-add-{{ ct.id }}" class="tint-info" style="display:none">
-                        <td colspan="5" style="padding:8px 16px 12px 2.5rem">
+                        <td colspan="6" style="padding:8px 16px 12px 2.5rem">
                             <form method="post" action="{{ url_for('care.add_edit_vital_field', care_type_id=ct.id) }}" class="row g-2 align-items-end">
                                 <div class="col-auto"><input type="text" name="vf_name" class="form-control form-control-sm" placeholder="Nombre (ej: Sistólica)" required></div>
                                 <div class="col-auto"><input type="text" name="vf_unit" class="form-control form-control-sm" placeholder="Unidad (ej: mmHg)" required></div>
@@ -194,7 +232,7 @@
                     </tr>
                     {% if child.vital_sign_types %}
                     <tr class="tint-info">
-                        <td colspan="5" style="padding:8px 16px 8px 3.5rem">
+                        <td colspan="6" style="padding:8px 16px 8px 3.5rem">
                             <small class="text-body-secondary fw-bold">🩺 Campos vitales de "{{ child.name }}":</small>
                             {% for vf in child.vital_sign_types %}
                             <div class="d-flex align-items-center gap-2 mt-1" style="font-size:.85rem">
@@ -209,7 +247,7 @@
                     </tr>
                     {% endif %}
                     <tr id="vf-add-{{ child.id }}" class="tint-info" style="display:none">
-                        <td colspan="5" style="padding:8px 16px 12px 3.5rem">
+                        <td colspan="6" style="padding:8px 16px 12px 3.5rem">
                             <form method="post" action="{{ url_for('care.add_edit_vital_field', care_type_id=child.id) }}" class="row g-2 align-items-end">
                                 <div class="col-auto"><input type="text" name="vf_name" class="form-control form-control-sm" placeholder="Nombre (ej: Sistólica)" required></div>
                                 <div class="col-auto"><input type="text" name="vf_unit" class="form-control form-control-sm" placeholder="Unidad (ej: mmHg)" required></div>
@@ -302,6 +340,9 @@
             selectIcon(this.dataset.icon || '');
             form.querySelector('[name="parent_id"]').value    = this.dataset.parent;
             form.querySelector('[name="sort_order"]').value   = this.dataset.sort;
+            form.querySelector('[name="start_time"]').value   = this.dataset.start || '';
+            form.querySelector('[name="end_time"]').value     = this.dataset.end || '';
+            form.querySelector('[name="instructions"]').value = this.dataset.instructions || '';
             // Icon preview
             iconFileInput.value = '';
             removeIconInput.value = '';

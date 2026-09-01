@@ -175,6 +175,28 @@
     <div class="card mb-4" id="atenciones">
         <div class="card-header">3. Atenciones y tipos de atencion</div>
         <div class="card-body">
+            <h6>Horario e instrucciones de un tipo de atencion <span class="badge bg-success">NUEVO</span></h6>
+            <p>En <strong>Tipos de atencion</strong>, cada tipo puede llevar un <strong>horario</strong>
+               (desde / hasta) y unas <strong>instrucciones</strong>:</p>
+            <ul>
+                <li><strong>Instrucciones:</strong> lo que hay que hacer en esa atencion. La trabajadora las
+                    ve en el movil <strong>al iniciarla</strong>, antes de empezar, en una pantalla que se
+                    cierra cuando ella quiere. Antes de esto, lo que incluye "levantar" a un residente solo
+                    estaba en la cabeza de quien lleva tiempo.</li>
+                <li><strong>Horario:</strong> la franja en que se hace normalmente. Cuando una trabajadora
+                    inicia una atencion dentro de esa franja, al finalizar ese tipo <strong>ya viene
+                    marcado</strong>. Se puede desmarcar: manda lo que de verdad se hizo.</li>
+                <li>Para una atencion de noche, la franja puede cruzar la medianoche: <strong>de 21:00 a
+                    01:00</strong> funciona.</li>
+                <li>Las dos horas van juntas. Si pones solo una, el tipo se guarda <strong>sin</strong>
+                    horario y te avisa.</li>
+                <li>Si el tipo tiene subtipos, pon el horario en el <strong>subtipo</strong> que la
+                    trabajadora elige de verdad: las categorias no se pueden marcar en el movil.</li>
+                <li>Un tipo sin horario funciona como siempre. No hace falta tocar los que ya existen.</li>
+            </ul>
+            <p>La tabla de tipos muestra la franja de cada uno y marca cuales tienen instrucciones, para ver
+               de un vistazo que esta configurado.</p>
+
             <p>Los <strong>Tipos de atencion</strong> definen las actividades que se pueden registrar al atender a un residente.</p>
             <ul>
                 <li>Se accede desde <strong>Residentes &rarr; Tipos de atencion</strong>.</li>
@@ -1520,6 +1542,7 @@
                 </thead>
                 <tbody>
                     <tr><td>31/08</td><td><strong>La webapp volvia a cargarse entera al abrirla:</strong> si se abria con la sesion ya iniciada (lo normal, el acceso dura una semana), la pantalla de inicio se quedaba a medias: solo salia el nombre, sin sesiones en curso, sin pendientes, sin cronometro y sin avisos. Habia que cerrar sesion y volver a entrar para que funcionase. Ademas, en modo oscuro el titulo de las tarjetas de pendientes y la flecha de volver eran casi invisibles.</td></tr>
+                    <tr><td>01/09</td><td><strong>Horario e instrucciones en los tipos de atencion:</strong> cada tipo de atencion puede llevar ahora una franja horaria y unas instrucciones de que hay que hacer. Al iniciar la atencion, la trabajadora ve en el movil que toca a esa hora y los pasos a seguir, antes de empezar; hasta ahora solo salia un aviso de tres segundos y lo que incluye cada atencion solo estaba en la cabeza de quien lleva tiempo. Al finalizar, el tipo de esa franja ya viene marcado, y se puede cambiar. La franja puede cruzar la medianoche, para las atenciones de noche. Se configura en Tipos de atencion; los tipos sin horario siguen funcionando igual que antes.</td></tr>
                     <tr><td>01/09</td><td><strong>Una limpieza o una atencion ya no se puede cerrar al instante:</strong> se abria y se cerraba en dos segundos, y el registro contaba como trabajo hecho en las estadisticas, en los informes de rendimiento y en el historial del residente. Ahora tiene que pasar un tiempo minimo, <strong>60 segundos por defecto</strong>, ajustable en Configuracion (0 = sin minimo). La webapp lo avisa antes: en la tarjeta de la sesion pone "Podras finalizar en 0:45" y el boton esta desactivado hasta entonces. <strong>No afecta al cierre manual desde el panel</strong> ni al cierre automatico de las sesiones que se quedan colgadas: coordinacion sigue pudiendo cerrar cuando haga falta. En una atencion de grupo, si a un residente le falta tiempo no se cierra ninguno, y el aviso dice a quien.</td></tr>
                     <tr><td>01/09</td><td><strong>Los grupos se gestionan desde la propia conversacion:</strong> al abrir un grupo en Mensajes aparece el boton <strong>Gestionar</strong> arriba del hilo. Desde ahi se renombra, se ve quien esta dentro, se anade o se saca gente, y se puede <strong>archivar</strong> (se retira de la lista pero se conserva y se puede reactivar) o <strong>eliminar</strong> del todo, con sus mensajes y adjuntos, que no se puede deshacer. Antes habia que salir a otra pantalla para cualquiera de estas cosas. Eliminar pide confirmacion y queda registrado en la auditoria.</td></tr>
                     <tr><td>01/09</td><td><strong>Notas de voz tambien desde el ordenador:</strong> en el panel, junto al clip de adjuntar, hay ahora un boton de microfono para grabar una nota de voz sin tener que buscar un archivo en el disco. Mismo limite de 2 minutos que en el movil.</td></tr>

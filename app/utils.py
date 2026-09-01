@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 
 from . import app, db
 from .models import (
-    Cleaner, Room, Resident, CleaningRecord, CareRecord,
+    Cleaner, Room, Resident, CleaningRecord, CareRecord, CareType,
     AppSetting, CleaningTargetTime, CleaningZoneAssignment,
     AuditLog,
 )
@@ -318,6 +318,35 @@ def _aviso_falta(segundos: int) -> str:
     """El texto que ve la trabajadora. Dice cuanto falta, no la rine."""
     minutos, secs = divmod(max(0, segundos), 60)
     return f'Aún no puedes finalizar. Faltan {minutos}:{secs:02d}.'
+
+
+def _tipos_de_atencion_a_esta_hora(momento) -> list:
+    """Tipos de atencion activos cuya franja cubre esa hora.
+
+    Hay atenciones que se hacen siempre a la misma hora —levantar por la manana,
+    acostar por la noche— y el sistema no lo sabia: al terminar, la trabajadora
+    elegia el tipo de una lista donde todo pesa igual.
+
+    Sin franja configurada un tipo no se sugiere nunca, que es como se comportan
+    todos los que ya existen.
+
+    Si `start_time` es mayor que `end_time` la franja **cruza la medianoche**
+    (21:00 a 01:00). Sin esto, "Acostar" habria que partirlo en dos tramos o
+    terminarlo antes de las doce.
+    """
+    hora = momento.time()
+    coinciden = []
+    for ct in CareType.query.filter(
+            CareType.active.is_(True),
+            CareType.start_time.isnot(None),
+            CareType.end_time.isnot(None)).order_by(CareType.sort_order, CareType.name).all():
+        if ct.start_time <= ct.end_time:
+            dentro = ct.start_time <= hora <= ct.end_time
+        else:
+            dentro = hora >= ct.start_time or hora <= ct.end_time
+        if dentro:
+            coinciden.append(ct)
+    return coinciden
 
 
 def _today_range(target_date=None):

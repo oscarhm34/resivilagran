@@ -47,6 +47,33 @@ def manage_care_types():
     return render_template('manage_care_types.html', parents=parents, all_parents=all_parents, uploaded_icons=uploaded_icons)
 
 
+def _parsear_franja(texto_inicio: str, texto_fin: str):
+    """(inicio, fin, aviso) a partir de dos campos de hora del formulario.
+
+    Las dos horas van juntas o ninguna: con una sola, la franja no significa
+    nada y el tipo no se sugeriria nunca, asi que se guarda sin horario y se
+    dice por que en vez de dejar al administrador pensando que quedo puesto.
+    """
+    from datetime import datetime as _dt
+
+    def _hora(v):
+        v = (v or '').strip()
+        if not v:
+            return None
+        try:
+            return _dt.strptime(v, '%H:%M').time()
+        except ValueError:
+            return None
+
+    inicio, fin = _hora(texto_inicio), _hora(texto_fin)
+    if inicio and fin:
+        return inicio, fin, None
+    if (texto_inicio or '').strip() or (texto_fin or '').strip():
+        return None, None, ('El horario necesita hora de inicio y hora de fin. '
+                            'Se ha guardado el tipo sin horario.')
+    return None, None, None
+
+
 @bp.route('/care-types/add_edit', methods=['POST'])
 @admin_required
 def add_edit_care_type():
@@ -57,6 +84,9 @@ def add_edit_care_type():
     parent_id = request.form.get('parent_id', '').strip()
     sort_order = request.form.get('sort_order', '0').strip()
     selected_icon_path = request.form.get('selected_icon_path', '').strip()
+    instrucciones = request.form.get('instructions', '').strip() or None
+    inicio, fin, aviso_horario = _parsear_franja(
+        request.form.get('start_time', ''), request.form.get('end_time', ''))
 
     if not name:
         flash('El nombre es obligatorio.', 'error')
@@ -69,6 +99,8 @@ def add_edit_care_type():
                 ct.icon = icon or None
                 ct.parent_id = int(parent_id) if parent_id else None
                 ct.sort_order = int(sort_order) if sort_order else 0
+                ct.start_time, ct.end_time = inicio, fin
+                ct.instructions = instrucciones
                 # Handle icon: file upload > selected from library > keep existing
                 icon_file = request.files.get('icon_file')
                 if icon_file and icon_file.filename and _allowed_file(icon_file.filename, ALLOWED_IMAGE_EXTENSIONS):
@@ -84,12 +116,18 @@ def add_edit_care_type():
                     if os.path.exists(old):
                         os.remove(old)
                     ct.icon_path = None
-                log_audit('update', 'care_type', ct.id, {'nombre': name})
+                log_audit('update', 'care_type', ct.id, {
+                    'nombre': name,
+                    'horario': f'{inicio}-{fin}' if inicio else None,
+                    'con_instrucciones': bool(instrucciones),
+                })
                 ok, error = _safe_commit('Error al actualizar el tipo de atencion')
                 if not ok:
                     flash(error, 'danger')
                     return redirect(url_for('care.manage_care_types'))
                 flash('Tipo actualizado correctamente.', 'success')
+                if aviso_horario:
+                    flash(aviso_horario, 'warning')
             else:
                 flash('Tipo no encontrado.', 'error')
         else:
@@ -98,6 +136,9 @@ def add_edit_care_type():
                 icon=icon or None,
                 parent_id=int(parent_id) if parent_id else None,
                 sort_order=int(sort_order) if sort_order else 0,
+                start_time=inicio,
+                end_time=fin,
+                instructions=instrucciones,
             )
             db.session.add(ct)
             db.session.flush()
@@ -106,12 +147,18 @@ def add_edit_care_type():
                 ct.icon_path = _save_care_type_icon(icon_file, ct.id)
             elif selected_icon_path:
                 ct.icon_path = selected_icon_path
-            log_audit('create', 'care_type', ct.id, {'nombre': name})
+            log_audit('create', 'care_type', ct.id, {
+                'nombre': name,
+                'horario': f'{inicio}-{fin}' if inicio else None,
+                'con_instrucciones': bool(instrucciones),
+            })
             ok, error = _safe_commit('Error al crear el tipo de atencion')
             if not ok:
                 flash(error, 'danger')
                 return redirect(url_for('care.manage_care_types'))
             flash('Tipo añadido correctamente.', 'success')
+            if aviso_horario:
+                flash(aviso_horario, 'warning')
     except IntegrityError:
         db.session.rollback()
         flash('Error al guardar el tipo.', 'error')

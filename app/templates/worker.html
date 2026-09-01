@@ -433,6 +433,11 @@
         .msg-send { width:48px; height:48px; min-width:48px; border-radius:50%; border:none; background:var(--blue); color:#fff; font-size:20px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
         .msg-send:disabled { opacity:.4; }
         .chat-empty { text-align:center; color:var(--text-2); font-size:14px; padding:40px 20px; }
+        .cs-tipo { display:flex; align-items:center; gap:14px; background:var(--green-lt); border-radius:18px; padding:18px 20px; margin-bottom:18px; }
+        .cs-tipo-icon { font-size:34px; }
+        .cs-tipo-name { font-family:'Outfit',system-ui,sans-serif; font-weight:700; font-size:22px; color:var(--green-dk); line-height:1.2; }
+        .cs-instr { font-size:17px; line-height:1.55; white-space:pre-wrap; color:var(--text); background:var(--bg); border-radius:16px; padding:18px 20px; }
+        .cs-sin-instr { font-size:15px; color:var(--text-2); text-align:center; padding:20px 10px; }
         /* Altas, bajas y cambios de nombre: no son de nadie, van centrados. */
         .chat-system { align-self:center; max-width:90%; text-align:center; font-size:13px; color:var(--text-2); padding:6px 12px; }
         .chat-bubble[data-own="1"] { cursor:pointer; }
@@ -655,6 +660,37 @@
         <!-- Historial completado hoy -->
         <div class="section-label" id="hist-label">Sin registros hoy</div>
         <div class="hist-list" id="hist-list"></div>
+    </div>
+
+    <!-- ══ INICIO DE ATENCIÓN: QUÉ TOCA Y CÓMO ══ -->
+    <div id="screen-care-start" class="screen">
+        <div class="scan-header" style="margin-bottom:18px">
+            <div style="flex:1">
+                <div style="font-size:13px;color:var(--text-2)">Atención iniciada</div>
+                <div style="font-family:'Outfit',sans-serif;font-size:20px;font-weight:700" id="cs-resident">—</div>
+            </div>
+            <button class="ri-btn" id="cs-info-btn" title="Ficha del residente" aria-label="Ficha del residente">ℹ️</button>
+        </div>
+
+        <div class="cs-tipo">
+            <span class="cs-tipo-icon" id="cs-icon">❤️</span>
+            <div>
+                <div style="font-size:12px;color:var(--green-dk);text-transform:uppercase;letter-spacing:.06em;font-weight:600">Ahora toca</div>
+                <div class="cs-tipo-name" id="cs-tipo">—</div>
+            </div>
+        </div>
+
+        <div class="section-label">Qué hay que hacer</div>
+        <div class="cs-instr" id="cs-instr"></div>
+        <div class="cs-sin-instr" id="cs-sin-instr" style="display:none">
+            No hay instrucciones escritas para esta atención.
+        </div>
+
+        <button class="btn-cam primary" id="cs-ok"
+                style="width:100%;min-height:56px;margin-top:22px;font-size:17px">Entendido</button>
+        <p style="font-size:12px;color:var(--text-2);text-align:center;margin-top:12px">
+            El tiempo ya está contando. Al terminar, vuelve a escanear.
+        </p>
     </div>
 
     <!-- ══ MENSAJES: LISTA ══ -->
@@ -2977,8 +3013,14 @@ async function handleCode(code) {
         });
         renderActiveSessions();
         startGlobalTimer();
-        show('screen-home');
-        toast(`✓ ${detectedMode === 'care' ? 'Atención' : 'Limpieza'} iniciada — ${data.subject}`);
+        // Solo si hay algo que contar. Sin horario configurado se ve exactamente
+        // lo de siempre, sin una pantalla vacia de por medio.
+        if (data.care_hint) {
+            mostrarInicioAtencion(data);
+        } else {
+            show('screen-home');
+            toast(`✓ ${detectedMode === 'care' ? 'Atención' : 'Limpieza'} iniciada — ${data.subject}`);
+        }
         maybeStartHomeNfc();
 
     } else if (data.action === 'ended') {
@@ -3020,6 +3062,33 @@ $('smd-cancel').addEventListener('click', () => {
     show('screen-home');
 });
 
+// ── Inicio de atención: qué toca a esta hora y cómo se hace ───────────────
+// Antes, al escanear a un residente solo salia un aviso de 3,5 segundos que se
+// iba solo. Para leer una lista de pasos no sirve, asi que esto es una pantalla
+// que se cierra cuando la trabajadora quiere.
+
+function mostrarInicioAtencion(data) {
+    const hint = data.care_hint || {};
+    $('cs-resident').textContent = data.subject || '';
+    $('cs-tipo').textContent = hint.name || 'Atención';
+    $('cs-icon').textContent = hint.icon || '❤️';
+
+    const hayTexto = !!(hint.instructions && hint.instructions.trim());
+    $('cs-instr').textContent = hint.instructions || '';
+    $('cs-instr').style.display = hayTexto ? '' : 'none';
+    $('cs-sin-instr').style.display = hayTexto ? 'none' : '';
+
+    // La ficha del residente hace falta aqui, antes de empezar, mas que al
+    // terminar. El dialogo ya existe, asi que solo hay que engancharlo.
+    const rid = data.resident_id;
+    $('cs-info-btn').style.display = rid ? '' : 'none';
+    if (rid) $('cs-info-btn').onclick = () => showResidentInfo(rid);
+
+    show('screen-care-start');
+}
+
+$('cs-ok').addEventListener('click', () => show('screen-home'));
+
 // ── Care type screen (end of session) ─────────────────────────────────────
 function bloquearConfirmar(motivo) {
     // Sin tipo no se puede finalizar, asi que el boton verde solo enganaria.
@@ -3051,6 +3120,30 @@ function renderCareTypesError() {
             toast('Sigue sin haber conexión con el servidor');
         }
     });
+}
+
+// El tipo que tocaba a la hora en que empezo la atencion viene ya marcado. Se
+// marca, no se impone: se quita con un toque, como cualquier otro.
+function marcarTiposSugeridos(grid, ids) {
+    if (!ids || !ids.length) return;
+    let alguno = false;
+    ids.forEach(id => {
+        const btn = grid.querySelector(`[data-id="${id}"]`);
+        if (!btn || btn.classList.contains('selected')) return;
+        btn.classList.add('selected');
+        alguno = true;
+        // Si es un subtipo, abrir su categoria: marcado dentro de un
+        // desplegable cerrado no se ve, y parece que no se ha marcado nada.
+        const cat = btn.closest('.ct-category');
+        if (cat) {
+            const sub = cat.querySelector('.ct-sub-grid');
+            const flecha = cat.querySelector('.ct-category-arrow');
+            if (sub) sub.style.display = 'flex';
+            if (flecha) flecha.classList.add('open');
+        }
+    });
+    // Es lo que hace aparecer los campos de constantes del tipo marcado.
+    if (alguno) updateVitalSignsForSelection();
 }
 
 function showCareTypesEnd(data) {
@@ -3186,6 +3279,8 @@ function showCareTypesEnd(data) {
         });
         // Load authenticated images for custom icons
         grid.querySelectorAll('img[data-auth-src]').forEach(img => loadAuthImg(img, img.dataset.authSrc));
+
+        marcarTiposSugeridos(grid, data && data.suggested_care_type_ids);
     }
     show('screen-care-type');
 }
@@ -4912,7 +5007,7 @@ var CHAT_FAST = 4000, CHAT_SLOW = 10000, CHAT_IDLE = 20000, CHAT_BACKOFF_MS = 60
 
 // Se sube a mano en cada cambio de la webapp. Sirve para saber, mirando el
 // movil, que version esta ejecutando de verdad.
-var APP_BUILD = '2026-09-01 · 6';
+var APP_BUILD = '2026-09-01 · 7';
 
 function chatIniciales(nombre) {
     var partes = (nombre || '?').trim().split(/\s+/);

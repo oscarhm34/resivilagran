@@ -152,6 +152,16 @@ class CareType(db.Model):
     sort_order = db.Column(db.Integer, default=0)
     active = db.Column(db.Boolean, default=True)
 
+    # Franja horaria en la que toca esta atencion. Las dos a NULL = sin horario,
+    # que es como se comportan todos los tipos existentes. Si `start_time` es
+    # mayor que `end_time`, la franja cruza la medianoche (p. ej. 21:00 a 01:00),
+    # que es justo lo que hace falta para "Acostar".
+    start_time = db.Column(db.Time, nullable=True)
+    end_time = db.Column(db.Time, nullable=True)
+    # Que hay que hacer en esta atencion. Hoy eso solo vive en la cabeza de quien
+    # lleva tiempo, asi que quien entra nueva trabaja de memoria o preguntando.
+    instructions = db.Column(db.Text, nullable=True)
+
     children = db.relationship('CareType', backref=db.backref('parent', remote_side='CareType.id'), lazy=True)
     care_records = db.relationship('CareRecord', back_populates='care_type', lazy=True)
     vital_sign_types = db.relationship('VitalSignType', backref='care_type', lazy=True, order_by='VitalSignType.sort_order')
