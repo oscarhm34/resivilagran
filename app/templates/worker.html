@@ -1446,6 +1446,27 @@ function fmt(secs) {
 }
 function elapsed(iso) { return (Date.now() - new Date(iso).getTime()) / 1000; }
 
+// Cuenta atras hasta poder cerrar. Se pinta en la tarjeta y se desactiva el
+// boton de finalizar, para que nadie lo intente y reciba un rechazo. Con el modo
+// Solo NFC no se puede impedir el gesto de acercar el movil a la etiqueta, asi
+// que este aviso es justamente lo que evita que lo haga.
+function pintarEspera(sufijo, elSec) {
+    const faltan = Math.ceil((S.minSessionSeconds || 0) - elSec);
+    const aviso = $(`espera-${sufijo}`);
+    const btn = document.querySelector(`[data-espera="${sufijo}"]`);
+    if (faltan > 0) {
+        const m = Math.floor(faltan / 60), sg = faltan % 60;
+        if (aviso) {
+            aviso.textContent = `Podrás finalizar en ${m}:${String(sg).padStart(2, '0')}`;
+            aviso.style.display = '';
+        }
+        if (btn) btn.disabled = true;
+    } else {
+        if (aviso) aviso.style.display = 'none';
+        if (btn) btn.disabled = false;
+    }
+}
+
 function startGlobalTimer() {
     clearInterval(S.timerInt);
     S.timerInt = setInterval(() => {
@@ -1460,15 +1481,42 @@ function startGlobalTimer() {
                     if (el) el.textContent = fmt(elSec);
                     const card = $(`asc-group-${sess.group_key}`);
                     if (card && elSec >= maxSec) card.classList.add('stale');
+                    pintarEspera(`group-${sess.group_key}`, elSec);
                 }
             } else {
                 const el = $(`timer-${sess.record_id}`);
                 if (el) el.textContent = fmt(elSec);
                 const card = $(`asc-${sess.record_id}`);
                 if (card && elSec >= maxSec) card.classList.add('stale');
+                pintarEspera(String(sess.record_id), elSec);
             }
         });
+        // La pantalla de finalizar puede llevar un rato abierta: se comprueba
+        // tambien ahi, no solo en la tarjeta.
+        actualizarEsperaEnPantalla();
     }, 1000);
+}
+
+// Botones de confirmar de las pantallas de tipo de atencion y de checklist.
+function actualizarEsperaEnPantalla() {
+    const minimo = S.minSessionSeconds || 0;
+    if (!minimo) return;
+    const sess = S.sessions.filter(x => x.record_id === S.pendingEndRecordId)[0];
+    [['ct-confirm', 'Confirmar y finalizar'],
+     ['checklist-confirm', 'Finalizar limpieza']].forEach(([id, textoOriginal]) => {
+        const btn = $(id);
+        if (!btn || btn.style.display === 'none') return;
+        if (!sess) { btn.disabled = false; return; }
+        const faltan = Math.ceil(minimo - elapsed(sess.start_time));
+        if (faltan > 0) {
+            const m = Math.floor(faltan / 60), sg = faltan % 60;
+            btn.disabled = true;
+            btn.textContent = `Podrás finalizar en ${m}:${String(sg).padStart(2, '0')}`;
+        } else if (btn.disabled && btn.textContent.startsWith('Podrás finalizar')) {
+            btn.disabled = false;
+            btn.textContent = textoOriginal;
+        }
+    });
 }
 
 // ── Auth ───────────────────────────────────────────────────────────────────
@@ -1545,6 +1593,7 @@ async function loadConfig() {
     const { ok, data } = await api('/api/config');
     if (ok && data) S.config = data;
     S.sessionMaxMinutes = (S.config.session_max_minutes || 120);
+    S.minSessionSeconds = (S.config.min_session_seconds || 0);
     // Apply config: group care toggles
     const groupDisplay = S.config.allow_group_care ? '' : 'none';
     $('mygroup-multiselect-toggle').style.display = groupDisplay;
@@ -1557,7 +1606,12 @@ async function initHome() {
     $('chat-fab').style.display = '';
     homeLoadError = false;
     loadQuickPhrases();
-    await Promise.all([loadConfig(), loadActiveSessions(), loadHistory(), loadCareTypes(), loadMyGroups(), loadPendingItems(), loadRoute()]);
+    // La configuracion, primero y sola: las tarjetas de sesion se dibujan segun
+    // `S.config`, y en paralelo se dibujaban antes de que llegara. Con el modo
+    // Solo NFC desactivado eso dejaba la tarjeta sin boton de finalizar hasta
+    // que algo la volvia a dibujar.
+    await loadConfig();
+    await Promise.all([loadActiveSessions(), loadHistory(), loadCareTypes(), loadMyGroups(), loadPendingItems(), loadRoute()]);
     mostrarAvisoDeCarga();
     // Check for mandatory training — block webapp if any
     var mandatoryPills = (pendingTrains || []).filter(function(p) { return p.mandatory; });
@@ -1995,6 +2049,7 @@ function renderActiveSessions() {
                 <div class="asc-subject" style="white-space:normal;line-height:1.3">${displayName}</div>
                 <div class="asc-sub">Atención grupal · ${members.length} residentes</div>
                 ${groupStaleHtml}
+                <div class="stale-warning" id="espera-group-${gk}" style="display:none;color:var(--text-2)"></div>
             </div>
             <div class="asc-right">
                 <div class="asc-timer" id="timer-group-${gk}">${timeStr}</div>
@@ -2002,6 +2057,7 @@ function renderActiveSessions() {
                     ${S.config.nfc_only ? '<span class="nfc-hint btn-nfc-scan-hint">📡 Escanea NFC</span>' : `
                     <button class="btn-asc-end btn-group-end"
                             data-group-key="${gk}"
+                            data-espera="group-${gk}"
                             data-record-ids="${recordIds}">Finalizar</button>
                     <button class="btn-asc-cancel btn-group-cancel"
                             data-group-key="${gk}"
@@ -2030,6 +2086,7 @@ function renderActiveSessions() {
                 <div class="asc-subject">${sess.subject}</div>
                 <div class="asc-sub">${subLabel}</div>
                 ${staleHtml}
+                <div class="stale-warning" id="espera-${sess.record_id}" style="display:none;color:var(--text-2)"></div>
             </div>
             <div class="asc-right">
                 <div class="asc-timer" id="timer-${sess.record_id}">${timeStr}</div>
@@ -2037,6 +2094,7 @@ function renderActiveSessions() {
                     ${S.config.nfc_only ? '<span class="nfc-hint btn-nfc-scan-hint">📡 Escanea NFC</span>' : `
                     <button class="btn-asc-end"
                             data-id="${sess.record_id}"
+                            data-espera="${sess.record_id}"
                             data-mode="${sess.type}">Finalizar</button>
                     <button class="btn-asc-cancel"
                             data-id="${sess.record_id}"
@@ -4854,7 +4912,7 @@ var CHAT_FAST = 4000, CHAT_SLOW = 10000, CHAT_IDLE = 20000, CHAT_BACKOFF_MS = 60
 
 // Se sube a mano en cada cambio de la webapp. Sirve para saber, mirando el
 // movil, que version esta ejecutando de verdad.
-var APP_BUILD = '2026-09-01 · 5';
+var APP_BUILD = '2026-09-01 · 6';
 
 function chatIniciales(nombre) {
     var partes = (nombre || '?').trim().split(/\s+/);

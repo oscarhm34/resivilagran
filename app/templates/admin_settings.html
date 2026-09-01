@@ -59,6 +59,16 @@
                 <hr class="my-3">
 
                 <div class="mb-0">
+                    <label for="min_session_seconds" class="form-label">
+                        <strong>Tiempo mínimo antes de poder cerrar (segundos)</strong>
+                        <br><small class="text-body-secondary">Una limpieza o una atención no se puede finalizar hasta que pase este tiempo desde que se abrió. Evita los registros de dos segundos, que cuentan como trabajo hecho en las estadisticas y en los informes. La webapp avisa a la trabajadora de cuanto le falta. <strong>No afecta al cierre manual desde este panel</strong> ni al cierre automatico de sesiones colgadas. Valor 0 = sin minimo. Valor por defecto: 60 segundos.</small>
+                    </label>
+                    <input type="number" class="form-control" id="min_session_seconds"
+                           name="min_session_seconds" value="{{ min_session_seconds }}"
+                           min="0" max="600" style="max-width:120px">
+                </div>
+
+                <div class="mb-0 mt-3">
                     <label for="session_max_minutes" class="form-label">
                         <strong>Tiempo máximo de sesión (minutos)</strong>
                         <br><small class="text-body-secondary">Si una sesión de limpieza o atención supera este tiempo sin cerrarse, el trabajador recibira un aviso visual en la app. Valor por defecto: 120 minutos (2 horas).</small>

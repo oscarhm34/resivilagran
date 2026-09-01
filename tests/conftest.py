@@ -216,11 +216,16 @@ def completed_record(db, cleaner_user, room):
 
 @pytest.fixture(scope="function")
 def active_record(db, cleaner_user, room):
-    """Registro de limpieza en curso (sin end_time)."""
+    """Registro de limpieza en curso (sin end_time).
+
+    Empieza diez minutos antes, no ahora mismo: una sesión que de verdad está
+    en curso lleva un rato abierta, y desde que existe la duración mínima una
+    recién abierta no se puede cerrar. Los tests de cierre usan esta fixture.
+    """
     record = CleaningRecord(
         cleaner_id=cleaner_user.id,
         room_id=room.id,
-        start_time=datetime.now(),
+        start_time=datetime.now() - timedelta(minutes=10),
         end_time=None,
     )
     db.session.add(record)

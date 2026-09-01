@@ -9,7 +9,7 @@ test_nfc_session.py — Tests para los cambios recientes en app/blueprints/nfc.p
 
 import json
 import pytest
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app import db as _db, limiter as _limiter
 from app.models import AppSetting, Resident, CareRecord, CleaningRecord
@@ -71,11 +71,15 @@ def resident(db):
 
 @pytest.fixture()
 def active_cleaning_record(db, cleaner_user, room):
-    """Registro de limpieza en curso (sin end_time) para cleaner_user en room."""
+    """Registro de limpieza en curso (sin end_time) para cleaner_user en room.
+
+    Diez minutos atras: por debajo de la duracion minima no se puede cerrar, y
+    estos tests comprueban otra cosa (el modo Solo NFC).
+    """
     rec = CleaningRecord(
         cleaner_id=cleaner_user.id,
         room_id=room.id,
-        start_time=datetime.now(),
+        start_time=datetime.now() - timedelta(minutes=10),
         end_time=None,
     )
     db.session.add(rec)

@@ -709,6 +709,16 @@
     <div class="card mb-4" id="registros">
         <div class="card-header">13. Registros, analiticas y exportacion</div>
         <div class="card-body">
+            <h6>Tiempo minimo antes de cerrar una sesion</h6>
+            <p>En <strong>Configuracion</strong> se fija cuantos segundos tienen que pasar desde que se abre
+               una limpieza o una atencion hasta que se puede finalizar. Por defecto <strong>60 segundos</strong>;
+               con 0 se desactiva. Existe porque abrir y cerrar en dos segundos dejaba un registro que las
+               estadisticas y los informes cuentan como trabajo real.</p>
+            <p>La trabajadora ve la cuenta atras en la tarjeta de la sesion, asi que se entera antes de
+               intentarlo. <strong>El cierre manual desde el panel y el cierre automatico de las sesiones
+               colgadas no estan sujetos a ese minimo</strong>: son la via para desatascar una sesion abierta
+               por error.</p>
+
             <h6>Registros</h6>
             <ul>
                 <li><strong>Registros de limpieza:</strong> Consulta con filtros por <strong>estado</strong> (En curso / Finalizados), fecha, trabajador y habitacion. Checklist visible en cada registro. El admin puede <strong>cerrar</strong> una sesion abierta o <strong>eliminar</strong> el registro.</li>
@@ -1510,6 +1520,7 @@
                 </thead>
                 <tbody>
                     <tr><td>31/08</td><td><strong>La webapp volvia a cargarse entera al abrirla:</strong> si se abria con la sesion ya iniciada (lo normal, el acceso dura una semana), la pantalla de inicio se quedaba a medias: solo salia el nombre, sin sesiones en curso, sin pendientes, sin cronometro y sin avisos. Habia que cerrar sesion y volver a entrar para que funcionase. Ademas, en modo oscuro el titulo de las tarjetas de pendientes y la flecha de volver eran casi invisibles.</td></tr>
+                    <tr><td>01/09</td><td><strong>Una limpieza o una atencion ya no se puede cerrar al instante:</strong> se abria y se cerraba en dos segundos, y el registro contaba como trabajo hecho en las estadisticas, en los informes de rendimiento y en el historial del residente. Ahora tiene que pasar un tiempo minimo, <strong>60 segundos por defecto</strong>, ajustable en Configuracion (0 = sin minimo). La webapp lo avisa antes: en la tarjeta de la sesion pone "Podras finalizar en 0:45" y el boton esta desactivado hasta entonces. <strong>No afecta al cierre manual desde el panel</strong> ni al cierre automatico de las sesiones que se quedan colgadas: coordinacion sigue pudiendo cerrar cuando haga falta. En una atencion de grupo, si a un residente le falta tiempo no se cierra ninguno, y el aviso dice a quien.</td></tr>
                     <tr><td>01/09</td><td><strong>Los grupos se gestionan desde la propia conversacion:</strong> al abrir un grupo en Mensajes aparece el boton <strong>Gestionar</strong> arriba del hilo. Desde ahi se renombra, se ve quien esta dentro, se anade o se saca gente, y se puede <strong>archivar</strong> (se retira de la lista pero se conserva y se puede reactivar) o <strong>eliminar</strong> del todo, con sus mensajes y adjuntos, que no se puede deshacer. Antes habia que salir a otra pantalla para cualquiera de estas cosas. Eliminar pide confirmacion y queda registrado en la auditoria.</td></tr>
                     <tr><td>01/09</td><td><strong>Notas de voz tambien desde el ordenador:</strong> en el panel, junto al clip de adjuntar, hay ahora un boton de microfono para grabar una nota de voz sin tener que buscar un archivo en el disco. Mismo limite de 2 minutos que en el movil.</td></tr>
                     <tr><td>01/09</td><td><strong>La webapp del movil ya recoge las actualizaciones:</strong> el telefono guardaba el programa interno de la webapp durante 12 horas, asi que despues de actualizar seguia funcionando con la version anterior media jornada, sin los botones nuevos y sin poder activar los avisos. Ahora se comprueba en cada apertura. Ademas, abajo de la lista de mensajes aparece el numero de version, para poder comprobar de un vistazo si un movil esta al dia.</td></tr>

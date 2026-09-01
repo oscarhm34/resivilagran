@@ -29,13 +29,39 @@ from ..utils import (
     admin_required, _verify_worker_id, _current_worker_id, _safe_commit, log_audit,
     _check_single_session_conflict, _resolve_nfc_code, _format_duration,
     _allowed_file, ALLOWED_IMAGE_EXTENSIONS, _open_image_oriented,
-    _save_image_stream,
+    _save_image_stream, _falta_para_cerrar, _aviso_falta,
+    MIN_SESSION_SECONDS_DEFAULT,
 )
 
 bp = Blueprint('nfc', __name__)
 
 
 # ── HELPER ──────────────────────────────────────────────────────────────────
+
+def _rechazo_por_tiempo(start_time, quien: str | None = None):
+    """Respuesta de rechazo si aun no ha pasado el minimo, o None si ya se puede.
+
+    409 y no 400: no es una peticion mal formada, es que en este momento no se
+    puede hacer. Es el mismo codigo con el que ya se responde a "ya tienes una
+    sesion activa" (`_check_single_session_conflict`).
+
+    Devuelve tambien los segundos que faltan, para que la webapp pinte la cuenta
+    atras sin volver a preguntar.
+    """
+    faltan = _falta_para_cerrar(start_time)
+    if not faltan:
+        return None
+    aviso = _aviso_falta(faltan)
+    if quien:
+        # En un grupo de ocho residentes, "espera un poco" no dice donde mirar.
+        minutos, secs = divmod(faltan, 60)
+        aviso = f'Aún no puedes cerrar el grupo: a {quien} le faltan {minutos}:{secs:02d}.'
+    return jsonify({
+        'error': aviso,
+        'code': 'MIN_DURATION',
+        'seconds_left': faltan,
+    }), 409
+
 
 def _save_base64_photo(b64_data: str, subfolder: str, cleaner_id: int) -> str:
     """Decodifica base64 (data URI o raw), re-processa com a JPEG via Pillow i retorna el path relatiu."""
@@ -114,6 +140,9 @@ def start_cleaning():
     ).first()
 
     if active_cleaning:
+        rechazo = _rechazo_por_tiempo(active_cleaning.start_time)
+        if rechazo:
+            return rechazo
         active_cleaning.end_time = datetime.now()
         ok, err = _safe_commit()
         if not ok:
@@ -149,6 +178,9 @@ def end_cleaning():
         return jsonify({'error': 'Registro no válido o limpieza ya finalizada.'}), 400
     if record.cleaner_id != _current_worker_id():
         return jsonify({'error': 'No autorizado'}), 403
+    rechazo = _rechazo_por_tiempo(record.start_time)
+    if rechazo:
+        return rechazo
     record.end_time = datetime.now()
     ok, err = _safe_commit()
     if not ok:
@@ -753,6 +785,9 @@ def nfc_scan():
             cleaner_id=worker_id, room_id=room.id, end_time=None
         ).first()
         if active_this:
+            rechazo = _rechazo_por_tiempo(active_this.start_time)
+            if rechazo:
+                return rechazo
             active_this.end_time = now
             ok, err = _safe_commit()
             if not ok:
@@ -794,6 +829,12 @@ def nfc_scan():
             worker_id=worker_id, resident_id=resident.id, end_time=None
         ).first()
         if active_this:
+            # Antes de pedir el tipo de atencion, no despues: hacerle rellenar
+            # tipo, constantes y observaciones para decirle al final que no
+            # puede cerrar seria la peor version de esto.
+            rechazo = _rechazo_por_tiempo(active_this.start_time)
+            if rechazo:
+                return rechazo
             # Don't end directly — ask for care types first
             return jsonify({
                 'action': 'select_care_type_end',
@@ -852,6 +893,10 @@ def end_session():
         if not record or record.cleaner_id != worker_id or record.end_time:
             return jsonify({'error': 'Registro no válido'}), 400
 
+        rechazo = _rechazo_por_tiempo(record.start_time)
+        if rechazo:
+            return rechazo
+
         # Check if checklist items exist
         checklist_items = ChecklistItem.query.filter_by(active=True).order_by(ChecklistItem.sort_order).all()
         if checklist_items and not data.get('skip_checklist'):
@@ -880,6 +925,9 @@ def end_session():
         record = db.session.get(CareRecord, record_id)
         if not record or record.worker_id != worker_id or record.end_time:
             return jsonify({'error': 'Registro no válido'}), 400
+        rechazo = _rechazo_por_tiempo(record.start_time)
+        if rechazo:
+            return rechazo
         # Ask for care types before ending
         r = record.resident
         return jsonify({
@@ -976,6 +1024,15 @@ def finalize_group_care():
 
     records_by_id = {r.id: r for r in records}
 
+    # Si a un solo residente del grupo le falta tiempo, no se cierra ninguno:
+    # cerrar media atencion grupal deja la otra mitad colgada.
+    for rec in records:
+        rechazo = _rechazo_por_tiempo(
+            rec.start_time,
+            quien=rec.resident.name if rec.resident else None)
+        if rechazo:
+            return rechazo
+
     # Mismo requisito que en el cierre individual: ninguna atencion del grupo se
     # guarda sin tipo. Se valida todo antes de cerrar nada, para no dejar la
     # mitad del grupo cerrada y la otra mitad abierta.
@@ -1058,6 +1115,12 @@ def finalize_care():
     record = db.session.get(CareRecord, record_id)
     if not record or record.worker_id != worker_id or record.end_time:
         return jsonify({'error': 'Registro no válido'}), 400
+
+    # Se vuelve a comprobar aunque ya se hiciera al abrir esta pantalla: puede
+    # llevar un rato abierta, y el servidor no se fia del cliente.
+    rechazo = _rechazo_por_tiempo(record.start_time)
+    if rechazo:
+        return rechazo
 
     # El tipo de atencion es obligatorio: un registro sin tipo no dice que se hizo
     # y ya no hay manera de reconstruirlo. Se valida antes de tocar el registro
@@ -1182,6 +1245,10 @@ def finalize_cleaning():
     record = db.session.get(CleaningRecord, record_id)
     if not record or record.cleaner_id != worker_id or record.end_time:
         return jsonify({'error': 'Registro no válido'}), 400
+
+    rechazo = _rechazo_por_tiempo(record.start_time)
+    if rechazo:
+        return rechazo
 
     record.end_time = datetime.now()
     record.checklist_json = _json.dumps(checklist, ensure_ascii=False)
@@ -1413,6 +1480,14 @@ def admin_settings():
         except (ValueError, TypeError):
             hidden_logout = '30'
         AppSetting.set('hidden_logout_minutes', hidden_logout)
+        session_min = request.form.get('min_session_seconds', MIN_SESSION_SECONDS_DEFAULT)
+        try:
+            # Tope de 10 minutos: es un minimo, no un maximo. Poner una hora
+            # dejaria a la plantilla sin poder cerrar nada.
+            session_min = str(max(0, min(600, int(session_min))))
+        except (ValueError, TypeError):
+            session_min = MIN_SESSION_SECONDS_DEFAULT
+        AppSetting.set('min_session_seconds', session_min)
         flash('Configuración guardada.', 'success')
         return redirect(url_for('nfc.admin_settings'))
     return render_template('admin_settings.html',
@@ -1423,6 +1498,7 @@ def admin_settings():
         allow_worker_activities=AppSetting.get('allow_worker_activities', 'false') == 'true',
         session_max_minutes=int(AppSetting.get('session_max_minutes', '120')),
         hidden_logout_minutes=int(AppSetting.get('hidden_logout_minutes', '30')),
+        min_session_seconds=int(AppSetting.get('min_session_seconds', MIN_SESSION_SECONDS_DEFAULT)),
     )
 
 
@@ -1437,6 +1513,7 @@ def api_config():
         'allow_worker_activities': AppSetting.get('allow_worker_activities', 'false') == 'true',
         'session_max_minutes': int(AppSetting.get('session_max_minutes', '120')),
         'hidden_logout_minutes': int(AppSetting.get('hidden_logout_minutes', '30')),
+        'min_session_seconds': int(AppSetting.get('min_session_seconds', MIN_SESSION_SECONDS_DEFAULT)),
     }), 200
 
 

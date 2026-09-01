@@ -288,6 +288,38 @@ def _format_duration(start_time: datetime | None, end_time: datetime | None) -> 
     return 'N/A'
 
 
+# ── Duracion minima de una sesion ────────────────────────────────────────────
+
+MIN_SESSION_SECONDS_DEFAULT = '60'
+
+
+def _falta_para_cerrar(start_time) -> int:
+    """Segundos que faltan para poder cerrar la sesion. 0 = ya se puede.
+
+    Sin esto, abrir y cerrar en dos segundos deja un registro de limpieza o de
+    atencion que alimenta las estadisticas y los informes como si fuera trabajo
+    real. El propio sistema ya daba por hecho que eso no cuenta: las medias de
+    `_compute_cleaning_stats` descartan lo que dura menos de un minuto.
+
+    Con `start_time` a None devuelve 0: el de CleaningRecord es nullable, y
+    bloquear un registro cuyo inicio no se conoce lo dejaria imposible de cerrar.
+    """
+    minimo = int(AppSetting.get('min_session_seconds', MIN_SESSION_SECONDS_DEFAULT))
+    if minimo <= 0 or not start_time:
+        return 0
+    transcurrido = (datetime.now() - start_time).total_seconds()
+    # Hacia arriba: con `round`, cuando quedan 400 ms el aviso diria "faltan 0:00"
+    # y el siguiente intento tambien fallaria.
+    import math
+    return max(0, int(math.ceil(minimo - transcurrido)))
+
+
+def _aviso_falta(segundos: int) -> str:
+    """El texto que ve la trabajadora. Dice cuanto falta, no la rine."""
+    minutos, secs = divmod(max(0, segundos), 60)
+    return f'Aún no puedes finalizar. Faltan {minutos}:{secs:02d}.'
+
+
 def _today_range(target_date=None):
     """Return (start_datetime, end_datetime) for a given date (default today)."""
     d = target_date or date.today()
