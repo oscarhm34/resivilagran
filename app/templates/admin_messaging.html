@@ -112,6 +112,10 @@
                     <i class="bi bi-arrow-left" aria-hidden="true"></i>
                 </button>
                 <span id="hilo-titulo">Selecciona una conversación</span>
+                <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" id="btn-gestion-grupo"
+                        style="display:none" title="Gestionar el grupo">
+                    <i class="bi bi-gear me-1" aria-hidden="true"></i>Gestionar
+                </button>
             </div>
             <div class="card-body msg-hilo" id="hilo">
                 <p class="text-center mt-5" style="color:var(--color-text-secondary)">
@@ -171,6 +175,46 @@
 </div>
 {% endblock %}
 {% block scripts %}
+<div class="modal fade" id="modalGestion" tabindex="-1" aria-labelledby="modalGestionLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalGestionLabel">Gestionar el grupo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" id="form-renombrar" class="d-flex gap-2 mb-4">
+                    <label class="visually-hidden" for="gestion-nombre">Nombre del grupo</label>
+                    <input type="text" class="form-control" id="gestion-nombre" name="title" maxlength="100">
+                    <button type="submit" class="btn btn-outline-primary">Renombrar</button>
+                </form>
+
+                <h6>Participantes</h6>
+                <div id="gestion-miembros" class="mb-3"></div>
+
+                <h6>Añadir a alguien</h6>
+                <input type="search" class="form-control mb-2" id="gestion-buscar"
+                       placeholder="Buscar por nombre…" aria-label="Buscar persona">
+                <div id="gestion-contactos" style="max-height:220px;overflow-y:auto"></div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <form method="POST" id="form-archivar" class="m-0"
+                      data-confirm="¿Archivar este grupo? Dejará de verse en la lista de todos, pero no se borra nada y se puede reactivar.">
+                    <button type="submit" class="btn btn-outline-secondary">
+                        <i class="bi bi-archive me-1" aria-hidden="true"></i>Archivar
+                    </button>
+                </form>
+                <form method="POST" id="form-eliminar" class="m-0"
+                      data-confirm="¿Eliminar este grupo para siempre? Se borra la conversación entera, con sus fotos y audios, para todos los miembros. Esto no se puede deshacer.">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash me-1" aria-hidden="true"></i>Eliminar el grupo
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <dialog id="visor">
     <div class="d-flex flex-column align-items-center gap-3">
         <div id="visor-cuerpo"></div>
@@ -368,6 +412,7 @@
                 : conv.title)
             : 'Conversación';
         $('composer').style.display = '';
+        $('btn-gestion-grupo').style.display = (conv && conv.kind === 'group') ? '' : 'none';
         pintarLista();
 
         var res = await fetch('/api/messaging/conversations/' + cid + '/messages');
@@ -451,6 +496,93 @@
         $('buscar-contacto').value = '';
         cargarContactos('');
         modalNueva.show();
+    });
+
+    // ── Gestionar el grupo desde la propia conversación ───────────────────
+    // Estaba solo en Gestión → Grupos de mensajes, que obliga a salir de la
+    // conversación que estás mirando para tocar la conversación que estás
+    // mirando.
+    var modalGestion = null;
+
+    async function pintarGestion() {
+        var res = await fetch('/api/messaging/conversations/' + abierta + '/info');
+        if (!res.ok) { window.showToast('No se pudo cargar el grupo', 'error'); return; }
+        var info = await res.json();
+
+        $('gestion-nombre').value = info.title;
+        $('form-renombrar').action = '/admin/mensajes/grupos/' + abierta + '/renombrar';
+        $('form-archivar').action = '/admin/mensajes/grupos/' + abierta + '/archivar';
+        $('form-eliminar').action = '/admin/mensajes/grupos/' + abierta + '/eliminar';
+
+        $('gestion-miembros').innerHTML = info.members.map(function (m) {
+            return '<div class="d-flex align-items-center gap-2 py-1">'
+                + '<span class="msg-avatar" style="width:32px;height:32px;font-size:13px;background:' + colorDe(m.id) + '">'
+                + escapar(iniciales(m.name)) + '</span>'
+                + '<span class="flex-grow-1">' + escapar(m.name)
+                + (m.role === 'owner' ? ' <span class="badge bg-secondary">creador</span>' : '')
+                + (m.is_me ? ' <span class="badge bg-light text-dark">tú</span>' : '') + '</span>'
+                + (m.role === 'owner' ? ''
+                    : '<button type="button" class="btn btn-sm btn-outline-danger" data-quitar="' + m.id + '"'
+                      + ' title="Sacar del grupo" aria-label="Sacar del grupo">'
+                      + '<i class="bi bi-person-dash"></i></button>')
+                + '</div>';
+        }).join('');
+
+        $('gestion-miembros').querySelectorAll('[data-quitar]').forEach(function (b) {
+            b.addEventListener('click', async function () {
+                b.disabled = true;
+                var r = await fetch('/api/messaging/conversations/' + abierta
+                                    + '/members/' + b.dataset.quitar + '/remove', { method: 'POST' });
+                var d = await r.json();
+                if (!r.ok) { b.disabled = false; window.showToast(d.error || 'No se pudo', 'error'); return; }
+                pintarGestion();
+                abrir(abierta);
+            });
+        });
+
+        cargarContactosGestion('');
+    }
+
+    async function cargarContactosGestion(q) {
+        var res = await fetch('/api/messaging/contacts?q=' + encodeURIComponent(q || ''));
+        if (!res.ok) return;
+        var gente = await res.json();
+        $('gestion-contactos').innerHTML = gente.map(function (c) {
+            return '<div class="d-flex align-items-center gap-2 py-1">'
+                + '<span class="flex-grow-1">' + escapar(c.name) + '</span>'
+                + '<button type="button" class="btn btn-sm btn-outline-primary" data-anadir="' + c.id + '">Añadir</button>'
+                + '</div>';
+        }).join('') || '<p class="mb-0" style="color:var(--color-text-secondary)">Sin resultados.</p>';
+
+        $('gestion-contactos').querySelectorAll('[data-anadir]').forEach(function (b) {
+            b.addEventListener('click', async function () {
+                b.disabled = true;
+                var r = await fetch('/api/messaging/conversations/' + abierta + '/members', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ member_ids: [parseInt(b.dataset.anadir, 10)] }),
+                });
+                var d = await r.json();
+                if (!r.ok) { b.disabled = false; window.showToast(d.error || 'No se pudo', 'error'); return; }
+                pintarGestion();
+                abrir(abierta);
+            });
+        });
+    }
+
+    $('btn-gestion-grupo').addEventListener('click', function () {
+        if (!abierta) return;
+        modalGestion = modalGestion || new bootstrap.Modal($('modalGestion'));
+        $('gestion-buscar').value = '';
+        pintarGestion();
+        modalGestion.show();
+    });
+
+    var gestionTimer = null;
+    $('gestion-buscar').addEventListener('input', function () {
+        clearTimeout(gestionTimer);
+        var v = this.value;
+        gestionTimer = setTimeout(function () { cargarContactosGestion(v); }, 250);
     });
 
     // ── Adjuntos ─────────────────────────────────────────────────────────
