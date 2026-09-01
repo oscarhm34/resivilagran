@@ -831,3 +831,29 @@ def test_dar_de_alta_el_mismo_movil_dos_veces_no_duplica(
     client.post('/api/push/subscribe', headers=worker_headers, json=cuerpo)
 
     assert PushSubscription.query.count() == 1
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  CLAVES VAPID
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_las_claves_vapid_tienen_el_formato_que_espera_el_navegador():
+    """Sin este contrato no hay avisos, y el fallo es invisible.
+
+    La generacion se rompio al actualizar `cryptography` (py_vapid pasaba la
+    clase de la curva en vez de una instancia). El `except` era mudo, las claves
+    no se guardaban y ningun aviso salio nunca, sin una sola linea en el log.
+    """
+    import base64
+    from app.config import Config
+
+    publica = Config.VAPID_PUBLIC_KEY
+    privada = Config.VAPID_PRIVATE_KEY
+    assert publica and privada, 'sin claves no se puede avisar a ningun movil'
+
+    crudo = base64.urlsafe_b64decode(publica + '=' * ((4 - len(publica) % 4) % 4))
+    # `applicationServerKey` exige el punto sin comprimir: 65 bytes tras el 0x04.
+    assert len(crudo) == 65
+    assert crudo[0] == 4
+    # pywebpush firma con la privada en PEM.
+    assert 'BEGIN PRIVATE KEY' in privada

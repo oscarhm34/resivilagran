@@ -21,7 +21,20 @@ def _persistent_secret(env_var, fallback_file):
 
 
 def _vapid_keys():
-    """Return VAPID key pair, generating once and persisting to files."""
+    """Par de claves VAPID para los avisos al movil, generado una sola vez.
+
+    Se genera con `cryptography` directamente y no con el ayudante de py_vapid:
+    aquel llamaba a `ec.generate_private_key(ec.SECP256R1, ...)` pasando la clase
+    en lugar de una instancia, cosa que las versiones nuevas de cryptography ya
+    no aceptan. La excepcion caia en un `except` mudo, las claves no llegaban a
+    guardarse nunca y ningun aviso podia salir, sin que nada lo dijera: se
+    reintentaba y volvia a fallar en cada arranque.
+
+    Formatos, que no son intercambiables:
+      - publica: punto sin comprimir en base64url (65 bytes que empiezan por
+        0x04). Es lo que el navegador espera en `applicationServerKey`.
+      - privada: PEM, que es lo que acepta pywebpush al firmar el envio.
+    """
     instance_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'instance')
     priv_path = os.path.join(instance_dir, '.vapid_private_key')
     pub_path = os.path.join(instance_dir, '.vapid_public_key')
@@ -30,20 +43,38 @@ def _vapid_keys():
             priv = f.read().strip()
         with open(pub_path) as f:
             pub = f.read().strip()
-        return priv, pub
+        if priv and pub:
+            return priv, pub
     os.makedirs(instance_dir, exist_ok=True)
     try:
-        from py_vapid import Vapid
-        vapid = Vapid()
-        vapid.generate_keys()
-        priv = vapid.private_pem().decode('utf-8') if isinstance(vapid.private_pem(), bytes) else vapid.private_pem()
-        pub = vapid.public_key_urlsafe_base64()
+        import base64
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+
+        key = ec.generate_private_key(ec.SECP256R1())
+        priv = key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        ).decode('utf-8')
+        raw = key.public_key().public_bytes(
+            serialization.Encoding.X962,
+            serialization.PublicFormat.UncompressedPoint,
+        )
+        pub = base64.urlsafe_b64encode(raw).decode('ascii').rstrip('=')
+
         with open(priv_path, 'w') as f:
             f.write(priv)
         with open(pub_path, 'w') as f:
             f.write(pub)
         return priv, pub
-    except Exception:
+    except Exception as e:
+        # Nunca en silencio: sin claves no hay avisos, y es invisible desde la
+        # aplicacion. Que al menos salga en el registro del contenedor.
+        import logging
+        logging.getLogger(__name__).error(
+            'No se pudieron generar las claves VAPID, los avisos al movil no '
+            'funcionaran: %s', e)
         return None, None
 
 

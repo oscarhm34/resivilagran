@@ -435,6 +435,9 @@
         .chat-empty { text-align:center; color:var(--text-2); font-size:14px; padding:40px 20px; }
         /* Altas, bajas y cambios de nombre: no son de nadie, van centrados. */
         .chat-system { align-self:center; max-width:90%; text-align:center; font-size:13px; color:var(--text-2); padding:6px 12px; }
+        .chat-bubble[data-own="1"] { cursor:pointer; }
+        .chat-del { align-self:flex-end; margin:-4px 0 6px; }
+        .chat-del button { min-height:40px; padding:0 16px; border-radius:20px; border:1.5px solid var(--danger); background:none; color:var(--danger); font-size:14px; font-weight:600; font-family:inherit; cursor:pointer; }
         .chat-info-btn { background:none; border:none; color:var(--text-2); font-size:22px; cursor:pointer; padding:4px 8px; }
         .chat-member { display:flex; align-items:center; gap:12px; padding:12px 6px; border-bottom:1px solid var(--border); }
         .chat-danger-btn { width:100%; min-height:48px; border-radius:14px; border:1.5px solid var(--danger); background:none; color:var(--danger); font-size:16px; font-weight:600; font-family:inherit; cursor:pointer; margin-top:10px; }
@@ -4898,6 +4901,7 @@ function chatBubble(m) {
     const div = document.createElement('div');
     div.className = 'chat-bubble ' + (mia ? 'mine' : 'theirs') + (m.deleted ? ' gone' : '');
     div.dataset.mid = m.id;
+    if (mia && !m.deleted) div.dataset.own = '1';
     div.innerHTML =
         (!mia && !m.deleted && CHAT.openKind === 'group'
             ? '<div class="chat-author">' + chatEscapar(m.sender_name) + '</div>' : '')
@@ -5104,6 +5108,47 @@ function stopChatPolling() {
 document.addEventListener('visibilitychange', function () {
     if (document.hidden) { stopChatPolling(); }
     else if (S.token) { chatPoll(); startChatPolling(); }
+});
+
+// ── Borrar un mensaje propio ──────────────────────────────────────────────
+// Se toca la burbuja y aparece el boton debajo. No hay menu largo ni pulsacion
+// mantenida: un dedo que resbala no debe borrar nada, y mantener pulsado no es
+// un gesto que todo el mundo conozca.
+
+function cerrarBorrado() {
+    const abierto = $('msg-body').querySelector('.chat-del');
+    if (abierto) abierto.remove();
+}
+
+async function borrarMensaje(mid, burbuja) {
+    const { ok, data } = await api('/api/messaging/messages/' + mid + '/delete', 'POST');
+    cerrarBorrado();
+    if (!ok) { toast((data && data.error) || 'No se ha podido eliminar'); return; }
+    burbuja.classList.add('gone');
+    burbuja.removeAttribute('data-own');
+    burbuja.innerHTML = '<div>Mensaje eliminado</div>';
+    loadChats();
+}
+
+$('msg-body').addEventListener('click', function (e) {
+    if (e.target.closest('.chat-del')) return;
+    const burbuja = e.target.closest('.chat-bubble[data-own="1"]');
+    const yaAbierto = burbuja && burbuja.nextElementSibling
+        && burbuja.nextElementSibling.classList.contains('chat-del');
+    cerrarBorrado();
+    if (!burbuja || yaAbierto) return;
+
+    const caja = document.createElement('div');
+    caja.className = 'chat-del';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = '🗑 Eliminar para todos';
+    btn.addEventListener('click', function () {
+        btn.disabled = true;
+        borrarMensaje(burbuja.dataset.mid, burbuja);
+    });
+    caja.appendChild(btn);
+    burbuja.insertAdjacentElement('afterend', caja);
 });
 
 // ── Información de la conversación ────────────────────────────────────────

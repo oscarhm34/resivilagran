@@ -44,6 +44,13 @@
     }
     .burbuja-autor { font-size: 12px; font-weight: 600; color: var(--color-primary-dk); margin-bottom: 2px; }
     .burbuja-hora  { font-size: 11px; color: var(--color-text-secondary); text-align: right; margin-top: 2px; }
+    .burbuja-borrar {
+        position: absolute; top: 2px; right: -30px; border: none; background: none;
+        color: var(--color-text-secondary); cursor: pointer; padding: 2px 6px;
+        opacity: 0; transition: opacity .12s; font-size: .85rem;
+    }
+    .burbuja:hover .burbuja-borrar, .burbuja-borrar:focus { opacity: 1; }
+    .burbuja-borrar:hover { color: var(--color-danger); }
 
     @media (max-width: 767.98px) {
         .msg-layout.viendo-hilo #col-lista { display: none; }
@@ -270,11 +277,35 @@
                 (!propia && !m.deleted && esGrupo
                     ? '<div class="burbuja-autor">' + escapar(m.sender_name) + '</div>' : '')
                 + '<div>' + (m.deleted ? 'Mensaje eliminado' : escapar(m.body)) + '</div>'
-                + '<div class="burbuja-hora">' + hora(m.created_at) + '</div>';
+                + '<div class="burbuja-hora">' + hora(m.created_at) + '</div>'
+                + (propia && !m.deleted
+                    ? '<button type="button" class="burbuja-borrar" title="Eliminar para todos"'
+                      + ' aria-label="Eliminar mensaje"><i class="bi bi-trash"></i></button>'
+                    : '');
             hilo.appendChild(div);
         });
         hilo.scrollTop = hilo.scrollHeight;
     }
+
+    // Delegado: las burbujas se repintan con cada sondeo, así que enganchar el
+    // listener a cada botón dejaría los nuevos sin él.
+    $('hilo').addEventListener('click', async function (e) {
+        var btn = e.target.closest('.burbuja-borrar');
+        if (!btn) return;
+        var burbuja = btn.closest('.burbuja');
+        btn.disabled = true;
+        var res = await fetch('/api/messaging/messages/' + burbuja.dataset.msg + '/delete',
+                              { method: 'POST' });
+        var datos = await res.json();
+        if (!res.ok) {
+            btn.disabled = false;
+            window.showToast(datos.error || 'No se pudo eliminar', 'error');
+            return;
+        }
+        burbuja.classList.add('borrada');
+        burbuja.innerHTML = '<div>Mensaje eliminado</div>';
+        cargarLista();
+    });
 
     async function abrir(cid) {
         abierta = cid;
