@@ -21,9 +21,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 from .. import app, db, limiter
-from ..models import Cleaner, Conversation, ConversationMember, Message
+from ..models import (
+    Cleaner, Conversation, ConversationMember, Message, MessageAttachment,
+)
 from ..utils import (
     admin_required, dual_auth, current_dual_user, _safe_commit, log_audit,
+    _allowed_file, _save_image_stream, _sniff_media,
+    ALLOWED_IMAGE_EXTENSIONS, AUDIO_MIME_EXTENSIONS, VIDEO_MIME_EXTENSIONS,
 )
 
 bp = Blueprint('messaging', __name__)
@@ -891,3 +895,213 @@ def admin_archive_group(cid: int):
     else:
         flash('Grupo archivado.' if not conv.is_active else 'Grupo reactivado.', 'success')
     return redirect(url_for('messaging.admin_messaging_groups'))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  ADJUNTOS
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Las fotos se reprocesan con Pillow (abrir, corregir EXIF, convertir y volver a
+# escribir): eso descarta cualquier carga util escondida en el fichero original y
+# es la defensa de la que habla la regla de seguridad. El audio y el video no se
+# pueden reprocesar sin ffmpeg, que no esta en la imagen y no compensa meterlo
+# (250 MB mas y transcodificar dentro de un worker de gunicorn), asi que se
+# guardan tal cual y la defensa son tres capas: extension derivada de un mapa
+# cerrado de MIME, firma binaria comprobada, y al servirlos, Content-Type de
+# lista blanca con `X-Content-Type-Options: nosniff`, que es lo que impide de
+# verdad que el navegador interprete el fichero como otra cosa.
+
+MEDIA_LIMITES = {
+    'image': 8 * 1024 * 1024,
+    'audio': 5 * 1024 * 1024,
+    'video': 15 * 1024 * 1024,
+}
+AUDIO_MAX_SEGUNDOS = 120
+VIDEO_MAX_SEGUNDOS = 20
+
+
+def _carpeta_adjuntos(cid: int) -> str:
+    """uploads/messaging/<AAAA>/<MM>/<conversacion>.
+
+    Partido por mes para que purgar y excluir del backup sea un `rm -rf` de una
+    carpeta, en vez de recorrer la tabla fichero a fichero.
+    """
+    import os
+    ahora = datetime.now()
+    return os.path.join(app.config['UPLOAD_FOLDER'], 'messaging',
+                        f'{ahora.year:04d}', f'{ahora.month:02d}', str(cid))
+
+
+def _rel(ruta_abs: str) -> str:
+    import os
+    return os.path.relpath(ruta_abs, app.config['UPLOAD_FOLDER']).replace(os.sep, '/')
+
+
+@bp.route('/api/messaging/conversations/<int:cid>/attachments', methods=['POST'])
+@limiter.limit('20/minute')
+@dual_auth
+def send_attachment(cid: int):
+    import os
+    from io import BytesIO
+    from PIL import UnidentifiedImageError
+
+    member = _require_membership(cid)
+    if not member or member.left_at is not None:
+        return jsonify({'error': 'No encontrado'}), 404
+
+    fichero = request.files.get('file')
+    if not fichero or not fichero.filename:
+        return jsonify({'error': 'No se ha recibido ningún archivo'}), 400
+
+    tipo = (request.form.get('media_type') or '').strip()
+    if tipo not in MEDIA_LIMITES:
+        return jsonify({'error': 'Tipo de archivo no admitido'}), 400
+
+    datos = fichero.read()
+    if not datos:
+        return jsonify({'error': 'El archivo está vacío'}), 400
+    if len(datos) > MEDIA_LIMITES[tipo]:
+        topes = {'image': '8 MB', 'audio': '5 MB', 'video': '15 MB'}
+        return jsonify({'error': f'El archivo supera el máximo de {topes[tipo]}'}), 400
+
+    carpeta = _carpeta_adjuntos(cid)
+    marca = datetime.now().strftime('%Y%m%d%H%M%S%f')
+    base = f'{member.cleaner_id}_{marca}'
+
+    ancho = alto = None
+    thumb_rel = None
+    try:
+        if tipo == 'image':
+            if not _allowed_file(fichero.filename, ALLOWED_IMAGE_EXTENSIONS):
+                return jsonify({'error': 'Formato de imagen no admitido'}), 400
+            nombre, ancho, alto = _save_image_stream(
+                BytesIO(datos), carpeta, f'img_{base}', max_side=1600, quality=82)
+            mime = 'image/jpeg'
+            ruta_rel = _rel(os.path.join(carpeta, nombre))
+            # Miniatura para la burbuja: abrir la grande en cada mensaje del hilo
+            # es lo que hace que un chat con fotos se coma los datos del movil.
+            mini, _w, _h = _save_image_stream(
+                BytesIO(datos), carpeta, f'img_{base}_t', max_side=320, quality=75)
+            thumb_rel = _rel(os.path.join(carpeta, mini))
+        else:
+            mapa = AUDIO_MIME_EXTENSIONS if tipo == 'audio' else VIDEO_MIME_EXTENSIONS
+            declarado = (fichero.mimetype or '').split(';')[0].strip().lower()
+            ext = mapa.get(declarado)
+            if not ext:
+                return jsonify({'error': 'Formato no admitido'}), 400
+            if not _sniff_media(datos[:16], tipo):
+                # El fichero no es lo que dice ser.
+                return jsonify({'error': 'El archivo no es válido'}), 400
+            os.makedirs(carpeta, exist_ok=True)
+            prefijo = 'aud' if tipo == 'audio' else 'vid'
+            nombre = f'{prefijo}_{base}.{ext}'
+            with open(os.path.join(carpeta, nombre), 'wb') as fh:
+                fh.write(datos)
+            mime = declarado
+            ruta_rel = _rel(os.path.join(carpeta, nombre))
+
+            # El poster del video lo saca el movil del primer fotograma: sin
+            # ffmpeg el servidor no puede, y una burbuja negra no dice nada.
+            poster = request.form.get('poster')
+            if tipo == 'video' and poster:
+                try:
+                    import base64 as _b64
+                    crudo = poster.split(',', 1)[1] if ',' in poster else poster
+                    mini, _w, _h = _save_image_stream(
+                        BytesIO(_b64.b64decode(crudo)), carpeta, f'vid_{base}_t',
+                        max_side=320, quality=75)
+                    thumb_rel = _rel(os.path.join(carpeta, mini))
+                except Exception:
+                    thumb_rel = None      # se pinta un icono generico
+    except UnidentifiedImageError:
+        # Hereda de OSError, asi que sin esta rama un fichero que no es una
+        # imagen se contaba como averia del servidor (500) en vez de decirle a
+        # la trabajadora lo unico util: que ese archivo no vale.
+        return jsonify({'error': 'El archivo no es una imagen válida'}), 400
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except (OSError, IOError) as e:
+        app.logger.error('Error al guardar el adjunto: %s', e)
+        return jsonify({'error': 'No se pudo guardar el archivo'}), 500
+    except Exception as e:
+        app.logger.error('Adjunto no valido: %s', e)
+        return jsonify({'error': 'El archivo no es válido'}), 400
+
+    duracion = request.form.get('duration', type=int)
+    tope = AUDIO_MAX_SEGUNDOS if tipo == 'audio' else VIDEO_MAX_SEGUNDOS
+    if tipo != 'image' and duracion and duracion > tope:
+        return jsonify({'error': f'La grabación supera los {tope} segundos'}), 400
+
+    client_uuid = (request.form.get('client_uuid') or '').strip() or None
+    if client_uuid:
+        previo = Message.query.filter_by(
+            sender_id=member.cleaner_id, client_uuid=client_uuid).first()
+        if previo:
+            return jsonify(_message_json(previo)), 200
+
+    msg = Message(conversation_id=cid, sender_id=member.cleaner_id, kind=tipo,
+                  body=(request.form.get('body') or '').strip() or None,
+                  client_uuid=client_uuid)
+    db.session.add(msg)
+    db.session.flush()
+    db.session.add(MessageAttachment(
+        message_id=msg.id, media_type=tipo, file_path=ruta_rel, thumb_path=thumb_rel,
+        mime_type=mime, size_bytes=len(datos), duration_seconds=duracion,
+        width=ancho, height=alto, original_filename=fichero.filename[:255]))
+
+    conv = db.session.get(Conversation, cid)
+    _touch_conversation(conv, msg)
+    member.last_read_message_id = msg.id
+    member.last_read_at = datetime.now()
+
+    ok, err = _safe_commit('Error al enviar el archivo')
+    if not ok:
+        return jsonify({'error': err}), 500
+
+    db.session.refresh(msg)
+    _notify_new_message(conv, msg)
+    return jsonify(_message_json(msg)), 201
+
+
+@bp.route('/api/messaging/attachments/<int:aid>', methods=['GET'])
+@dual_auth
+def serve_attachment(aid: int):
+    """Sirve un adjunto solo a quien esta en esa conversacion.
+
+    Acepta un id y nunca una ruta, asi que el path traversal no es posible por
+    construccion. Cualquier motivo para no servirlo responde 404 y no 403: un
+    403 confirmaria que ese adjunto existe, que ya es informacion sobre una
+    conversacion ajena.
+    """
+    import os
+    from flask import send_file
+
+    adj = db.session.get(MessageAttachment, aid)
+    if not adj:
+        return jsonify({'error': 'No encontrado'}), 404
+
+    msg = db.session.get(Message, adj.message_id)
+    if not msg or msg.deleted_at:
+        return jsonify({'error': 'No encontrado'}), 404
+
+    member = _require_membership(msg.conversation_id)
+    if not member:
+        return jsonify({'error': 'No encontrado'}), 404
+    if msg.id <= member.cleared_before_id:
+        return jsonify({'error': 'No encontrado'}), 404
+    if member.left_at is not None and msg.id > member.left_at_message_id:
+        return jsonify({'error': 'No encontrado'}), 404
+
+    rel = adj.thumb_path if (request.args.get('thumb') == '1' and adj.thumb_path) else adj.file_path
+    ruta = os.path.normpath(os.path.join(app.config['UPLOAD_FOLDER'], rel))
+    if not ruta.startswith(os.path.normpath(app.config['UPLOAD_FOLDER'])) or not os.path.exists(ruta):
+        return jsonify({'error': 'No encontrado'}), 404
+
+    # El tipo sale de la lista blanca del servidor, nunca de lo que declaro el
+    # cliente, y con `nosniff` el navegador no puede reinterpretarlo.
+    mime = 'image/jpeg' if rel == adj.thumb_path else adj.mime_type
+    resp = send_file(ruta, mimetype=mime, conditional=True)
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    resp.headers['Content-Disposition'] = 'inline'
+    resp.headers['Cache-Control'] = 'private, max-age=86400'
+    return resp

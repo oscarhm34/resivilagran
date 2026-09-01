@@ -1443,6 +1443,13 @@
                     la otra persona la sigue viendo entera.</li>
                 <li><strong>Silenciar:</strong> desde el boton ⓘ de la conversacion en la webapp. Deja de
                     avisar al movil durante 8 horas, pero los mensajes siguen llegando.</li>
+                <li><strong>Fotos, notas de voz y videos:</strong> boton <strong>＋</strong> a la izquierda del
+                    campo de escribir en la webapp, o el clip en el panel. La foto se hace con la camara del
+                    propio movil, que trae flash y enfoque; tambien se puede elegir de la galeria. La nota de
+                    voz se graba pulsando una vez para empezar y otra para enviar (no hay que mantener
+                    pulsado) y dura como maximo <strong>2 minutos</strong>. El video, como maximo
+                    <strong>20 segundos</strong> y 15 MB: si sale mas largo, la webapp avisa y no lo envia.
+                    Se toca la foto o el video para verlo a pantalla completa.</li>
             </ul>
 
             <h6>Privacidad: quien lee que</h6>
@@ -1466,8 +1473,18 @@
                historial. Esa pantalla muestra quien esta en cada grupo, nunca lo que se habla dentro.</p>
 
             <h6>Cuanto se conserva</h6>
-            <p>Los mensajes se guardan <strong>un año</strong>. Despues se eliminan automaticamente. Una
-               politica de conservacion escrita y aplicada es lo que exige proteccion de datos.</p>
+            <p>Los mensajes de texto se guardan <strong>un año</strong> y las fotos, audios y videos
+               <strong>seis meses</strong>. Los adjuntos duran menos porque son casi todo el espacio: una
+               foto ocupa lo que diez mil mensajes. Pasado ese plazo se eliminan solos, ficheros incluidos.
+               Una politica de conservacion escrita y aplicada es lo que pide proteccion de datos.</p>
+            <p>La limpieza la hace el servidor una vez por semana. Los plazos se pueden cambiar sin tocar
+               el programa; pidelo si hace falta ajustarlos.</p>
+
+            <h6>Y las copias de seguridad</h6>
+            <p>Los adjuntos <strong>no</strong> entran en la copia comprimida de cada noche: con 30 copias
+               diarias, cada foto se guardaria treinta veces. Se copian aparte, en espejo, una vez por
+               semana. El registro de quien dijo que y cuando si esta en la copia diaria, como el resto de
+               la base de datos.</p>
         </div>
     </div>
 
@@ -1483,6 +1500,8 @@
                 </thead>
                 <tbody>
                     <tr><td>31/08</td><td><strong>La webapp volvia a cargarse entera al abrirla:</strong> si se abria con la sesion ya iniciada (lo normal, el acceso dura una semana), la pantalla de inicio se quedaba a medias: solo salia el nombre, sin sesiones en curso, sin pendientes, sin cronometro y sin avisos. Habia que cerrar sesion y volver a entrar para que funcionase. Ademas, en modo oscuro el titulo de las tarjetas de pendientes y la flecha de volver eran casi invisibles.</td></tr>
+                    <tr><td>01/09</td><td><strong>Fotos, notas de voz y videos en los mensajes:</strong> con el boton ＋ de la webapp (o el clip en el panel) se puede mandar una foto hecha con la camara del movil o elegida de la galeria, una nota de voz de hasta 2 minutos y un video de hasta 20 segundos. Se tocan para verlos a pantalla completa. Las fotos se reducen y se vuelven a guardar en el servidor, que es lo que garantiza que un archivo no pueda traer nada escondido. Los adjuntos se conservan seis meses y se borran solos; no entran en la copia de seguridad comprimida de cada noche, se copian en espejo una vez por semana.</td></tr>
+                    <tr><td>01/09</td><td><strong>La webapp ya se actualiza sola al desplegar:</strong> el movil guardaba una copia de la pagina y seguia usando la version anterior despues de cada actualizacion, con botones que aun no existian; habia que abrirla dos veces para ver los cambios. Ahora se pide siempre al servidor, y la copia guardada solo se usa cuando no hay cobertura.</td></tr>
                     <tr><td>01/09</td><td><strong>Los avisos al movil nunca han funcionado, y ya funcionan:</strong> las claves de seguridad que hacen falta para avisar a un telefono no se llegaban a generar desde que se actualizo una libreria, y el fallo se producia en silencio en cada arranque. Ningun aviso ha salido nunca del sistema: ni los de mensajes, ni los de constantes fuera de rango, ni los de incidencias. Ahora se generan bien y, si algo falla, queda escrito en el registro del servidor.</td></tr>
                     <tr><td>01/09</td><td><strong>Ya se pueden eliminar los mensajes propios:</strong> la opcion existia pero no habia ningun boton para usarla. En la webapp se toca el propio mensaje y sale "Eliminar para todos" debajo; en el panel, el icono de la papelera al pasar por encima de la burbuja. Solo el primer hora y solo los mensajes propios.</td></tr>
                     <tr><td>01/09</td><td><strong>Los avisos al movil ya llegan a quien acaba de entrar:</strong> la webapp solo pedia permiso para avisar al cargar la pagina, es decir antes de iniciar sesion, asi que quien entraba con su usuario no quedaba dado de alta y no le llegaba ningun aviso hasta recargar la webapp entera. Afectaba a todos los avisos, no solo a los mensajes. Ahora se pide al entrar. Ademas, cuando un aviso no se puede enviar queda anotado el motivo en el registro del servidor: antes fallaba en silencio y no habia forma de saber por que un movil no sonaba.</td></tr>

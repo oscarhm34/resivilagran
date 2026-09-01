@@ -857,3 +857,308 @@ def test_las_claves_vapid_tienen_el_formato_que_espera_el_navegador():
     assert crudo[0] == 4
     # pywebpush firma con la privada en PEM.
     assert 'BEGIN PRIVATE KEY' in privada
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  ADJUNTOS
+# ══════════════════════════════════════════════════════════════════════════
+
+import io as _io
+import os as _os
+
+
+def _png(color=(200, 30, 30), tam=(600, 400)):
+    from PIL import Image
+    buf = _io.BytesIO()
+    Image.new('RGB', tam, color).save(buf, 'PNG')
+    buf.seek(0)
+    return buf
+
+
+def _webm(relleno=2048):
+    """Cabecera EBML valida seguida de relleno: lo justo para pasar la firma."""
+    return bytes.fromhex('1a45dfa3') + b'\x00' * relleno
+
+
+def _mp4(relleno=2048):
+    return b'\x00\x00\x00\x20ftypisom' + b'\x00' * relleno
+
+
+def _subir(client, headers, cid, campo, nombre, datos, tipo, mime, **extra):
+    data = {'media_type': tipo, 'file': (_io.BytesIO(datos) if isinstance(datos, bytes) else datos, nombre, mime)}
+    data.update(extra)
+    return client.post(f'/api/messaging/conversations/{cid}/attachments',
+                       headers=headers, data=data, content_type='multipart/form-data')
+
+
+def _ruta(rel):
+    from app import app as flask_app
+    return _os.path.join(flask_app.config['UPLOAD_FOLDER'], rel)
+
+
+@pytest.fixture(autouse=True)
+def _limpiar_adjuntos():
+    """Borra del disco lo que dejen los tests de adjuntos."""
+    from app import app as flask_app
+    yield
+    base = _os.path.join(flask_app.config['UPLOAD_FOLDER'], 'messaging')
+    if _os.path.isdir(base):
+        import shutil
+        shutil.rmtree(base, ignore_errors=True)
+
+
+# ── Imagen ──────────────────────────────────────────────────────────────────
+
+def test_una_foto_se_reprocesa_a_jpeg_y_genera_miniatura(
+        client, db, direct_conversation, worker_headers):
+    """El reprocesado es la defensa: el fichero original nunca se guarda."""
+    from app.models import MessageAttachment
+
+    res = _subir(client, worker_headers, direct_conversation.id, 'file',
+                 'herida.png', _png().read(), 'image', 'image/png')
+
+    assert res.status_code == 201
+    adj = MessageAttachment.query.one()
+    assert adj.media_type == 'image'
+    assert adj.mime_type == 'image/jpeg'
+    assert adj.file_path.endswith('.jpg')
+    assert adj.thumb_path and adj.thumb_path.endswith('.jpg')
+    assert _os.path.exists(_ruta(adj.file_path))
+    assert _os.path.exists(_ruta(adj.thumb_path))
+    assert adj.width and adj.width <= 1600
+
+
+def test_un_ejecutable_con_nombre_de_foto_se_rechaza(
+        client, db, direct_conversation, worker_headers):
+    res = _subir(client, worker_headers, direct_conversation.id, 'file',
+                 'foto.jpg', b'MZ\x90\x00esto no es una imagen', 'image', 'image/jpeg')
+
+    assert res.status_code == 400
+    from app.models import MessageAttachment
+    assert MessageAttachment.query.count() == 0
+
+
+def test_una_extension_de_imagen_no_admitida_se_rechaza(
+        client, db, direct_conversation, worker_headers):
+    res = _subir(client, worker_headers, direct_conversation.id, 'file',
+                 'documento.svg', _png().read(), 'image', 'image/svg+xml')
+
+    assert res.status_code == 400
+
+
+# ── Audio y video ───────────────────────────────────────────────────────────
+
+def test_una_nota_de_voz_se_guarda_tal_cual(
+        client, db, direct_conversation, worker_headers):
+    from app.models import MessageAttachment
+
+    res = _subir(client, worker_headers, direct_conversation.id, 'file',
+                 'nota.webm', _webm(), 'audio', 'audio/webm', duration='12')
+
+    assert res.status_code == 201
+    adj = MessageAttachment.query.one()
+    assert adj.media_type == 'audio'
+    assert adj.file_path.endswith('.webm')
+    assert adj.duration_seconds == 12
+    assert res.get_json()['kind'] == 'audio'
+
+
+def test_un_audio_con_cabecera_falsa_se_rechaza(
+        client, db, direct_conversation, worker_headers):
+    """Sin ffmpeg no se puede reprocesar, asi que la firma es la primera defensa."""
+    res = _subir(client, worker_headers, direct_conversation.id, 'file',
+                 'nota.webm', b'<html><script>alert(1)</script></html>' + b'\x00' * 100,
+                 'audio', 'audio/webm')
+
+    assert res.status_code == 400
+    from app.models import MessageAttachment
+    assert MessageAttachment.query.count() == 0
+
+
+def test_un_mime_de_audio_desconocido_se_rechaza(
+        client, db, direct_conversation, worker_headers):
+    res = _subir(client, worker_headers, direct_conversation.id, 'file',
+                 'nota.xyz', _webm(), 'audio', 'audio/vnd.inventado')
+
+    assert res.status_code == 400
+
+
+def test_un_video_se_guarda_con_su_duracion(
+        client, db, direct_conversation, worker_headers):
+    from app.models import MessageAttachment
+
+    res = _subir(client, worker_headers, direct_conversation.id, 'file',
+                 'clip.mp4', _mp4(), 'video', 'video/mp4', duration='15')
+
+    assert res.status_code == 201
+    assert MessageAttachment.query.one().duration_seconds == 15
+
+
+def test_un_video_mas_largo_del_limite_se_rechaza(
+        client, db, direct_conversation, worker_headers):
+    res = _subir(client, worker_headers, direct_conversation.id, 'file',
+                 'clip.mp4', _mp4(), 'video', 'video/mp4', duration='45')
+
+    assert res.status_code == 400
+    assert 'segundos' in res.get_json()['error']
+
+
+def test_un_archivo_demasiado_grande_se_rechaza(
+        client, db, direct_conversation, worker_headers):
+    res = _subir(client, worker_headers, direct_conversation.id, 'file',
+                 'nota.webm', _webm(relleno=6 * 1024 * 1024), 'audio', 'audio/webm')
+
+    assert res.status_code == 400
+    assert 'MB' in res.get_json()['error']
+
+
+# ── Servir el adjunto: es donde vive la privacidad ──────────────────────────
+
+def test_el_adjunto_llega_a_quien_esta_en_la_conversacion(
+        client, db, direct_conversation, worker_headers, second_headers):
+    aid = _subir(client, worker_headers, direct_conversation.id, 'file',
+                 'foto.png', _png().read(), 'image', 'image/png').get_json()['attachment']['id']
+
+    res = client.get(f'/api/messaging/attachments/{aid}', headers=second_headers)
+
+    assert res.status_code == 200
+    assert res.headers['X-Content-Type-Options'] == 'nosniff'
+    assert res.headers['Content-Type'].startswith('image/jpeg')
+
+
+def test_el_admin_no_puede_descargar_un_adjunto_ajeno(
+        auth_client, client, db, direct_conversation, worker_headers):
+    """El caso que sostiene todo: el panel no es una puerta de atras."""
+    aid = _subir(client, worker_headers, direct_conversation.id, 'file',
+                 'foto.png', _png().read(), 'image', 'image/png').get_json()['attachment']['id']
+
+    res = auth_client.get(f'/api/messaging/attachments/{aid}')
+
+    assert res.status_code == 404
+
+
+def test_un_adjunto_borrado_deja_de_servirse(
+        client, db, direct_conversation, worker_headers):
+    envio = _subir(client, worker_headers, direct_conversation.id, 'file',
+                   'foto.png', _png().read(), 'image', 'image/png').get_json()
+    client.post(f"/api/messaging/messages/{envio['id']}/delete", headers=worker_headers)
+
+    res = client.get(f"/api/messaging/attachments/{envio['attachment']['id']}",
+                     headers=worker_headers)
+
+    assert res.status_code == 404
+
+
+def test_borrar_el_mensaje_elimina_los_ficheros_del_disco(
+        client, db, direct_conversation, worker_headers):
+    from app.models import MessageAttachment
+    envio = _subir(client, worker_headers, direct_conversation.id, 'file',
+                   'foto.png', _png().read(), 'image', 'image/png').get_json()
+    adj = MessageAttachment.query.one()
+    grande, mini = _ruta(adj.file_path), _ruta(adj.thumb_path)
+    assert _os.path.exists(grande)
+
+    client.post(f"/api/messaging/messages/{envio['id']}/delete", headers=worker_headers)
+
+    assert not _os.path.exists(grande)
+    assert not _os.path.exists(mini)
+    assert MessageAttachment.query.count() == 0
+
+
+def test_la_miniatura_se_sirve_aparte(
+        client, db, direct_conversation, worker_headers):
+    aid = _subir(client, worker_headers, direct_conversation.id, 'file',
+                 'foto.png', _png().read(), 'image', 'image/png').get_json()['attachment']['id']
+
+    grande = client.get(f'/api/messaging/attachments/{aid}', headers=worker_headers)
+    mini = client.get(f'/api/messaging/attachments/{aid}?thumb=1', headers=worker_headers)
+
+    assert grande.status_code == mini.status_code == 200
+    assert len(mini.data) < len(grande.data)
+
+
+def test_no_se_puede_adjuntar_en_una_conversacion_ajena(
+        client, db, direct_conversation, third_headers):
+    res = _subir(client, third_headers, direct_conversation.id, 'file',
+                 'foto.png', _png().read(), 'image', 'image/png')
+
+    assert res.status_code == 404
+
+
+def test_el_resumen_de_la_lista_dice_que_es_una_foto(
+        client, db, direct_conversation, worker_headers, second_headers):
+    _subir(client, worker_headers, direct_conversation.id, 'file',
+           'foto.png', _png().read(), 'image', 'image/png')
+
+    fila = client.get('/api/messaging/conversations', headers=second_headers).get_json()[0]
+
+    assert 'Foto' in fila['last_message_preview']
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  PURGA
+# ══════════════════════════════════════════════════════════════════════════
+
+def _correr_purga(app, *args):
+    runner = app.test_cli_runner()
+    return runner.invoke(args=['purge-messages'] + list(args))
+
+
+def test_la_purga_en_simulacion_no_borra_nada(
+        app, client, db, direct_conversation, worker_headers):
+    from datetime import timedelta
+    from app.models import MessageAttachment
+    envio = _subir(client, worker_headers, direct_conversation.id, 'file',
+                   'foto.png', _png().read(), 'image', 'image/png').get_json()
+    msg = db.session.get(Message, envio['id'])
+    msg.created_at = datetime.now() - timedelta(days=400)
+    db.session.commit()
+    ruta = _ruta(MessageAttachment.query.one().file_path)
+
+    _correr_purga(app, '--dry-run')
+
+    assert _os.path.exists(ruta)
+    assert Message.query.count() == 1
+
+
+def test_la_purga_borra_el_adjunto_caducado_y_deja_lapida(
+        app, client, db, direct_conversation, worker_headers):
+    """El fichero es lo que ocupa; la fila se queda para no abrir huecos."""
+    from datetime import timedelta
+    from app.models import MessageAttachment
+    envio = _subir(client, worker_headers, direct_conversation.id, 'file',
+                   'foto.png', _png().read(), 'image', 'image/png').get_json()
+    msg = db.session.get(Message, envio['id'])
+    msg.created_at = datetime.now() - timedelta(days=200)   # adjunto caducado
+    db.session.commit()
+    ruta = _ruta(MessageAttachment.query.one().file_path)
+
+    _correr_purga(app)
+
+    assert not _os.path.exists(ruta)
+    assert MessageAttachment.query.count() == 0
+    assert db.session.get(Message, envio['id']).deleted_at is not None
+
+
+def test_la_purga_no_toca_lo_reciente(
+        app, client, db, direct_conversation, worker_headers):
+    from app.models import MessageAttachment
+    _subir(client, worker_headers, direct_conversation.id, 'file',
+           'foto.png', _png().read(), 'image', 'image/png')
+
+    _correr_purga(app)
+
+    assert MessageAttachment.query.count() == 1
+    assert Message.query.count() == 1
+
+
+def test_la_purga_elimina_los_mensajes_mas_viejos_que_la_retencion(
+        app, client, db, direct_conversation, worker_headers):
+    from datetime import timedelta
+    mid = _enviar(client, worker_headers, direct_conversation.id, 'De hace mucho').get_json()['id']
+    db.session.get(Message, mid).created_at = datetime.now() - timedelta(days=400)
+    db.session.commit()
+
+    _correr_purga(app)
+
+    assert db.session.get(Message, mid) is None

@@ -1,5 +1,5 @@
 // La Vila Gran — Service Worker (cache-first for app shell)
-const CACHE_NAME = 'lavilagran-v2';
+const CACHE_NAME = 'lavilagran-v3';
 const SHELL_URLS = [
     '/worker',
     'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css',
@@ -69,16 +69,41 @@ self.addEventListener('notificationclick', function(event) {
 self.addEventListener('fetch', function(event) {
     var url = new URL(event.request.url);
 
-    // API calls: network-only (never cache)
+    // Peticiones a la API: siempre de red, nunca de cache.
     if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/admin/')) {
         return;
     }
 
-    // App shell: cache-first, fallback to network
+    // La pagina de la webapp va de RED PRIMERO. Servirla de cache dejaba a las
+    // trabajadoras ejecutando la version anterior despues de cada despliegue,
+    // con botones que no existian todavia, y la copia solo se refrescaba para
+    // la carga siguiente: habia que abrir la app dos veces para ver un cambio.
+    // La cache se conserva como respaldo para cuando no hay cobertura.
+    var esLaPagina = event.request.mode === 'navigate'
+        || url.pathname === '/worker' || url.pathname === '/';
+    if (esLaPagina) {
+        event.respondWith(
+            fetch(event.request).then(function(response) {
+                if (response && response.status === 200) {
+                    var copia = response.clone();
+                    caches.open(CACHE_NAME).then(function(cache) {
+                        cache.put(event.request, copia);
+                    });
+                }
+                return response;
+            }).catch(function() {
+                return caches.match(event.request).then(function(cached) {
+                    return cached || caches.match('/worker');
+                });
+            })
+        );
+        return;
+    }
+
+    // El resto (tipografias y CSS de CDN, que no cambian): cache primero.
     event.respondWith(
         caches.match(event.request).then(function(cached) {
             if (cached) {
-                // Update cache in background
                 fetch(event.request).then(function(response) {
                     if (response && response.status === 200) {
                         caches.open(CACHE_NAME).then(function(cache) {

@@ -160,3 +160,84 @@ def seed_absence_types():
             print(f'  Exists: {d["name"]}')
     db.session.commit()
     print('Done.')
+
+
+@app.cli.command('purge-messages')
+@click.option('--dry-run', is_flag=True, help='Solo mostrar lo que se borraria')
+def purge_messages(dry_run: bool) -> None:
+    """Aplica la politica de conservacion de la mensajeria.
+
+    Uso: flask purge-messages [--dry-run]
+
+    Borra filas **y ficheros**: por eso es un comando y no un DELETE en SQL, que
+    dejaria el disco lleno de adjuntos huerfanos.
+
+    Las retenciones se leen de AppSetting y se pueden cambiar sin desplegar. Los
+    adjuntos duran menos que el texto porque son casi todo el volumen: una foto
+    ocupa lo que diez mil mensajes.
+
+    Pensado para el Task Scheduler del NAS, una vez por semana:
+        docker exec <CONTENEDOR> flask purge-messages
+    No un planificador dentro de la aplicacion: con dos workers se ejecutaria
+    dos veces.
+    """
+    import os
+    from datetime import timedelta
+    from app.models import AppSetting, Message, MessageAttachment
+
+    dias_texto = int(AppSetting.get('messaging_retention_text_days', '365'))
+    dias_media = int(AppSetting.get('messaging_retention_media_days', '180'))
+    ahora = datetime.now()
+    corte_texto = ahora - timedelta(days=dias_texto)
+    corte_media = ahora - timedelta(days=dias_media)
+    carpeta_base = os.path.join(app.config['UPLOAD_FOLDER'], 'messaging')
+
+    print(f'Conservacion: texto {dias_texto} dias, adjuntos {dias_media} dias')
+    if dry_run:
+        print('(simulacion: no se borra nada)')
+
+    # 1. Adjuntos caducados: se sueltan del mensaje, que se queda como lapida.
+    liberados = 0
+    caducados = (MessageAttachment.query
+                 .join(Message, Message.id == MessageAttachment.message_id)
+                 .filter(Message.created_at < corte_media).all())
+    for adj in caducados:
+        for rel in (adj.file_path, adj.thumb_path):
+            if not rel:
+                continue
+            ruta = os.path.join(app.config['UPLOAD_FOLDER'], rel)
+            if os.path.exists(ruta):
+                liberados += os.path.getsize(ruta)
+                if not dry_run:
+                    try:
+                        os.remove(ruta)
+                    except OSError as e:
+                        print(f'  no se pudo borrar {rel}: {e}')
+        if not dry_run:
+            msg = db.session.get(Message, adj.message_id)
+            if msg and not msg.deleted_at:
+                msg.deleted_at = ahora
+                msg.body = None
+            db.session.delete(adj)
+    print(f'Adjuntos caducados: {len(caducados)} ({liberados / 1048576:.1f} MB)')
+
+    # 2. Mensajes caducados. Las marcas de lectura son enteros: que apunten a un
+    #    id que ya no existe es inocuo, no hay nada que recalcular.
+    viejos = Message.query.filter(Message.created_at < corte_texto).all()
+    if not dry_run and viejos:
+        ids = [m.id for m in viejos]
+        MessageAttachment.query.filter(
+            MessageAttachment.message_id.in_(ids)).delete(synchronize_session=False)
+        Message.query.filter(Message.id.in_(ids)).delete(synchronize_session=False)
+    print(f'Mensajes caducados: {len(viejos)}')
+
+    if not dry_run:
+        db.session.commit()
+        # 3. Carpetas de meses que se han quedado vacias.
+        for raiz, dirs, ficheros in os.walk(carpeta_base, topdown=False):
+            if not dirs and not ficheros and raiz != carpeta_base:
+                try:
+                    os.rmdir(raiz)
+                except OSError:
+                    pass
+        print('Hecho.')

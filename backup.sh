@@ -33,7 +33,11 @@ echo "  pg_dump OK: $PG_SIZE" >> "$LOG"
 
 # 2. Fitxers: uploads + secrets + .env
 echo "  Comprimint fitxers..." >> "$LOG"
+# Els adjunts de la missatgeria queden FORA del tar diari: amb 30 copies,
+# cada foto i cada video es guardarien 30 vegades, i el gzip no comprimeix
+# res que ja estigui comprimit. Es copien a part un cop per setmana (2b).
 tar czf "$BACKUP_FILE.files.tar.gz" \
+  --exclude='uploads/messaging' \
   -C "$APP_DIR" \
   uploads/ \
   instance/.secret_key \
@@ -44,6 +48,17 @@ tar czf "$BACKUP_FILE.files.tar.gz" \
 
 FILES_SIZE=$(du -sh "$BACKUP_FILE.files.tar.gz" 2>/dev/null | cut -f1)
 echo "  Fitxers OK: $FILES_SIZE" >> "$LOG"
+
+# 2b. Adjunts de la missatgeria: espill setmanal, sense comprimir.
+# Un adjunt esborrat desapareix de l'espill, pero el registre a la base de
+# dades si que es conserva 30 dies. Per a un xat es un compromis raonable,
+# i es el que evita multiplicar per 30 uns quants GB.
+if [ "$(date +%u)" = "7" ] && [ -d "$APP_DIR/uploads/messaging" ]; then
+  echo "  Sincronitzant adjunts de missatgeria..." >> "$LOG"
+  mkdir -p "$BACKUP_DIR/messaging_mirror"
+  rsync -a --delete "$APP_DIR/uploads/messaging/" "$BACKUP_DIR/messaging_mirror/" >> "$LOG" 2>&1
+  echo "  Adjunts OK: $(du -sh "$BACKUP_DIR/messaging_mirror" 2>/dev/null | cut -f1)" >> "$LOG"
+fi
 
 # 3. Neteja: eliminar backups > 30 dies
 DELETED=$(find "$BACKUP_DIR" -name "backup_*" -mtime +30 -delete -print | wc -l)

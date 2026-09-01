@@ -438,6 +438,25 @@
         .chat-bubble[data-own="1"] { cursor:pointer; }
         .chat-del { align-self:flex-end; margin:-4px 0 6px; }
         .chat-del button { min-height:40px; padding:0 16px; border-radius:20px; border:1.5px solid var(--danger); background:none; color:var(--danger); font-size:14px; font-weight:600; font-family:inherit; cursor:pointer; }
+        .chat-attach { width:48px; height:48px; min-width:48px; border-radius:50%; border:1.5px solid var(--border); background:var(--bg); color:var(--text); font-size:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+        .chat-sheet { position:fixed; left:0; right:0; bottom:0; z-index:60; background:var(--surface); border-top:1px solid var(--border); border-radius:20px 20px 0 0; padding:16px 16px 26px; max-width:480px; margin:0 auto; box-shadow:0 -6px 24px rgba(0,0,0,.25); }
+        .chat-sheet button { display:flex; align-items:center; gap:14px; width:100%; min-height:56px; border:none; background:none; color:var(--text); font-size:17px; font-family:inherit; cursor:pointer; padding:0 4px; text-align:left; }
+        .chat-sheet .icono { font-size:24px; width:34px; text-align:center; }
+        .chat-sheet .sub { display:block; font-size:12px; color:var(--text-2); }
+        .chat-media { border-radius:12px; max-width:100%; display:block; background:var(--bg); }
+        .chat-media-wrap { position:relative; cursor:pointer; min-height:60px; }
+        .chat-play { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:38px; color:#fff; text-shadow:0 2px 8px rgba(0,0,0,.6); pointer-events:none; }
+        .chat-audio { display:flex; align-items:center; gap:10px; min-width:190px; }
+        .chat-audio button { width:42px; height:42px; min-width:42px; border-radius:50%; border:none; background:rgba(255,255,255,.22); color:inherit; font-size:17px; cursor:pointer; }
+        .chat-bubble.theirs .chat-audio button { background:var(--surface-2); }
+        .chat-rec { display:flex; align-items:center; gap:12px; padding:12px 14px; border-top:1px solid var(--border); background:var(--surface); }
+        .chat-rec .punto { width:12px; height:12px; border-radius:50%; background:var(--danger); animation:pulseRec 1s infinite; }
+        @keyframes pulseRec { 50% { opacity:.25; } }
+        .chat-rec .tiempo { font-variant-numeric:tabular-nums; font-weight:700; font-size:17px; flex:1; }
+        .chat-rec button { min-height:44px; padding:0 16px; border-radius:22px; border:1.5px solid var(--border); background:none; color:var(--text); font-size:15px; font-weight:600; font-family:inherit; cursor:pointer; }
+        .chat-rec button.parar { border-color:var(--danger); color:#fff; background:var(--danger); }
+        #media-viewer::backdrop { background:rgba(0,0,0,.9); }
+        #media-viewer { border:none; background:none; padding:0; max-width:100vw; max-height:100vh; }
         .chat-info-btn { background:none; border:none; color:var(--text-2); font-size:22px; cursor:pointer; padding:4px 8px; }
         .chat-member { display:flex; align-items:center; gap:12px; padding:12px 6px; border-bottom:1px solid var(--border); }
         .chat-danger-btn { width:100%; min-height:48px; border-radius:14px; border:1.5px solid var(--danger); background:none; color:var(--danger); font-size:16px; font-weight:600; font-family:inherit; cursor:pointer; margin-top:10px; }
@@ -664,12 +683,33 @@
         <div class="chat-aviso" id="msg-readonly" style="display:none;padding-bottom:16px">
             Ya no estás en este grupo. Puedes leer lo que había, pero no escribir.
         </div>
+        <div class="chat-rec" id="msg-rec" style="display:none">
+            <span class="punto"></span>
+            <span class="tiempo" id="msg-rec-time">0:00</span>
+            <button type="button" id="msg-rec-cancel">Cancelar</button>
+            <button type="button" class="parar" id="msg-rec-stop">Enviar</button>
+        </div>
         <form class="chat-compose" id="msg-form">
+            <button type="button" class="chat-attach" id="msg-attach" aria-label="Adjuntar">＋</button>
             <input type="text" class="msg-input" id="msg-input" placeholder="Escribe un mensaje…"
                    autocomplete="off" maxlength="4000" aria-label="Mensaje">
             <button type="submit" class="msg-send" id="msg-send" aria-label="Enviar">➤</button>
         </form>
+        <!-- La camara nativa del movil da mejor foto que un <video> propio, y
+             ya trae flash, enfoque y un boton grande. -->
+        <input type="file" id="msg-file-cam" accept="image/*" capture="environment" hidden>
+        <input type="file" id="msg-file-img" accept="image/*" hidden>
+        <input type="file" id="msg-file-vid" accept="video/*" capture="environment" hidden>
+        <input type="file" id="msg-file-aud" accept="audio/*" hidden>
     </div>
+
+    <dialog id="media-viewer">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:14px">
+            <div id="media-viewer-body"></div>
+            <button type="button" id="media-viewer-close"
+                    style="min-height:48px;padding:0 26px;border-radius:24px;border:none;background:#fff;color:#111;font-size:16px;font-weight:700;font-family:inherit;cursor:pointer">Cerrar</button>
+        </div>
+    </dialog>
 
     <!-- ══ MENSAJES: INFORMACIÓN ══ -->
     <div id="screen-msg-info" class="screen">
@@ -4905,8 +4945,9 @@ function chatBubble(m) {
     div.innerHTML =
         (!mia && !m.deleted && CHAT.openKind === 'group'
             ? '<div class="chat-author">' + chatEscapar(m.sender_name) + '</div>' : '')
-        + '<div>' + (m.deleted ? 'Mensaje eliminado' : chatEscapar(m.body)) + '</div>'
+        + (m.deleted ? '<div>Mensaje eliminado</div>' : chatAdjuntoHtml(m))
         + '<div class="chat-meta">' + chatHora(m.created_at) + '</div>';
+    if (!m.deleted && m.attachment) chatPrepararAdjunto(div, m.attachment);
     return div;
 }
 
@@ -4938,6 +4979,7 @@ async function openChat(cid) {
     // Quien salio del grupo lo conserva en solo lectura: dejarle el escritor
     // seria invitarla a escribir para que el servidor lo rechace.
     const fuera = !!(conv && conv.left);
+    liberarMedia();
     $('msg-form').style.display = fuera ? 'none' : '';
     $('msg-clinico').style.display = fuera ? 'none' : '';
     $('msg-readonly').style.display = fuera ? '' : 'none';
@@ -4998,6 +5040,317 @@ async function sendChatMessage(e) {
     chatSetDelay(CHAT_FAST);
     loadChats();
 }
+
+// ── Adjuntos ──────────────────────────────────────────────────────────────
+
+function chatDuracion(s) {
+    if (!s && s !== 0) return '';
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+
+function chatAdjuntoHtml(m) {
+    const texto = m.body ? '<div>' + chatEscapar(m.body) + '</div>' : '';
+    const a = m.attachment;
+    if (!a) return '<div>' + chatEscapar(m.body) + '</div>';
+    if (a.media_type === 'image') {
+        return '<div class="chat-media-wrap" data-ver="1">'
+            + '<img class="chat-media" style="max-height:260px" alt="Foto"></div>' + texto;
+    }
+    if (a.media_type === 'video') {
+        return '<div class="chat-media-wrap" data-ver="1">'
+            + '<img class="chat-media" style="max-height:260px" alt="Vídeo">'
+            + '<span class="chat-play">▶</span></div>'
+            + '<div class="chat-meta" style="text-align:left">🎬 ' + chatDuracion(a.duration_seconds) + '</div>'
+            + texto;
+    }
+    return '<div class="chat-audio"><button type="button" data-play="1" aria-label="Reproducir">▶</button>'
+        + '<span>Nota de voz · ' + chatDuracion(a.duration_seconds) + '</span></div>' + texto;
+}
+
+// Ni las fotos ni los audios se descargan hasta que hacen falta: abrir un hilo
+// con cincuenta notas de voz se comeria los datos del movil de una tacada.
+async function chatBlob(url) {
+    const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + S.token } });
+    if (!res.ok) throw new Error('no disponible');
+    return URL.createObjectURL(await res.blob());
+}
+
+var mediaUrls = [];   // para revocarlas al salir y no acumular memoria
+
+function chatPrepararAdjunto(div, a) {
+    const base = '/api/messaging/attachments/' + a.id;
+    const img = div.querySelector('img.chat-media');
+    if (img && a.has_thumb) {
+        chatBlob(base + '?thumb=1').then(function (u) {
+            mediaUrls.push(u);
+            img.src = u;
+        }).catch(function () { img.alt = 'No se pudo cargar'; });
+    } else if (img) {
+        img.style.display = 'none';
+    }
+
+    const wrap = div.querySelector('[data-ver]');
+    if (wrap) wrap.addEventListener('click', function (e) {
+        e.stopPropagation();               // no abrir el menu de borrar
+        abrirVisor(a);
+    });
+
+    const play = div.querySelector('[data-play]');
+    if (play) play.addEventListener('click', async function (e) {
+        e.stopPropagation();
+        if (play.dataset.listo === '1') { play._audio.play(); return; }
+        play.textContent = '…';
+        try {
+            const u = await chatBlob(base);
+            mediaUrls.push(u);
+            play._audio = new Audio(u);
+            play._audio.addEventListener('ended', function () { play.textContent = '▶'; });
+            play.dataset.listo = '1';
+            play.textContent = '⏸';
+            play._audio.play();
+            play.addEventListener('click', function () {
+                if (play._audio.paused) { play._audio.play(); play.textContent = '⏸'; }
+                else { play._audio.pause(); play.textContent = '▶'; }
+            });
+        } catch (err) {
+            play.textContent = '▶';
+            toast('No se ha podido cargar el audio');
+        }
+    });
+}
+
+async function abrirVisor(a) {
+    const cuerpo = $('media-viewer-body');
+    cuerpo.innerHTML = '<p style="color:#fff;padding:30px">Cargando…</p>';
+    $('media-viewer').showModal();
+    try {
+        const u = await chatBlob('/api/messaging/attachments/' + a.id);
+        mediaUrls.push(u);
+        cuerpo.innerHTML = a.media_type === 'video'
+            ? '<video src="' + u + '" controls autoplay playsinline style="max-width:96vw;max-height:78vh;border-radius:12px"></video>'
+            : '<img src="' + u + '" alt="" style="max-width:96vw;max-height:78vh;border-radius:12px">';
+    } catch (e) {
+        cuerpo.innerHTML = '<p style="color:#fff;padding:30px">No se ha podido cargar.</p>';
+    }
+}
+
+$('media-viewer-close').addEventListener('click', function () {
+    const v = $('media-viewer-body').querySelector('video');
+    if (v) v.pause();
+    $('media-viewer-body').innerHTML = '';
+    $('media-viewer').close();
+});
+
+function liberarMedia() {
+    mediaUrls.forEach(function (u) { URL.revokeObjectURL(u); });
+    mediaUrls = [];
+}
+
+// ── Enviar un adjunto ─────────────────────────────────────────────────────
+
+async function enviarAdjunto(fichero, tipo, extras) {
+    if (!CHAT.open || !fichero) return;
+    const cuerpo = $('msg-body');
+    const espera = document.createElement('div');
+    espera.className = 'chat-bubble mine pending';
+    espera.innerHTML = '<div>Enviando…</div>';
+    const vacio = cuerpo.querySelector('.chat-empty');
+    if (vacio) vacio.remove();
+    cuerpo.appendChild(espera);
+    cuerpo.scrollTop = cuerpo.scrollHeight;
+
+    const fd = new FormData();
+    fd.append('file', fichero, fichero.name || 'adjunto');
+    fd.append('media_type', tipo);
+    fd.append('client_uuid', chatUuid());
+    Object.keys(extras || {}).forEach(function (k) {
+        if (extras[k] !== null && extras[k] !== undefined) fd.append(k, extras[k]);
+    });
+
+    try {
+        const res = await fetch('/api/messaging/conversations/' + CHAT.open + '/attachments', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + S.token },
+            body: fd,
+        });
+        const datos = await res.json();
+        espera.remove();
+        if (!res.ok) { toast(datos.error || 'No se ha podido enviar'); return; }
+        renderMessages([datos], false);
+        CHAT.cursor = Math.max(CHAT.cursor, datos.id);
+        loadChats();
+    } catch (e) {
+        espera.remove();
+        toast('No se ha podido enviar. Comprueba la conexión.');
+    }
+}
+
+// Se reduce antes de subir para no gastar los datos de la trabajadora; el
+// servidor la reprocesa igual, que es donde esta la defensa.
+function comprimirFoto(fichero) {
+    return new Promise(function (resolve) {
+        const img = new Image();
+        const url = URL.createObjectURL(fichero);
+        img.onload = function () {
+            const max = 1600;
+            const escala = Math.min(1, max / Math.max(img.width, img.height));
+            const lienzo = document.createElement('canvas');
+            lienzo.width = Math.round(img.width * escala);
+            lienzo.height = Math.round(img.height * escala);
+            lienzo.getContext('2d').drawImage(img, 0, 0, lienzo.width, lienzo.height);
+            lienzo.toBlob(function (blob) {
+                URL.revokeObjectURL(url);
+                if (!blob) { resolve(fichero); return; }
+                blob.name = 'foto.jpg';
+                resolve(blob);
+            }, 'image/jpeg', 0.82);
+        };
+        img.onerror = function () { URL.revokeObjectURL(url); resolve(fichero); };
+        img.src = url;
+    });
+}
+
+// El limite de duracion no se puede imponer antes de grabar, asi que se avisa
+// antes y se comprueba despues; grabar y que te lo rechacen frustra.
+function medirVideo(fichero) {
+    return new Promise(function (resolve) {
+        const v = document.createElement('video');
+        const url = URL.createObjectURL(fichero);
+        v.preload = 'metadata';
+        v.onloadedmetadata = function () {
+            const dur = Math.round(v.duration || 0);
+            v.currentTime = Math.min(0.1, v.duration || 0);
+            v.onseeked = function () {
+                let poster = null;
+                try {
+                    const c = document.createElement('canvas');
+                    c.width = 320;
+                    c.height = Math.round(320 * (v.videoHeight / v.videoWidth || 0.75));
+                    c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+                    poster = c.toDataURL('image/jpeg', 0.7);
+                } catch (e) { /* sin poster se pinta un icono */ }
+                URL.revokeObjectURL(url);
+                resolve({ duration: dur, poster: poster });
+            };
+        };
+        v.onerror = function () { URL.revokeObjectURL(url); resolve({ duration: 0, poster: null }); };
+        v.src = url;
+    });
+}
+
+// ── Menú de adjuntar ──────────────────────────────────────────────────────
+
+function cerrarSheet() {
+    const s = document.querySelector('.chat-sheet');
+    if (s) s.remove();
+}
+
+$('msg-attach').addEventListener('click', function () {
+    if (document.querySelector('.chat-sheet')) { cerrarSheet(); return; }
+    const sheet = document.createElement('div');
+    sheet.className = 'chat-sheet';
+    sheet.innerHTML =
+        '<button type="button" data-a="cam"><span class="icono">📷</span><span>Hacer una foto</span></button>'
+        + '<button type="button" data-a="img"><span class="icono">🖼</span><span>Elegir de la galería</span></button>'
+        + '<button type="button" data-a="vid"><span class="icono">🎬</span><span>Grabar un vídeo'
+        + '<span class="sub">Máximo 20 segundos</span></span></button>'
+        + '<button type="button" data-a="aud"><span class="icono">🎤</span><span>Nota de voz'
+        + '<span class="sub">Máximo 2 minutos</span></span></button>'
+        + '<button type="button" data-a="no" style="justify-content:center;color:var(--text-2)">Cancelar</button>';
+    document.body.appendChild(sheet);
+    sheet.querySelectorAll('[data-a]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            const a = b.dataset.a;
+            cerrarSheet();
+            if (a === 'cam') $('msg-file-cam').click();
+            else if (a === 'img') $('msg-file-img').click();
+            else if (a === 'vid') $('msg-file-vid').click();
+            else if (a === 'aud') grabarAudio();
+        });
+    });
+});
+
+$('msg-file-cam').addEventListener('change', fotoElegida);
+$('msg-file-img').addEventListener('change', fotoElegida);
+
+async function fotoElegida(e) {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    enviarAdjunto(await comprimirFoto(f), 'image', {});
+}
+
+$('msg-file-vid').addEventListener('change', async function (e) {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    const info = await medirVideo(f);
+    if (info.duration > 20) {
+        toast('El vídeo dura ' + info.duration + ' segundos. El máximo son 20.');
+        return;
+    }
+    if (f.size > 15 * 1024 * 1024) {
+        toast('El vídeo pesa demasiado. Graba uno más corto.');
+        return;
+    }
+    enviarAdjunto(f, 'video', { duration: info.duration, poster: info.poster });
+});
+
+// El fallback de siempre en este proyecto: si no hay MediaRecorder o se deniega
+// el microfono, la grabadora nativa del movil por <input type=file>.
+$('msg-file-aud').addEventListener('change', function (e) {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (f) enviarAdjunto(f, 'audio', {});
+});
+
+var rec = null, recChunks = [], recInt = null, recSegundos = 0, recCancelado = false;
+
+async function grabarAudio() {
+    if (!navigator.mediaDevices || !window.MediaRecorder) {
+        $('msg-file-aud').click();
+        return;
+    }
+    try {
+        var stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+        toast('No se ha podido usar el micrófono');
+        $('msg-file-aud').click();
+        return;
+    }
+    const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+    rec = new MediaRecorder(stream, { mimeType: mime });
+    recChunks = [];
+    recCancelado = false;
+    recSegundos = 0;
+    $('msg-rec-time').textContent = '0:00';
+    $('msg-rec').style.display = '';
+    $('msg-form').style.display = 'none';
+
+    rec.ondataavailable = function (ev) { if (ev.data.size > 0) recChunks.push(ev.data); };
+    rec.onstop = function () {
+        stream.getTracks().forEach(function (t) { t.stop(); });
+        clearInterval(recInt);
+        $('msg-rec').style.display = 'none';
+        $('msg-form').style.display = '';
+        if (recCancelado || !recChunks.length) return;
+        const blob = new Blob(recChunks, { type: mime });
+        blob.name = mime === 'audio/webm' ? 'nota.webm' : 'nota.m4a';
+        enviarAdjunto(blob, 'audio', { duration: recSegundos });
+    };
+    rec.start();
+    recInt = setInterval(function () {
+        recSegundos++;
+        $('msg-rec-time').textContent = chatDuracion(recSegundos);
+        if (recSegundos >= 120) rec.stop();     // corte duro
+    }, 1000);
+}
+
+$('msg-rec-stop').addEventListener('click', function () { if (rec && rec.state !== 'inactive') rec.stop(); });
+$('msg-rec-cancel').addEventListener('click', function () {
+    recCancelado = true;
+    if (rec && rec.state !== 'inactive') rec.stop();
+});
 
 // ── Nueva conversación ────────────────────────────────────────────────────
 
@@ -5232,6 +5585,10 @@ $('msg-new-back').addEventListener('click', function () { show('screen-msgs'); }
 $('msg-back').addEventListener('click', function () {
     CHAT.open = null;
     chatSetDelay(CHAT_IDLE);
+    // Sin revocarlas, la SPA acumula cada foto y cada audio abiertos y en un
+    // Android modesto acaba cerrandose sola.
+    liberarMedia();
+    cerrarSheet();
     showChats();
 });
 $('msg-form').addEventListener('submit', sendChatMessage);

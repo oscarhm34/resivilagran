@@ -111,7 +111,9 @@ class Config:
     SQLALCHEMY_DATABASE_URI = _database_uri()
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'uploads')
-    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB
+    # 15 MB de video mas la sobrecarga del multipart y el poster. El tope real
+    # por tipo se comprueba dentro del endpoint; esto es la red global.
+    MAX_CONTENT_LENGTH = 24 * 1024 * 1024  # 24 MB
     ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
     OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
     VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY') or _VAPID_PRIVATE
