@@ -728,20 +728,31 @@ def push_unsubscribe():
 
 
 def send_push_to_worker(worker_id, title, body, url=None, tag=None):
-    """Send a web push notification to all subscriptions of a worker."""
+    """Envia un aviso push a todas las suscripciones de una trabajadora.
+
+    Cada motivo por el que no sale se registra en el log. Un aviso que no llega
+    no deja rastro en ningun sitio: no hay pantalla que lo muestre y la persona
+    solo sabe que no le suena el movil. Sin estas lineas, diagnosticarlo exige
+    leer el codigo y adivinar.
+    """
     from flask import current_app
     priv_key = current_app.config.get('VAPID_PRIVATE_KEY')
     email = current_app.config.get('VAPID_CLAIMS_EMAIL', 'mailto:admin@lavilagran.com')
     if not priv_key:
+        app.logger.warning('Aviso push no enviado a %s: falta VAPID_PRIVATE_KEY', worker_id)
         return
 
     subs = PushSubscription.query.filter_by(worker_id=worker_id).all()
     if not subs:
+        # Lo habitual: el navegador nunca llego a suscribirse (permiso denegado,
+        # sin HTTPS, o un iPhone con la webapp sin anadir a la pantalla de inicio).
+        app.logger.info('Aviso push no enviado a %s: no tiene ningun dispositivo suscrito', worker_id)
         return
 
     try:
         from pywebpush import webpush, WebPushException
     except ImportError:
+        app.logger.error('Aviso push no enviado: falta la libreria pywebpush')
         return
 
     payload = _json.dumps({
@@ -766,14 +777,18 @@ def send_push_to_worker(worker_id, title, body, url=None, tag=None):
                 vapid_claims={'sub': email},
             )
         except WebPushException as e:
-            # 410 Gone or 404 = subscription expired, remove it
+            # 410 Gone o 404 = la suscripcion ya no vale, se descarta
             if '410' in str(e) or '404' in str(e):
+                app.logger.info('Suscripcion caducada de %s, se elimina', worker_id)
                 db.session.delete(sub)
                 ok, err = _safe_commit('Error al limpiar la suscripcion caducada')
                 if not ok:
                     app.logger.error('No se pudo limpiar la suscripcion caducada: %s', err)
-        except Exception:
-            pass
+            else:
+                app.logger.error('El servicio de avisos rechazo el envio a %s: %s',
+                                 worker_id, e)
+        except Exception as e:
+            app.logger.error('Error al enviar el aviso push a %s: %s', worker_id, e)
 
 
 def send_push_for_notification(notification):

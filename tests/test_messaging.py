@@ -724,3 +724,110 @@ def test_archivar_el_grupo_lo_saca_de_la_lista_sin_borrar_nada(
     lista = client.get('/api/messaging/conversations', headers=worker_headers).get_json()
     assert lista == []
     assert Message.query.filter_by(conversation_id=grupo.id).count() > 0
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  AVISOS AL MOVIL
+# ══════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture
+def avisos_enviados(monkeypatch):
+    """Recoge a quién se le habría mandado un aviso, sin salir a internet."""
+    enviados = []
+
+    def falso_push(worker_id, title, body, url=None, tag=None):
+        enviados.append({'worker_id': worker_id, 'title': title, 'body': body,
+                         'url': url, 'tag': tag})
+
+    import app.blueprints.notifications as notif
+    monkeypatch.setattr(notif, 'send_push_to_worker', falso_push)
+    return enviados
+
+
+def test_el_aviso_va_al_destinatario_y_no_al_que_escribe(
+        client, db, direct_conversation, cleaner_user, second_cleaner,
+        worker_headers, avisos_enviados):
+    _enviar(client, worker_headers, direct_conversation.id, 'Hola')
+
+    assert [a['worker_id'] for a in avisos_enviados] == [second_cleaner.id]
+
+
+def test_el_aviso_no_lleva_el_texto_del_mensaje(
+        client, db, direct_conversation, worker_headers, avisos_enviados):
+    """El push pasa por un servicio externo y el texto puede nombrar a un residente."""
+    _enviar(client, worker_headers, direct_conversation.id,
+            'La 204 ha vomitado esta mañana')
+
+    aviso = avisos_enviados[0]
+    assert 'vomitado' not in aviso['body']
+    assert '204' not in aviso['body']
+    assert aviso['body'] == 'Te ha enviado un mensaje'
+
+
+def test_el_aviso_abre_la_conversacion_correcta(
+        client, db, direct_conversation, worker_headers, avisos_enviados):
+    _enviar(client, worker_headers, direct_conversation.id, 'Hola')
+
+    assert avisos_enviados[0]['url'] == f'/worker?chat={direct_conversation.id}'
+    assert avisos_enviados[0]['tag'] == f'chat-{direct_conversation.id}'
+
+
+def test_no_se_avisa_dos_veces_seguidas_de_la_misma_conversacion(
+        client, db, direct_conversation, worker_headers, avisos_enviados):
+    """Cada envio es una peticion HTTPS dentro del request: sin agrupar, un
+    grupo de diez personas bloquearia medio servidor por cada mensaje."""
+    _enviar(client, worker_headers, direct_conversation.id, 'uno')
+    _enviar(client, worker_headers, direct_conversation.id, 'dos')
+    _enviar(client, worker_headers, direct_conversation.id, 'tres')
+
+    assert len(avisos_enviados) == 1
+
+
+def test_una_conversacion_silenciada_no_avisa(
+        client, db, direct_conversation, second_cleaner, second_headers,
+        worker_headers, avisos_enviados):
+    client.post(f'/api/messaging/conversations/{direct_conversation.id}/mute',
+                headers=second_headers, json={'hours': 8})
+
+    _enviar(client, worker_headers, direct_conversation.id, 'Hola')
+
+    assert avisos_enviados == []
+
+
+def test_quien_salio_del_grupo_deja_de_recibir_avisos(
+        client, db, grupo, cleaner_user, second_cleaner, worker_headers,
+        second_headers, avisos_enviados):
+    client.post(f'/api/messaging/conversations/{grupo.id}/leave', headers=worker_headers)
+    avisos_enviados.clear()
+
+    _enviar(client, second_headers, grupo.id, 'Seguimos')
+
+    assert cleaner_user.id not in [a['worker_id'] for a in avisos_enviados]
+
+
+def test_dar_de_alta_el_movil_guarda_la_suscripcion(
+        client, db, cleaner_user, worker_headers):
+    """Sin esta fila no hay a donde mandar el aviso: es el primer sitio donde mirar."""
+    from app.models import PushSubscription
+
+    res = client.post('/api/push/subscribe', headers=worker_headers, json={
+        'endpoint': 'https://fcm.googleapis.com/fcm/send/abc123',
+        'keys': {'p256dh': 'clave-publica', 'auth': 'secreto'},
+    })
+
+    assert res.status_code in (200, 201)
+    sub = PushSubscription.query.filter_by(worker_id=cleaner_user.id).first()
+    assert sub is not None
+    assert sub.endpoint == 'https://fcm.googleapis.com/fcm/send/abc123'
+
+
+def test_dar_de_alta_el_mismo_movil_dos_veces_no_duplica(
+        client, db, cleaner_user, worker_headers):
+    from app.models import PushSubscription
+    cuerpo = {'endpoint': 'https://fcm.googleapis.com/fcm/send/abc123',
+              'keys': {'p256dh': 'clave-publica', 'auth': 'secreto'}}
+    client.post('/api/push/subscribe', headers=worker_headers, json=cuerpo)
+
+    client.post('/api/push/subscribe', headers=worker_headers, json=cuerpo)
+
+    assert PushSubscription.query.count() == 1

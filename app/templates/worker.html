@@ -1524,6 +1524,7 @@ async function initHome() {
     if (S.config.allow_worker_activities) await loadTodayActivities();
     startGlobalTimer();
     startNotifPolling();
+    suscribirAvisos();
     loadChats();
     chatSetDelay(CHAT_IDLE);
     abrirChatDesdeUrl(window.location.search);
@@ -4703,47 +4704,83 @@ function loadQuickPhrases() {
     });
 }
 
-// ── Register Service Worker + Push Notifications ──
+// ── Service worker y avisos al movil ──────────────────────────────────────
+// La suscripcion se pedia una sola vez al cargar la pagina. En ese momento, si
+// la trabajadora aun no habia entrado, no habia token y la funcion se rendia en
+// silencio: quien acababa de iniciar sesion no quedaba suscrita nunca y no le
+// llegaba ningun aviso hasta recargar la webapp. Ahora se reintenta desde
+// initHome(), que corre tanto al abrir con la sesion guardada como al entrar.
+
+var swReg = null;
+var avisosSuscritos = false;
+
+function b64ToUint8(base64) {
+    var padding = '='.repeat((4 - base64.length % 4) % 4);
+    var limpio = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+    var raw = atob(limpio);
+    var arr = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr;
+}
+
+async function suscribirAvisos() {
+    if (avisosSuscritos || !S.token) return;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        console.warn('Avisos: este navegador no los admite. En iPhone hay que añadir '
+            + 'la webapp a la pantalla de inicio.');
+        return;
+    }
+    if (typeof Notification !== 'undefined' && Notification.permission === 'denied') {
+        console.warn('Avisos: el permiso está denegado en los ajustes del navegador.');
+        return;
+    }
+    try {
+        var reg = swReg || await navigator.serviceWorker.ready;
+        var res = await fetch('/api/push/vapid-public-key', {
+            headers: { 'Authorization': 'Bearer ' + S.token },
+        });
+        var datos = await res.json();
+        if (!datos.public_key) {
+            console.warn('Avisos: el servidor no devuelve la clave pública.');
+            return;
+        }
+        // Si ya hay una suscripcion en este navegador se reutiliza: volver a
+        // suscribirse con la misma clave devuelve la misma, no duplica.
+        var sub = await reg.pushManager.getSubscription();
+        if (!sub) {
+            sub = await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: b64ToUint8(datos.public_key),
+            });
+        }
+        var json = sub.toJSON();
+        var alta = await fetch('/api/push/subscribe', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + S.token,
+            },
+            body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }),
+        });
+        if (!alta.ok) {
+            console.warn('Avisos: el servidor no aceptó la suscripción.', alta.status);
+            return;
+        }
+        avisosSuscritos = true;
+    } catch (e) {
+        // Lo mas comun: la persona ha cerrado el aviso de permiso del navegador.
+        console.warn('Avisos: no se pudo activar.', e);
+    }
+}
+
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').then(function(reg) {
-        // Subscribe to push notifications after SW is ready
-        if (!('PushManager' in window) || !S.token) return;
-        // Get VAPID public key from server
-        fetch('/api/push/vapid-public-key', {
-            headers: { 'Authorization': 'Bearer ' + S.token },
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (!data.public_key) return;
-            // Convert base64 to Uint8Array
-            var padding = '='.repeat((4 - data.public_key.length % 4) % 4);
-            var base64 = (data.public_key + padding).replace(/-/g, '+').replace(/_/g, '/');
-            var raw = atob(base64);
-            var arr = new Uint8Array(raw.length);
-            for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
-
-            return reg.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: arr,
-            });
-        })
-        .then(function(sub) {
-            if (!sub) return;
-            var subJson = sub.toJSON();
-            return fetch('/api/push/subscribe', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + S.token,
-                },
-                body: JSON.stringify({
-                    endpoint: subJson.endpoint,
-                    keys: subJson.keys,
-                }),
-            });
-        })
-        .catch(function() { /* Push not supported or denied — silent */ });
-    }).catch(function() {});
+        swReg = reg;
+        suscribirAvisos();
+    }).catch(function(e) {
+        console.warn('El service worker no se ha registrado. Sin él no hay avisos '
+            + 'al móvil; comprueba que la dirección empieza por https.', e);
+    });
 }
 
 // ══════════════════════════════════════════════════════════════════════════
