@@ -75,6 +75,32 @@ def current_dual_user():
     return getattr(g, 'dual_user', None)
 
 
+# ── Redirecciones ────────────────────────────────────────────────────────────
+
+def volver_atras(por_defecto: str) -> str:
+    """Destino de vuelta seguro a partir del Referer.
+
+    Volver a `request.referrer` es comodo —deja al administrador donde estaba—
+    pero esa cabecera la pone quien enlaza, no el servidor: aceptarla tal cual
+    convierte cualquier formulario del panel en un salto a otro sitio, que es la
+    mitad del trabajo de una pagina de phishing. Se admite solo una ruta de este
+    mismo servidor; cualquier otra cosa cae en el destino por defecto.
+
+    Es la misma comprobacion que ya se hace con el parametro `next` del login.
+    """
+    from urllib.parse import urlsplit
+
+    ref = request.referrer
+    if not ref:
+        return por_defecto
+    partes = urlsplit(ref)
+    if partes.netloc and partes.netloc != urlsplit(request.host_url).netloc:
+        return por_defecto
+    if not partes.path.startswith('/') or partes.path.startswith('//'):
+        return por_defecto
+    return partes.path + (f'?{partes.query}' if partes.query else '')
+
+
 # ── Auth helpers ─────────────────────────────────────────────────────────────
 
 def _current_worker():

@@ -26,6 +26,7 @@ from ..models import (
 )
 from ..utils import (
     admin_required, dual_auth, current_dual_user, _safe_commit, log_audit,
+    volver_atras,
     _allowed_file, _save_image_stream, _sniff_media,
     ALLOWED_IMAGE_EXTENSIONS, AUDIO_MIME_EXTENSIONS, VIDEO_MIME_EXTENSIONS,
 )
@@ -854,12 +855,12 @@ def admin_rename_group(cid: int):
     conv = db.session.get(Conversation, cid)
     if not conv or conv.kind != 'group':
         flash('Grupo no encontrado.', 'danger')
-        return redirect(request.referrer or url_for('messaging.admin_messaging_groups'))
+        return redirect(volver_atras(url_for('messaging.admin_messaging_groups')))
 
     titulo = (request.form.get('title') or '').strip()
     if not titulo:
         flash('Ponle un nombre al grupo.', 'warning')
-        return redirect(request.referrer or url_for('messaging.admin_messaging_groups'))
+        return redirect(volver_atras(url_for('messaging.admin_messaging_groups')))
 
     anterior = conv.title
     conv.title = titulo[:100]
@@ -870,7 +871,7 @@ def admin_rename_group(cid: int):
               {'accion': 'renombrar', 'antes': anterior, 'despues': conv.title})
     ok, error = _safe_commit('Error al renombrar el grupo')
     flash(error if not ok else 'Grupo actualizado.', 'danger' if not ok else 'success')
-    return redirect(request.referrer or url_for('messaging.admin_messaging_groups'))
+    return redirect(volver_atras(url_for('messaging.admin_messaging_groups')))
 
 
 @bp.route('/admin/mensajes/grupos/<int:cid>/eliminar', methods=['POST'])
@@ -889,7 +890,7 @@ def admin_delete_group(cid: int):
     conv = db.session.get(Conversation, cid)
     if not conv or conv.kind != 'group':
         flash('Grupo no encontrado.', 'danger')
-        return redirect(request.referrer or url_for('messaging.admin_messaging_groups'))
+        return redirect(volver_atras(url_for('messaging.admin_messaging_groups')))
 
     titulo = conv.title
     mensajes = Message.query.filter_by(conversation_id=cid).all()
@@ -916,7 +917,7 @@ def admin_delete_group(cid: int):
         flash(error, 'danger')
     else:
         flash(f'Grupo «{titulo}» eliminado.', 'success')
-    return redirect(request.referrer or url_for('messaging.admin_messaging_groups'))
+    return redirect(volver_atras(url_for('messaging.admin_messaging_groups')))
 
 
 @bp.route('/admin/mensajes/grupos/<int:cid>/archivar', methods=['POST'])
@@ -930,7 +931,7 @@ def admin_archive_group(cid: int):
     conv = db.session.get(Conversation, cid)
     if not conv or conv.kind != 'group':
         flash('Grupo no encontrado.', 'danger')
-        return redirect(request.referrer or url_for('messaging.admin_messaging_groups'))
+        return redirect(volver_atras(url_for('messaging.admin_messaging_groups')))
 
     conv.is_active = not conv.is_active
     log_audit('update', 'conversation', conv.id,
@@ -940,7 +941,7 @@ def admin_archive_group(cid: int):
         flash(error, 'danger')
     else:
         flash('Grupo archivado.' if not conv.is_active else 'Grupo reactivado.', 'success')
-    return redirect(request.referrer or url_for('messaging.admin_messaging_groups'))
+    return redirect(volver_atras(url_for('messaging.admin_messaging_groups')))
 
 
 # ══════════════════════════════════════════════════════════════════════════════

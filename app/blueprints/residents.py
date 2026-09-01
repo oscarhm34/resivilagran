@@ -23,6 +23,7 @@ from ..models import (
 from .assessments import get_resident_assessment_data
 from ..models import MedicationPrescription, MedicationAdministration
 from ..utils import (
+    volver_atras,
     admin_required, _format_duration, _allowed_file, _safe_commit,
     ALLOWED_IMAGE_EXTENSIONS, ALLOWED_DOC_EXTENSIONS,
     _open_image_oriented, log_audit, _safe_flush,
@@ -957,14 +958,14 @@ def edit_care_record(record_id: int):
     record = db.session.get(CareRecord, record_id)
     if not record:
         flash('Registro no encontrado.', 'danger')
-        return redirect(request.referrer or url_for('residents.registros_atencion'))
+        return redirect(volver_atras(url_for('residents.registros_atencion')))
 
     ids = [int(v) for v in request.form.getlist('care_type_ids') if v.isdigit()]
     tipos = CareType.query.filter(CareType.id.in_(ids)).all() if ids else []
     # Corregir no puede ser una via para dejar el registro sin tipo.
     if not tipos:
         flash('Selecciona al menos un tipo de atención.', 'warning')
-        return redirect(request.referrer or url_for('residents.registros_atencion'))
+        return redirect(volver_atras(url_for('residents.registros_atencion')))
 
     anteriores = sorted(ct.id for ct in record.care_types)
     record.care_types = tipos
@@ -980,7 +981,7 @@ def edit_care_record(record_id: int):
         flash(error, 'danger')
     else:
         flash('Registro de atención actualizado.', 'success')
-    return redirect(request.referrer or url_for('residents.registros_atencion'))
+    return redirect(volver_atras(url_for('residents.registros_atencion')))
 
 
 @bp.route('/admin/care-record/<int:record_id>/delete', methods=['POST'])

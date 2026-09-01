@@ -1249,3 +1249,38 @@ def test_no_se_puede_eliminar_una_conversacion_individual_como_grupo(
 
     assert res.status_code == 200
     assert db.session.get(Conversation, direct_conversation.id) is not None
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  REDIRECCIONES
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_no_se_redirige_a_otro_sitio_por_el_referer(auth_client, db, grupo):
+    """El Referer lo controla quien enlaza.
+
+    Volver a donde estabas es comodo, pero aceptar esa cabecera tal cual
+    convierte un formulario del panel en un salto a otra web, que es la mitad
+    del trabajo de una pagina de phishing.
+    """
+    res = auth_client.post(f'/admin/mensajes/grupos/{grupo.id}/archivar',
+                           headers={'Referer': 'https://sitio-malicioso.example/trampa'})
+
+    assert res.status_code == 302
+    destino = res.headers['Location']
+    assert 'sitio-malicioso' not in destino
+    assert destino.endswith('/admin/mensajes/grupos')
+
+
+def test_tampoco_por_una_ruta_con_doble_barra(auth_client, db, grupo):
+    """`//otra-web` es una URL absoluta con el esquema heredado."""
+    res = auth_client.post(f'/admin/mensajes/grupos/{grupo.id}/archivar',
+                           headers={'Referer': '//sitio-malicioso.example/trampa'})
+
+    assert 'sitio-malicioso' not in res.headers['Location']
+
+
+def test_si_se_vuelve_de_una_pagina_propia_se_respeta(auth_client, db, grupo):
+    res = auth_client.post(f'/admin/mensajes/grupos/{grupo.id}/archivar',
+                           headers={'Referer': 'http://localhost/admin/mensajes'})
+
+    assert res.headers['Location'].endswith('/admin/mensajes')
