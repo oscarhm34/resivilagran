@@ -1003,7 +1003,7 @@ def delete_care_record(record_id: int):
         flash(error, 'danger')
     else:
         flash('Registro de atención eliminado.', 'success')
-    return redirect(request.referrer or url_for('residents.registros_atencion'))
+    return redirect(volver_atras(url_for('residents.registros_atencion')))
 
 
 @bp.route('/api/resident/<int:resident_id>/mood-history')

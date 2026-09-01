@@ -77,3 +77,9 @@ al reiniciar el contenedor y no se comparten entre workers.
 El parámetro `next` del login se valida antes de redirigir (debe empezar por `/`, sin
 `//` ni `:`). Aplicar la misma validación en cualquier redirección basada en
 parámetros de la petición.
+
+Para devolver al usuario a donde estaba, **`volver_atras(destino_por_defecto)`** de
+`app/utils.py`, nunca `redirect(request.referrer or ...)` directo: el `Referer` lo
+pone quien enlaza a la página, así que sin validarlo un formulario del panel salta a
+otra web. Ojo con `//otra-web`, que es una URL absoluta con el esquema heredado y se
+cuela si solo se comprueba que empiece por `/`.

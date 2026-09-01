@@ -18,7 +18,7 @@ from ..models import (Cleaner, Room, CleaningRecord, Floor, RoomType, Resident,
                       CleaningTargetTime, AuditLog)
 from ..utils import (admin_required, _format_duration,
                      _compute_cleaning_stats, _calculate_room_urgency,
-                     _safe_commit, _safe_flush, log_audit)
+                     _safe_commit, _safe_flush, log_audit, volver_atras)
 
 bp = Blueprint('admin_bp', __name__)
 
@@ -565,9 +565,9 @@ def admin_close_session(mode: str, record_id: int):
             ok, error = _safe_commit('Error al cerrar la sesion de limpieza')
             if not ok:
                 flash(error, 'danger')
-                return redirect(request.referrer or url_for('admin_bp.registros_limpieza'))
+                return redirect(volver_atras(url_for('admin_bp.registros_limpieza')))
             flash(f'Sesión de limpieza cerrada (Hab. {rec.room.number if rec.room else record_id}).', 'success')
-        return redirect(request.referrer or url_for('admin_bp.registros_limpieza'))
+        return redirect(volver_atras(url_for('admin_bp.registros_limpieza')))
     elif mode == 'care':
         rec = db.session.get(CareRecord, record_id)
         if rec and not rec.end_time:
@@ -576,9 +576,9 @@ def admin_close_session(mode: str, record_id: int):
             ok, error = _safe_commit('Error al cerrar la sesion de atencion')
             if not ok:
                 flash(error, 'danger')
-                return redirect(request.referrer or url_for('residents.registros_atencion'))
+                return redirect(volver_atras(url_for('residents.registros_atencion')))
             flash(f'Sesión de atención cerrada ({rec.resident.name if rec.resident else record_id}).', 'success')
-        return redirect(request.referrer or url_for('residents.registros_atencion'))
+        return redirect(volver_atras(url_for('residents.registros_atencion')))
     abort(400)
 
 
@@ -666,7 +666,7 @@ def delete_cleaning_record(record_id: int):
         flash(error, 'danger')
     else:
         flash('Registro de limpieza eliminado.', 'success')
-    return redirect(request.referrer or url_for('admin_bp.registros_limpieza'))
+    return redirect(volver_atras(url_for('admin_bp.registros_limpieza')))
 
 
 @bp.route('/exportar_excel')
