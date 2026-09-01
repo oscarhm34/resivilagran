@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from flask import (
+    make_response,
     Blueprint, request, jsonify, render_template, redirect, url_for,
     flash, send_from_directory, abort, current_app,
 )
@@ -212,15 +213,34 @@ def api_registros_limpieza():
 
 @bp.route('/worker')
 def worker():
-    return render_template('worker.html')
+    """La webapp de las trabajadoras.
+
+    Sin cabeceras el navegador se la guardaba y despues de desplegar seguia
+    ejecutando la anterior. La pagina es una sola peticion de HTML: no vale la
+    pena guardarla, y lo que se pierde en velocidad se gana en no tener a nadie
+    usando una version de hace tres dias.
+    """
+    resp = make_response(render_template('worker.html'))
+    resp.headers['Cache-Control'] = 'no-store, must-revalidate'
+    return resp
 
 
 @bp.route('/sw.js')
 def service_worker():
-    return send_from_directory(
+    """El service worker, siempre revalidado.
+
+    `send_from_directory` le pone 12 horas de cache por defecto, y esa era la
+    causa de que un despliegue no llegase al movil: el navegador conservaba el
+    service worker antiguo, que a su vez servia la pagina antigua desde su
+    propia cache. Nada de lo que se subia se veia hasta medio dia despues.
+    """
+    resp = send_from_directory(
         current_app.static_folder, 'sw.js',
         mimetype='application/javascript',
     )
+    resp.headers['Cache-Control'] = 'no-cache, must-revalidate'
+    resp.headers['Service-Worker-Allowed'] = '/'
+    return resp
 
 
 @bp.route('/worker/manifest.json')

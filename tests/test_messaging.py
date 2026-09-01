@@ -1162,3 +1162,26 @@ def test_la_purga_elimina_los_mensajes_mas_viejos_que_la_retencion(
     _correr_purga(app)
 
     assert db.session.get(Message, mid) is None
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  CACHE DEL NAVEGADOR
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_el_service_worker_no_se_puede_cachear(client):
+    """Con las 12 horas de cache que pone Flask por defecto, el movil se
+    quedaba con el service worker antiguo, que a su vez servia la webapp
+    antigua desde su propia cache: un despliegue no llegaba al telefono hasta
+    medio dia despues, con botones que no existian."""
+    res = client.get('/sw.js')
+
+    assert res.status_code == 200
+    assert 'no-cache' in res.headers.get('Cache-Control', '')
+    assert 'max-age=43200' not in res.headers.get('Cache-Control', '')
+
+
+def test_la_webapp_no_se_guarda_en_la_cache_del_navegador(client):
+    res = client.get('/worker')
+
+    assert res.status_code == 200
+    assert 'no-store' in res.headers.get('Cache-Control', '')

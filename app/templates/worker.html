@@ -667,6 +667,7 @@
         </div>
         <button class="btn-cam primary" id="msg-new" style="width:100%;min-height:48px;margin-bottom:16px">✏️ Nuevo mensaje</button>
         <div id="msg-list"></div>
+        <div id="app-build" style="text-align:center;font-size:11px;color:var(--text-2);margin-top:24px"></div>
     </div>
 
     <!-- ══ MENSAJES: CONVERSACIÓN ══ -->
@@ -4817,8 +4818,13 @@ async function suscribirAvisos() {
 }
 
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').then(function(reg) {
+    // `updateViaCache: 'none'` obliga a comprobar el sw.js contra el servidor en
+    // cada carga, sin pasar por la cache HTTP. Es el cinturon ademas de los
+    // tirantes de la cabecera: si un dia alguien vuelve a poner cache en esa
+    // ruta, esto sigue impidiendo que el movil se quede anclado.
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(function(reg) {
         swReg = reg;
+        reg.update().catch(function() {});
         suscribirAvisos();
     }).catch(function(e) {
         console.warn('El service worker no se ha registrado. Sin él no hay avisos '
@@ -4845,6 +4851,10 @@ var CHAT = {
 };
 
 var CHAT_FAST = 4000, CHAT_SLOW = 10000, CHAT_IDLE = 20000, CHAT_BACKOFF_MS = 60000;
+
+// Se sube a mano en cada cambio de la webapp. Sirve para saber, mirando el
+// movil, que version esta ejecutando de verdad.
+var APP_BUILD = '2026-09-01 · 4';
 
 function chatIniciales(nombre) {
     var partes = (nombre || '?').trim().split(/\s+/);
@@ -4924,6 +4934,8 @@ function updateChatHomeCard() {
 
 function showChats() {
     show('screen-msgs');
+    const marca = $('app-build');
+    if (marca) marca.textContent = 'Versión ' + APP_BUILD;
     loadChats();
 }
 

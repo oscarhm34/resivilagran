@@ -57,6 +57,9 @@
     .burbuja audio { max-width: 260px; display: block; }
     #visor::backdrop { background: rgba(0,0,0,.9); }
     #visor { border: none; background: none; padding: 0; max-width: 100vw; max-height: 100vh; }
+    .grabando { display: flex; align-items: center; gap: 10px; }
+    .grabando .punto { width: 10px; height: 10px; border-radius: 50%; background: var(--color-danger); animation: latido 1s infinite; }
+    @keyframes latido { 50% { opacity: .25; } }
 
     @media (max-width: 767.98px) {
         .msg-layout.viendo-hilo #col-lista { display: none; }
@@ -121,6 +124,10 @@
                             title="Adjuntar una foto, un audio o un vídeo" aria-label="Adjuntar">
                         <i class="bi bi-paperclip" aria-hidden="true"></i>
                     </button>
+                    <button type="button" class="btn btn-outline-secondary" id="btn-grabar"
+                            title="Grabar una nota de voz" aria-label="Grabar una nota de voz">
+                        <i class="bi bi-mic" aria-hidden="true"></i>
+                    </button>
                     <input type="file" id="campo-archivo" hidden
                            accept="image/*,audio/*,video/mp4,video/webm,video/quicktime">
                     <input type="text" class="form-control" id="campo-mensaje"
@@ -131,6 +138,12 @@
                         <span class="visually-hidden">Enviar</span>
                     </button>
                 </form>
+                <div class="grabando mt-2" id="grabando" style="display:none">
+                    <span class="punto"></span>
+                    <strong id="grabando-tiempo">0:00</strong>
+                    <button type="button" class="btn btn-sm btn-danger" id="grabar-parar">Enviar</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="grabar-cancelar">Cancelar</button>
+                </div>
                 <div class="small mt-2" style="color:var(--color-text-secondary)">
                     Para lo clínico usa Incidencias o las observaciones de la atención:
                     ahí queda registrado en la ficha del residente.
@@ -443,19 +456,12 @@
     // ── Adjuntos ─────────────────────────────────────────────────────────
     $('btn-adjuntar').addEventListener('click', function () { $('campo-archivo').click(); });
 
-    $('campo-archivo').addEventListener('change', async function () {
-        var f = this.files && this.files[0];
-        this.value = '';
+    async function subirAdjunto(f, tipo, extras) {
         if (!f || !abierta) return;
-
-        var tipo = f.type.indexOf('image/') === 0 ? 'image'
-                 : f.type.indexOf('audio/') === 0 ? 'audio'
-                 : f.type.indexOf('video/') === 0 ? 'video' : null;
-        if (!tipo) { window.showToast('Ese tipo de archivo no se puede enviar', 'warning'); return; }
-
         var fd = new FormData();
-        fd.append('file', f, f.name);
+        fd.append('file', f, f.name || 'adjunto');
         fd.append('media_type', tipo);
+        Object.keys(extras || {}).forEach(function (k) { fd.append(k, extras[k]); });
         var res = await fetch('/api/messaging/conversations/' + abierta + '/attachments', {
             method: 'POST', body: fd,
         });
@@ -463,6 +469,69 @@
         if (!res.ok) { window.showToast(datos.error || 'No se pudo enviar', 'error'); return; }
         pintarMensajes([datos], false);
         cargarLista();
+    }
+
+    $('campo-archivo').addEventListener('change', function () {
+        var f = this.files && this.files[0];
+        this.value = '';
+        if (!f) return;
+        var tipo = f.type.indexOf('image/') === 0 ? 'image'
+                 : f.type.indexOf('audio/') === 0 ? 'audio'
+                 : f.type.indexOf('video/') === 0 ? 'video' : null;
+        if (!tipo) { window.showToast('Ese tipo de archivo no se puede enviar', 'warning'); return; }
+        subirAdjunto(f, tipo, {});
+    });
+
+    // ── Nota de voz desde el ordenador ───────────────────────────────────
+    // El clip solo abre el explorador de archivos, y una coordinadora sentada
+    // al ordenador lo que quiere es grabar, no buscar un .mp3 en el disco.
+    var grabadora = null, trozos = [], cronometro = null, segundos = 0, cancelada = false;
+
+    $('btn-grabar').addEventListener('click', async function () {
+        if (!abierta) { window.showToast('Abre primero una conversación', 'warning'); return; }
+        if (!navigator.mediaDevices || !window.MediaRecorder) {
+            window.showToast('Este navegador no permite grabar audio', 'warning');
+            return;
+        }
+        try {
+            var stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (e) {
+            window.showToast('No se ha podido usar el micrófono', 'error');
+            return;
+        }
+        var mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+        grabadora = new MediaRecorder(stream, { mimeType: mime });
+        trozos = [];
+        cancelada = false;
+        segundos = 0;
+        $('grabando-tiempo').textContent = '0:00';
+        $('grabando').style.display = '';
+
+        grabadora.ondataavailable = function (ev) { if (ev.data.size > 0) trozos.push(ev.data); };
+        grabadora.onstop = function () {
+            stream.getTracks().forEach(function (t) { t.stop(); });
+            clearInterval(cronometro);
+            $('grabando').style.display = 'none';
+            if (cancelada || !trozos.length) return;
+            var blob = new Blob(trozos, { type: mime });
+            blob.name = mime === 'audio/webm' ? 'nota.webm' : 'nota.m4a';
+            subirAdjunto(blob, 'audio', { duration: segundos });
+        };
+        grabadora.start();
+        cronometro = setInterval(function () {
+            segundos++;
+            $('grabando-tiempo').textContent =
+                Math.floor(segundos / 60) + ':' + String(segundos % 60).padStart(2, '0');
+            if (segundos >= 120) grabadora.stop();     // mismo tope que en la webapp
+        }, 1000);
+    });
+
+    $('grabar-parar').addEventListener('click', function () {
+        if (grabadora && grabadora.state !== 'inactive') grabadora.stop();
+    });
+    $('grabar-cancelar').addEventListener('click', function () {
+        cancelada = true;
+        if (grabadora && grabadora.state !== 'inactive') grabadora.stop();
     });
 
     $('hilo').addEventListener('click', function (e) {
