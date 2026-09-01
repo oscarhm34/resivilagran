@@ -24,6 +24,11 @@
         Aquí se ve <strong>quién está en cada grupo</strong>, no lo que se habla.
         Para leer un grupo hay que ser miembro, también siendo administrador.
         Los grupos se crean desde <strong>Mensajes → Nuevo grupo</strong>.
+        <div class="mt-2">
+            <strong>Archivar</strong> lo retira de la lista de todos pero conserva la
+            conversación, y se puede reactivar. <strong>Eliminar</strong> la borra para
+            siempre, con sus fotos y audios: para un grupo creado por error.
+        </div>
     </div>
 </div>
 
@@ -60,9 +65,15 @@
             </form>
             <form method="POST" action="{{ url_for('messaging.admin_archive_group', cid=g.id) }}"
                   data-confirm="{% if g.is_active %}¿Archivar «{{ g.title }}»? Dejará de verse en la lista de todos, pero no se borra nada.{% else %}¿Reactivar «{{ g.title }}»?{% endif %}">
-                <button type="submit" class="btn btn-sm {% if g.is_active %}btn-outline-danger{% else %}btn-outline-success{% endif %}">
+                <button type="submit" class="btn btn-sm {% if g.is_active %}btn-outline-secondary{% else %}btn-outline-success{% endif %}">
                     <i class="bi {% if g.is_active %}bi-archive{% else %}bi-arrow-counterclockwise{% endif %} me-1" aria-hidden="true"></i>
                     {{ 'Archivar' if g.is_active else 'Reactivar' }}
+                </button>
+            </form>
+            <form method="POST" action="{{ url_for('messaging.admin_delete_group', cid=g.id) }}"
+                  data-confirm="¿Eliminar «{{ g.title }}» para siempre? Se borra la conversación entera, con sus fotos y audios, para todos los miembros. Esto no se puede deshacer.">
+                <button type="submit" class="btn btn-sm btn-outline-danger">
+                    <i class="bi bi-trash me-1" aria-hidden="true"></i>Eliminar
                 </button>
             </form>
         </div>

@@ -1185,3 +1185,67 @@ def test_la_webapp_no_se_guarda_en_la_cache_del_navegador(client):
 
     assert res.status_code == 200
     assert 'no-store' in res.headers.get('Cache-Control', '')
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  ELIMINAR UN GRUPO
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_eliminar_un_grupo_lo_borra_entero(
+        auth_client, client, db, grupo, worker_headers):
+    """Para el grupo creado por error: archivado se quedaria ahi para siempre."""
+    _enviar(client, worker_headers, grupo.id, 'Algo escrito en el grupo')
+    cid = grupo.id
+
+    auth_client.post(f'/admin/mensajes/grupos/{cid}/eliminar', follow_redirects=True)
+
+    assert db.session.get(Conversation, cid) is None
+    assert Message.query.filter_by(conversation_id=cid).count() == 0
+    assert ConversationMember.query.filter_by(conversation_id=cid).count() == 0
+
+
+def test_eliminar_un_grupo_borra_sus_ficheros_del_disco(
+        auth_client, client, db, grupo, worker_headers):
+    from app.models import MessageAttachment
+    _subir(client, worker_headers, grupo.id, 'file',
+           'foto.png', _png().read(), 'image', 'image/png')
+    adj = MessageAttachment.query.one()
+    grande, mini = _ruta(adj.file_path), _ruta(adj.thumb_path)
+
+    auth_client.post(f'/admin/mensajes/grupos/{grupo.id}/eliminar', follow_redirects=True)
+
+    assert not _os.path.exists(grande)
+    assert not _os.path.exists(mini)
+    assert MessageAttachment.query.count() == 0
+
+
+def test_eliminar_un_grupo_queda_en_la_auditoria(auth_client, db, grupo):
+    from app.models import AuditLog
+    cid = grupo.id
+
+    auth_client.post(f'/admin/mensajes/grupos/{cid}/eliminar', follow_redirects=True)
+
+    registro = AuditLog.query.filter_by(table_name='conversation', action='delete').one()
+    assert registro.record_id == cid
+    assert 'Turno de tarde' in (registro.details or '')
+
+
+def test_eliminar_un_grupo_exige_ser_admin(app, db, grupo):
+    """Cliente aparte: la fixture `grupo` deja al admin logueado en `client`,
+    asi que reutilizarlo probaria justo lo contrario de lo que dice el nombre."""
+    anonimo = app.test_client()
+
+    res = anonimo.post(f'/admin/mensajes/grupos/{grupo.id}/eliminar')
+
+    assert res.status_code in (302, 401, 403)
+    assert db.session.get(Conversation, grupo.id) is not None
+
+
+def test_no_se_puede_eliminar_una_conversacion_individual_como_grupo(
+        auth_client, db, direct_conversation):
+    """La ruta es solo para grupos: un 1-a-1 se archiva, no se destruye."""
+    res = auth_client.post(f'/admin/mensajes/grupos/{direct_conversation.id}/eliminar',
+                           follow_redirects=True)
+
+    assert res.status_code == 200
+    assert db.session.get(Conversation, direct_conversation.id) is not None

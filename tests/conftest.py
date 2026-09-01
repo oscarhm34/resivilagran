@@ -56,6 +56,20 @@ def app():
     original_engine_map = dict(engines_cache.get(flask_app, {}))
     engines_cache[flask_app] = {None: test_engine}
 
+    # Flask reutiliza el contexto de aplicacion que abrimos aqui debajo en lugar
+    # de crear uno por peticion, y Flask-Login guarda el usuario resuelto en `g`,
+    # que vive en ese contexto. Resultado: en cuanto un test hacia login, TODAS
+    # las peticiones posteriores del mismo test se atendian como ese usuario,
+    # aunque vinieran de un cliente sin cookies. Los tests que comprueban que una
+    # ruta exige administrador pasaban sin comprobar nada.
+    #
+    # Esto vacia el usuario cacheado antes de cada peticion, que es lo que ocurre
+    # en produccion, donde cada peticion estrena contexto.
+    @flask_app.before_request
+    def _olvidar_usuario_cacheado():
+        from flask import g
+        g.pop('_login_user', None)
+
     with flask_app.app_context():
         _db.create_all()          # crea tablas en el fichero temporal
         yield flask_app

@@ -873,6 +873,52 @@ def admin_rename_group(cid: int):
     return redirect(url_for('messaging.admin_messaging_groups'))
 
 
+@bp.route('/admin/mensajes/grupos/<int:cid>/eliminar', methods=['POST'])
+@admin_required
+def admin_delete_group(cid: int):
+    """Borra el grupo entero: mensajes, adjuntos y ficheros.
+
+    Archivar es lo que se quiere para un grupo que se ha usado, porque a los
+    miembros les puede hacer falta consultarlo. Esto es para el otro caso: el
+    grupo creado por error o de prueba, que archivado se queda ahi para
+    siempre ensuciando la lista. No se puede deshacer, asi que la pantalla lo
+    advierte y queda registrado en la auditoria.
+    """
+    import os
+
+    conv = db.session.get(Conversation, cid)
+    if not conv or conv.kind != 'group':
+        flash('Grupo no encontrado.', 'danger')
+        return redirect(url_for('messaging.admin_messaging_groups'))
+
+    titulo = conv.title
+    mensajes = Message.query.filter_by(conversation_id=cid).all()
+    ficheros = 0
+    for msg in mensajes:
+        for adj in list(msg.attachments):
+            for rel in (adj.file_path, adj.thumb_path):
+                if not rel:
+                    continue
+                try:
+                    os.remove(os.path.join(app.config['UPLOAD_FOLDER'], rel))
+                    ficheros += 1
+                except OSError:
+                    pass
+            db.session.delete(adj)
+        db.session.delete(msg)
+    ConversationMember.query.filter_by(conversation_id=cid).delete(synchronize_session=False)
+    db.session.delete(conv)
+
+    log_audit('delete', 'conversation', cid,
+              {'nombre': titulo, 'mensajes': len(mensajes), 'ficheros': ficheros})
+    ok, error = _safe_commit('Error al eliminar el grupo')
+    if not ok:
+        flash(error, 'danger')
+    else:
+        flash(f'Grupo «{titulo}» eliminado.', 'success')
+    return redirect(url_for('messaging.admin_messaging_groups'))
+
+
 @bp.route('/admin/mensajes/grupos/<int:cid>/archivar', methods=['POST'])
 @admin_required
 def admin_archive_group(cid: int):
