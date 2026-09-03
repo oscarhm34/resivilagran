@@ -568,6 +568,7 @@
             </div>
             <div style="display:flex;gap:8px;align-items:center">
                 <button class="btn-logout" id="btn-refresh" onclick="refreshAll()" style="background:var(--green-lt);color:var(--green)" title="Actualizar">↻</button>
+                <button class="btn-logout" id="avisos-home-card" title="Avisos y sonido" aria-label="Avisos y sonido">🔔</button>
                 <button class="btn-logout" id="btn-logout" onclick="doLogout()">Cerrar sesión</button>
             </div>
         </div>
@@ -646,16 +647,6 @@
                 <div class="pending-sub" id="msg-home-sub">Escribe a tus compañeras</div>
             </div>
             <span class="pending-badge" id="msg-home-badge" style="background:var(--blue);display:none">0</span>
-        </button>
-
-        <!-- Avisos: comprobar por que no suena el movil sin llamar a nadie -->
-        <button class="pending-card" id="avisos-home-card" style="margin-bottom:20px">
-            <div class="pending-icon" style="background:var(--tint-warn-bg)">🔔</div>
-            <div class="pending-info">
-                <div class="pending-title">Avisos y sonido</div>
-                <div class="pending-sub" id="avisos-home-sub">Comprueba si te llegan los mensajes</div>
-            </div>
-            <div style="font-size:18px;color:var(--text-2)">→</div>
         </button>
 
         <!-- Escaneo NFC unificado -->
@@ -5131,7 +5122,10 @@ var AVISO = {
 };
 
 // Ni iOS ni Chrome dejan sonar nada hasta que ha habido un gesto en la pagina.
-// Se engancha al primero que haya, sea cual sea, y se desengancha solo.
+// **No** se engancha con `once`: Android suspende el contexto cada vez que la
+// aplicacion pasa a segundo plano, y con un solo desbloqueo el sonido se moria
+// para siempre en cuanto la trabajadora miraba otra cosa. Se rearma en cada
+// toque y al volver a primer plano.
 function desbloquearAudio() {
     try {
         var AC = window.AudioContext || window.webkitAudioContext;
@@ -5140,27 +5134,40 @@ function desbloquearAudio() {
         if (AVISO.ctx.state === 'suspended') AVISO.ctx.resume();
     } catch (e) { /* sin audio: queda la vibracion y el aviso en pantalla */ }
 }
-document.addEventListener('pointerdown', desbloquearAudio, { once: true });
-document.addEventListener('touchstart', desbloquearAudio, { once: true });
+document.addEventListener('pointerdown', desbloquearAudio, { passive: true });
+document.addEventListener('touchstart', desbloquearAudio, { passive: true });
+document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) desbloquearAudio();
+});
+
+function csTono(ctx) {
+    // Dos notas cortas. La rampa de ganancia evita el chasquido del corte.
+    [[880, 0], [1175, 0.14]].forEach(function (par) {
+        var osc = ctx.createOscillator();
+        var vol = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = par[0];
+        var t = ctx.currentTime + par[1];
+        vol.gain.setValueAtTime(0.0001, t);
+        vol.gain.exponentialRampToValueAtTime(0.28, t + 0.02);
+        vol.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
+        osc.connect(vol); vol.connect(ctx.destination);
+        osc.start(t); osc.stop(t + 0.14);
+    });
+}
 
 function sonarAviso() {
     try {
-        desbloquearAudio();
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        if (!AVISO.ctx) AVISO.ctx = new AC();
         var ctx = AVISO.ctx;
-        if (!ctx || ctx.state !== 'running') return;
-        // Dos notas cortas. La rampa de ganancia evita el chasquido del corte.
-        [[880, 0], [1175, 0.14]].forEach(function (par) {
-            var osc = ctx.createOscillator();
-            var vol = ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.value = par[0];
-            var t = ctx.currentTime + par[1];
-            vol.gain.setValueAtTime(0.0001, t);
-            vol.gain.exponentialRampToValueAtTime(0.28, t + 0.02);
-            vol.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
-            osc.connect(vol); vol.connect(ctx.destination);
-            osc.start(t); osc.stop(t + 0.14);
-        });
+        if (ctx.state === 'running') { csTono(ctx); return; }
+        // `resume()` es una promesa. Sin esperarla, el estado seguia siendo
+        // 'suspended' en la linea siguiente y el aviso se descartaba en
+        // silencio: en un movil eso era **siempre** el primer mensaje tras
+        // volver a abrir la aplicacion.
+        ctx.resume().then(function () { csTono(ctx); }).catch(function () {});
     } catch (e) { /* un aviso nunca puede tumbar el sondeo */ }
 }
 
@@ -5282,24 +5289,22 @@ async function refrescarEstadoAvisos() {
     pintarDiagnosticoAvisos();
 }
 
+// El banner sale **solo si la trabajadora puede arreglarlo con un toque**: falta
+// el permiso y todo lo demas esta en su sitio. Con un certificado que el
+// navegador no acepta, o una direccion insegura, no hay nada que ella pueda
+// hacer y un aviso naranja permanente es ruido en la pantalla de trabajo. Esos
+// casos los ve la coordinadora en Empleados y cualquiera en la campana.
 function pintarBannerAvisos() {
     var banner = $('home-avisos-off');
     if (!banner) return;
-    var mal = !ESTADO_AVISOS.seguro
-        || ESTADO_AVISOS.permiso !== 'granted'
-        || ESTADO_AVISOS.suscripciones === 0;
-    banner.style.display = mal ? '' : 'none';
-    if (!mal) return;
-    var txt = $('home-avisos-off-txt');
-    var boton = $('btn-activar-avisos');
-    if (!ESTADO_AVISOS.seguro) {
-        txt.textContent = 'Has entrado por una dirección que no permite avisos. '
-            + 'Abre la aplicación desde el acceso directo seguro (https).';
-        boton.style.display = 'none';
-    } else {
-        txt.textContent = 'El móvil no te avisará cuando te escriban si la aplicación está cerrada.';
-        boton.style.display = '';
-    }
+    var e = ESTADO_AVISOS;
+    var accionable = e.seguro && e.sw && e.permiso !== 'granted' && e.permiso !== 'no';
+    banner.style.display = accionable ? '' : 'none';
+    if (!accionable) return;
+    $('home-avisos-off-txt').textContent = e.permiso === 'denied'
+        ? 'Los avisos están bloqueados en los ajustes del navegador de este móvil.'
+        : 'El móvil no te avisará cuando te escriban si la aplicación está cerrada.';
+    $('btn-activar-avisos').style.display = e.permiso === 'denied' ? 'none' : '';
 }
 
 function pintarDiagnosticoAvisos() {
@@ -5316,8 +5321,13 @@ function pintarDiagnosticoAvisos() {
         ['Dirección segura', e.seguro ? 'ok' : 'mal',
          e.seguro ? 'Correcta' : 'Sin ella el móvil no puede avisarte'],
         ['Permiso del móvil', perm[0], perm[1]],
-        ['Aplicación instalada', e.sw ? 'ok' : 'duda',
-         e.sw ? 'Correcta' : 'Cierra y vuelve a abrir la aplicación'],
+        // Sin service worker y con direccion segura, la causa casi siempre es un
+        // certificado que el navegador no acepta (el del NAS por IP lo es): ahi
+        // Chrome se niega a registrarlo y no avisa de nada.
+        ['Aplicación instalada', e.sw ? 'ok' : 'mal',
+         e.sw ? 'Correcta'
+              : (e.seguro ? 'No se ha instalado. Suele ser el certificado de la dirección: ábrela una vez y acepta el aviso de seguridad, o usa la dirección de internet.'
+                          : 'No se puede instalar desde esta dirección')],
         ['Avisos registrados', subs[0], subs[1]],
     ];
     cont.innerHTML = lineas.map(function (l) {
@@ -5389,7 +5399,9 @@ var CHAT = {
     lastUnread: null,   // para saber si el contador ha SUBIDO y hay que avisar
 };
 
-var CHAT_FAST = 4000, CHAT_SLOW = 10000, CHAT_IDLE = 20000, CHAT_BACKOFF_MS = 60000;
+// CHAT_IDLE era de 20 s: con la aplicacion abierta en la pantalla de inicio, un
+// mensaje podia tardar eso en sonar y se leia como que no avisaba.
+var CHAT_FAST = 4000, CHAT_SLOW = 10000, CHAT_IDLE = 10000, CHAT_BACKOFF_MS = 60000;
 
 // Se sube a mano en cada cambio de la webapp. Sirve para saber, mirando el
 // movil, que version esta ejecutando de verdad.
@@ -5462,6 +5474,10 @@ function updateChatHomeCard() {
     const card = $('msg-home-card');
     if (!card) return;
     CHAT.unread = CHAT.list.reduce(function (n, c) { return n + (c.unread || 0); }, 0);
+    // Referencia para el aviso sonoro. Se fija aqui, al entrar, y no en el primer
+    // sondeo: entre abrir la aplicacion y ese sondeo pasaban 20 segundos en los
+    // que un mensaje entrante subia el contador sin que sonara nada.
+    if (CHAT.lastUnread === null) CHAT.lastUnread = CHAT.unread;
     const badge = $('msg-home-badge');
     badge.textContent = CHAT.unread > 99 ? '99+' : CHAT.unread;
     badge.style.display = CHAT.unread ? '' : 'none';
