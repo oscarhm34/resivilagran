@@ -15,7 +15,7 @@ from ..models import (Cleaner, Room, CleaningRecord, Floor, RoomType, Resident,
                       CareType, CareRecord, ResidentGroup,
                       VitalSignType, VitalSignReading,
                       ShiftAssignment, ChecklistItem,
-                      CleaningTargetTime, AuditLog)
+                      CleaningTargetTime, AuditLog, PushSubscription)
 from ..utils import (admin_required, _format_duration,
                      _compute_cleaning_stats, _calculate_room_urgency,
                      _safe_commit, _safe_flush, log_audit, volver_atras)
@@ -256,7 +256,13 @@ def manage_workers():
     cleaners = Cleaner.query.options(joinedload(Cleaner.groups))\
         .order_by(Cleaner.name).all()
     groups = ResidentGroup.query.order_by(ResidentGroup.name).all()
-    return render_template('manage_workers.html', cleaners=cleaners, groups=groups, estado_filtro=estado)
+    # Quien tiene el movil registrado para los avisos. Sin esto, que a alguien no
+    # le suene el telefono solo se descubre preguntandoselo.
+    con_avisos = {
+        wid for (wid,) in db.session.query(PushSubscription.worker_id).distinct()
+    }
+    return render_template('manage_workers.html', cleaners=cleaners, groups=groups,
+                           estado_filtro=estado, con_avisos=con_avisos)
 
 
 @bp.route('/cleaners/add_edit', methods=['POST'])

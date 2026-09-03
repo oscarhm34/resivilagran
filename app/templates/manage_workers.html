@@ -216,7 +216,15 @@
                         data-active="{{ '1' if cleaner.active else '' }}"
                         data-groups="{{ cleaner.groups|map(attribute='id')|list|join(',') }}">
                         <td><code style="color:var(--color-primary);background:var(--color-primary-lt);padding:1px 6px;border-radius:4px">{{ cleaner.username }}</code></td>
-                        <td>{{ cleaner.name }}</td>
+                        <td>
+                            {{ cleaner.name }}
+                            {% if cleaner.active and cleaner.id not in con_avisos %}
+                            <span class="status-badge status-warning" style="font-size:.7rem"
+                                  title="No tiene el móvil registrado para recibir avisos de mensajes">
+                                <i class="bi bi-bell-slash" aria-hidden="true"></i> Sin avisos
+                            </span>
+                            {% endif %}
+                        </td>
                         <td>
                             {% if cleaner.role == 'limpieza' %}
                             <span class="status-badge status-info">Limpieza</span>

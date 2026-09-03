@@ -833,6 +833,128 @@ def test_dar_de_alta_el_mismo_movil_dos_veces_no_duplica(
     assert PushSubscription.query.count() == 1
 
 
+def test_pasado_el_minuto_vuelve_a_avisar(
+        client, db, direct_conversation, second_cleaner, worker_headers,
+        avisos_enviados):
+    """La agrupacion protege de una rafaga, no silencia una conversacion.
+
+    Con los cinco minutos que habia antes, del segundo mensaje en adelante no
+    salia ningun aviso: en una prueba real el movil no sonaba ni una vez y la
+    trabajadora no se enteraba hasta abrir la app.
+    """
+    _enviar(client, worker_headers, direct_conversation.id, 'uno')
+    miembro = _miembro(db, direct_conversation.id, second_cleaner.id)
+    miembro.last_push_at = datetime.now() - timedelta(seconds=90)
+    db.session.commit()
+    avisos_enviados.clear()
+
+    _enviar(client, worker_headers, direct_conversation.id, 'dos')
+
+    assert [a['worker_id'] for a in avisos_enviados] == [second_cleaner.id]
+
+
+def test_a_quien_va_al_dia_se_le_avisa_aunque_acabe_de_recibir_otro(
+        client, db, direct_conversation, second_cleaner, worker_headers,
+        avisos_enviados):
+    """Quien venia leyendo espera el mensaje siguiente: ese no se agrupa."""
+    _enviar(client, worker_headers, direct_conversation.id, 'uno')
+    ultimo = Message.query.order_by(Message.id.desc()).first()
+    miembro = _miembro(db, direct_conversation.id, second_cleaner.id)
+    miembro.last_read_message_id = ultimo.id
+    db.session.commit()
+    avisos_enviados.clear()
+
+    _enviar(client, worker_headers, direct_conversation.id, 'dos')
+
+    assert [a['worker_id'] for a in avisos_enviados] == [second_cleaner.id]
+
+
+def test_la_agrupacion_sigue_frenando_una_rafaga_a_quien_no_lee(
+        client, db, direct_conversation, worker_headers, avisos_enviados):
+    """Sin esto, diez mensajes seguidos son diez tandas de POST a FCM."""
+    _enviar(client, worker_headers, direct_conversation.id, 'uno')
+    _enviar(client, worker_headers, direct_conversation.id, 'dos')
+    _enviar(client, worker_headers, direct_conversation.id, 'tres')
+
+    assert len(avisos_enviados) == 1
+
+
+# ── Estado y prueba de los avisos ────────────────────────────────────────────
+
+@pytest.fixture
+def push_no_sale(monkeypatch):
+    """Corta la entrega real: los tests no salen a FCM."""
+    entregas = []
+    import app.blueprints.notifications as notif
+    monkeypatch.setattr(
+        notif, '_entregar_push',
+        lambda worker_id, destinos, payload, priv, email:
+            entregas.append((worker_id, destinos)))
+    return entregas
+
+
+def _suscribir(client, headers, endpoint):
+    return client.post('/api/push/subscribe', headers=headers, json={
+        'endpoint': endpoint,
+        'keys': {'p256dh': 'clave-publica', 'auth': 'secreto'},
+    })
+
+
+def test_el_estado_de_los_avisos_exige_token(client, db):
+    assert client.get('/api/push/status').status_code == 401
+
+
+def test_el_estado_solo_cuenta_los_dispositivos_propios(
+        client, db, worker_headers, second_headers):
+    _suscribir(client, worker_headers, 'https://fcm.googleapis.com/fcm/send/mio')
+    _suscribir(client, second_headers, 'https://fcm.googleapis.com/fcm/send/suyo')
+
+    datos = client.get('/api/push/status', headers=worker_headers).get_json()
+
+    assert datos['suscripciones'] == 1
+    assert datos['configurado'] is True
+
+
+def test_el_aviso_de_prueba_exige_token(client, db):
+    assert client.post('/api/push/test').status_code == 401
+
+
+def test_el_aviso_de_prueba_solo_va_a_los_moviles_de_quien_lo_pide(
+        client, db, cleaner_user, worker_headers, second_headers, push_no_sale):
+    _suscribir(client, worker_headers, 'https://fcm.googleapis.com/fcm/send/mio')
+    _suscribir(client, second_headers, 'https://fcm.googleapis.com/fcm/send/suyo')
+
+    res = client.post('/api/push/test', headers=worker_headers)
+
+    assert res.status_code == 200
+    assert res.get_json()['dispositivos'] == 1
+    assert [w for w, _ in push_no_sale] == [cleaner_user.id]
+    assert push_no_sale[0][1][0][1] == 'https://fcm.googleapis.com/fcm/send/mio'
+
+
+def test_el_aviso_de_prueba_sin_moviles_registrados_lo_dice(
+        client, db, worker_headers, push_no_sale):
+    """Es justo el caso que hay que poder distinguir: no es que falle el envio,
+    es que el navegador nunca llego a suscribirse."""
+    res = client.post('/api/push/test', headers=worker_headers)
+
+    assert res.get_json()['dispositivos'] == 0
+    assert push_no_sale == []
+
+
+def test_sin_clave_vapid_el_envio_no_revienta(
+        client, db, app, cleaner_user, worker_headers, push_no_sale, monkeypatch):
+    """Un aviso que no sale nunca puede tumbar el mensaje que lo genero."""
+    from app.blueprints.notifications import send_push_to_worker
+    _suscribir(client, worker_headers, 'https://fcm.googleapis.com/fcm/send/mio')
+
+    with app.test_request_context():
+        monkeypatch.setitem(app.config, 'VAPID_PRIVATE_KEY', None)
+        assert send_push_to_worker(cleaner_user.id, 'Hola', 'Cuerpo') == 0
+
+    assert push_no_sale == []
+
+
 # ══════════════════════════════════════════════════════════════════════════
 #  CLAVES VAPID
 # ══════════════════════════════════════════════════════════════════════════

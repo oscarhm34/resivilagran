@@ -549,7 +549,7 @@ def poll():
 #  AVISOS
 # ══════════════════════════════════════════════════════════════════════════════
 
-PUSH_COALESCE_MINUTES = 5
+PUSH_COALESCE_MINUTES = 1
 
 
 def _notify_new_message(conv: Conversation, msg: Message) -> None:
@@ -559,9 +559,13 @@ def _notify_new_message(conv: Conversation, msg: Message) -> None:
     puede nombrar a un residente, y el push viaja por un servicio externo. Ver
     la regla de seguridad sobre datos de salud.
 
-    `send_push_to_worker` es sincrono y hace un POST por suscripcion dentro de
-    esta peticion, asi que se agrupa: como mucho un aviso cada cinco minutos por
-    persona y conversacion. El resto se ve al abrir la app.
+    El envio va en un hilo (ver `send_push_to_worker`), asi que agrupar sale
+    barato: solo protege de una rafaga, un aviso por minuto y conversacion. Con
+    los cinco minutos de antes, del segundo mensaje en adelante no salia ninguno
+    y la trabajadora no se enteraba de nada hasta abrir la app.
+
+    La agrupacion se salta cuando la destinataria venia leyendo la conversacion
+    al dia: ese es justo el mensaje que espera y el que no puede perderse.
     """
     from .notifications import send_push_to_worker
 
@@ -577,11 +581,17 @@ def _notify_new_message(conv: Conversation, msg: Message) -> None:
         ConversationMember.left_at.is_(None),
     ).all()
 
+    # El mensaje anterior **de esta conversacion**. Los ids son globales, asi que
+    # `msg.id - 1` puede ser de otro hilo y daria un "al dia" falso.
+    previo = db.session.query(func.max(Message.id)).filter(
+        Message.conversation_id == conv.id, Message.id < msg.id).scalar() or 0
+
     avisados = False
     for m in destinatarios:
         if m.muted_until and m.muted_until > ahora:
             continue
-        if m.last_push_at and m.last_push_at > corte:
+        al_dia = (m.last_read_message_id or 0) >= previo
+        if not al_dia and m.last_push_at and m.last_push_at > corte:
             continue
         m.last_push_at = ahora
         avisados = True

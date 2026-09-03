@@ -482,6 +482,16 @@
         .chat-info-btn { background:none; border:none; color:var(--text-2); font-size:22px; cursor:pointer; padding:4px 8px; }
         .chat-member { display:flex; align-items:center; gap:12px; padding:12px 6px; border-bottom:1px solid var(--border); }
         .chat-danger-btn { width:100%; min-height:48px; border-radius:14px; border:1.5px solid var(--danger); background:none; color:var(--danger); font-size:16px; font-weight:600; font-family:inherit; cursor:pointer; margin-top:10px; }
+        /* Avisos y sonido. Solo tokens: el modo oscuro los redefine arriba. */
+        .avisos-switch { display:flex; align-items:center; gap:14px; width:100%; padding:14px 16px; border-radius:14px; border:1.5px solid var(--border); background:var(--surface); cursor:pointer; }
+        .avisos-linea { display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:12px; border:1.5px solid var(--border); background:var(--surface); margin-bottom:8px; }
+        .avisos-linea .av-punto { width:12px; height:12px; border-radius:50%; flex-shrink:0; }
+        .avisos-linea.ok    .av-punto { background:var(--green); }
+        .avisos-linea.mal   .av-punto { background:var(--danger); }
+        .avisos-linea.duda  .av-punto { background:var(--tint-warn-fg); }
+        .avisos-linea .av-txt { flex:1; min-width:0; }
+        .avisos-linea .av-tit { display:block; font-weight:600; font-size:14px; }
+        .avisos-linea .av-sub { display:block; font-size:12px; color:var(--text-2); margin-top:2px; }
         .chat-plain-btn { width:100%; min-height:48px; border-radius:14px; border:1.5px solid var(--border); background:none; color:var(--text); font-size:16px; font-family:inherit; cursor:pointer; margin-top:10px; }
         .chat-aviso { font-size:12px; color:var(--text-2); text-align:center; padding:10px 16px 0; }
 
@@ -572,6 +582,16 @@
             <button class="btn-cam primary" id="home-retry" onclick="refreshAll()" style="width:100%;min-height:44px">Reintentar</button>
         </div>
 
+        <!-- Avisos apagados: hasta ahora esto solo se veia en la consola del
+             navegador, asi que nadie se enteraba de que no le llegaba nada. -->
+        <div id="home-avisos-off" style="display:none;background:var(--tint-warn-bg);color:var(--tint-warn-fg);border-radius:14px;padding:14px 16px;margin-bottom:16px">
+            <div style="font-weight:600;margin-bottom:4px">No recibirás avisos de mensajes</div>
+            <div style="font-size:13px;color:var(--text-2);margin-bottom:10px" id="home-avisos-off-txt">
+                El móvil no te avisará cuando te escriban si la aplicación está cerrada.
+            </div>
+            <button class="btn-cam primary" id="btn-activar-avisos" style="width:100%;min-height:48px">Activar avisos</button>
+        </div>
+
         <!-- Sesiones activas -->
         <div id="active-sessions" style="display:none">
             <div class="section-label" id="active-label">En curso</div>
@@ -626,6 +646,16 @@
                 <div class="pending-sub" id="msg-home-sub">Escribe a tus compañeras</div>
             </div>
             <span class="pending-badge" id="msg-home-badge" style="background:var(--blue);display:none">0</span>
+        </button>
+
+        <!-- Avisos: comprobar por que no suena el movil sin llamar a nadie -->
+        <button class="pending-card" id="avisos-home-card" style="margin-bottom:20px">
+            <div class="pending-icon" style="background:var(--tint-warn-bg)">🔔</div>
+            <div class="pending-info">
+                <div class="pending-title">Avisos y sonido</div>
+                <div class="pending-sub" id="avisos-home-sub">Comprueba si te llegan los mensajes</div>
+            </div>
+            <div style="font-size:18px;color:var(--text-2)">→</div>
         </button>
 
         <!-- Escaneo NFC unificado -->
@@ -793,6 +823,37 @@
         </div>
         <p style="font-size:12px;color:var(--text-2);margin-top:14px;text-align:center">
             Vaciar solo te afecta a ti: los demás siguen viendo la conversación entera.
+        </p>
+    </div>
+
+    <!-- ══ AVISOS Y SONIDO ══ -->
+    <div id="screen-avisos" class="screen">
+        <div class="scan-header" style="margin-bottom:18px">
+            <button class="btn-back" id="avisos-back" aria-label="Volver">←</button>
+            <div style="flex:1">
+                <div style="font-family:'Outfit',sans-serif;font-size:20px;font-weight:700">Avisos y sonido</div>
+                <div style="font-size:13px;color:var(--text-2)">Por qué te suena o no te suena el móvil</div>
+            </div>
+        </div>
+
+        <label class="avisos-switch" for="avisos-sonido">
+            <span style="flex:1">
+                <span style="display:block;font-weight:600;font-size:15px">Sonido al recibir mensajes</span>
+                <span style="display:block;font-size:13px;color:var(--text-2);margin-top:2px">Suena y vibra mientras tienes la aplicación abierta</span>
+            </span>
+            <input type="checkbox" id="avisos-sonido" style="width:26px;height:26px;flex-shrink:0">
+        </label>
+
+        <div class="section-label" style="margin-top:22px">Comprobación</div>
+        <div id="avisos-diag"></div>
+
+        <div style="margin-top:20px;display:flex;flex-direction:column;gap:10px">
+            <button class="btn-cam primary" id="avisos-activar" style="width:100%;min-height:52px">Activar avisos</button>
+            <button class="btn-cam secondary" id="avisos-probar" style="width:100%;min-height:52px">Enviar aviso de prueba</button>
+        </div>
+        <p style="font-size:12px;color:var(--text-2);margin-top:14px;text-align:center">
+            El aviso de prueba llega al móvil aunque tengas la aplicación abierta.
+            Si no llega, avisa a la coordinadora.
         </p>
     </div>
 
@@ -1633,6 +1694,9 @@ function doLogout() {
     stopNfc();
     S.token = S.workerId = S.workerName = null;
     S.sessions = [];
+    stopChatPolling();
+    CHAT.lastUnread = null;
+    CHAT.list = []; CHAT.cursor = 0; CHAT.open = null;
     ['wt','wid','wname','wrole'].forEach(k => localStorage.removeItem(k));
     try { $('chat-dialog').close(); } catch(e) {}
     try { $('chat-dialog').style.display = 'none'; } catch(e) {}
@@ -1700,6 +1764,7 @@ async function initHome() {
     startGlobalTimer();
     startNotifPolling();
     suscribirAvisos();
+    refrescarEstadoAvisos();
     loadChats();
     chatSetDelay(CHAT_IDLE);
     abrirChatDesdeUrl(window.location.search);
@@ -5049,6 +5114,66 @@ function loadQuickPhrases() {
 // llegaba ningun aviso hasta recargar la webapp. Ahora se reintenta desde
 // initHome(), que corre tanto al abrir con la sesion guardada como al entrar.
 
+// ══════════════════════════════════════════════════════════════════════════
+//  AVISO SONORO DE MENSAJE
+// ══════════════════════════════════════════════════════════════════════════
+// Con la aplicacion abierta el push del sistema no llama la atencion (y en
+// muchos moviles ni se muestra), asi que el unico indicio de un mensaje nuevo
+// era que cambiaba un numero en la tarjeta de inicio. Aqui suena, vibra y sale
+// un aviso en pantalla.
+//
+// El tono se genera con Web Audio y no con un fichero: no hay nada que cachear
+// ni que se quede desincronizado tras un despliegue, y pesa cero.
+
+var AVISO = {
+    ctx:    null,
+    activo: localStorage.getItem('msg_sound') !== '0',
+};
+
+// Ni iOS ni Chrome dejan sonar nada hasta que ha habido un gesto en la pagina.
+// Se engancha al primero que haya, sea cual sea, y se desengancha solo.
+function desbloquearAudio() {
+    try {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        if (!AVISO.ctx) AVISO.ctx = new AC();
+        if (AVISO.ctx.state === 'suspended') AVISO.ctx.resume();
+    } catch (e) { /* sin audio: queda la vibracion y el aviso en pantalla */ }
+}
+document.addEventListener('pointerdown', desbloquearAudio, { once: true });
+document.addEventListener('touchstart', desbloquearAudio, { once: true });
+
+function sonarAviso() {
+    try {
+        desbloquearAudio();
+        var ctx = AVISO.ctx;
+        if (!ctx || ctx.state !== 'running') return;
+        // Dos notas cortas. La rampa de ganancia evita el chasquido del corte.
+        [[880, 0], [1175, 0.14]].forEach(function (par) {
+            var osc = ctx.createOscillator();
+            var vol = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = par[0];
+            var t = ctx.currentTime + par[1];
+            vol.gain.setValueAtTime(0.0001, t);
+            vol.gain.exponentialRampToValueAtTime(0.28, t + 0.02);
+            vol.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
+            osc.connect(vol); vol.connect(ctx.destination);
+            osc.start(t); osc.stop(t + 0.14);
+        });
+    } catch (e) { /* un aviso nunca puede tumbar el sondeo */ }
+}
+
+// `discreto` = la conversacion ya esta abierta y la burbuja se ve sola: suena,
+// pero sin volver a anunciar por escrito lo que la persona esta mirando.
+function avisarMensaje(nombre, discreto) {
+    try {
+        if (AVISO.activo) sonarAviso();
+        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        if (!discreto) toast(nombre ? 'Nuevo mensaje de ' + nombre : 'Tienes un mensaje nuevo');
+    } catch (e) { /* idem */ }
+}
+
 var swReg = null;
 var avisosSuscritos = false;
 
@@ -5111,6 +5236,124 @@ async function suscribirAvisos() {
     }
 }
 
+// Pedir el permiso desde un gesto de la persona. Sin esto, Safari en un iPhone
+// instalado como PWA rechaza `subscribe()` con NotAllowedError, y el error se
+// quedaba en un console.warn que nadie ve en un movil: ninguna trabajadora con
+// iPhone llegaba a tener suscripcion y nada en la pantalla lo decia.
+async function activarAvisos() {
+    if (!window.isSecureContext) {
+        toast('Esta dirección no permite avisos. Abre la app por la dirección segura.');
+        return;
+    }
+    if (typeof Notification === 'undefined' || !('serviceWorker' in navigator)) {
+        toast('Este móvil no admite avisos');
+        return;
+    }
+    if (Notification.permission === 'denied') {
+        toast('Los avisos están bloqueados en los ajustes del navegador');
+        return;
+    }
+    var permiso = Notification.permission;
+    if (permiso !== 'granted') {
+        try { permiso = await Notification.requestPermission(); }
+        catch (e) { permiso = Notification.permission; }
+    }
+    if (permiso !== 'granted') { toast('No has dado permiso para los avisos'); return; }
+    avisosSuscritos = false;                       // fuerza el alta aunque ya lo intentara
+    await suscribirAvisos();
+    await refrescarEstadoAvisos();
+    toast(avisosSuscritos ? 'Avisos activados' : 'No se han podido activar los avisos');
+}
+
+// Estado real de los avisos de esta persona en este movil. Cuatro cosas tienen
+// que salir bien y hasta ahora no habia forma de saber cual fallaba.
+var ESTADO_AVISOS = { seguro: false, permiso: 'default', sw: false, suscripciones: null };
+
+async function refrescarEstadoAvisos() {
+    ESTADO_AVISOS.seguro  = !!window.isSecureContext;
+    ESTADO_AVISOS.permiso = (typeof Notification !== 'undefined') ? Notification.permission : 'no';
+    ESTADO_AVISOS.sw      = !!(navigator.serviceWorker && navigator.serviceWorker.controller);
+    ESTADO_AVISOS.suscripciones = null;
+    if (S.token) {
+        const { ok, data } = await api('/api/push/status');
+        if (ok && data) ESTADO_AVISOS.suscripciones = data.suscripciones;
+    }
+    pintarBannerAvisos();
+    pintarDiagnosticoAvisos();
+}
+
+function pintarBannerAvisos() {
+    var banner = $('home-avisos-off');
+    if (!banner) return;
+    var mal = !ESTADO_AVISOS.seguro
+        || ESTADO_AVISOS.permiso !== 'granted'
+        || ESTADO_AVISOS.suscripciones === 0;
+    banner.style.display = mal ? '' : 'none';
+    if (!mal) return;
+    var txt = $('home-avisos-off-txt');
+    var boton = $('btn-activar-avisos');
+    if (!ESTADO_AVISOS.seguro) {
+        txt.textContent = 'Has entrado por una dirección que no permite avisos. '
+            + 'Abre la aplicación desde el acceso directo seguro (https).';
+        boton.style.display = 'none';
+    } else {
+        txt.textContent = 'El móvil no te avisará cuando te escriban si la aplicación está cerrada.';
+        boton.style.display = '';
+    }
+}
+
+function pintarDiagnosticoAvisos() {
+    var cont = $('avisos-diag');
+    if (!cont) return;
+    var e = ESTADO_AVISOS;
+    var perm = e.permiso === 'granted' ? ['ok', 'Concedido']
+             : e.permiso === 'denied'  ? ['mal', 'Bloqueado en los ajustes del navegador']
+             : ['duda', 'Todavía no lo has dado'];
+    var subs = e.suscripciones === null ? ['duda', 'No se ha podido comprobar']
+             : e.suscripciones > 0      ? ['ok', e.suscripciones === 1 ? '1 dispositivo' : e.suscripciones + ' dispositivos']
+             : ['mal', 'Ningún dispositivo registrado'];
+    var lineas = [
+        ['Dirección segura', e.seguro ? 'ok' : 'mal',
+         e.seguro ? 'Correcta' : 'Sin ella el móvil no puede avisarte'],
+        ['Permiso del móvil', perm[0], perm[1]],
+        ['Aplicación instalada', e.sw ? 'ok' : 'duda',
+         e.sw ? 'Correcta' : 'Cierra y vuelve a abrir la aplicación'],
+        ['Avisos registrados', subs[0], subs[1]],
+    ];
+    cont.innerHTML = lineas.map(function (l) {
+        return '<div class="avisos-linea ' + l[1] + '"><span class="av-punto"></span>'
+             + '<span class="av-txt"><span class="av-tit">' + esc(l[0]) + '</span>'
+             + '<span class="av-sub">' + esc(l[2]) + '</span></span></div>';
+    }).join('');
+}
+
+function abrirAvisos() {
+    $('avisos-sonido').checked = AVISO.activo;
+    pintarDiagnosticoAvisos();
+    show('screen-avisos');
+    refrescarEstadoAvisos();
+}
+
+$('avisos-home-card').addEventListener('click', abrirAvisos);
+$('avisos-back').addEventListener('click', function () { show('screen-home'); });
+$('btn-activar-avisos').addEventListener('click', activarAvisos);
+$('avisos-activar').addEventListener('click', activarAvisos);
+$('avisos-sonido').addEventListener('change', function () {
+    AVISO.activo = this.checked;
+    localStorage.setItem('msg_sound', AVISO.activo ? '1' : '0');
+    if (AVISO.activo) sonarAviso();       // que se oiga lo que acaba de activar
+});
+$('avisos-probar').addEventListener('click', async function () {
+    this.disabled = true;
+    const { ok, data } = await api('/api/push/test', 'POST');
+    this.disabled = false;
+    if (!ok) { toast((data && data.error) || 'No se ha podido enviar la prueba'); return; }
+    toast(data.dispositivos
+        ? 'Aviso enviado a ' + data.dispositivos + (data.dispositivos === 1 ? ' dispositivo' : ' dispositivos')
+        : 'No tienes ningún dispositivo registrado. Pulsa "Activar avisos".');
+    refrescarEstadoAvisos();
+});
+
 if ('serviceWorker' in navigator) {
     // `updateViaCache: 'none'` obliga a comprobar el sw.js contra el servidor en
     // cada carga, sin pasar por la cache HTTP. Es el cinturon ademas de los
@@ -5143,6 +5386,7 @@ var CHAT = {
     pollInt:   null,
     delay:     20000,
     quietFrom: 0,       // desde cuando no llega nada, para el backoff
+    lastUnread: null,   // para saber si el contador ha SUBIDO y hay que avisar
 };
 
 var CHAT_FAST = 4000, CHAT_SLOW = 10000, CHAT_IDLE = 20000, CHAT_BACKOFF_MS = 60000;
@@ -5738,6 +5982,19 @@ async function chatPoll() {
     CHAT.cursor = data.cursor;
     CHAT.since = new Date().toISOString();
 
+    // Con la conversacion cerrada, el contador es la unica senal de que ha
+    // llegado algo. `null` es la primera pasada: entonces no se avisa de lo que
+    // ya estaba sin leer antes de abrir la app.
+    if (typeof data.total_unread === 'number') {
+        if (CHAT.lastUnread !== null && data.total_unread > CHAT.lastUnread) {
+            var nueva = (data.conversations || []).filter(function (c) {
+                return c.unread > 0 && !c.muted;
+            })[0];
+            if (nueva) avisarMensaje(nueva.title, false);
+        }
+        CHAT.lastUnread = data.total_unread;
+    }
+
     if (!data.changed) {
         // Con la conversación abierta pero en silencio, se afloja el ritmo:
         // 15 móviles a 4 segundos son demasiadas peticiones para 2 workers.
@@ -5768,6 +6025,14 @@ async function chatPoll() {
     });
     if (data.read_min !== undefined) CHAT.readMin = data.read_min;
     if (data.messages && data.messages.length) {
+        // Con el hilo abierto el contador vuelve a cero al marcar leido, asi que
+        // el aviso sale de los mensajes en si. Discreto: la burbuja ya se ve.
+        var mia = parseInt(S.workerId, 10);
+        var abierta = CHAT.list.filter(function (c) { return c.id === CHAT.open; })[0];
+        if (!(abierta && abierta.muted)
+            && data.messages.some(function (m) { return m.sender_id !== mia; })) {
+            avisarMensaje(null, true);
+        }
         renderMessages(data.messages, false);
         markChatRead(data.messages);
         chatSetDelay(CHAT_FAST);

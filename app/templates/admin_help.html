@@ -1551,6 +1551,33 @@
             <p>La limpieza la hace el servidor una vez por semana. Los plazos se pueden cambiar sin tocar
                el programa; pidelo si hace falta ajustarlos.</p>
 
+            <h6>Avisos al movil: sonido y notificaciones</h6>
+            <p>Un mensaje nuevo avisa por dos caminos distintos, y conviene saber cual falla
+               cuando alguien dice que "no le llega nada":</p>
+            <ul>
+                <li><strong>Con la webapp abierta:</strong> suena un tono corto, el movil vibra y
+                    aparece un aviso en pantalla con el nombre de quien escribe. Antes solo cambiaba
+                    el numero de la tarjeta de Mensajes y no se enteraba nadie.</li>
+                <li><strong>Con la webapp cerrada:</strong> llega una notificacion del movil, con el
+                    sonido que tenga configurado el telefono.</li>
+            </ul>
+            <p>En la webapp, la tarjeta <strong>Avisos y sonido</strong> de la pantalla de inicio
+               abre una pantalla de comprobacion con cuatro puntos: direccion segura, permiso del
+               movil, aplicacion instalada y avisos registrados. El que salga en rojo es el que hay
+               que arreglar. Ahi mismo estan el boton <strong>Activar avisos</strong> (pide el
+               permiso al telefono) y <strong>Enviar aviso de prueba</strong>, que manda una
+               notificacion de verdad para comprobar si llega, sin esperar a que alguien escriba.
+               El interruptor de sonido apaga solo el tono de dentro de la aplicacion.</p>
+            <p><strong>La causa mas habitual de que no llegue nada</strong> es entrar por una
+               direccion que empieza por <code>http://</code> o por la IP del servidor: por ahi el
+               telefono no permite avisos, y la webapp lo dice en un recuadro naranja en la pantalla
+               de inicio. Hay que abrirla siempre desde el acceso directo con la direccion segura.
+               En un iPhone, ademas, la webapp tiene que estar <strong>anadida a la pantalla de
+               inicio</strong>; desde el navegador no hay avisos.</p>
+            <p>En <strong>Gestion &rarr; Empleados</strong>, quien no tenga ningun movil registrado
+               aparece con la etiqueta naranja <strong>Sin avisos</strong> al lado del nombre. Sirve
+               para verlo de un vistazo sin ir preguntando telefono por telefono.</p>
+
             <h6>Y las copias de seguridad</h6>
             <p>Los adjuntos <strong>no</strong> entran en la copia comprimida de cada noche: con 30 copias
                diarias, cada foto se guardaria treinta veces. Se copian aparte, en espejo, una vez por
@@ -1570,6 +1597,9 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>03/09</td><td><strong>Los mensajes ya suenan:</strong> con la webapp abierta, un mensaje nuevo suena, vibra y saca un aviso en pantalla con el nombre de quien escribe. Hasta ahora solo cambiaba el numero de la tarjeta de Mensajes, en silencio, y las trabajadoras no se enteraban. Se puede apagar el tono desde la nueva tarjeta <strong>Avisos y sonido</strong>.</td></tr>
+                    <tr><td>03/09</td><td><strong>Pantalla para comprobar por que no llegan los avisos:</strong> en la webapp, la tarjeta <strong>Avisos y sonido</strong> de la pantalla de inicio dice en cuatro puntos que falla (direccion segura, permiso del movil, aplicacion instalada y avisos registrados) y trae un boton para activarlos y otro para <strong>enviar un aviso de prueba</strong>. Si entra por una direccion que no permite avisos, sale un recuadro naranja avisando. Ademas, ahora hay un boton <strong>Activar avisos</strong> que pide el permiso al telefono: sin el, los iPhone no llegaban a registrarse nunca y el fallo no se veia en ningun sitio. En Empleados, quien no tenga ningun movil registrado sale marcado como <strong>Sin avisos</strong>.</td></tr>
+                    <tr><td>03/09</td><td><strong>Los mensajes seguidos vuelven a avisar:</strong> el sistema agrupaba los avisos al movil cada cinco minutos, asi que del segundo mensaje en adelante no salia ninguno. Ahora el envio no frena al que escribe y el margen ha bajado a un minuto; a quien va al dia en la conversacion se le avisa siempre.</td></tr>
                     <tr><td>03/09</td><td><strong>Al escanear a un residente sale su informacion, y se puede escuchar:</strong> la informacion relevante de la ficha (alergias, como hablarle, avisos) aparece ahora en el movil nada mas iniciar la atencion, junto con lo que toca a esa hora y sus instrucciones. Antes solo se veia si la trabajadora abria la ficha a mano, y ese boton solo salia al terminar. Cada texto lleva un boton <strong>Escuchar</strong> que lo lee en voz alta, para quien lee con dificultad o va con las manos ocupadas; escuchar es opcional y no bloquea nada. Si se cambia el texto, el audio se rehace solo. Conviene repasar los textos de informacion relevante, porque lo desactualizado pesa mas escuchado que leido.</td></tr>
                     <tr><td>03/09</td><td><strong>El boton del asistente ya no tapa el de enviar:</strong> en la webapp, al escribir a una companera, el boton flotante del asistente quedaba justo encima del boton de enviar el mensaje. Ahora desaparece mientras se esta en Mensajes y vuelve al salir.</td></tr>
                     <tr><td>01/09</td><td><strong>Ya se ve si han leido tus mensajes:</strong> en Mensajes, los mensajes propios llevan un ✓ al enviarse y ✓✓ cuando el destinatario los ha leido, tanto en el panel como en la webapp. En los grupos el doble aparece cuando lo ha leido el ultimo miembro. La informacion ya se guardaba desde el primer dia; lo que faltaba era mostrarla.</td></tr>

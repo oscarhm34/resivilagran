@@ -5,8 +5,9 @@ from flask import Blueprint, request, jsonify, render_template
 from flask_login import current_user, login_required
 from datetime import datetime, timedelta, date
 
-from .. import app, db
+from .. import app, db, limiter
 from flask_jwt_extended import jwt_required, get_jwt_identity
+import threading
 
 from ..models import (Notification, VitalSignReading, VitalSignType,
                       CareRecord, CleaningRecord, Resident, Cleaner,
@@ -727,8 +728,102 @@ def push_unsubscribe():
     return jsonify({'ok': True})
 
 
+@bp.route('/api/push/status')
+@jwt_required()
+def push_status():
+    """Estado de los avisos de quien pregunta, para la pantalla de diagnostico.
+
+    La identidad sale del token, nunca de un `worker_id` del cliente: si no,
+    cualquiera podria mirar los dispositivos de otra persona.
+    """
+    from flask import current_app
+    identity = get_jwt_identity()
+    worker = Cleaner.query.filter_by(username=identity).first()
+    if not worker:
+        return jsonify({'error': 'No autorizado'}), 403
+    return jsonify({
+        'configurado': bool(current_app.config.get('VAPID_PUBLIC_KEY')),
+        'suscripciones': PushSubscription.query.filter_by(worker_id=worker.id).count(),
+    }), 200
+
+
+@bp.route('/api/push/test', methods=['POST'])
+@jwt_required()
+@limiter.limit("5/minute", methods=["POST"])
+def push_test():
+    """Manda un aviso de prueba a los dispositivos de quien lo pide.
+
+    Es la unica forma que tiene una trabajadora de saber si los avisos le
+    llegan de verdad sin esperar a que alguien le escriba.
+    """
+    identity = get_jwt_identity()
+    worker = Cleaner.query.filter_by(username=identity).first()
+    if not worker:
+        return jsonify({'error': 'No autorizado'}), 403
+    enviados = send_push_to_worker(
+        worker.id, 'Aviso de prueba',
+        'Si ves esto, los avisos funcionan', url='/worker', tag='prueba')
+    return jsonify({'ok': True, 'dispositivos': enviados}), 200
+
+
+def _entregar_push(worker_id, destinos, payload, priv_key, email):
+    """Hace los POST a FCM/APNs. Corre en un hilo, fuera de la peticion.
+
+    Recibe `destinos` como tuplas planas y no objetos de SQLAlchemy: la sesion
+    de la peticion no se puede tocar desde otro hilo. Lo que hay que borrar se
+    apunta y se aplica al final, con su propio contexto de aplicacion.
+    """
+    try:
+        from pywebpush import webpush, WebPushException
+    except ImportError:
+        with app.app_context():
+            app.logger.error('Aviso push no enviado: falta la libreria pywebpush')
+        return
+
+    caducadas, errores = [], []
+    for sub_id, endpoint, keys_json in destinos:
+        try:
+            webpush(
+                subscription_info={
+                    'endpoint': endpoint,
+                    'keys': _json.loads(keys_json),
+                },
+                data=payload,
+                vapid_private_key=priv_key,
+                vapid_claims={'sub': email},
+            )
+        except WebPushException as e:
+            # 410 Gone o 404 = la suscripcion ya no vale, se descarta
+            if '410' in str(e) or '404' in str(e):
+                caducadas.append(sub_id)
+            else:
+                errores.append('El servicio de avisos rechazo el envio: %s' % e)
+        except Exception as e:
+            errores.append('Error al enviar el aviso push: %s' % e)
+
+    if not errores and not caducadas:
+        return
+
+    with app.app_context():
+        for msg in errores:
+            app.logger.error('Aviso push a %s: %s', worker_id, msg)
+        if caducadas:
+            app.logger.info('Se eliminan %s suscripciones caducadas de %s',
+                            len(caducadas), worker_id)
+            PushSubscription.query.filter(
+                PushSubscription.id.in_(caducadas)).delete(synchronize_session=False)
+            ok, err = _safe_commit('Error al limpiar las suscripciones caducadas')
+            if not ok:
+                app.logger.error('No se pudieron limpiar las suscripciones caducadas: %s', err)
+
+
 def send_push_to_worker(worker_id, title, body, url=None, tag=None):
     """Envia un aviso push a todas las suscripciones de una trabajadora.
+
+    Devuelve a cuantos dispositivos se ha intentado enviar. El envio en si va en
+    un hilo: son POST a un servicio externo y antes se hacian dentro de la
+    peticion, asi que quien mandaba el mensaje esperaba a FCM. Eso obligaba a
+    agrupar los avisos cada cinco minutos y dejaba a la trabajadora sin ninguno.
 
     Cada motivo por el que no sale se registra en el log. Un aviso que no llega
     no deja rastro en ningun sitio: no hay pantalla que lo muestre y la persona
@@ -740,20 +835,14 @@ def send_push_to_worker(worker_id, title, body, url=None, tag=None):
     email = current_app.config.get('VAPID_CLAIMS_EMAIL', 'mailto:admin@lavilagran.com')
     if not priv_key:
         app.logger.warning('Aviso push no enviado a %s: falta VAPID_PRIVATE_KEY', worker_id)
-        return
+        return 0
 
     subs = PushSubscription.query.filter_by(worker_id=worker_id).all()
     if not subs:
         # Lo habitual: el navegador nunca llego a suscribirse (permiso denegado,
         # sin HTTPS, o un iPhone con la webapp sin anadir a la pantalla de inicio).
         app.logger.info('Aviso push no enviado a %s: no tiene ningun dispositivo suscrito', worker_id)
-        return
-
-    try:
-        from pywebpush import webpush, WebPushException
-    except ImportError:
-        app.logger.error('Aviso push no enviado: falta la libreria pywebpush')
-        return
+        return 0
 
     payload = _json.dumps({
         'title': title,
@@ -763,32 +852,18 @@ def send_push_to_worker(worker_id, title, body, url=None, tag=None):
         # worker apila uno nuevo por mensaje y la barra de Android se llena.
         'tag': tag or 'lavilagran',
     })
+    destinos = [(s.id, s.endpoint, s.keys_json) for s in subs]
 
-    for sub in subs:
-        try:
-            keys = _json.loads(sub.keys_json)
-            webpush(
-                subscription_info={
-                    'endpoint': sub.endpoint,
-                    'keys': keys,
-                },
-                data=payload,
-                vapid_private_key=priv_key,
-                vapid_claims={'sub': email},
-            )
-        except WebPushException as e:
-            # 410 Gone o 404 = la suscripcion ya no vale, se descarta
-            if '410' in str(e) or '404' in str(e):
-                app.logger.info('Suscripcion caducada de %s, se elimina', worker_id)
-                db.session.delete(sub)
-                ok, err = _safe_commit('Error al limpiar la suscripcion caducada')
-                if not ok:
-                    app.logger.error('No se pudo limpiar la suscripcion caducada: %s', err)
-            else:
-                app.logger.error('El servicio de avisos rechazo el envio a %s: %s',
-                                 worker_id, e)
-        except Exception as e:
-            app.logger.error('Error al enviar el aviso push a %s: %s', worker_id, e)
+    if current_app.config.get('TESTING'):
+        # En los tests el hilo haria las aserciones dependientes del reloj.
+        _entregar_push(worker_id, destinos, payload, priv_key, email)
+    else:
+        threading.Thread(
+            target=_entregar_push,
+            args=(worker_id, destinos, payload, priv_key, email),
+            daemon=True,
+        ).start()
+    return len(destinos)
 
 
 def send_push_for_notification(notification):
@@ -800,6 +875,7 @@ def send_push_for_notification(notification):
     send_push_to_worker(
         worker_id=notification.worker_id,
         title=notification.title,
-        body=notification.title,
+        # El cuerpo repetia el titulo y el aviso salia con el texto dos veces.
+        body='Abre la aplicacion para verlo',
         url='/worker',
     )
