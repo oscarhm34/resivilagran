@@ -125,7 +125,7 @@ def test_al_iniciar_llegan_las_instrucciones_de_lo_que_toca(
     datos = res.get_json()
     assert datos['action'] == 'started'
     assert datos['care_hint']['name'] == 'Levantar'
-    assert 'persiana' in datos['care_hint']['instructions']
+    assert 'persiana' in datos['care_hint']['types'][0]['instructions']
     assert datos['subject_sub'] == 'Levantar'
 
 
@@ -152,7 +152,7 @@ def test_un_tipo_en_horario_pero_sin_instrucciones_se_anuncia_igual(
 
     hint = res.get_json()['care_hint']
     assert hint['name'] == 'Levantar'
-    assert hint['instructions'] is None
+    assert hint['types'][0]['instructions'] is None
 
 
 # ── Al finalizar ─────────────────────────────────────────────────────────────

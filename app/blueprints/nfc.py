@@ -31,6 +31,7 @@ from ..utils import (
     _allowed_file, ALLOWED_IMAGE_EXTENSIONS, _open_image_oriented,
     _save_image_stream, _falta_para_cerrar, _aviso_falta,
     MIN_SESSION_SECONDS_DEFAULT, _tipos_de_atencion_a_esta_hora,
+    _audio_de_texto, _hay_voz,
 )
 
 bp = Blueprint('nfc', __name__)
@@ -550,6 +551,48 @@ def api_resident_info(resident_id):
     }), 200
 
 
+def _servir_audio(texto, subcarpeta, prefijo):
+    """Devuelve el mp3 de ese texto, generandolo la primera vez.
+
+    El texto lo elige el servidor a partir del identificador: un endpoint al
+    que se le mandase el texto seria una forma de gastar el saldo de OpenAI
+    desde cualquier movil con sesion abierta.
+    """
+    relativa, error = _audio_de_texto(texto, subcarpeta, prefijo)
+    if error:
+        # Sin clave configurada no es culpa de quien lo pide, y el movil ya
+        # deberia haber ocultado el boton: 503, no 400.
+        codigo = 503 if 'configurado' in error else 502
+        return jsonify({'error': error}), codigo
+
+    respuesta = send_from_directory(app.config['UPLOAD_FOLDER'], relativa,
+                                    mimetype='audio/mpeg')
+    respuesta.headers['X-Content-Type-Options'] = 'nosniff'
+    return respuesta
+
+
+@bp.route('/api/resident/<int:resident_id>/audio')
+@jwt_required()
+@limiter.limit("20/minute")
+def api_resident_audio(resident_id):
+    """Lee en voz alta la información relevante del residente."""
+    r = db.session.get(Resident, resident_id)
+    if not r or not (r.relevant_info or '').strip():
+        return jsonify({'error': 'No hay información que leer'}), 404
+    return _servir_audio(r.relevant_info, 'resident_audio', f'res{r.id}')
+
+
+@bp.route('/api/care-type/<int:care_type_id>/audio')
+@jwt_required()
+@limiter.limit("20/minute")
+def api_care_type_audio(care_type_id):
+    """Lee en voz alta las instrucciones de un tipo de atención."""
+    ct = db.session.get(CareType, care_type_id)
+    if not ct or not (ct.instructions or '').strip():
+        return jsonify({'error': 'No hay instrucciones que leer'}), 404
+    return _servir_audio(ct.instructions, 'care_audio', f'ct{ct.id}')
+
+
 @bp.route('/api/worker/active-session')
 @jwt_required()
 def worker_active_session():
@@ -867,6 +910,7 @@ def nfc_scan():
         # tiene el movil: esa se carga una sola vez al entrar y ya hemos visto
         # que a veces falla. Las instrucciones no pueden depender de eso.
         toca = _tipos_de_atencion_a_esta_hora(now)
+        hay_voz = _hay_voz()
         salida = {
             'action': 'started',
             'type': 'care',
@@ -877,14 +921,23 @@ def nfc_scan():
             'start_time': now.isoformat(),
             'photo_url': f'/api/uploads/{resident.photo_path}' if resident.photo_path else None,
         }
-        con_instrucciones = [ct for ct in toca if ct.instructions]
+        # Lo que hay que saber de esta persona antes de empezar, no despues.
+        info = (resident.relevant_info or '').strip()
+        if info:
+            salida['resident_info'] = {'text': info, 'audio': hay_voz}
         if toca:
             salida['care_hint'] = {
                 'name': ', '.join(ct.name for ct in toca),
                 'icon': toca[0].icon or '',
-                'instructions': '\n\n'.join(
-                    f'{ct.name}\n{ct.instructions}' if len(con_instrucciones) > 1 else ct.instructions
-                    for ct in con_instrucciones) or None,
+                # Cada tipo por separado: con dos atenciones a la misma hora,
+                # cada una necesita su propio boton de escuchar.
+                'types': [{
+                    'id': ct.id,
+                    'name': ct.name,
+                    'icon': ct.icon or '',
+                    'instructions': ct.instructions or None,
+                    'audio': bool(hay_voz and (ct.instructions or '').strip()),
+                } for ct in toca],
             }
         return jsonify(salida), 200
 

@@ -197,6 +197,30 @@
             <p>La tabla de tipos muestra la franja de cada uno y marca cuales tienen instrucciones, para ver
                de un vistazo que esta configurado.</p>
 
+            <h6 class="mt-3">Lo que ve la trabajadora al escanear a un residente <span class="badge bg-success">NUEVO</span></h6>
+            <p>Al iniciar una atencion, el movil muestra una pantalla con tres cosas, y no se cierra sola:</p>
+            <ul>
+                <li>La <strong>informacion relevante</strong> de ese residente, la que se escribe en su
+                    ficha. Sale arriba del todo y destacada, porque es lo que puede cambiar como se hace el
+                    trabajo. Hasta ahora solo se veia si la trabajadora abria la ficha a mano, y ese boton
+                    solo aparecia <strong>al terminar</strong>, cuando ya no servia de nada.</li>
+                <li>La <strong>atencion que toca</strong> a esa hora, si hay alguna configurada con horario.</li>
+                <li>Las <strong>instrucciones</strong> de esa atencion. Si a esa hora tocan dos, cada una
+                    sale en su propio recuadro.</li>
+            </ul>
+            <p>Cada uno de esos textos lleva un boton <strong>Escuchar</strong>: la trabajadora puede oirlo
+               en voz alta en lugar de leerlo, que es util para quien lee con dificultad o va con las manos
+               ocupadas. Escuchar es opcional, no bloquea nada, y se puede pausar.</p>
+            <ul>
+                <li>El audio se genera la primera vez que alguien le da a escuchar y luego se reutiliza.</li>
+                <li>Si cambias el texto de la ficha o de las instrucciones, <strong>el audio se rehace
+                    solo</strong>: nunca se oye una version antigua.</li>
+                <li>Como se lee en voz alta, conviene <strong>repasar los textos</strong> de informacion
+                    relevante: lo que esta desactualizado pesa mas escuchado que leido.</li>
+                <li>El boton de escuchar solo aparece si el servidor tiene configurada la clave de voz
+                    (<code>OPENAI_API_KEY</code>). Sin ella, los textos se siguen viendo.</li>
+            </ul>
+
             <p>Los <strong>Tipos de atencion</strong> definen las actividades que se pueden registrar al atender a un residente.</p>
             <ul>
                 <li>Se accede desde <strong>Residentes &rarr; Tipos de atencion</strong>.</li>
@@ -1540,13 +1564,14 @@
         <div class="card-header">20. Registro de cambios recientes</div>
         <div class="card-body">
 
-            <h6>Agosto 2026</h6>
+            <h6>Septiembre 2026</h6>
             <table class="table table-sm">
                 <thead>
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
-                    <tr><td>31/08</td><td><strong>La webapp volvia a cargarse entera al abrirla:</strong> si se abria con la sesion ya iniciada (lo normal, el acceso dura una semana), la pantalla de inicio se quedaba a medias: solo salia el nombre, sin sesiones en curso, sin pendientes, sin cronometro y sin avisos. Habia que cerrar sesion y volver a entrar para que funcionase. Ademas, en modo oscuro el titulo de las tarjetas de pendientes y la flecha de volver eran casi invisibles.</td></tr>
+                    <tr><td>03/09</td><td><strong>Al escanear a un residente sale su informacion, y se puede escuchar:</strong> la informacion relevante de la ficha (alergias, como hablarle, avisos) aparece ahora en el movil nada mas iniciar la atencion, junto con lo que toca a esa hora y sus instrucciones. Antes solo se veia si la trabajadora abria la ficha a mano, y ese boton solo salia al terminar. Cada texto lleva un boton <strong>Escuchar</strong> que lo lee en voz alta, para quien lee con dificultad o va con las manos ocupadas; escuchar es opcional y no bloquea nada. Si se cambia el texto, el audio se rehace solo. Conviene repasar los textos de informacion relevante, porque lo desactualizado pesa mas escuchado que leido.</td></tr>
+                    <tr><td>03/09</td><td><strong>El boton del asistente ya no tapa el de enviar:</strong> en la webapp, al escribir a una companera, el boton flotante del asistente quedaba justo encima del boton de enviar el mensaje. Ahora desaparece mientras se esta en Mensajes y vuelve al salir.</td></tr>
                     <tr><td>01/09</td><td><strong>Ya se ve si han leido tus mensajes:</strong> en Mensajes, los mensajes propios llevan un ✓ al enviarse y ✓✓ cuando el destinatario los ha leido, tanto en el panel como en la webapp. En los grupos el doble aparece cuando lo ha leido el ultimo miembro. La informacion ya se guardaba desde el primer dia; lo que faltaba era mostrarla.</td></tr>
                     <tr><td>01/09</td><td><strong>Horario e instrucciones en los tipos de atencion:</strong> cada tipo de atencion puede llevar ahora una franja horaria y unas instrucciones de que hay que hacer. Al iniciar la atencion, la trabajadora ve en el movil que toca a esa hora y los pasos a seguir, antes de empezar; hasta ahora solo salia un aviso de tres segundos y lo que incluye cada atencion solo estaba en la cabeza de quien lleva tiempo. Al finalizar, el tipo de esa franja ya viene marcado, y se puede cambiar. La franja puede cruzar la medianoche, para las atenciones de noche. Se configura en Tipos de atencion; los tipos sin horario siguen funcionando igual que antes.</td></tr>
                     <tr><td>01/09</td><td><strong>Una limpieza o una atencion ya no se puede cerrar al instante:</strong> se abria y se cerraba en dos segundos, y el registro contaba como trabajo hecho en las estadisticas, en los informes de rendimiento y en el historial del residente. Ahora tiene que pasar un tiempo minimo, <strong>60 segundos por defecto</strong>, ajustable en Configuracion (0 = sin minimo). La webapp lo avisa antes: en la tarjeta de la sesion pone "Podras finalizar en 0:45" y el boton esta desactivado hasta entonces. <strong>No afecta al cierre manual desde el panel</strong> ni al cierre automatico de las sesiones que se quedan colgadas: coordinacion sigue pudiendo cerrar cuando haga falta. En una atencion de grupo, si a un residente le falta tiempo no se cierra ninguno, y el aviso dice a quien.</td></tr>
@@ -1559,6 +1584,16 @@
                     <tr><td>01/09</td><td><strong>Ya se pueden eliminar los mensajes propios:</strong> la opcion existia pero no habia ningun boton para usarla. En la webapp se toca el propio mensaje y sale "Eliminar para todos" debajo; en el panel, el icono de la papelera al pasar por encima de la burbuja. Solo el primer hora y solo los mensajes propios.</td></tr>
                     <tr><td>01/09</td><td><strong>Los avisos al movil ya llegan a quien acaba de entrar:</strong> la webapp solo pedia permiso para avisar al cargar la pagina, es decir antes de iniciar sesion, asi que quien entraba con su usuario no quedaba dado de alta y no le llegaba ningun aviso hasta recargar la webapp entera. Afectaba a todos los avisos, no solo a los mensajes. Ahora se pide al entrar. Ademas, cuando un aviso no se puede enviar queda anotado el motivo en el registro del servidor: antes fallaba en silencio y no habia forma de saber por que un movil no sonaba.</td></tr>
                     <tr><td>01/09</td><td><strong>Grupos de mensajes:</strong> ademas de las conversaciones de dos personas, ya se pueden crear grupos ("Turno de tarde", "Planta 2") desde Mensajes &rarr; Nuevo grupo, en el panel. Los crea la administracion; dentro, quien lo creo anade o saca gente y cualquiera puede salirse, y cada cambio queda anotado en el propio hilo. Quien entra despues no ve lo que se hablo antes. En Gestion &rarr; Grupos de mensajes se renombran y se archivan (archivar los retira de la lista sin borrar nada). En la webapp, el boton ⓘ de cada conversacion muestra los participantes y permite silenciarla, vaciarla o salir del grupo.</td></tr>
+                </tbody>
+            </table>
+
+            <h6>Agosto 2026</h6>
+            <table class="table table-sm">
+                <thead>
+                    <tr><th>Fecha</th><th>Cambio</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>31/08</td><td><strong>La webapp volvia a cargarse entera al abrirla:</strong> si se abria con la sesion ya iniciada (lo normal, el acceso dura una semana), la pantalla de inicio se quedaba a medias: solo salia el nombre, sin sesiones en curso, sin pendientes, sin cronometro y sin avisos. Habia que cerrar sesion y volver a entrar para que funcionase. Ademas, en modo oscuro el titulo de las tarjetas de pendientes y la flecha de volver eran casi invisibles.</td></tr>
                     <tr><td>31/08</td><td><strong>Mensajeria interna:</strong> ya se puede escribir a una compañera desde la aplicacion, sin usar WhatsApp personal. En el panel esta en el icono del bocadillo de la barra superior; en la webapp, en la tarjeta "Mensajes" de la pantalla de inicio. Los mensajes llegan solos y, con la webapp cerrada, avisan al movil. El administrador solo ve las conversaciones de las que forma parte: las demas no son accesibles desde el panel. El aviso del movil no incluye el texto del mensaje, solo quien escribe. Lo clinico sigue yendo a Incidencias o a las observaciones de la atencion. Ver la seccion 19 de esta ayuda.</td></tr>
                     <tr><td>31/08</td><td><strong>El tipo de atencion vuelve a ser obligatorio:</strong> ninguna atencion se puede finalizar sin indicar el tipo, ni desde la webapp ni desde el servidor, ni en las atenciones de grupo. Dos registros se habian guardado sin tipo porque la webapp no consiguio cargar la lista y anuncio que no habia ninguno configurado, cuando si los habia; sin tipo el registro no dice que se hizo y ya no hay forma de reconstruirlo. Ahora la webapp distingue las dos situaciones, reintenta la carga sola al finalizar y, si aun asi no lo consigue, explica que hay que volver a intentarlo mas tarde: la sesion se queda abierta, no se cierra a medias. El boton de recargar de la webapp tambien actualiza los tipos, que antes se quedaban vacios toda la sesion. Y en Registros de atencion hay un boton de lapiz para asignar el tipo a los registros antiguos que quedaron sin ninguno.</td></tr>
                     <tr><td>31/08</td><td><strong>Control del estado de administracion de medicacion:</strong> al registrar una dosis desde el movil, el estado (administrado, rechazado, omitido o no disponible) se comprueba contra la lista valida antes de guardarlo. Antes se aceptaba cualquier valor que llegase. Se han anadido tambien las primeras pruebas automaticas de medicacion y de las reglas laborales de los cuadrantes (descanso minimo entre turnos, horas semanales y dias seguidos), que no tenian ninguna.</td></tr>

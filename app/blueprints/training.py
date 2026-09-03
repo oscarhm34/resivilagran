@@ -13,7 +13,7 @@ from .. import db, app, limiter
 from ..models import (Cleaner, TrainingPill, TrainingQuestion, TrainingCompletion,
                       TrainingAssignment, TrainingTranslation)
 from ..utils import (admin_required, _verify_worker_id, _current_worker_id,
-                     log_audit, _safe_commit, TRAINING_LANGUAGES)
+                     log_audit, _safe_commit, TRAINING_LANGUAGES, _tts_mp3)
 
 bp = Blueprint('training', __name__)
 
@@ -494,7 +494,6 @@ def delete_translation(q_id: int, lang: str):
 def generate_instruction_audio(q_id: int):
     """Genera el MP3 de cada idioma con el TTS de OpenAI."""
     import os
-    import requests
 
     q = _get_instruction(q_id)
     if not q:
@@ -516,31 +515,21 @@ def generate_instruction_audio(q_id: int):
         if not tr or not tr.text.strip():
             failed.append(lang)
             continue
-        try:
-            res = requests.post(
-                'https://api.openai.com/v1/audio/speech',
-                headers={'Authorization': f'Bearer {api_key}'},
-                json={
-                    'model': 'gpt-4o-mini-tts',
-                    'voice': TRAINING_LANGUAGES[lang]['voice'],
-                    'input': tr.text,
-                    'response_format': 'mp3',
-                },
-                timeout=60,
-            )
-            if res.status_code != 200:
-                app.logger.error('TTS devolvio %s para el idioma %s', res.status_code, lang)
-                failed.append(lang)
-                continue
-            filename = f'q{q.id}_{lang}.mp3'
-            with open(os.path.join(folder, filename), 'wb') as fh:
-                fh.write(res.content)
-            tr.audio_path = f'training_audio/{filename}'
-            tr.generated_at = datetime.now()
-            done.append(lang)
-        except requests.RequestException as e:
-            app.logger.error('Error de red al generar el audio (%s): %s', lang, e)
+        contenido, error = _tts_mp3(tr.text, TRAINING_LANGUAGES[lang]['voice'])
+        if error:
             failed.append(lang)
+            continue
+        filename = f'q{q.id}_{lang}.mp3'
+        try:
+            with open(os.path.join(folder, filename), 'wb') as fh:
+                fh.write(contenido)
+        except OSError as e:
+            app.logger.error('Error al guardar el audio (%s): %s', lang, e)
+            failed.append(lang)
+            continue
+        tr.audio_path = f'training_audio/{filename}'
+        tr.generated_at = datetime.now()
+        done.append(lang)
 
     if not done:
         return jsonify({'error': 'No se ha podido generar ningún audio.',

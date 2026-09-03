@@ -443,6 +443,18 @@
         .cs-tipo-name { font-family:'Outfit',system-ui,sans-serif; font-weight:700; font-size:22px; color:var(--green-dk); line-height:1.2; }
         .cs-instr { font-size:17px; line-height:1.55; white-space:pre-wrap; color:var(--text); background:var(--bg); border-radius:16px; padding:18px 20px; }
         .cs-sin-instr { font-size:15px; color:var(--text-2); text-align:center; padding:20px 10px; }
+        .cs-bloque { margin-bottom:16px; }
+        .cs-bloque-titulo { font-size:15px; font-weight:700; color:var(--text); margin-bottom:6px; }
+        /* Los tintes de aviso ya cambian solos en modo oscuro; el data-theme
+           del panel aqui no existe, esta webapp sigue al ajuste del movil. */
+        .cs-aviso { background:var(--tint-warn-bg); border-left:5px solid var(--tint-warn-fg); }
+        /* Boton grande: se pulsa de pie, con guantes y con prisa. */
+        .cs-audio { display:flex; align-items:center; justify-content:center; gap:8px;
+                    width:100%; min-height:50px; margin-top:10px; font-size:16px; font-weight:600;
+                    border:2px solid var(--blue); background:transparent; color:var(--blue);
+                    border-radius:14px; cursor:pointer; }
+        .cs-audio:disabled { opacity:.6; }
+        .cs-audio.sonando { background:var(--blue); color:#fff; }
         /* Altas, bajas y cambios de nombre: no son de nadie, van centrados. */
         .chat-system { align-self:center; max-width:90%; text-align:center; font-size:13px; color:var(--text-2); padding:6px 12px; }
         .chat-bubble[data-own="1"] { cursor:pointer; }
@@ -685,8 +697,18 @@
             </div>
         </div>
 
-        <div class="section-label">Qué hay que hacer</div>
-        <div class="cs-instr" id="cs-instr"></div>
+        <!-- La informacion del residente va primero: es lo que puede cambiar
+             como se hace el trabajo, y hasta ahora solo se veia si alguien
+             abria la ficha a mano, al terminar. -->
+        <div id="cs-info-wrap" style="display:none">
+            <div class="section-label">Información importante</div>
+            <div class="cs-bloque">
+                <div class="cs-instr cs-aviso" id="cs-info-texto"></div>
+            </div>
+        </div>
+
+        <div class="section-label" id="cs-instr-label">Qué hay que hacer</div>
+        <div id="cs-instr-lista"></div>
         <div class="cs-sin-instr" id="cs-sin-instr" style="display:none">
             No hay instrucciones escritas para esta atención.
         </div>
@@ -1409,6 +1431,20 @@ function show(id) {
     $(id).classList.add('active');
 }
 
+// El boton del asistente es fijo abajo a la derecha, justo donde esta el boton
+// de enviar de la conversacion: se solapaban. Ademas, un boton de chat flotando
+// encima de un chat confunde, porque son dos conversaciones distintas.
+// Se decide en un solo sitio en vez de encenderlo y apagarlo a mano por ahi.
+var chatFabBloqueado = false;
+
+function actualizarChatFab() {
+    const fab = $('chat-fab');
+    if (!fab) return;
+    const pantalla = (document.querySelector('.screen.active') || {}).id || '';
+    const enMensajes = pantalla.indexOf('screen-msg') === 0;
+    fab.style.display = (S.token && !chatFabBloqueado && !enMensajes) ? '' : 'none';
+}
+
 // Browser back button support
 const screenHistory = [];
 const _origShow = show;
@@ -1419,6 +1455,7 @@ show = function(id) {
         history.pushState({ screen: id }, '', '');
     }
     _origShow(id);
+    actualizarChatFab();
 };
 
 window.addEventListener('popstate', (e) => {
@@ -1597,7 +1634,6 @@ function doLogout() {
     S.token = S.workerId = S.workerName = null;
     S.sessions = [];
     ['wt','wid','wname','wrole'].forEach(k => localStorage.removeItem(k));
-    $('chat-fab').style.display = 'none';
     try { $('chat-dialog').close(); } catch(e) {}
     try { $('chat-dialog').style.display = 'none'; } catch(e) {}
     show('screen-login');
@@ -1643,8 +1679,8 @@ async function loadConfig() {
 
 async function initHome() {
     $('home-name').textContent = S.workerName || '—';
+    chatFabBloqueado = false;
     show('screen-home');
-    $('chat-fab').style.display = '';
     homeLoadError = false;
     loadQuickPhrases();
     // La configuracion, primero y sola: las tarjetas de sesion se dibujan segun
@@ -1683,7 +1719,9 @@ async function initHome() {
 }
 
 function showMandatoryTrainingBlock(pill) {
-    $('chat-fab').style.display = 'none';
+    // Con formacion obligatoria pendiente la webapp se bloquea entera; el
+    // asistente tampoco debe quedar accesible.
+    chatFabBloqueado = true;
     var home = $('screen-home');
     home.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:70vh;text-align:center;padding:20px">'
         + '<div style="font-size:4rem;margin-bottom:16px">🎓</div>'
@@ -3020,7 +3058,7 @@ async function handleCode(code) {
         startGlobalTimer();
         // Solo si hay algo que contar. Sin horario configurado se ve exactamente
         // lo de siempre, sin una pantalla vacia de por medio.
-        if (data.care_hint) {
+        if (data.care_hint || data.resident_info) {
             mostrarInicioAtencion(data);
         } else {
             show('screen-home');
@@ -3074,14 +3112,51 @@ $('smd-cancel').addEventListener('click', () => {
 
 function mostrarInicioAtencion(data) {
     const hint = data.care_hint || {};
+    const tipos = hint.types || [];
+    csLimpiarAudio();
+
     $('cs-resident').textContent = data.subject || '';
     $('cs-tipo').textContent = hint.name || 'Atención';
     $('cs-icon').textContent = hint.icon || '❤️';
+    // Sin ningun tipo en horario la cabecera verde sobra: no hay nada que
+    // anunciar y quedaria un «Ahora toca: Atención» que no dice nada.
+    document.querySelector('.cs-tipo').style.display = tipos.length ? '' : 'none';
 
-    const hayTexto = !!(hint.instructions && hint.instructions.trim());
-    $('cs-instr').textContent = hint.instructions || '';
-    $('cs-instr').style.display = hayTexto ? '' : 'none';
-    $('cs-sin-instr').style.display = hayTexto ? 'none' : '';
+    // Informacion relevante del residente.
+    const info = data.resident_info;
+    $('cs-info-wrap').style.display = info ? '' : 'none';
+    if (info) {
+        $('cs-info-texto').textContent = info.text;
+        if (info.audio) {
+            $('cs-info-texto').after(
+                csBotonAudio('/api/resident/' + data.resident_id + '/audio'));
+        }
+    }
+
+    // Un bloque por tipo, cada uno con su boton: con dos atenciones a la misma
+    // hora, un solo boton leeria las dos seguidas sin saber donde acaba una.
+    const lista = $('cs-instr-lista');
+    lista.innerHTML = '';
+    const conTexto = tipos.filter(t => t.instructions && t.instructions.trim());
+    conTexto.forEach(t => {
+        const bloque = document.createElement('div');
+        bloque.className = 'cs-bloque';
+        if (conTexto.length > 1) {
+            const titulo = document.createElement('div');
+            titulo.className = 'cs-bloque-titulo';
+            titulo.textContent = (t.icon ? t.icon + ' ' : '') + t.name;
+            bloque.appendChild(titulo);
+        }
+        const texto = document.createElement('div');
+        texto.className = 'cs-instr';
+        texto.textContent = t.instructions;
+        bloque.appendChild(texto);
+        if (t.audio) bloque.appendChild(csBotonAudio('/api/care-type/' + t.id + '/audio'));
+        lista.appendChild(bloque);
+    });
+    $('cs-instr-label').style.display = conTexto.length ? '' : 'none';
+    // El aviso de «no hay instrucciones» solo tiene sentido si algo tocaba.
+    $('cs-sin-instr').style.display = (!conTexto.length && tipos.length) ? '' : 'none';
 
     // La ficha del residente hace falta aqui, antes de empezar, mas que al
     // terminar. El dialogo ya existe, asi que solo hay que engancharlo.
@@ -3092,7 +3167,68 @@ function mostrarInicioAtencion(data) {
     show('screen-care-start');
 }
 
-$('cs-ok').addEventListener('click', () => show('screen-home'));
+// ── Escuchar en vez de leer ───────────────────────────────────────────────
+// Muchas trabajadoras leen con dificultad o van con las manos ocupadas. A
+// diferencia de las pildoras formativas, aqui escuchar no bloquea nada: es una
+// ayuda, no un peaje.
+
+var csAudio = null;        // el que suena ahora
+var csAudioBoton = null;   // su boton
+var csAudioUrls = [];      // para revocarlas al salir
+
+function csBotonAudio(url) {
+    const b = document.createElement('button');
+    b.className = 'cs-audio';
+    b.type = 'button';
+    b.textContent = '▶ Escuchar';
+    b.addEventListener('click', () => csEscuchar(b, url));
+    return b;
+}
+
+async function csEscuchar(boton, url) {
+    if (csAudioBoton === boton && csAudio) {
+        if (csAudio.paused) { csAudio.play(); } else { csAudio.pause(); }
+        return;
+    }
+    csPararAudio();
+    boton.disabled = true;
+    boton.textContent = '⏳ Preparando…';
+    try {
+        // La primera vez el servidor tiene que generarlo, y tarda unos segundos.
+        const u = await blobAutenticado(url);
+        csAudioUrls.push(u);
+        csAudio = new Audio(u);
+        csAudioBoton = boton;
+        csAudio.onplay  = () => { boton.textContent = '⏸ Pausar'; boton.classList.add('sonando'); };
+        csAudio.onpause = () => { boton.textContent = '▶ Escuchar'; boton.classList.remove('sonando'); };
+        csAudio.onended = () => { boton.textContent = '▶ Escuchar'; boton.classList.remove('sonando'); };
+        await csAudio.play();
+    } catch (e) {
+        toast('No se ha podido reproducir el audio');
+        boton.textContent = '▶ Escuchar';
+        boton.classList.remove('sonando');
+    } finally {
+        boton.disabled = false;
+    }
+}
+
+function csPararAudio() {
+    if (csAudio) { csAudio.pause(); csAudio.currentTime = 0; }
+    if (csAudioBoton) {
+        csAudioBoton.textContent = '▶ Escuchar';
+        csAudioBoton.classList.remove('sonando');
+    }
+    csAudio = null;
+    csAudioBoton = null;
+}
+
+function csLimpiarAudio() {
+    csPararAudio();
+    csAudioUrls.forEach(u => URL.revokeObjectURL(u));
+    csAudioUrls = [];
+}
+
+$('cs-ok').addEventListener('click', () => { csLimpiarAudio(); show('screen-home'); });
 
 // ── Care type screen (end of session) ─────────────────────────────────────
 function bloquearConfirmar(motivo) {
@@ -5013,7 +5149,7 @@ var CHAT_FAST = 4000, CHAT_SLOW = 10000, CHAT_IDLE = 20000, CHAT_BACKOFF_MS = 60
 
 // Se sube a mano en cada cambio de la webapp. Sirve para saber, mirando el
 // movil, que version esta ejecutando de verdad.
-var APP_BUILD = '2026-09-01 · 8';
+var APP_BUILD = '2026-09-03 · 9';
 
 function chatIniciales(nombre) {
     var partes = (nombre || '?').trim().split(/\s+/);
@@ -5260,7 +5396,8 @@ function chatAdjuntoHtml(m) {
 
 // Ni las fotos ni los audios se descargan hasta que hacen falta: abrir un hilo
 // con cincuenta notas de voz se comeria los datos del movil de una tacada.
-async function chatBlob(url) {
+// Lo usan tambien los audios de la pantalla de inicio de atencion.
+async function blobAutenticado(url) {
     const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + S.token } });
     if (!res.ok) throw new Error('no disponible');
     return URL.createObjectURL(await res.blob());
@@ -5272,7 +5409,7 @@ function chatPrepararAdjunto(div, a) {
     const base = '/api/messaging/attachments/' + a.id;
     const img = div.querySelector('img.chat-media');
     if (img && a.has_thumb) {
-        chatBlob(base + '?thumb=1').then(function (u) {
+        blobAutenticado(base + '?thumb=1').then(function (u) {
             mediaUrls.push(u);
             img.src = u;
         }).catch(function () { img.alt = 'No se pudo cargar'; });
@@ -5292,7 +5429,7 @@ function chatPrepararAdjunto(div, a) {
         if (play.dataset.listo === '1') { play._audio.play(); return; }
         play.textContent = '…';
         try {
-            const u = await chatBlob(base);
+            const u = await blobAutenticado(base);
             mediaUrls.push(u);
             play._audio = new Audio(u);
             play._audio.addEventListener('ended', function () { play.textContent = '▶'; });
@@ -5315,7 +5452,7 @@ async function abrirVisor(a) {
     cuerpo.innerHTML = '<p style="color:#fff;padding:30px">Cargando…</p>';
     $('media-viewer').showModal();
     try {
-        const u = await chatBlob('/api/messaging/attachments/' + a.id);
+        const u = await blobAutenticado('/api/messaging/attachments/' + a.id);
         mediaUrls.push(u);
         cuerpo.innerHTML = a.media_type === 'video'
             ? '<video src="' + u + '" controls autoplay playsinline style="max-width:96vw;max-height:78vh;border-radius:12px"></video>'

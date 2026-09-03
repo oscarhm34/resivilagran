@@ -349,6 +349,106 @@ def _tipos_de_atencion_a_esta_hora(momento) -> list:
     return coinciden
 
 
+# ── Texto a voz ──────────────────────────────────────────────────────────────
+
+TTS_MAX_CHARS = 2000
+TTS_MODELO = 'gpt-4o-mini-tts'
+TTS_VOZ = 'nova'
+
+
+def _tts_mp3(texto: str, voz: str = TTS_VOZ):
+    """Llama al servicio de voz y devuelve (bytes_mp3, error).
+
+    Lo usan tanto la formacion (varios idiomas, una voz por idioma) como la
+    informacion del residente, para no tener dos veces la misma peticion.
+    """
+    import requests
+
+    api_key = app.config.get('OPENAI_API_KEY')
+    if not api_key:
+        return None, 'El audio no está configurado'
+
+    try:
+        res = requests.post(
+            'https://api.openai.com/v1/audio/speech',
+            headers={'Authorization': f'Bearer {api_key}'},
+            json={'model': TTS_MODELO, 'voice': voz,
+                  'input': texto, 'response_format': 'mp3'},
+            timeout=60,
+        )
+    except requests.RequestException as e:
+        app.logger.error('Error de red al generar el audio: %s', e)
+        return None, 'No se ha podido generar el audio'
+
+    if res.status_code != 200:
+        app.logger.error('El servicio de voz devolvio %s', res.status_code)
+        return None, 'No se ha podido generar el audio'
+
+    return res.content, None
+
+
+def _audio_de_texto(texto: str, subcarpeta: str, prefijo: str):
+    """Devuelve la ruta relativa del mp3 de ese texto, generandolo si hace falta.
+
+    El nombre lleva un hash del texto, y ahi esta la diferencia con lo que hace
+    formacion: alli, al editar el texto se borra el audio y queda "Sin audio"
+    hasta que un administrador pulsa el boton de generar. Con el hash, un texto
+    distinto es un fichero distinto, asi que **el audio nunca puede desafinar con
+    el texto**: se regenera solo la primera vez que alguien le da a escuchar.
+
+    Devuelve (ruta_relativa, error). El error es un mensaje en castellano listo
+    para el usuario, o None si fue bien.
+    """
+    import hashlib
+    import os
+
+    texto = (texto or '').strip()
+    if not texto:
+        return None, 'No hay texto que leer'
+
+    if not _hay_voz():
+        return None, 'El audio no está configurado'
+
+    # El tope existe porque no hay ningun control de gasto en el proyecto: sin el,
+    # un texto pegado de tres folios se cobra entero cada vez que cambie.
+    recortado = texto[:TTS_MAX_CHARS]
+    firma = hashlib.sha256(recortado.encode('utf-8')).hexdigest()[:8]
+    nombre = f'{prefijo}_{firma}.mp3'
+    carpeta = os.path.join(app.config['UPLOAD_FOLDER'], subcarpeta)
+    os.makedirs(carpeta, exist_ok=True)
+    destino = os.path.join(carpeta, nombre)
+    relativa = f'{subcarpeta}/{nombre}'
+
+    if os.path.exists(destino):
+        return relativa, None
+
+    contenido, error = _tts_mp3(recortado)
+    if error:
+        return None, error
+
+    try:
+        with open(destino, 'wb') as fh:
+            fh.write(contenido)
+    except OSError as e:
+        app.logger.error('Error al guardar el audio: %s', e)
+        return None, 'No se ha podido guardar el audio'
+
+    # Los de versiones anteriores de este mismo texto ya no valen para nada.
+    for viejo in os.listdir(carpeta):
+        if viejo.startswith(f'{prefijo}_') and viejo != nombre:
+            try:
+                os.remove(os.path.join(carpeta, viejo))
+            except OSError:
+                pass
+
+    return relativa, None
+
+
+def _hay_voz() -> bool:
+    """Si no hay clave, mejor no pintar un boton que siempre va a fallar."""
+    return bool(app.config.get('OPENAI_API_KEY'))
+
+
 def _today_range(target_date=None):
     """Return (start_datetime, end_datetime) for a given date (default today)."""
     d = target_date or date.today()
