@@ -774,6 +774,10 @@ def nfc_scan():
     mode = data.get('mode')  # opcional: auto-detección si no viene
     care_type_id = data.get('care_type_id')
     dry_run = data.get('dry_run', False)
+    # Iniciar una atencion son dos pasos: el primer escaneo devuelve
+    # 'confirm_start' con lo que hay que saber del residente y no toca la base
+    # de datos; el tiempo empieza cuando el movil vuelve con confirm=True.
+    confirm = bool(data.get('confirm', False))
 
     if not nfc_code or not worker_id:
         return jsonify({'error': 'Faltan campos requeridos'}), 400
@@ -896,31 +900,31 @@ def nfc_scan():
         if _check_single_session_conflict(worker_id):
             return jsonify({'error': 'Ya tienes una sesión activa. Finalízala antes de iniciar otra.'}), 409
 
-        # Start session immediately without care type
-        record = CareRecord(
-            worker_id=worker_id,
-            resident_id=resident.id,
-            start_time=now,
-        )
-        db.session.add(record)
-        ok, err = _safe_commit()
-        if not ok:
-            return jsonify({'error': err}), 500
         # El texto va entero en la respuesta y no se busca en la copia que
         # tiene el movil: esa se carga una sola vez al entrar y ya hemos visto
         # que a veces falla. Las instrucciones no pueden depender de eso.
         toca = _tipos_de_atencion_a_esta_hora(now)
         hay_voz = _hay_voz()
         salida = {
-            'action': 'started',
+            'action': 'started' if confirm else 'confirm_start',
             'type': 'care',
-            'record_id': record.id,
             'resident_id': resident.id,
             'subject': resident.name,
             'subject_sub': ', '.join(ct.name for ct in toca),
-            'start_time': now.isoformat(),
             'photo_url': f'/api/uploads/{resident.photo_path}' if resident.photo_path else None,
         }
+        if confirm:
+            record = CareRecord(
+                worker_id=worker_id,
+                resident_id=resident.id,
+                start_time=now,
+            )
+            db.session.add(record)
+            ok, err = _safe_commit()
+            if not ok:
+                return jsonify({'error': err}), 500
+            salida['record_id'] = record.id
+            salida['start_time'] = now.isoformat()
         # Lo que hay que saber de esta persona antes de empezar, no despues.
         info = (resident.relevant_info or '').strip()
         if info:

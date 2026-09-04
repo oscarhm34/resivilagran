@@ -3,6 +3,7 @@ Chatbot IA basado en Claude API con tool use para consultas sobre la aplicación
 """
 from __future__ import annotations
 import json
+import unicodedata
 from datetime import datetime, timedelta
 from anthropic import Anthropic
 from . import db
@@ -19,6 +20,9 @@ Formatea listas con viñetas y destaca nombres en negrita cuando sea útil.
 No inventes datos — solo responde con lo que devuelven las herramientas.
 
 Capacidades importantes:
+- Los tipos de atención se organizan en categorías con subtipos: "Deposiciones" tiene FECALOMA, NORMAL y DIARREA; en el registro se guarda el subtipo. Las herramientas te lo devuelven como "Deposiciones: DIARREA".
+- Para "quién ha hecho deposiciones", "a quién se le ha cambiado el pañal" o "cuántas diarreas ha habido", usa atenciones_por_tipo. Acepta tanto la categoría (Deposiciones) como el subtipo (DIARREA), y un periodo de varios días con el parámetro dias.
+- Si atenciones_por_tipo no encuentra el tipo, mira los nombres reales con tipos_de_atencion y vuelve a intentarlo; no des por hecho que no ha pasado nada.
 - Puedes buscar qué residentes tienen documentos adjuntos (PIAs, informes médicos, etc.) con residentes_con_documentos.
 - Cuando pides info de un residente con info_residente, ya incluye el CONTENIDO de sus documentos (PIAs, informes). No necesitas llamar a leer_documento_residente por separado.
 - Puedes responder preguntas sobre el contenido de los documentos (medicación, dietas, objetivos, etc.) directamente con la info que devuelve info_residente.
@@ -69,6 +73,37 @@ TOOLS = [
     {
         "name": "atenciones_hoy",
         "description": "Lista todas las atenciones realizadas hoy en la residencia, agrupadas por residente.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+        }
+    },
+    {
+        "name": "atenciones_por_tipo",
+        "description": (
+            "Busca qué residentes han recibido un tipo de atención concreto y cuándo. "
+            "El término puede ser una categoría (ej: Deposiciones, Higiene) o un subtipo "
+            "concreto (ej: DIARREA, FECALOMA): si es una categoría, devuelve todos sus "
+            "subtipos. Úsala para preguntas del tipo 'quién ha hecho deposiciones', "
+            "'a quién se le ha cambiado el pañal', 'cuántas diarreas ha habido esta semana'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "tipo": {"type": "string", "description": "Nombre de la categoría o del subtipo de atención a buscar"},
+                "fecha": {"type": "string", "description": "Día final del periodo, en formato YYYY-MM-DD (opcional, por defecto hoy)"},
+                "dias": {"type": "integer", "description": "Cuántos días hacia atrás mirar, contando el de la fecha (por defecto 1, solo ese día)"}
+            },
+            "required": ["tipo"]
+        }
+    },
+    {
+        "name": "tipos_de_atencion",
+        "description": (
+            "Lista los tipos de atención configurados, con sus subtipos. Úsala cuando no "
+            "sepas con qué nombre se registra algo, o cuando atenciones_por_tipo no "
+            "encuentre coincidencias."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {},
@@ -182,6 +217,45 @@ TOOLS = [
 ]
 
 
+# ── Tipos de atención: la categoría importa tanto como el subtipo ─────────────
+# "Deposiciones" tiene tres hijos (NORMAL, FECALOMA, DIARREA) y en el registro
+# solo se guarda el hijo. Devolviendo "DIARREA" a secas, a la pregunta "quién ha
+# hecho deposiciones" no se puede responder: el nombre no dice de qué es.
+
+def _normaliza(texto: str) -> str:
+    """Minúsculas y sin tildes, para comparar lo que escribe el usuario."""
+    sin_tildes = unicodedata.normalize('NFKD', texto or '')
+    return ''.join(c for c in sin_tildes if not unicodedata.combining(c)).lower().strip()
+
+
+def _nombre_tipo(ct: CareType) -> str:
+    """'Deposiciones: DIARREA' para los subtipos, el nombre a secas si no lo es."""
+    return f'{ct.parent.name}: {ct.name}' if ct.parent else ct.name
+
+
+def _tipos_de(record: CareRecord) -> str:
+    """Los tipos de un registro, con su categoría delante."""
+    if record.care_types:
+        return ', '.join(_nombre_tipo(ct) for ct in record.care_types)
+    if record.care_type:
+        return _nombre_tipo(record.care_type)
+    return 'Sin tipo'
+
+
+def _tipos_que_coinciden(termino: str) -> list[CareType]:
+    """Tipos cuyo nombre —o el de su categoría— contiene el término buscado.
+
+    Se filtra en Python y no con `ilike` para que las tildes den igual y para no
+    depender del motor: son unas pocas decenas de tipos.
+    """
+    buscado = _normaliza(termino)
+    if not buscado:
+        return []
+    return [ct for ct in CareType.query.all()
+            if buscado in _normaliza(ct.name)
+            or (ct.parent and buscado in _normaliza(ct.parent.name))]
+
+
 # ── Tool implementations ──────────────────────────────────────────────────────
 
 def _buscar_residente(nombre: str) -> str:
@@ -229,7 +303,7 @@ def _info_residente(residente_id: int, include_content: bool = False) -> str:
     ).order_by(CareRecord.start_time.desc()).limit(5).all()
     atenciones = []
     for c in recientes:
-        types = ', '.join(ct.name for ct in c.care_types) if c.care_types else (c.care_type.name if c.care_type else 'Sin tipo')
+        types = _tipos_de(c)
         atenciones.append({
             "fecha": c.start_time.strftime('%d/%m/%Y %H:%M'),
             "tipo": types,
@@ -342,7 +416,7 @@ def _atenciones_residente(residente_id: int, fecha: str | None = None) -> str:
         "total": len(records),
         "atenciones": [{
             "hora": c.start_time.strftime('%H:%M'),
-            "tipo": ', '.join(ct.name for ct in c.care_types) if c.care_types else (c.care_type.name if c.care_type else 'Sin tipo'),
+            "tipo": _tipos_de(c),
             "trabajador": c.worker.name if c.worker else '?',
             "duracion_min": round(c.calculate_duration() / 60, 1) if c.calculate_duration() else None,
             "en_curso": c.end_time is None,
@@ -362,7 +436,7 @@ def _atenciones_hoy() -> str:
         name = c.resident.name if c.resident else '?'
         por_residente.setdefault(name, []).append({
             "hora": c.start_time.strftime('%H:%M'),
-            "tipo": ', '.join(ct.name for ct in c.care_types) if c.care_types else (c.care_type.name if c.care_type else 'Sin tipo'),
+            "tipo": _tipos_de(c),
             "trabajador": c.worker.name if c.worker else '?',
             "en_curso": c.end_time is None,
         })
@@ -371,6 +445,62 @@ def _atenciones_hoy() -> str:
         "total_atenciones": len(records),
         "por_residente": por_residente,
     }, ensure_ascii=False)
+
+
+def _atenciones_por_tipo(tipo: str, fecha: str | None = None, dias: int = 1) -> str:
+    coincidencias = _tipos_que_coinciden(tipo)
+    if not coincidencias:
+        return json.dumps({
+            "error": f'No hay ningún tipo de atención que coincida con "{tipo}"',
+            "tipos_disponibles": [_nombre_tipo(ct) for ct in
+                                  CareType.query.filter_by(active=True).all()],
+        }, ensure_ascii=False)
+
+    dia = datetime.strptime(fecha, '%Y-%m-%d').date() if fecha else datetime.now().date()
+    dias = max(1, int(dias or 1))
+    inicio = datetime.combine(dia - timedelta(days=dias - 1), datetime.min.time())
+    fin = datetime.combine(dia + timedelta(days=1), datetime.min.time())
+
+    ids = {ct.id for ct in coincidencias}
+    records = CareRecord.query.filter(
+        CareRecord.start_time >= inicio, CareRecord.start_time < fin,
+        # care_type_id es el campo antiguo: los registros de antes de los tipos
+        # múltiples solo lo tienen a él.
+        db.or_(CareRecord.care_types.any(CareType.id.in_(ids)),
+               CareRecord.care_type_id.in_(ids)),
+    ).order_by(CareRecord.start_time).all()
+
+    atenciones = [{
+        "residente": c.resident.name if c.resident else '?',
+        "habitacion": (c.resident.room_number or 'Sin asignar') if c.resident else '?',
+        "fecha": c.start_time.strftime('%d/%m/%Y'),
+        "hora": c.start_time.strftime('%H:%M'),
+        # Solo los tipos que se preguntaban: en un registro con varios, listarlos
+        # todos haria pensar que la pregunta era por ellos.
+        "tipo": ', '.join(_nombre_tipo(ct) for ct in c.care_types if ct.id in ids)
+                or (_nombre_tipo(c.care_type) if c.care_type else 'Sin tipo'),
+        "trabajador": c.worker.name if c.worker else '?',
+        "notas": c.notes or None,
+    } for c in records]
+
+    return json.dumps({
+        "buscado": tipo,
+        "tipos_encontrados": [_nombre_tipo(ct) for ct in coincidencias],
+        "periodo": (f"{inicio.strftime('%d/%m/%Y')} a {dia.strftime('%d/%m/%Y')}"
+                    if dias > 1 else dia.strftime('%d/%m/%Y')),
+        "total": len(atenciones),
+        "residentes_distintos": len({a["residente"] for a in atenciones}),
+        "atenciones": atenciones,
+    }, ensure_ascii=False)
+
+
+def _tipos_de_atencion() -> str:
+    padres = CareType.query.filter_by(parent_id=None, active=True).order_by(
+        CareType.sort_order, CareType.name).all()
+    return json.dumps({"tipos": [{
+        "nombre": p.name,
+        "subtipos": [h.name for h in p.children if h.active],
+    } for p in padres]}, ensure_ascii=False)
 
 
 def _limpiezas_hoy() -> str:
@@ -716,6 +846,8 @@ def _get_tool_handlers(is_admin: bool = False):
         "info_residente": lambda args: _info_residente(args["residente_id"], include_content=is_admin),
         "atenciones_residente": lambda args: _atenciones_residente(args["residente_id"], args.get("fecha")),
         "atenciones_hoy": lambda args: _atenciones_hoy(),
+        "atenciones_por_tipo": lambda args: _atenciones_por_tipo(args["tipo"], args.get("fecha"), args.get("dias", 1)),
+        "tipos_de_atencion": lambda args: _tipos_de_atencion(),
         "limpiezas_hoy": lambda args: _limpiezas_hoy(),
         "ultima_limpieza_zona": lambda args: _ultima_limpieza_zona(args["numero_zona"]),
         "trabajadores_activos": lambda args: _trabajadores_activos(),

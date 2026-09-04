@@ -214,7 +214,7 @@ def test_al_escanear_llega_la_informacion_del_residente(
         client, residente, cleaner_user, worker_headers, con_clave):
     datos = _escanear(client, worker_headers, residente, cleaner_user)
 
-    assert datos['action'] == 'started'
+    assert datos['action'] == 'confirm_start'
     assert 'sorda' in datos['resident_info']['text']
     assert datos['resident_info']['audio'] is True
 

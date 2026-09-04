@@ -386,6 +386,7 @@
         .btn-cam { padding:12px 24px; border-radius:14px; border:none; font-size:15px; font-weight:600; cursor:pointer; font-family:inherit; }
         .btn-cam.primary { background:var(--blue); color:#fff; }
         .btn-cam.secondary { background:var(--bg); color:var(--text); border:1.5px solid var(--border); }
+        .btn-cam.start { background:var(--green); color:#fff; }
 
         /* ── Pending badges ── */
         .pending-section { display:flex; flex-direction:column; gap:8px; margin-bottom:20px; }
@@ -700,11 +701,11 @@
         <div class="hist-list" id="hist-list"></div>
     </div>
 
-    <!-- ══ INICIO DE ATENCIÓN: QUÉ TOCA Y CÓMO ══ -->
+    <!-- ══ ANTES DE EMPEZAR: QUÉ TOCA Y CÓMO ══ -->
     <div id="screen-care-start" class="screen">
         <div class="scan-header" style="margin-bottom:18px">
             <div style="flex:1">
-                <div style="font-size:13px;color:var(--text-2)">Atención iniciada</div>
+                <div style="font-size:13px;color:var(--text-2)">Antes de empezar</div>
                 <div style="font-family:'Outfit',sans-serif;font-size:20px;font-weight:700" id="cs-resident">—</div>
             </div>
             <button class="ri-btn" id="cs-info-btn" title="Ficha del residente" aria-label="Ficha del residente">ℹ️</button>
@@ -734,10 +735,11 @@
             No hay instrucciones escritas para esta atención.
         </div>
 
-        <button class="btn-cam primary" id="cs-ok"
-                style="width:100%;min-height:56px;margin-top:22px;font-size:17px">Entendido</button>
+        <button class="btn-cam start" id="cs-ok"
+                style="width:100%;min-height:56px;margin-top:22px;font-size:17px">▶ Iniciar atención</button>
+        <button class="ct-cancel" id="cs-cancel" style="margin:12px auto 0;display:block">← Ahora no</button>
         <p style="font-size:12px;color:var(--text-2);text-align:center;margin-top:12px">
-            El tiempo ya está contando. Al terminar, vuelve a escanear.
+            El tiempo empieza cuando pulses el botón.
         </p>
     </div>
 
@@ -2489,7 +2491,7 @@ function bindMyGroupListeners() {
                 const wrap = btn.closest('.sel-item-wrap');
                 if (wrap && wrap.dataset.rid) showResidentInfo(parseInt(wrap.dataset.rid));
             } else {
-                // Manual mode: start care session
+                // Manual mode: handleCode abre la pantalla previa, no inicia aun
                 S.mode = 'care';
                 handleCode(btn.dataset.code);
             }
@@ -2792,7 +2794,7 @@ function bindSelectListeners() {
                 const wrap = btn.closest('.sel-item-wrap');
                 if (wrap && wrap.dataset.rid) showResidentInfo(parseInt(wrap.dataset.rid));
             } else {
-                // Manual mode: start session by clicking
+                // Manual mode: handleCode abre la pantalla previa, no inicia aun
                 handleCode(btn.dataset.code);
             }
         });
@@ -3053,7 +3055,9 @@ function stopNfc() { if (nfcAbort) { nfcAbort.abort(); nfcAbort = null; } }
 
 // ── NFC handler ────────────────────────────────────────────────────────────
 let nfcProcessing = false;
-async function handleCode(code) {
+// confirmar=true es el segundo paso de una atencion: el primer escaneo solo
+// trae la informacion del residente, el tiempo arranca al pulsar el boton.
+async function handleCode(code, confirmar = false) {
     // Lock: prevent concurrent/duplicate scans
     if (nfcProcessing) return;
     nfcProcessing = true;
@@ -3087,6 +3091,7 @@ async function handleCode(code) {
 
     const payload = { nfc_code: code, worker_id: parseInt(S.workerId) };
     if (S.mode) payload.mode = S.mode;
+    if (confirmar) payload.confirm = true;
     const { ok, data } = await api('/api/nfc/scan', 'POST', payload);
 
     $('manual-code').disabled = false;
@@ -3112,14 +3117,11 @@ async function handleCode(code) {
         });
         renderActiveSessions();
         startGlobalTimer();
-        // Solo si hay algo que contar. Sin horario configurado se ve exactamente
-        // lo de siempre, sin una pantalla vacia de por medio.
-        if (data.care_hint || data.resident_info) {
-            mostrarInicioAtencion(data);
-        } else {
-            show('screen-home');
-            toast(`✓ ${detectedMode === 'care' ? 'Atención' : 'Limpieza'} iniciada — ${data.subject}`);
-        }
+        // Lo que hay que saber ya se ha leido en la pantalla previa, asi que
+        // aqui no hace falta interponer nada mas.
+        csLimpiarAudio();
+        show('screen-home');
+        toast(`✓ ${detectedMode === 'care' ? 'Atención' : 'Limpieza'} iniciada — ${data.subject}`);
         maybeStartHomeNfc();
 
     } else if (data.action === 'ended') {
@@ -3127,6 +3129,9 @@ async function handleCode(code) {
         renderActiveSessions();
         if (!S.sessions.length) { clearInterval(S.timerInt); S.timerInt = null; }
         showResult(detectedMode, data);
+
+    } else if (data.action === 'confirm_start') {
+        mostrarAntesDeEmpezar(data, code);
 
     } else if (data.action === 'select_care_type_end') {
         S.pendingEndRecordId = data.record_id;
@@ -3161,12 +3166,14 @@ $('smd-cancel').addEventListener('click', () => {
     show('screen-home');
 });
 
-// ── Inicio de atención: qué toca a esta hora y cómo se hace ───────────────
-// Antes, al escanear a un residente solo salia un aviso de 3,5 segundos que se
-// iba solo. Para leer una lista de pasos no sirve, asi que esto es una pantalla
-// que se cierra cuando la trabajadora quiere.
+// ── Antes de empezar: qué toca a esta hora y cómo se hace ───────────────
+// La pantalla sale antes de que el tiempo arranque, no despues: leer que
+// esta persona no puede tomar lacteos con el cronometro ya corriendo no
+// sirve de nada. El servidor todavia no ha tocado la base de datos; lo hara
+// cuando se pulse el boton, que vuelve a llamar a handleCode con
+// confirmar=true.
 
-function mostrarInicioAtencion(data) {
+function mostrarAntesDeEmpezar(data, code) {
     const hint = data.care_hint || {};
     const tipos = hint.types || [];
     csLimpiarAudio();
@@ -3219,6 +3226,11 @@ function mostrarInicioAtencion(data) {
     const rid = data.resident_id;
     $('cs-info-btn').style.display = rid ? '' : 'none';
     if (rid) $('cs-info-btn').onclick = () => showResidentInfo(rid);
+
+    // onclick, no addEventListener: la pantalla se reutiliza en cada escaneo y
+    // con listeners acumulados se iniciarian varias atenciones de una vez.
+    $('cs-ok').onclick = () => { csLimpiarAudio(); handleCode(code, true); };
+    $('cs-cancel').onclick = () => { csLimpiarAudio(); show('screen-home'); };
 
     show('screen-care-start');
 }
@@ -3283,8 +3295,6 @@ function csLimpiarAudio() {
     csAudioUrls.forEach(u => URL.revokeObjectURL(u));
     csAudioUrls = [];
 }
-
-$('cs-ok').addEventListener('click', () => { csLimpiarAudio(); show('screen-home'); });
 
 // ── Care type screen (end of session) ─────────────────────────────────────
 function bloquearConfirmar(motivo) {

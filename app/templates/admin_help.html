@@ -85,6 +85,14 @@
                 <li><strong>Completado hoy:</strong> Historial de sesiones finalizadas hoy, con detalle de tipos de atencion expandible.</li>
             </ul>
 
+            <h6 class="mt-3">Antes de empezar una atencion</h6>
+            <ul>
+                <li>Al escanear el tag de un residente (o al tocarlo en la lista, si el modo Solo NFC esta desactivado) <strong>el tiempo todavia no empieza</strong>: primero sale una pantalla con la informacion relevante del residente, que atencion toca a esa hora y sus instrucciones, cada texto con su boton <strong>Escuchar</strong>.</li>
+                <li>El cronometro arranca al pulsar <strong>Iniciar atencion</strong>. Con <strong>Ahora no</strong> se vuelve atras sin dejar ningun registro.</li>
+                <li>El boton <strong>i</strong> de la cabecera abre la ficha completa del residente.</li>
+                <li>Las habitaciones no tienen esta pantalla: la limpieza empieza al escanear o al tocarlas.</li>
+            </ul>
+
             <h6 class="mt-3">Modo NFC obligatorio</h6>
             <ul>
                 <li>Si esta activado en <strong>Configuracion</strong>, las sesiones solo se pueden iniciar y cerrar escaneando el tag NFC (para asegurar presencia fisica).</li>
@@ -403,6 +411,7 @@
             <h6 class="mt-3">Ejemplos de preguntas</h6>
             <ul>
                 <li>"Que atenciones se han hecho hoy?"</li>
+                <li>"Quien ha hecho deposiciones hoy?"</li>
                 <li>"Informacion del residente Maria Garcia"</li>
                 <li>"Que habitaciones estan pendientes de limpiar?"</li>
                 <li>"Que residentes tienen un PIA?"</li>
@@ -412,6 +421,14 @@
                 <li>"Quien esta trabajando ahora?"</li>
                 <li>"Resumen del dia"</li>
             </ul>
+
+            <h6 class="mt-3">Buscar por tipo de atencion</h6>
+            <ul>
+                <li>"Quien ha hecho deposiciones hoy?" / "Cuantas diarreas ha habido esta semana?"</li>
+                <li>"A quien se le ha cambiado el panal?"</li>
+                <li>"Que tipos de atencion hay configurados?"</li>
+            </ul>
+            <p>Los tipos con subtipos (por ejemplo <strong>Deposiciones</strong>, con FECALOMA, NORMAL y DIARREA) se pueden preguntar por la categoria o por el subtipo concreto: preguntando por la categoria salen todos sus subtipos. En las respuestas el tipo aparece como <em>Deposiciones: DIARREA</em>, para que se vea de que es. Se puede pedir un periodo de varios dias.</p>
 
             <h6 class="mt-3">Consultas de turnos y coberturas</h6>
             <ul>
@@ -1352,7 +1369,7 @@
         <div class="card-body">
             <p>Desde <strong><i class="bi bi-gear"></i> Config</strong> en el menu, el administrador puede activar o desactivar opciones:</p>
             <ul>
-                <li><strong>Solo NFC para iniciar/cerrar sesiones:</strong> Si esta activado, los trabajadores solo pueden iniciar y cerrar sesiones escaneando el tag NFC. Si esta desactivado, tambien pueden seleccionar desde las listas.</li>
+                <li><strong>Solo NFC para iniciar/cerrar sesiones:</strong> Si esta activado, los trabajadores solo pueden iniciar y cerrar sesiones escaneando el tag NFC. Si esta desactivado, tambien pueden seleccionar desde las listas. En los dos casos, antes de que el tiempo empiece a contar sale la pantalla previa con la informacion del residente y lo que toca hacer.</li>
                 <li><strong>Permitir atenciones grupales:</strong> Si esta activado, los trabajadores pueden seleccionar varios residentes a la vez. Si esta desactivado, solo atencion individual.</li>
                 <li><strong>Limitar a una sola sesion activa:</strong> Si esta activado, los trabajadores no pueden iniciar una nueva sesion si ya tienen una en curso. Deben finalizarla antes.</li>
                 <li><strong>Permitir a los trabajadores reportar incidencias:</strong> Si esta activado, los trabajadores ven un boton en la webapp para reportar incidentes. Si esta desactivado, solo el admin puede crear incidencias.</li>
@@ -1597,6 +1614,8 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>04/09</td><td><strong>El chatbot ya sabe responder por tipo de atencion:</strong> a preguntas como "quien ha hecho deposiciones hoy" o "cuantas diarreas ha habido esta semana" antes no sabia contestar, porque en el registro solo se guarda el subtipo (FECALOMA, NORMAL, DIARREA) y el nombre no decia de que categoria era. Ahora se puede preguntar por la categoria o por el subtipo, con el periodo de dias que se quiera, y en las respuestas el tipo sale como <em>Deposiciones: DIARREA</em>. Si el nombre no le suena, consulta los tipos configurados en vez de contestar que no hay nada.</td></tr>
+                    <tr><td>04/09</td><td><strong>El tiempo ya no empieza sin haber leido nada:</strong> la pantalla con la informacion del residente, lo que toca a esa hora y las instrucciones sale ahora <strong>antes</strong> de que arranque el cronometro, no despues. La trabajadora la lee o la escucha con calma y pulsa <strong>Iniciar atencion</strong>; si se ha equivocado de residente, <strong>Ahora no</strong> vuelve atras sin dejar ningun registro. Funciona igual escaneando el tag y tocando al residente en la lista, con el modo Solo NFC activado o desactivado.</td></tr>
                     <tr><td>03/09</td><td><strong>Los mensajes ya suenan:</strong> con la webapp abierta, un mensaje nuevo suena, vibra y saca un aviso en pantalla con el nombre de quien escribe. Hasta ahora solo cambiaba el numero de la tarjeta de Mensajes, en silencio, y las trabajadoras no se enteraban. Se puede apagar el tono desde la campana de la cabecera.</td></tr>
                     <tr><td>03/09</td><td><strong>Pantalla para comprobar por que no llegan los avisos:</strong> en la webapp, el boton de la campana de la cabecera dice en cuatro puntos que falla (direccion segura, permiso del movil, aplicacion instalada y avisos registrados) y trae un boton para activarlos y otro para <strong>enviar un aviso de prueba</strong>. Si entra por una direccion que no permite avisos, sale un recuadro naranja avisando. Ademas, ahora hay un boton <strong>Activar avisos</strong> que pide el permiso al telefono: sin el, los iPhone no llegaban a registrarse nunca y el fallo no se veia en ningun sitio. En Empleados, quien no tenga ningun movil registrado sale marcado como <strong>Sin avisos</strong>.</td></tr>
                     <tr><td>03/09</td><td><strong>Los mensajes seguidos vuelven a avisar:</strong> el sistema agrupaba los avisos al movil cada cinco minutos, asi que del segundo mensaje en adelante no salia ninguno. Ahora el envio no frena al que escribe y el margen ha bajado a un minuto; a quien va al dia en la conversacion se le avisa siempre.</td></tr>

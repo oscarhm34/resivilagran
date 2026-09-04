@@ -110,7 +110,70 @@ def test_si_coinciden_varios_se_devuelven_todos(db):
     assert len(_tipos_de_atencion_a_esta_hora(_en(9))) == 2
 
 
-# ── Al iniciar la atención ───────────────────────────────────────────────────
+# ── Antes de empezar ───────────────────────────────────────────────────────────
+
+def _escanear(client, headers, residente, cleaner_user, confirm=False):
+    cuerpo = {'nfc_code': residente.nfc_code, 'mode': 'care',
+              'worker_id': cleaner_user.id}
+    if confirm:
+        cuerpo['confirm'] = True
+    return client.post('/api/nfc/scan', headers=headers, json=cuerpo)
+
+
+def test_el_primer_escaneo_no_arranca_el_tiempo(
+        client, db, residente, cleaner_user, worker_headers):
+    """Leer que la residente es sorda con el cronometro corriendo no sirve."""
+    _tipo(db, 'Levantar', time(0, 0), time(23, 59))
+
+    datos = _escanear(client, worker_headers, residente, cleaner_user).get_json()
+
+    assert datos['action'] == 'confirm_start'
+    assert 'record_id' not in datos
+    assert 'start_time' not in datos
+    assert CareRecord.query.count() == 0
+
+
+def test_al_confirmar_empieza_la_atencion(
+        client, db, residente, cleaner_user, worker_headers):
+    _tipo(db, 'Levantar', time(0, 0), time(23, 59))
+    _escanear(client, worker_headers, residente, cleaner_user)
+
+    datos = _escanear(client, worker_headers, residente, cleaner_user,
+                      confirm=True).get_json()
+
+    assert datos['action'] == 'started'
+    assert datos['start_time']
+    registros = CareRecord.query.all()
+    assert len(registros) == 1
+    assert registros[0].id == datos['record_id']
+    assert registros[0].end_time is None
+
+
+def test_mirar_la_pantalla_varias_veces_no_duplica_la_atencion(
+        client, db, residente, cleaner_user, worker_headers):
+    """La trabajadora puede acercar el movil varias veces mientras lee."""
+    _tipo(db, 'Levantar', time(0, 0), time(23, 59))
+    for _ in range(3):
+        assert _escanear(client, worker_headers, residente,
+                         cleaner_user).get_json()['action'] == 'confirm_start'
+
+    _escanear(client, worker_headers, residente, cleaner_user, confirm=True)
+
+    assert CareRecord.query.count() == 1
+
+
+def test_con_la_atencion_en_curso_el_escaneo_pasa_a_cerrarla(
+        client, db, residente, cleaner_user, worker_headers):
+    """El paso previo es solo para empezar; con sesion abierta toca cerrar."""
+    _tipo(db, 'Levantar', time(0, 0), time(23, 59))
+    _escanear(client, worker_headers, residente, cleaner_user, confirm=True)
+
+    datos = _escanear(client, worker_headers, residente, cleaner_user).get_json()
+
+    assert datos['action'] == 'select_care_type_end'
+    assert CareRecord.query.count() == 1
+
+
 
 def test_al_iniciar_llegan_las_instrucciones_de_lo_que_toca(
         client, db, residente, cleaner_user, worker_headers):
@@ -123,7 +186,7 @@ def test_al_iniciar_llegan_las_instrucciones_de_lo_que_toca(
                             'worker_id': cleaner_user.id})
 
     datos = res.get_json()
-    assert datos['action'] == 'started'
+    assert datos['action'] == 'confirm_start'
     assert datos['care_hint']['name'] == 'Levantar'
     assert 'persiana' in datos['care_hint']['types'][0]['instructions']
     assert datos['subject_sub'] == 'Levantar'
