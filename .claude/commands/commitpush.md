@@ -58,6 +58,20 @@ Haz commit y push de los cambios del proyecto.
    credenciales, sin red), explica el error y qué hacer — **no** hagas
    `push --force` ni reescribas historial.
 
+7. **Recuerda el deploy al NAS.** Despues de informar del push, anade siempre un
+   bloque final recordando al usuario como desplegar, aunque no lo pida:
+   - El comando SSH de conexion al NAS.
+   - El comando de deploy en **una sola linea** (descarga del zip + `docker build`
+     + `docker-compose up -d`).
+   - Si el commit incluye migraciones nuevas, el `flask db stamp <head>` con el head
+     real (`flask db heads` en local); si no, decir explicitamente que no hace falta.
+   - Si el commit toca columnas de tablas existentes, el `ALTER TABLE` manual.
+
+   Los valores reales (host, puerto SSH, usuario, contenedores, directorio de
+   deploy) **no se escriben en este fichero**: el repositorio es publico. Estan en
+   la memoria local de Claude (`reference_nas_docker`) y en
+   `.claude/rules/06-deploy-nas.md` como marcadores.
+
 ## Límites
 
 - No toques `main` con force-push, rebase ni reset destructivo.
