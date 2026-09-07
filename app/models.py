@@ -42,6 +42,9 @@ class Cleaner(UserMixin, db.Model):
     identity_verified = db.Column(db.Boolean, nullable=False, default=False)
     role = db.Column(db.String(20), nullable=False, default='atenciones')  # 'limpieza', 'atenciones', 'mixto', 'gestion'
     last_active = db.Column(db.DateTime, nullable=True, index=True)
+    # Idioma de la webapp. NULL = castellano, que es lo que ve quien no ha
+    # elegido nada; asi nadie cambia de idioma por el hecho de anadir la columna.
+    lang = db.Column(db.String(5), nullable=True)
 
     groups = db.relationship('ResidentGroup', secondary=cleaner_groups, back_populates='workers', lazy=True)
 

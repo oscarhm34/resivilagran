@@ -55,7 +55,8 @@
                         <li><a href="#backups">18b. Copias de seguridad</a></li>
                         <li><a href="#auditoria">18c. Registro de auditoria</a></li>
                         <li><a href="#mensajes">19. Mensajeria interna</a></li>
-                        <li><a href="#changelog">20. Registro de cambios</a></li>
+                        <li><a href="#idiomas">20. Idioma de la webapp</a></li>
+                        <li><a href="#changelog">21. Registro de cambios</a></li>
                     </ul>
                 </div>
             </div>
@@ -1605,7 +1606,31 @@
         </div>
     </div>
 
-    <!-- 20. Registro de cambios -->
+    <!-- 20. Idioma de la webapp -->
+    <div class="card mb-4" id="idiomas">
+        <div class="card-header"><strong>20. Idioma de la webapp</strong></div>
+        <div class="card-body">
+            <p>La webapp del movil se puede usar en <strong>castellano, arabe, frances e ingles</strong>.
+               El panel de administracion sigue estando solo en castellano.</p>
+            <ul>
+                <li>La trabajadora lo cambia ella misma con el boton <strong>🌐</strong> de la cabecera
+                    de Inicio. Al elegir idioma la webapp se vuelve a abrir ya traducida.</li>
+                <li>Coordinacion tambien se lo puede poner desde <strong>Empleados</strong>, en el campo
+                    <em>Idioma de la webapp</em> de la ficha. El cambio le llega al movil sin que tenga
+                    que volver a entrar.</li>
+                <li>El idioma se guarda en su ficha, no en el telefono: si cambia de movil lo mantiene.</li>
+                <li>En arabe la pantalla se ordena <strong>de derecha a izquierda</strong>, y el dictado
+                    por voz de las observaciones tambien pasa a ese idioma.</li>
+            </ul>
+            <p class="mb-0"><strong>Que no se traduce:</strong> lo que escribe coordinacion en el panel
+               sigue saliendo en castellano —nombres de los tipos de atencion y sus instrucciones, items
+               del checklist, nombres y descripciones de las zonas, titulos de las formaciones y de las
+               actividades—. Conviene tenerlo presente al redactar las <em>instrucciones</em> de un tipo
+               de atencion: son texto de seguridad y quien no lea castellano no las entendera.</p>
+        </div>
+    </div>
+
+    <!-- 21. Registro de cambios -->
     <div class="card mb-4" id="changelog">
         <div class="card-header">20. Registro de cambios recientes</div>
         <div class="card-body">
@@ -1616,6 +1641,7 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>07/09</td><td><strong>La webapp ya se puede usar en arabe, frances e ingles:</strong> cada trabajadora elige su idioma con el boton <strong>🌐</strong> de la cabecera de Inicio, y coordinacion tambien se lo puede poner desde <strong>Empleados</strong>. El idioma queda guardado en su ficha, asi que lo mantiene aunque cambie de movil. En arabe la pantalla se ordena de derecha a izquierda y el dictado por voz de las observaciones tambien cambia de idioma. <strong>Ojo:</strong> lo que se escribe desde el panel sigue saliendo en castellano —nombres e instrucciones de los tipos de atencion, items del checklist, nombres de las zonas, titulos de formaciones y actividades—. Las <em>instrucciones</em> de los tipos de atencion son las que mas importan, porque son texto de seguridad. De paso se han pasado a castellano unos cuantos textos de la webapp que habian quedado en catalan (los nombres de las comidas, "Com esta avui?") y se han corregido acentos que faltaban en varios avisos.</td></tr>
                     <tr><td>07/09</td><td><strong>El checklist de limpieza vuelve a salir, y ahora es distinto en cada tipo de zona:</strong> desde que se activo el modo Solo NFC, en agosto, el checklist dejo de aparecer sin que nadie lo tocara. Solo se ofrecia al pulsar el boton <em>Finalizar</em> de la tarjeta, y ese boton dejo de dibujarse cuando las limpiezas pasaron a cerrarse acercando el movil a la etiqueta; por ese camino la limpieza se cerraba directamente. Ningun registro desde entonces tiene checklist guardado, y por eso el <strong>Dashboard de Rendimiento</strong> venia marcando 0% de checklist completado. Ya sale por los dos caminos. Ademas, cada item se marca ahora con <strong>las zonas donde aplica</strong> y solo aparece en las limpiezas de esos tipos de zona, porque lo que hay que repasar en un bano comun no es lo que hay que repasar en una habitacion. Se pueden marcar varias: "papel WC" en banos y apartamentos, "luces apagadas" en todas. <strong>Importante:</strong> los items que ya existian se han quedado sin ninguna zona marcada y no saldran hasta que se les marque alguna desde <strong>Checklist</strong>, donde aparecen los primeros y con un aviso naranja.</td></tr>
                     <tr><td>04/09</td><td><strong>El chatbot ya sabe responder por tipo de atencion:</strong> a preguntas como "quien ha hecho deposiciones hoy" o "cuantas diarreas ha habido esta semana" antes no sabia contestar, porque en el registro solo se guarda el subtipo (FECALOMA, NORMAL, DIARREA) y el nombre no decia de que categoria era. Ahora se puede preguntar por la categoria o por el subtipo, con el periodo de dias que se quiera, y en las respuestas el tipo sale como <em>Deposiciones: DIARREA</em>. Si el nombre no le suena, consulta los tipos configurados en vez de contestar que no hay nada.</td></tr>
                     <tr><td>04/09</td><td><strong>El tiempo ya no empieza sin haber leido nada:</strong> la pantalla con la informacion del residente, lo que toca a esa hora y las instrucciones sale ahora <strong>antes</strong> de que arranque el cronometro, no despues. La trabajadora la lee o la escucha con calma y pulsa <strong>Iniciar atencion</strong>; si se ha equivocado de residente, <strong>Ahora no</strong> vuelve atras sin dejar ningun registro. Funciona igual escaneando el tag y tocando al residente en la lista, con el modo Solo NFC activado o desactivado.</td></tr>

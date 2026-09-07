@@ -93,6 +93,16 @@
                         <option value="gestion">Gestión (no aparece en cuadrantes)</option>
                     </select>
                 </div>
+                <div class="mb-3">
+                    <label for="lang" class="form-label">Idioma de la webapp</label>
+                    <select id="lang" name="lang" class="form-select">
+                        <option value="">Castellano (por defecto)</option>
+                        {% for code, l in languages.items() if code != 'es' %}
+                        <option value="{{ code }}">{{ l.flag }} {{ l.native }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">Cada trabajadora tambien puede cambiarlo desde su movil.</div>
+                </div>
                 <div class="row g-3 mb-3">
                     <div class="col-6">
                         <div class="form-check">
@@ -212,6 +222,7 @@
                     <tr data-username="{{ cleaner.username }}"
                         data-name="{{ cleaner.name }}"
                         data-role="{{ cleaner.role or 'atenciones' }}"
+                        data-lang="{{ cleaner.lang or '' }}"
                         data-admin="{{ '1' if cleaner.is_admin else '' }}"
                         data-active="{{ '1' if cleaner.active else '' }}"
                         data-groups="{{ cleaner.groups|map(attribute='id')|list|join(',') }}">
@@ -286,6 +297,7 @@
                                     data-is-admin="{{ '1' if cleaner.is_admin else '' }}"
                                     data-active="{{ '1' if cleaner.active else '' }}"
                                     data-role="{{ cleaner.role or 'atenciones' }}"
+                                    data-lang="{{ cleaner.lang or '' }}"
                                     data-groups="{{ cleaner.groups|map(attribute='id')|list|join(',') }}"
                                     aria-label="Editar a {{ cleaner.name }}">Editar</button>
                             <button type="button"
@@ -382,6 +394,7 @@
             form.querySelector('[name="is_admin"]').checked = this.dataset.isAdmin === '1';
             form.querySelector('[name="active"]').checked   = this.dataset.active === '1';
             form.querySelector('[name="role"]').value       = this.dataset.role || 'atenciones';
+            form.querySelector('[name="lang"]').value       = this.dataset.lang || '';
             var groupIds = this.dataset.groups ? this.dataset.groups.split(',') : [];
             form.querySelectorAll('[name="group_ids"]').forEach(function(cb) {
                 cb.checked = groupIds.indexOf(cb.value) !== -1;

@@ -1,0 +1,212 @@
+{#
+  Idiomas de la webapp de trabajadoras.
+
+  La clave de cada texto es el propio castellano, no un identificador. Dos
+  razones: el codigo se sigue leyendo tal cual —`toast('Sesion expirada')` dice
+  lo que hace, no `toast('err.session.expired')`— y una traduccion que falte
+  degrada al castellano en vez de dejar un hueco o un `missing.key` en la
+  pantalla de alguien que esta trabajando.
+
+  La traduccion se aplica sobre el DOM con un MutationObserver, no marcando cada
+  elemento. La webapp genera casi la mitad de su texto desde JavaScript
+  (innerHTML, plantillas, textContent), asi que marcar el HTML solo habria
+  cubierto la mitad. Lo que no esta en la tabla pasa tal cual, que es
+  exactamente lo que tiene que pasarle a un nombre de residente, a un numero de
+  habitacion o a unas observaciones escritas a mano.
+
+  Los textos con datos dentro ("Pregunta 3 de 5") no pueden salir de la tabla
+  por coincidencia exacta: esos si llaman a `t()` con sus valores.
+
+  Va incluido en la pagina y no en /static porque el service worker sirve
+  /worker con estrategia red primero y los ficheros de /static con cache
+  primero: aqui se actualiza en el mismo despliegue, alli habria que versionar.
+#}
+<script>
+(function () {
+    'use strict';
+
+    // Rellenado abajo. El castellano no esta: es la clave.
+    var TABLA = {{ i18n_json|safe }};
+
+    var LANG = 'es';
+    var RTL = false;
+    var LOCALE = 'es-ES';
+    var activa = null;          // tabla del idioma en curso, o null en castellano
+    var traduciendo = false;    // evita que el observador se persiga a si mismo
+
+    var ATRIBUTOS = ['placeholder', 'title', 'aria-label', 'alt'];
+    // Nada que hacer aqui dentro, ni texto ni atributos.
+    var IGNORAR = { SCRIPT: 1, STYLE: 1, NOSCRIPT: 1 };
+    // El contenido de un textarea es lo que ha escrito la usuaria y no se toca,
+    // pero su `placeholder` es texto de la aplicacion y si se traduce.
+    var SIN_HIJOS = { TEXTAREA: 1 };
+
+    // ── API publica ──────────────────────────────────────────────────────────
+
+    /** Traduce una cadena. `vars` rellena {0}, {1}... en el orden dado. */
+    function t(clave, vars) {
+        var texto = (activa && activa[clave]) || clave;
+        if (vars) {
+            for (var i = 0; i < vars.length; i++) {
+                texto = texto.split('{' + i + '}').join(vars[i]);
+            }
+        }
+        return texto;
+    }
+
+    function idiomaActual() { return LANG; }
+    function localeActual() { return LOCALE; }
+    function esRTL() { return RTL; }
+
+    // ── Traduccion del DOM ───────────────────────────────────────────────────
+
+    function traducirTexto(nodo) {
+        var bruto = nodo.nodeValue;
+        if (!bruto) return;
+        var clave = bruto.trim();
+        if (!clave || clave.length > 200) return;
+        var trad = activa[clave];
+        // Se conserva el espaciado original: en el HTML el texto suele venir
+        // sangrado y con saltos, y quitarlos descuadra la maquetacion.
+        if (trad && trad !== clave) nodo.nodeValue = bruto.replace(clave, trad);
+    }
+
+    function traducirAtributos(el) {
+        for (var i = 0; i < ATRIBUTOS.length; i++) {
+            var a = ATRIBUTOS[i];
+            if (!el.hasAttribute || !el.hasAttribute(a)) continue;
+            var v = el.getAttribute(a).trim();
+            var trad = v && activa[v];
+            if (trad && trad !== v) el.setAttribute(a, trad);
+        }
+    }
+
+    function traducirElemento(el) {
+        if (!el || IGNORAR[el.tagName]) return;
+        if (el.closest && el.closest('[data-i18n-skip]')) return;
+
+        // Frases con etiquetas dentro (un <strong> en mitad de la oracion) no
+        // se pueden traducir trozo a trozo sin destrozar la gramatica de los
+        // otros idiomas: se sustituye el bloque entero.
+        var htmlKey = el.getAttribute && el.getAttribute('data-i18n-html');
+        if (htmlKey) {
+            var trad = activa[htmlKey];
+            if (trad && trad !== htmlKey) el.innerHTML = trad;
+            return;
+        }
+
+        traducirAtributos(el);
+        if (SIN_HIJOS[el.tagName]) return;
+        var hijos = el.childNodes;
+        for (var i = 0; i < hijos.length; i++) {
+            var n = hijos[i];
+            if (n.nodeType === 3) traducirTexto(n);
+            else if (n.nodeType === 1) traducirElemento(n);
+        }
+    }
+
+    function traducirTodo(raiz) {
+        if (!activa) return;
+        traduciendo = true;
+        try {
+            traducirElemento(raiz || document.body);
+        } finally {
+            traduciendo = false;
+        }
+    }
+
+    var observador = null;
+
+    function arrancarObservador() {
+        if (observador || !activa || !window.MutationObserver) return;
+        observador = new MutationObserver(function (cambios) {
+            if (traduciendo) return;
+            traduciendo = true;
+            try {
+                for (var i = 0; i < cambios.length; i++) {
+                    var c = cambios[i];
+                    if (c.type === 'characterData') {
+                        if (!c.target.parentNode ||
+                            !IGNORAR[c.target.parentNode.tagName]) traducirTexto(c.target);
+                        continue;
+                    }
+                    if (c.type === 'attributes') {
+                        traducirAtributos(c.target);
+                        continue;
+                    }
+                    for (var j = 0; j < c.addedNodes.length; j++) {
+                        var n = c.addedNodes[j];
+                        if (n.nodeType === 3) traducirTexto(n);
+                        else if (n.nodeType === 1) traducirElemento(n);
+                    }
+                }
+            } finally {
+                traduciendo = false;
+            }
+        });
+        observador.observe(document.documentElement, {
+            childList: true, subtree: true, characterData: true,
+            attributes: true, attributeFilter: ATRIBUTOS,
+        });
+    }
+
+    // ── Arranque y cambio de idioma ──────────────────────────────────────────
+
+    var LOCALES = { es: 'es-ES', ar: 'ar-MA', fr: 'fr-FR', en: 'en-GB' };
+    var RTLS = { ar: true };
+
+    /** Aplica un idioma a la pagina. Solo se llama al arrancar. */
+    function aplicar(lang) {
+        LANG = LOCALES[lang] ? lang : 'es';
+        RTL = !!RTLS[LANG];
+        LOCALE = LOCALES[LANG];
+        activa = (LANG === 'es') ? null : (TABLA[LANG] || null);
+
+        var raiz = document.documentElement;
+        raiz.setAttribute('lang', LANG);
+        raiz.setAttribute('dir', RTL ? 'rtl' : 'ltr');
+
+        if (activa) {
+            traducirTodo(document.documentElement);
+            arrancarObservador();
+        }
+    }
+
+    /**
+     * Cambia el idioma y recarga.
+     *
+     * Recargar y no repintar: media webapp esta ya dibujada con textos que
+     * vinieron del servidor o que se generaron una vez, y perseguir cada
+     * pantalla para volver a pintarla seria una fuente inagotable de trozos
+     * a medio traducir. El idioma queda guardado, asi que la recarga vuelve
+     * al mismo sitio ya en el idioma nuevo.
+     */
+    function cambiar(lang) {
+        if (!LOCALES[lang]) return;
+        try { localStorage.setItem('app_lang', lang); } catch (e) {}
+        location.reload();
+    }
+
+    function guardado() {
+        try { return localStorage.getItem('app_lang') || 'es'; } catch (e) { return 'es'; }
+    }
+
+    window.I18N = {
+        t: t, lang: idiomaActual, locale: localeActual, rtl: esRTL,
+        aplicar: aplicar, cambiar: cambiar, guardado: guardado,
+        traducir: traducirTodo,
+        idiomas: [
+            { code: 'es', native: 'Español', flag: '🇪🇸' },
+            { code: 'ar', native: 'العربية', flag: '🇸🇦' },
+            { code: 'fr', native: 'Français', flag: '🇫🇷' },
+            { code: 'en', native: 'English', flag: '🇬🇧' }
+        ]
+    };
+    window.t = t;
+
+    // Antes de que se pinte nada: el idioma guardado se lee del propio movil,
+    // asi que no hay que esperar al servidor y no se ve un parpadeo en
+    // castellano al abrir.
+    aplicar(guardado());
+})();
+</script>

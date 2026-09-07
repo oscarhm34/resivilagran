@@ -18,7 +18,8 @@ from ..models import (Cleaner, Room, CleaningRecord, Floor, RoomType, Resident,
                       CleaningTargetTime, AuditLog, PushSubscription)
 from ..utils import (admin_required, _format_duration,
                      _compute_cleaning_stats, _calculate_room_urgency,
-                     _safe_commit, _safe_flush, log_audit, volver_atras)
+                     _safe_commit, _safe_flush, log_audit, volver_atras,
+                     APP_LANGUAGES)
 
 bp = Blueprint('admin_bp', __name__)
 
@@ -262,7 +263,8 @@ def manage_workers():
         wid for (wid,) in db.session.query(PushSubscription.worker_id).distinct()
     }
     return render_template('manage_workers.html', cleaners=cleaners, groups=groups,
-                           estado_filtro=estado, con_avisos=con_avisos)
+                           estado_filtro=estado, con_avisos=con_avisos,
+                           languages=APP_LANGUAGES)
 
 
 @bp.route('/cleaners/add_edit', methods=['POST'])
@@ -278,6 +280,10 @@ def add_edit_cleaner():
     if role not in ('limpieza', 'atenciones', 'mixto', 'gestion'):
         role = 'atenciones'
 
+    # Idioma de la webapp. Vacio = castellano, que es lo que ve quien no elige.
+    lang = request.form.get('lang', '').strip() or None
+    if lang and lang not in APP_LANGUAGES:
+        lang = None
     group_ids = request.form.getlist('group_ids')
     selected_groups = ResidentGroup.query.filter(ResidentGroup.id.in_(group_ids)).all() if group_ids else []
 
@@ -289,12 +295,14 @@ def add_edit_cleaner():
             cleaner.is_admin = is_admin
             cleaner.active = active
             cleaner.role = role
+            cleaner.lang = lang
             cleaner.groups = selected_groups
             if password:
                 cleaner.set_password(password)
             log_audit('update', 'cleaner', cleaner.id,
                       {'username': username, 'rol': role, 'admin': is_admin,
-                       'activo': active, 'password_cambiada': bool(password)})
+                       'activo': active, 'idioma': lang or 'es',
+                       'password_cambiada': bool(password)})
             ok, error = _safe_commit('Error al actualizar el trabajador')
             if not ok:
                 flash(error, 'danger')
@@ -303,7 +311,8 @@ def add_edit_cleaner():
         else:
             flash('Trabajador no encontrado.', 'error')
     else:
-        new_cleaner = Cleaner(username=username, name=name, is_admin=is_admin, active=active, role=role)
+        new_cleaner = Cleaner(username=username, name=name, is_admin=is_admin,
+                              active=active, role=role, lang=lang)
         new_cleaner.set_password(password)
         new_cleaner.groups = selected_groups
         db.session.add(new_cleaner)

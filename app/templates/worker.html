@@ -231,7 +231,7 @@
             border-color:var(--green) !important; background:rgba(26,127,55,.08) !important;
         }
         .sel-item-wrap.group-selected .sel-item-row::after {
-            content:'✓'; position:absolute; top:6px; right:8px;
+            content:'✓'; position:absolute; top:6px; inset-inline-end:8px;
             background:var(--green); color:#fff; width:22px; height:22px;
             border-radius:50%; display:flex; align-items:center; justify-content:center;
             font-size:13px; font-weight:700;
@@ -242,11 +242,11 @@
         }
         .asc-photos img {
             width:36px; height:36px; border-radius:50%; object-fit:cover;
-            border:2px solid var(--bg); margin-left:-10px;
+            border:2px solid var(--bg); margin-inline-start:-10px;
         }
-        .asc-photos img:first-child { margin-left:0; }
+        .asc-photos img:first-child { margin-inline-start:0; }
         .asc-photos .asc-more {
-            width:36px; height:36px; border-radius:50%; margin-left:-10px;
+            width:36px; height:36px; border-radius:50%; margin-inline-start:-10px;
             background:var(--green-lt); color:var(--green); font-size:11px;
             font-weight:700; display:flex; align-items:center; justify-content:center;
             border:2px solid var(--bg);
@@ -412,7 +412,7 @@
         .chat-row-info { flex:1; min-width:0; }
         .chat-row-name { display:block; font-weight:600; font-size:17px; color:var(--text); }
         .chat-row-preview { display:block; font-size:14px; color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
-        .chat-row-meta { text-align:right; flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
+        .chat-row-meta { text-align:end; flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
         .chat-row-time { font-size:12px; color:var(--text-2); }
         .chat-row-badge { background:var(--blue); color:#fff; border-radius:20px; min-width:22px; padding:2px 8px; font-size:12px; font-weight:700; }
 
@@ -423,16 +423,16 @@
         .chat-head-name { font-family:'Outfit',system-ui,sans-serif; font-weight:700; font-size:17px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .msg-body { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:8px; }
         .chat-bubble { max-width:80%; padding:10px 13px; border-radius:16px; font-size:15px; line-height:1.4; word-wrap:break-word; }
-        .chat-bubble.mine { align-self:flex-end; background:var(--blue); color:#fff; border-bottom-right-radius:5px; }
-        .chat-bubble.theirs { align-self:flex-start; background:var(--bg); border:1px solid var(--border); border-bottom-left-radius:5px; }
+        .chat-bubble.mine { align-self:flex-end; background:var(--blue); color:#fff; border-end-end-radius:5px; }
+        .chat-bubble.theirs { align-self:flex-start; background:var(--bg); border:1px solid var(--border); border-end-start-radius:5px; }
         .chat-bubble.gone { font-style:italic; opacity:.7; }
         .chat-bubble.pending { opacity:.55; }
         .chat-author { font-size:12px; font-weight:700; color:var(--blue); margin-bottom:2px; }
-        .chat-meta { font-size:11px; opacity:.75; text-align:right; margin-top:3px; }
+        .chat-meta { font-size:11px; opacity:.75; text-align:end; margin-top:3px; }
         /* Un ✓ enviado, ✓✓ leido. La diferencia es de forma y no solo de color:
            la burbuja propia es azul solido, asi que un tick azul no se veria, y
            ademas un estado no debe distinguirse unicamente por el color. */
-        .chat-tick { margin-left:5px; letter-spacing:-2px; opacity:.6; }
+        .chat-tick { margin-inline-start:5px; letter-spacing:-2px; opacity:.6; }
         .chat-tick.visto { opacity:1; font-weight:700; }
         .chat-compose { display:flex; gap:8px; align-items:center; padding:12px 14px; border-top:1px solid var(--border); background:var(--surface); position:sticky; bottom:0; }
         .msg-input { flex:1; min-height:48px; border-radius:24px; border:1.5px solid var(--border); padding:12px 16px; font-size:16px; font-family:inherit; background:var(--bg); color:var(--text); }
@@ -448,7 +448,7 @@
         .cs-bloque-titulo { font-size:15px; font-weight:700; color:var(--text); margin-bottom:6px; }
         /* Los tintes de aviso ya cambian solos en modo oscuro; el data-theme
            del panel aqui no existe, esta webapp sigue al ajuste del movil. */
-        .cs-aviso { background:var(--tint-warn-bg); border-left:5px solid var(--tint-warn-fg); }
+        .cs-aviso { background:var(--tint-warn-bg); border-inline-start:5px solid var(--tint-warn-fg); }
         /* Boton grande: se pulsa de pie, con guantes y con prisa. */
         .cs-audio { display:flex; align-items:center; justify-content:center; gap:8px;
                     width:100%; min-height:50px; margin-top:10px; font-size:16px; font-weight:600;
@@ -503,7 +503,7 @@
         .quiz-q { font-weight:600; font-size:15px; margin-bottom:12px; }
         .quiz-opt { display:block; padding:12px 14px; border:1.5px solid var(--border); border-radius:12px; margin-bottom:8px; cursor:pointer; transition:border-color .15s,background .15s; }
         .quiz-opt:hover { background:var(--bg); }
-        .quiz-opt input { margin-right:10px; }
+        .quiz-opt input { margin-inline-end:10px; }
         .quiz-opt.selected { border-color:var(--blue); background:var(--blue-lt); }
         .quiz-progress { font-size:12px; color:var(--text-2); text-align:center; margin-bottom:8px; }
 
@@ -516,6 +516,11 @@
         .instr-text { font-size:18px; line-height:1.7; background:var(--surface);
                       border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:14px; }
         .instr-text[dir="rtl"] { text-align:right; }
+        /* Con la pagina en arabe, "volver" esta al otro lado. Se voltea el
+           boton de la flecha sola; los que llevan texto no se pueden voltear
+           —se espejaria tambien la palabra—, asi que esos traen la flecha en
+           el sentido correcto dentro de su propia traduccion. */
+        [dir="rtl"] .btn-back { transform:scaleX(-1); }
         .audio-btn { display:flex; align-items:center; justify-content:center; gap:10px; width:100%;
                      min-height:56px; border:none; border-radius:12px; background:var(--blue);
                      color:#fff; font-size:17px; font-weight:600; cursor:pointer; margin-bottom:14px; }
@@ -570,6 +575,7 @@
             <div style="display:flex;gap:8px;align-items:center">
                 <button class="btn-logout" id="btn-refresh" onclick="refreshAll()" style="background:var(--green-lt);color:var(--green)" title="Actualizar">↻</button>
                 <button class="btn-logout" id="avisos-home-card" title="Avisos y sonido" aria-label="Avisos y sonido">🔔</button>
+                <button class="btn-logout" id="btn-idioma" title="Idioma" aria-label="Idioma">🌐</button>
                 <button class="btn-logout" id="btn-logout" onclick="doLogout()">Cerrar sesión</button>
             </div>
         </div>
@@ -901,7 +907,7 @@
         </div>
         <div style="padding:12px 0;text-align:center">
             <h3 id="mood-resident-name" style="font-size:18px;font-weight:700;margin:0"></h3>
-            <p style="font-size:13px;color:var(--text-2);margin-top:4px">Com esta avui?</p>
+            <p style="font-size:13px;color:var(--text-2);margin-top:4px">¿Cómo está hoy?</p>
         </div>
         <div id="mood-emojis" style="display:flex;justify-content:center;gap:12px;padding:16px 0">
             <button class="mood-btn" data-score="1" style="font-size:2.2rem;background:none;border:3px solid transparent;border-radius:16px;padding:8px 12px;cursor:pointer;transition:all .15s">😢</button>
@@ -944,12 +950,12 @@
             <h3 id="meal-resident-name" style="font-size:18px;font-weight:700;margin:0"></h3>
         </div>
         <div style="padding:0 0 12px">
-            <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:8px">Apat:</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:8px">Comida:</div>
             <div id="meal-type-btns" style="display:flex;gap:8px;flex-wrap:wrap">
-                <button class="meal-type-btn" data-type="breakfast" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;cursor:pointer;font-weight:600">🌅 Esmorzar</button>
-                <button class="meal-type-btn" data-type="lunch" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;cursor:pointer;font-weight:600">☀️ Dinar</button>
-                <button class="meal-type-btn" data-type="snack" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;cursor:pointer;font-weight:600">🍪 Berenar</button>
-                <button class="meal-type-btn" data-type="dinner" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;cursor:pointer;font-weight:600">🌙 Sopar</button>
+                <button class="meal-type-btn" data-type="breakfast" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;cursor:pointer;font-weight:600">🌅 Desayuno</button>
+                <button class="meal-type-btn" data-type="lunch" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;cursor:pointer;font-weight:600">☀️ Comida</button>
+                <button class="meal-type-btn" data-type="snack" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;cursor:pointer;font-weight:600">🍪 Merienda</button>
+                <button class="meal-type-btn" data-type="dinner" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;cursor:pointer;font-weight:600">🌙 Cena</button>
             </div>
         </div>
         <div style="padding:0 0 12px">
@@ -961,7 +967,7 @@
             <div style="text-align:center;font-size:2rem;font-weight:800;margin-top:4px" id="meal-intake-val">75%</div>
         </div>
         <div style="padding:0 0 12px">
-            <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:8px">Líquids (ml):</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:8px">Líquidos (ml):</div>
             <div style="display:flex;gap:8px">
                 <button class="meal-fluid-btn" data-ml="0" style="flex:1;padding:8px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-size:12px;cursor:pointer">0</button>
                 <button class="meal-fluid-btn" data-ml="100" style="flex:1;padding:8px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-size:12px;cursor:pointer">100ml</button>
@@ -1370,13 +1376,25 @@
         </div>
     </dialog>
 
+    <!-- Idioma de la webapp -->
+    <dialog id="lang-dialog" style="border:none;border-radius:20px;padding:0;max-width:340px;width:90vw;background:var(--surface);box-shadow:0 20px 60px rgba(0,0,0,.3)">
+        <div style="padding:24px">
+            <h3 style="font-family:'Outfit',system-ui,sans-serif;font-weight:700;font-size:17px;margin:0 0 4px;color:var(--text)">Idioma</h3>
+            <p style="font-size:13px;color:var(--text-2);margin:0 0 16px">La aplicación se abrirá de nuevo en el idioma que elijas.</p>
+            <div class="lang-row" id="lang-opciones" style="flex-direction:column;margin-bottom:0"></div>
+            <button id="lang-cerrar" style="width:100%;margin-top:16px;min-height:48px;background:none;border:1px solid var(--border);border-radius:14px;color:var(--text-2);font-size:15px;cursor:pointer;font-family:inherit">Cancelar</button>
+        </div>
+    </dialog>
+
     <!-- Aviso informativo -->
     <dialog id="info-announce" style="border:none;border-radius:20px;padding:0;max-width:340px;width:90vw;background:var(--surface);box-shadow:0 20px 60px rgba(0,0,0,.3)">
         <div style="padding:28px 24px;text-align:center">
             <div style="font-size:3rem;margin-bottom:12px">📱</div>
             <h3 style="font-family:'Outfit',system-ui,sans-serif;font-weight:700;font-size:18px;margin:0 0 12px;color:var(--text)">Cambio importante</h3>
             <p style="font-size:14px;color:var(--text-2);line-height:1.5;margin:0 0 20px">
-                A partir de ahora, para <strong>finalizar</strong> una limpieza o atención, debes <strong>escanear de nuevo el NFC</strong> de la habitación o residente.<br><br>
+                {# La frase lleva <strong> en medio: traducida a trozos quedaria
+                   destrozada en los otros idiomas, asi que se cambia entera. #}
+                <span data-i18n-html="AVISO_NFC_HTML">A partir de ahora, para <strong>finalizar</strong> una limpieza o atención, debes <strong>escanear de nuevo el NFC</strong> de la habitación o residente.</span><br><br>
                 <span style="color:var(--blue);font-weight:600">Escanear para abrir → Escanear para cerrar</span>
             </p>
             <button id="btn-announce-ok" style="background:var(--blue);color:#fff;border:none;border-radius:14px;padding:14px 40px;font-size:15px;font-weight:700;cursor:pointer;font-family:'Outfit',system-ui,sans-serif;width:100%">Entendido</button>
@@ -1432,6 +1450,10 @@
     .quick-phrases button:active{background:var(--blue);color:#fff;border-color:var(--blue)}
 </style>
 
+{# El idioma se aplica antes que nada: si fuera despues, la pantalla se
+   dibujaria en castellano y cambiaria delante de quien la esta mirando. #}
+{% include "_worker_i18n.html" %}
+
 <script>
         /**
          * Convierte minutos en algo legible de un vistazo: "7 h 39 min".
@@ -1439,9 +1461,9 @@
          */
         function formatearDuracion(minutos) {
             var m = Math.max(0, Math.round(minutos || 0));
-            if (m < 60) return m + ' min';
+            if (m < 60) return t('{0} min', [m]);
             var h = Math.floor(m / 60), r = m % 60;
-            return r ? h + ' h ' + r + ' min' : h + ' h';
+            return r ? t('{0} h {1} min', [h, r]) : t('{0} h', [h]);
         }
 
 'use strict';
@@ -1564,9 +1586,33 @@ async function api(path, method = 'GET', body = null) {
             return { ok: false, data: { error: 'Sesión expirada' } };
         }
         const data = await res.json().catch(() => ({}));
+        if (!res.ok) traducirError(data);
         return { ok: res.ok, data };
     } catch {
         return { ok: false, data: { error: 'Sin conexión con el servidor' } };
+    }
+}
+
+/**
+ * Traduce los errores del servidor que llevan un dato dentro.
+ *
+ * El resto no necesita nada: el mensaje acaba en un toast, o sea en el DOM, y
+ * ahi lo traduce el observador como cualquier otro texto. Estos no, porque
+ * "Faltan 2:30" nunca es igual dos veces y no puede salir de la tabla por
+ * coincidencia exacta. Por eso el servidor manda tambien un `code`.
+ */
+function traducirError(data) {
+    if (!data || !data.code) return;
+    if (data.code === 'MIN_DURATION' && data.seconds_left != null) {
+        const m = Math.floor(data.seconds_left / 60), s = data.seconds_left % 60;
+        data.error = t('Aún no puedes finalizar. Faltan {0}.',
+                       [m + ':' + String(s).padStart(2, '0')]);
+    } else if (data.code === 'NFC_NOT_FOUND') {
+        data.error = t('Código NFC no reconocido');
+    } else if (data.code === 'ROOM_NOT_FOUND') {
+        data.error = t('Habitación no encontrada');
+    } else if (data.code === 'RESIDENT_NOT_FOUND') {
+        data.error = t('Residente no encontrado');
     }
 }
 
@@ -1589,7 +1635,7 @@ function pintarEspera(sufijo, elSec) {
     if (faltan > 0) {
         const m = Math.floor(faltan / 60), sg = faltan % 60;
         if (aviso) {
-            aviso.textContent = `Podrás finalizar en ${m}:${String(sg).padStart(2, '0')}`;
+            aviso.textContent = t('Podrás finalizar en {0}', [m + ':' + String(sg).padStart(2, '0')]);
             aviso.style.display = '';
         }
         if (btn) btn.disabled = true;
@@ -1643,7 +1689,7 @@ function actualizarEsperaEnPantalla() {
         if (faltan > 0) {
             const m = Math.floor(faltan / 60), sg = faltan % 60;
             btn.disabled = true;
-            btn.textContent = `Podrás finalizar en ${m}:${String(sg).padStart(2, '0')}`;
+            btn.textContent = t('Podrás finalizar en {0}', [m + ':' + String(sg).padStart(2, '0')]);
         } else if (btn.disabled && btn.textContent.startsWith('Podrás finalizar')) {
             btn.disabled = false;
             btn.textContent = textoOriginal;
@@ -1673,6 +1719,10 @@ $('login-form').addEventListener('submit', async e => {
         localStorage.setItem('wid',   S.workerId);
         localStorage.setItem('wname', S.workerName);
         localStorage.setItem('wrole', S.workerRole);
+        // El idioma guardado en el perfil manda sobre el del movil: asi lo
+        // sigue al cambiar de telefono, y coordinacion se lo puede cambiar
+        // desde el panel. Solo recarga si de verdad es otro.
+        if (data.lang && data.lang !== I18N.lang()) { I18N.cambiar(data.lang); return; }
         await initHome();
     } else {
         $('login-error').textContent = data.error || 'Error de conexión. Inténtalo de nuevo.';
@@ -1726,6 +1776,9 @@ document.addEventListener('visibilitychange', () => {
 async function loadConfig() {
     const { ok, data } = await api('/api/config');
     if (ok && data) S.config = data;
+    // Un cambio de idioma hecho desde el panel llega por aqui sin tener que
+    // volver a entrar.
+    if (ok && data && data.lang && data.lang !== I18N.lang()) { I18N.cambiar(data.lang); return; }
     S.sessionMaxMinutes = (S.config.session_max_minutes || 120);
     S.minSessionSeconds = (S.config.min_session_seconds || 0);
     // Apply config: group care toggles
@@ -1958,7 +2011,7 @@ document.querySelectorAll('.mood-btn').forEach(function(btn) {
         btn.style.background = '#fef3c7';
         var labels = {1:'Muy mal',2:'Mal',3:'Normal',4:'Bien',5:'Muy bien'};
         $('mood-save').disabled = false;
-        $('mood-save').textContent = 'Guardar: ' + labels[S_moodScore];
+        $('mood-save').textContent = t('Guardar: {0}', [t(labels[S_moodScore])]);
     });
 });
 
@@ -2043,9 +2096,9 @@ document.querySelectorAll('.meal-type-btn').forEach(function(btn) {
         btn.style.borderColor = 'var(--green)';
         btn.style.background = '#dcfce7';
         btn.style.color = '#166534';
-        var labels = {breakfast:'Esmorzar',lunch:'Dinar',snack:'Berenar',dinner:'Sopar'};
+        var labels = {breakfast:'Desayuno',lunch:'Comida',snack:'Merienda',dinner:'Cena'};
         $('meal-save').disabled = false;
-        $('meal-save').textContent = 'Guardar ' + labels[S_mealType];
+        $('meal-save').textContent = t('Guardar {0}', [t(labels[S_mealType])]);
     });
 });
 
@@ -2144,7 +2197,7 @@ function renderActiveSessions() {
 
     const groupKeys = Object.keys(groups);
     const totalCards = singles.length + groupKeys.length;
-    label.textContent = `${totalCards} en curso ahora`;
+    label.textContent = t('{0} en curso ahora', [totalCards]);
 
     let html = '';
 
@@ -2161,7 +2214,7 @@ function renderActiveSessions() {
         const groupStaleClass = groupStale ? ' stale' : '';
         const groupElapsed = groupStale ? members[0].elapsed_minutes : 0;
         const groupStaleHtml = groupStale
-            ? `<div class="stale-warning">⚠ Abierta hace ${groupElapsed} min</div>`
+            ? `<div class="stale-warning">${esc(t('⚠ Abierta hace {0} min', [groupElapsed]))}</div>`
             : '';
 
         // Photos
@@ -2214,7 +2267,7 @@ function renderActiveSessions() {
             : `<div class="asc-icon">${isCare ? '🤲' : '🧹'}</div>`;
         const staleClass = sess.stale ? ' stale' : '';
         const staleHtml = sess.stale
-            ? `<div class="stale-warning">⚠ Abierta hace ${sess.elapsed_minutes} min</div>`
+            ? `<div class="stale-warning">${esc(t('⚠ Abierta hace {0} min', [sess.elapsed_minutes]))}</div>`
             : '';
         html += `
         <div class="asc ${sess.type}${staleClass}" id="asc-${sess.record_id}">
@@ -2324,7 +2377,7 @@ async function loadHistory() {
         list.innerHTML = '<p class="hist-empty">Las sesiones finalizadas aparecerán aquí</p>';
         return;
     }
-    label.textContent = `Completado hoy — ${sessions.length}`;
+    label.textContent = t('Completado hoy — {0}', [sessions.length]);
     let histIdx = 0;
     list.innerHTML = sessions.map(s => {
         const isCare = s.type === 'care';
@@ -2396,7 +2449,7 @@ async function loadMyGroups() {
     wrap.style.display = 'block';
     const total = S.myGroupsData.reduce((n, g) => n + g.residents.length, 0);
     const names = S.myGroupsData.map(g => g.name).join(', ');
-    $('my-group-summary').textContent = `${total} residentes · ${names}`;
+    $('my-group-summary').textContent = t('{0} residentes · {1}', [total, names]);
 }
 
 function showMyGroup() {
@@ -2437,7 +2490,7 @@ function showMyGroup() {
                             <span class="sel-name-text">${r.name}</span>
                             ${careTag}
                         </div>
-                        <div class="sel-sub">${r.room_number ? 'Hab. ' + r.room_number : ''}</div>
+                        <div class="sel-sub">${r.room_number ? esc(t('Hab. {0}', [r.room_number])) : ''}</div>
                     </div>
                 </button>
                 ${infoBtn}
@@ -2601,7 +2654,7 @@ $('mygroup-start-group').addEventListener('click', async () => {
     S.groupSelected = [];
     $('mygroup-multiselect-toggle').classList.remove('active');
     $('mygroup-start-group').style.display = 'none';
-    toast(`Atención grupal iniciada · ${data.records.length} residentes`);
+    toast(t('Atención grupal iniciada · {0} residentes', [data.records.length]));
     show('screen-home');
 });
 $('mygroup-search').addEventListener('input', function () {
@@ -2737,7 +2790,7 @@ async function loadResidentsList() {
                             <span class="sel-name-text">${r.name}</span>
                             ${careTag}
                         </div>
-                        <div class="sel-sub">${r.room_number ? 'Hab. ' + r.room_number : ''}</div>
+                        <div class="sel-sub">${r.room_number ? esc(t('Hab. {0}', [r.room_number])) : ''}</div>
                     </div>
                 </button>
                 ${infoBtn}
@@ -2887,7 +2940,7 @@ $('select-start-group').addEventListener('click', async () => {
     S.groupSelected = [];
     $('select-multiselect-toggle').classList.remove('active');
     $('select-start-group').style.display = 'none';
-    toast(`Atención grupal iniciada · ${data.records.length} residentes`);
+    toast(t('Atención grupal iniciada · {0} residentes', [data.records.length]));
     show('screen-home');
 });
 
@@ -3003,7 +3056,7 @@ $('scan-start-group').addEventListener('click', async () => {
     stopNfc();
     S.nfcGroupMode = false;
     S.nfcGroupScanned = [];
-    toast(`Atención grupal iniciada · ${data.records.length} residentes`);
+    toast(t('Atención grupal iniciada · {0} residentes', [data.records.length]));
     show('screen-home');
 });
 
@@ -3121,7 +3174,7 @@ async function handleCode(code, confirmar = false) {
         // aqui no hace falta interponer nada mas.
         csLimpiarAudio();
         show('screen-home');
-        toast(`✓ ${detectedMode === 'care' ? 'Atención' : 'Limpieza'} iniciada — ${data.subject}`);
+        toast(t('✓ {0} iniciada — {1}', [t(detectedMode === 'care' ? 'Atención' : 'Limpieza'), data.subject]));
         maybeStartHomeNfc();
 
     } else if (data.action === 'ended') {
@@ -3385,7 +3438,7 @@ function showCareTypesEnd(data) {
     if (data._isGroup) {
         // Group care: show photo cards for each resident
         const members = data._groupMembers || [];
-        $('ct-resident-name').textContent = `Atención grupal · ${members.length} residentes`;
+        $('ct-resident-name').textContent = t('Atención grupal · {0} residentes', [members.length]);
         photoEl.style.display = 'none';
         $('ct-info-btn').style.display = 'none';
         groupMembersEl.style.display = 'flex';
@@ -3749,7 +3802,7 @@ async function finalizeCare() {
             }
         });
         if (missing.length) {
-            toast('Completa las constantes vitales: ' + missing.join(', '));
+            toast(t('Completa las constantes vitales: {0}', [missing.join(', ')]));
             visibleInputs[0].focus();
             return;
         }
@@ -3867,7 +3920,7 @@ async function showResidentInfo(residentId) {
     const { ok, data } = await api(`/api/resident/${residentId}/info`);
     if (!ok) { toast('Error al cargar información'); return; }
     $('ri-name').textContent = data.name;
-    $('ri-room').textContent = data.room_number ? 'Hab. ' + data.room_number : '';
+    $('ri-room').textContent = data.room_number ? t('Hab. {0}', [data.room_number]) : '';
     if (data.photo_url) {
         $('ri-photo').src = '';
         $('ri-photo-wrap').style.display = '';
@@ -4074,7 +4127,8 @@ async function loadPendingItems() {
         docsCard.style.display = pendingDocs.length ? '' : 'none';
         if (pendingDocs.length) {
             $('pending-docs-count').textContent = pendingDocs.length;
-            $('pending-docs-sub').textContent = pendingDocs.length + ' documento' + (pendingDocs.length > 1 ? 's' : '');
+            $('pending-docs-sub').textContent = t(
+                pendingDocs.length > 1 ? '{0} documentos' : '{0} documento', [pendingDocs.length]);
         }
     }
 
@@ -4082,15 +4136,18 @@ async function loadPendingItems() {
         trainCard.style.display = pendingTrains.length ? '' : 'none';
         if (pendingTrains.length) {
             $('pending-train-count').textContent = pendingTrains.length;
-            $('pending-train-sub').textContent = pendingTrains.length + ' formación' + (pendingTrains.length > 1 ? 'es' : '');
+            $('pending-train-sub').textContent = t(
+                pendingTrains.length > 1 ? '{0} formaciones' : '{0} formación', [pendingTrains.length]);
         }
     }
 
     if (histSection) {
         histSection.style.display = completedTrains.length ? '' : 'none';
         if (completedTrains.length) {
-            $('training-history-sub').textContent = completedTrains.length
-                + ' formación' + (completedTrains.length > 1 ? 'es' : '') + ' · pulsa para repasarlas';
+            $('training-history-sub').textContent = t(
+                completedTrains.length > 1 ? '{0} formaciones · pulsa para repasarlas'
+                                           : '{0} formación · pulsa para repasarlas',
+                [completedTrains.length]);
         }
     }
 
@@ -4312,7 +4369,7 @@ async function startTraining(pillId) {
     $('trainvid-continue').disabled = true;
     $('trainvid-continue').style.opacity = '.5';
     let remaining = Math.ceil(minWait);
-    $('trainvid-timer').textContent = `Espera ${remaining}s para continuar`;
+    $('trainvid-timer').textContent = t('Espera {0}s para continuar', [remaining]);
     clearInterval(trainVideoTimer);
     trainVideoTimer = setInterval(() => {
         remaining--;
@@ -4322,7 +4379,7 @@ async function startTraining(pillId) {
             $('trainvid-continue').style.opacity = '1';
             $('trainvid-timer').textContent = 'Ya puedes continuar al test';
         } else {
-            $('trainvid-timer').textContent = `Espera ${remaining}s para continuar`;
+            $('trainvid-timer').textContent = t('Espera {0}s para continuar', [remaining]);
         }
     }, 1000);
     show('screen-training-video');
@@ -4349,7 +4406,7 @@ $('trainvid-continue').addEventListener('click', async () => {
     });
     if (!ok) {
         if (data.wait) {
-            toast(`Espera ${data.wait}s más`);
+            toast(t('Espera {0}s más', [data.wait]));
         } else {
             toast(data.error || 'Error');
         }
@@ -4470,7 +4527,7 @@ function enableYesNo(container) {
 function renderQuizQuestion() {
     stopInstructionAudio();
     const q = quizQuestions[quizIndex];
-    $('quiz-progress').textContent = `Pregunta ${quizIndex + 1} de ${quizQuestions.length}`;
+    $('quiz-progress').textContent = t('Pregunta {0} de {1}', [quizIndex + 1, quizQuestions.length]);
     const container = $('quiz-container');
     const current = quizAnswers[String(q.index)] || '';
 
@@ -4533,7 +4590,7 @@ $('quiz-next').addEventListener('click', async () => {
             $('train-result-title').style.color = 'var(--danger)';
         }
         $('train-result-score').textContent = data.score + '%';
-        $('train-result-detail').textContent = `${data.correct} de ${data.total} correctas (mínimo ${data.threshold}%)`;
+        $('train-result-detail').textContent = t('{0} de {1} correctas (mínimo {2}%)', [data.correct, data.total, data.threshold]);
         if (data.passed) {
             pendingTrains = pendingTrains.filter(p => p.id !== currentPillId);
             loadPendingItems();
@@ -4588,12 +4645,13 @@ async function loadRoute() {
     }
 
     // Update home summary with shift and urgency info
-    var shiftInfo = data.summary.shift ? (' · Turno ' + data.summary.shift.name + ' (' + data.summary.shift.start_time + '-' + data.summary.shift.end_time + ')') : '';
-    var urgentInfo = data.summary.urgent > 0 ? (data.summary.urgent + ' urgentes') : '';
+    var shiftInfo = data.summary.shift ? t(' · Turno {0} ({1}-{2})',
+        [data.summary.shift.name, data.summary.shift.start_time, data.summary.shift.end_time]) : '';
+    var urgentInfo = data.summary.urgent > 0 ? t('{0} urgentes', [data.summary.urgent]) : '';
     if (homeSum) {
         homeSum.textContent = (urgentInfo ? urgentInfo + ' · ' : '') +
-            data.summary.remaining + ' pendientes · ~' +
-            formatearDuracion(data.summary.remaining_estimated_minutes) + shiftInfo;
+            t('{0} pendientes · ~{1}', [data.summary.remaining,
+              formatearDuracion(data.summary.remaining_estimated_minutes)]) + shiftInfo;
     }
 
     // Render route list
@@ -4605,10 +4663,10 @@ function renderRoute(data) {
     var list = $('route-list');
     var detailSum = $('route-summary-detail');
 
-    var urgentText = data.summary.urgent > 0 ? (data.summary.urgent + ' urgentes · ') : '';
-    detailSum.textContent = urgentText + data.summary.cleaned_today + '/' + data.summary.total_rooms +
-        ' completadas · ' + data.summary.remaining + ' pendientes · ~' +
-        formatearDuracion(data.summary.remaining_estimated_minutes) + ' restantes';
+    var urgentText = data.summary.urgent > 0 ? t('{0} urgentes', [data.summary.urgent]) + ' · ' : '';
+    detailSum.textContent = urgentText + t('{0} completadas · {1} pendientes · ~{2} restantes',
+        [data.summary.cleaned_today + '/' + data.summary.total_rooms, data.summary.remaining,
+         formatearDuracion(data.summary.remaining_estimated_minutes)]);
 
     var html = '';
     var currentPriority = '';
@@ -4626,7 +4684,7 @@ function renderRoute(data) {
             sectionLabel = '<div style="font-size:12px;font-weight:700;color:#bf8700;margin-top:16px;margin-bottom:6px;display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:#bf8700;display:inline-block"></span>Toca hoy</div>';
             currentPriority = 'due';
         } else if (room.priority === 'ok' && currentPriority !== 'ok') {
-            sectionLabel = '<div style="font-size:12px;font-weight:700;color:var(--text-2);margin-top:16px;margin-bottom:6px;display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:var(--text-2);display:inline-block"></span>Al dia</div>';
+            sectionLabel = '<div style="font-size:12px;font-weight:700;color:var(--text-2);margin-top:16px;margin-bottom:6px;display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:var(--text-2);display:inline-block"></span>Al día</div>';
             currentPriority = 'ok';
         } else if (room.priority === 'done' && currentPriority !== 'done') {
             sectionLabel = '<div style="font-size:12px;font-weight:700;color:var(--green);margin-top:16px;margin-bottom:6px;display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block"></span>Completadas hoy</div>';
@@ -4731,7 +4789,9 @@ $('route-back').addEventListener('click', function() { show('screen-home'); });
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         recognition = new SpeechRec();
-        recognition.lang = 'es-ES';
+        // El dictado va en el idioma de la webapp: quien la usa en arabe
+        // tampoco dicta las observaciones en castellano.
+        recognition.lang = I18N.locale();
         recognition.continuous = false;
         recognition.interimResults = false;
         recognition.onresult = e => { chatInput.value = e.results[0][0].transcript; micEl.classList.remove('recording'); sendChat(); };
@@ -4763,8 +4823,8 @@ $('route-back').addEventListener('click', function() { show('screen-home'); });
                     else if (data.error && data.error.includes('OPENAI_API_KEY')) {
                         useWhisper = false;
                         if (recognition) { micEl.style.opacity = ''; recognition.start(); micEl.classList.add('recording'); }
-                        else toast('Transcripcion no disponible');
-                    } else toast(data.error || 'Error en transcripcion');
+                        else toast('Transcripción no disponible');
+                    } else toast(data.error || 'Error en transcripción');
                 } catch(e) { toast('Error al enviar audio'); }
                 micEl.style.opacity = '';
             };
@@ -4773,7 +4833,7 @@ $('route-back').addEventListener('click', function() { show('screen-home'); });
         } catch(e) {
             useWhisper = false;
             if (recognition) { recognition.start(); micEl.classList.add('recording'); }
-            else toast('No se pudo acceder al microfono');
+            else toast('No se pudo acceder al micrófono');
         }
     }
 
@@ -4795,7 +4855,7 @@ $('route-back').addEventListener('click', function() { show('screen-home'); });
             });
             const data = await resp.json();
             if (data.text) { chatInput.value = data.text; sendChat(); }
-            else toast(data.error || 'Error en transcripcion');
+            else toast(data.error || 'Error en transcripción');
         } catch(e) { toast('Error al enviar audio'); }
         micEl.style.opacity = '';
     });
@@ -4864,7 +4924,7 @@ $('route-back').addEventListener('click', function() { show('screen-home'); });
                                 textarea.value = textarea.value ? textarea.value + ' ' + data.text : data.text;
                                 textarea.dispatchEvent(new Event('input'));
                             } else {
-                                toast(data.error || 'Error en transcripcion');
+                                toast(data.error || 'Error en transcripción');
                             }
                         } catch(e) { toast('Error al enviar audio'); }
                         btn.classList.remove('transcribing');
@@ -4872,10 +4932,10 @@ $('route-back').addEventListener('click', function() { show('screen-home'); });
                     recorder.start();
                     btn.classList.add('recording');
                 } catch(e) {
-                    toast('No se pudo acceder al microfono');
+                    toast('No se pudo acceder al micrófono');
                 }
             } else {
-                toast('Microfono no disponible (requiere HTTPS)');
+                toast('Micrófono no disponible (requiere HTTPS)');
             }
         });
     });
@@ -4918,7 +4978,7 @@ $('route-back').addEventListener('click', function() { show('screen-home'); });
                 } else {
                     toast(data.error || 'Error al expandir');
                 }
-            } catch(e) { toast('Error de conexion'); }
+            } catch(e) { toast('Error de conexión'); }
             btn.classList.remove('loading');
             btn.textContent = '✨ Expandir con IA';
         });
@@ -4951,7 +5011,7 @@ $('route-back').addEventListener('click', function() { show('screen-home'); });
 
     async function startScribe() {
         if (!navigator.mediaDevices) {
-            toast('Microfono no disponible (requiere HTTPS)');
+            toast('Micrófono no disponible (requiere HTTPS)');
             return;
         }
         try {
@@ -4978,7 +5038,7 @@ $('route-back').addEventListener('click', function() { show('screen-home'); });
                 statusEl.textContent = m + ':' + (s < 10 ? '0' : '') + s;
             }, 1000);
         } catch(e) {
-            toast('No se pudo acceder al microfono');
+            toast('No se pudo acceder al micrófono');
         }
     }
 
@@ -5021,10 +5081,10 @@ $('route-back').addEventListener('click', function() { show('screen-home'); });
                     labelEl.textContent = '🎙 Escriba de voz';
                 } else if (data.empty) {
                     labelEl.textContent = '🎙 Escriba de voz';
-                    toast('Grabacion demasiado corta o sin contenido');
+                    toast('Grabación demasiado corta o sin contenido');
                 } else {
                     labelEl.textContent = '🎙 Escriba de voz';
-                    toast(data.error || 'Error al processar audio');
+                    toast(data.error || 'Error al procesar audio');
                 }
             } catch(e) {
                 labelEl.textContent = '🎙 Escriba de voz';
@@ -5196,7 +5256,7 @@ function avisarMensaje(nombre, discreto) {
     try {
         if (AVISO.activo) sonarAviso();
         if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-        if (!discreto) toast(nombre ? 'Nuevo mensaje de ' + nombre : 'Tienes un mensaje nuevo');
+        if (!discreto) toast(nombre ? t('Nuevo mensaje de {0}', [nombre]) : 'Tienes un mensaje nuevo');
     } catch (e) { /* idem */ }
 }
 
@@ -5364,6 +5424,32 @@ function abrirAvisos() {
 }
 
 $('avisos-home-card').addEventListener('click', abrirAvisos);
+
+// ── Idioma de la webapp ────────────────────────────────────────────────────
+
+function pintarIdiomas() {
+    const actual = I18N.lang();
+    $('lang-opciones').innerHTML = I18N.idiomas.map(l => `
+        <button type="button" class="lang-chip ${l.code === actual ? 'selected' : ''}"
+                data-lang="${l.code}" style="width:100%;justify-content:flex-start">
+            <span aria-hidden="true" style="font-size:18px">${l.flag}</span>
+            <span lang="${l.code}">${l.native}</span>
+        </button>`).join('');
+    $('lang-opciones').querySelectorAll('.lang-chip').forEach(chip => {
+        chip.addEventListener('click', () => elegirIdioma(chip.dataset.lang));
+    });
+}
+
+async function elegirIdioma(lang) {
+    if (lang === I18N.lang()) { $('lang-dialog').close(); return; }
+    // Se guarda en el perfil para que la siga si cambia de movil, pero no se
+    // espera al servidor para cambiarla: sin cobertura tambien tiene que poder.
+    try { await api('/api/worker/lang', 'PUT', { lang: lang }); } catch (e) {}
+    I18N.cambiar(lang);
+}
+
+$('btn-idioma').addEventListener('click', () => { pintarIdiomas(); $('lang-dialog').showModal(); });
+$('lang-cerrar').addEventListener('click', () => $('lang-dialog').close());
 $('avisos-back').addEventListener('click', function () { show('screen-home'); });
 $('btn-activar-avisos').addEventListener('click', activarAvisos);
 $('avisos-activar').addEventListener('click', activarAvisos);
@@ -5378,7 +5464,8 @@ $('avisos-probar').addEventListener('click', async function () {
     this.disabled = false;
     if (!ok) { toast((data && data.error) || 'No se ha podido enviar la prueba'); return; }
     toast(data.dispositivos
-        ? 'Aviso enviado a ' + data.dispositivos + (data.dispositivos === 1 ? ' dispositivo' : ' dispositivos')
+        ? t('Aviso enviado a {0}', [data.dispositivos + ' ' +
+              t(data.dispositivos === 1 ? 'dispositivo' : 'dispositivos')])
         : 'No tienes ningún dispositivo registrado. Pulsa "Activar avisos".');
     refrescarEstadoAvisos();
 });
@@ -5424,7 +5511,7 @@ var CHAT_FAST = 4000, CHAT_SLOW = 10000, CHAT_IDLE = 10000, CHAT_BACKOFF_MS = 60
 
 // Se sube a mano en cada cambio de la webapp. Sirve para saber, mirando el
 // movil, que version esta ejecutando de verdad.
-var APP_BUILD = '2026-09-07 · 10';
+var APP_BUILD = '2026-09-07 · 11';
 
 function chatIniciales(nombre) {
     var partes = (nombre || '?').trim().split(/\s+/);
@@ -5448,9 +5535,9 @@ function chatHora(iso) {
     if (!iso) return '';
     var d = new Date(iso), hoy = new Date();
     if (d.toDateString() === hoy.toDateString()) {
-        return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        return d.toLocaleTimeString(I18N.locale(), { hour: '2-digit', minute: '2-digit' });
     }
-    return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+    return d.toLocaleDateString(I18N.locale(), { day: '2-digit', month: '2-digit' });
 }
 
 // ── Lista de conversaciones ───────────────────────────────────────────────
@@ -5509,7 +5596,7 @@ function updateChatHomeCard() {
 function showChats() {
     show('screen-msgs');
     const marca = $('app-build');
-    if (marca) marca.textContent = 'Versión ' + APP_BUILD;
+    if (marca) marca.textContent = t('Versión {0}', [APP_BUILD]);
     loadChats();
 }
 
@@ -5893,7 +5980,7 @@ $('msg-file-vid').addEventListener('change', async function (e) {
     if (!f) return;
     const info = await medirVideo(f);
     if (info.duration > 20) {
-        toast('El vídeo dura ' + info.duration + ' segundos. El máximo son 20.');
+        toast(t('El vídeo dura {0} segundos. El máximo son 20.', [info.duration]));
         return;
     }
     if (f.size > 15 * 1024 * 1024) {

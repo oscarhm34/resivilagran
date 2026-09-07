@@ -4,7 +4,7 @@ from __future__ import annotations
 from flask import (
     make_response,
     Blueprint, request, jsonify, render_template, redirect, url_for,
-    flash, send_from_directory, abort, current_app,
+    flash, send_from_directory, abort, current_app, g,
 )
 from flask_login import login_required
 from flask_jwt_extended import (
@@ -32,6 +32,7 @@ from ..utils import (
     _save_image_stream, _falta_para_cerrar, _aviso_falta,
     MIN_SESSION_SECONDS_DEFAULT, _tipos_de_atencion_a_esta_hora,
     _audio_de_texto, _hay_voz, _checklist_de_zona,
+    APP_LANGUAGES, APP_LOCALES, _idioma_valido, _traducciones_webapp,
 )
 
 bp = Blueprint('nfc', __name__)
@@ -106,7 +107,9 @@ def login():
         if not user.active:
             return jsonify({'error': 'Tu cuenta esta desactivada. Contacta con administracion.'}), 403
         access_token = create_access_token(identity=username, expires_delta=timedelta(days=7))
-        return jsonify(access_token=access_token, id_cleaner=user.id, cleaner_name=user.name, role=user.role), 200
+        return jsonify(access_token=access_token, id_cleaner=user.id,
+                       cleaner_name=user.name, role=user.role,
+                       lang=_idioma_valido(user.lang)), 200
 
     return jsonify({'error': 'Credenciales incorrectas'}), 401
 
@@ -253,7 +256,10 @@ def worker():
     pena guardarla, y lo que se pierde en velocidad se gana en no tener a nadie
     usando una version de hace tres dias.
     """
-    resp = make_response(render_template('worker.html'))
+    resp = make_response(render_template(
+        'worker.html',
+        i18n_json=_json.dumps(_traducciones_webapp(), ensure_ascii=False),
+    ))
     resp.headers['Cache-Control'] = 'no-store, must-revalidate'
     return resp
 
@@ -1594,6 +1600,47 @@ def admin_settings():
     )
 
 
+def _worker_actual():
+    """La trabajadora del token, o None. Cacheada por peticion."""
+    if 'worker_actual' not in g:
+        g.worker_actual = Cleaner.query.filter_by(username=get_jwt_identity()).first()
+    return g.worker_actual
+
+
+@bp.route('/api/worker/lang', methods=['PUT'])
+@jwt_required()
+def set_worker_lang():
+    """Guarda el idioma de la webapp en el perfil de quien esta autenticada.
+
+    La identidad sale del token, no del cuerpo: nadie cambia el idioma de otra.
+    """
+    data = request.json or {}
+    lang = str(data.get('lang', '')).strip()
+    if lang not in APP_LANGUAGES:
+        return jsonify({'error': 'Idioma no disponible', 'code': 'LANG_UNKNOWN'}), 400
+
+    worker = Cleaner.query.filter_by(username=get_jwt_identity()).first()
+    if not worker:
+        return jsonify({'error': 'Trabajador no encontrado'}), 404
+
+    worker.lang = lang
+    ok, error = _safe_commit('Error al guardar el idioma')
+    if not ok:
+        return jsonify({'error': error}), 500
+    return jsonify({'ok': True, 'lang': lang}), 200
+
+
+@bp.route('/api/worker/languages')
+@jwt_required()
+def api_worker_languages():
+    """Idiomas que la webapp sabe hablar, para pintar el selector."""
+    return jsonify({'languages': [
+        {'code': c, 'native': d['native'], 'flag': d['flag'],
+         'rtl': d['rtl'], 'locale': APP_LOCALES[c]}
+        for c, d in APP_LANGUAGES.items()
+    ]}), 200
+
+
 @bp.route('/api/config')
 @jwt_required()
 def api_config():
@@ -1606,6 +1653,9 @@ def api_config():
         'session_max_minutes': int(AppSetting.get('session_max_minutes', '120')),
         'hidden_logout_minutes': int(AppSetting.get('hidden_logout_minutes', '30')),
         'min_session_seconds': int(AppSetting.get('min_session_seconds', MIN_SESSION_SECONDS_DEFAULT)),
+        # Va aqui ademas de en el login para que un cambio hecho desde el panel
+        # llegue al movil sin tener que volver a entrar.
+        'lang': _idioma_valido(_worker_actual().lang if _worker_actual() else None),
     }), 200
 
 

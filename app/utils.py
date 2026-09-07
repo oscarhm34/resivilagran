@@ -277,6 +277,50 @@ TRAINING_LANGUAGES = {
 }
 
 
+# ── Idiomas de la webapp de trabajadoras ─────────────────────────────────────
+
+# Un subconjunto de los de formacion, no una lista aparte: banderas, nombres
+# nativos y marca de derecha-a-izquierda ya estan ahi y no hay por que tenerlos
+# dos veces. Se anade una entrada aqui cuando la webapp este traducida a ese
+# idioma, no cuando lo este una pildora formativa.
+APP_LANGUAGES = {code: TRAINING_LANGUAGES[code] for code in ('es', 'ar', 'fr', 'en')}
+
+# Codigo BCP-47 para `toLocaleDateString` y el reconocimiento de voz del movil.
+APP_LOCALES = {'es': 'es-ES', 'ar': 'ar-MA', 'fr': 'fr-FR', 'en': 'en-GB'}
+
+
+def _idioma_valido(code: str | None) -> str:
+    """Normaliza un codigo de idioma a uno de los que la webapp sabe hablar."""
+    return code if code in APP_LANGUAGES else 'es'
+
+
+_TRADUCCIONES_CACHE: dict | None = None
+
+
+def _traducciones_webapp() -> dict:
+    """La tabla de traducciones de la webapp, leida una sola vez.
+
+    Va incrustada en el HTML de /worker y no servida desde /static porque el
+    service worker guarda /static con estrategia cache primero: alli habria que
+    versionar el fichero en cada cambio, y aqui se actualiza en el mismo
+    despliegue que el resto de la pagina.
+    """
+    global _TRADUCCIONES_CACHE
+    if _TRADUCCIONES_CACHE is None:
+        import json as _json
+        import os as _os
+        ruta = _os.path.join(_os.path.dirname(__file__), 'i18n', 'worker.json')
+        try:
+            with open(ruta, encoding='utf-8') as fh:
+                _TRADUCCIONES_CACHE = _json.load(fh)
+        except (OSError, ValueError) as e:
+            # Sin traducciones la webapp funciona en castellano. Es peor dejar a
+            # nadie sin poder trabajar que dejar a alguien sin su idioma.
+            app.logger.error('No se han podido leer las traducciones: %s', e)
+            _TRADUCCIONES_CACHE = {}
+    return _TRADUCCIONES_CACHE
+
+
 # ── Formatting helpers ───────────────────────────────────────────────────────
 
 def _format_duration(start_time: datetime | None, end_time: datetime | None) -> str:
