@@ -760,10 +760,62 @@ def push_test():
     worker = Cleaner.query.filter_by(username=identity).first()
     if not worker:
         return jsonify({'error': 'No autorizado'}), 403
-    enviados = send_push_to_worker(
+    # Sincrono a proposito: aqui hay alguien mirando la pantalla esperando saber
+    # si le llega. Devolver 200 nada mas lanzar el hilo decia que si antes de
+    # saberlo, y era el unico diagnostico que una trabajadora podia hacerse sola.
+    intentos, entregados, errores = send_push_to_worker(
         worker.id, 'Aviso de prueba',
-        'Si ves esto, los avisos funcionan', url='/worker', tag='prueba')
-    return jsonify({'ok': True, 'dispositivos': enviados}), 200
+        'Si ves esto, los avisos funcionan', url='/worker', tag='prueba',
+        esperar=True)
+    return jsonify({
+        'ok': entregados > 0,
+        'dispositivos': intentos,
+        'entregados': entregados,
+        # Al movil solo le llega cuantos han fallado: el detalle del error es
+        # del servicio push y no le dice nada a quien esta limpiando una
+        # habitacion. Queda entero en el log del servidor.
+        'fallidos': max(0, intentos - entregados),
+    }), 200
+
+
+# Cuanto guarda el servicio push un aviso que no ha podido entregar todavia.
+#
+# Sin `ttl` pywebpush manda cero, que significa "entregalo ahora o tiralo". Un
+# movil en el bolsillo, en reposo o sin cobertura ese segundo exacto pierde el
+# aviso para siempre, y FCM responde 201 como si hubiera ido bien: es la causa
+# de que "a veces llega y a veces no" sin que quede rastro en ningun sitio.
+#
+# Doce horas es la duracion de un turno. Si el movil estaba dormido, el aviso
+# aparece al despertarlo; si lleva medio dia apagado, ya no le interesa a nadie.
+PUSH_TTL_SEGUNDOS = 12 * 3600
+
+# Que el servicio push despierte al movil en lugar de esperar a que se despierte
+# solo. Un mensaje de una companera durante el turno es justo para lo que existe.
+PUSH_URGENCIA = 'high'
+
+# pywebpush no pone ninguno, asi que una conexion que no responde deja el hilo
+# bloqueado para siempre y nada lo limpia.
+PUSH_TIMEOUT_SEGUNDOS = 15
+
+
+def _es_suscripcion_muerta(e) -> bool:
+    """True si el error dice que esa suscripcion ya no sirve para nada.
+
+    404 y 410: el navegador la tiro. 403: la firma VAPID ya no vale, que es lo
+    que pasa cuando se regeneran las claves porque se ha perdido `instance/`.
+    Ese tercer caso no se detectaba, asi que esas suscripciones fallaban en cada
+    envio para siempre mientras `/api/push/status` seguia diciendo que habia
+    dispositivos registrados.
+
+    Se mira el codigo de la respuesta y no el texto del error: buscar '410'
+    dentro del mensaje tambien acierta con un numero de bytes o un id de peticion.
+    """
+    respuesta = getattr(e, 'response', None)
+    codigo = getattr(respuesta, 'status_code', None)
+    if codigo in (403, 404, 410):
+        return True
+    # Sin respuesta no queda mas remedio que mirar el texto.
+    return codigo is None and any(c in str(e) for c in ('410', '404', '403'))
 
 
 def _entregar_push(worker_id, destinos, payload, priv_key, email):
@@ -772,14 +824,18 @@ def _entregar_push(worker_id, destinos, payload, priv_key, email):
     Recibe `destinos` como tuplas planas y no objetos de SQLAlchemy: la sesion
     de la peticion no se puede tocar desde otro hilo. Lo que hay que borrar se
     apunta y se aplica al final, con su propio contexto de aplicacion.
+
+    Devuelve (entregados, fallos) — una lista de mensajes en el segundo. Lo usa
+    la prueba de aviso, que antes decia que habia ido bien antes de saberlo.
     """
     try:
         from pywebpush import webpush, WebPushException
     except ImportError:
         with app.app_context():
             app.logger.error('Aviso push no enviado: falta la libreria pywebpush')
-        return
+        return 0, ['Falta la libreria pywebpush en el servidor']
 
+    entregados = 0
     caducadas, errores = [], []
     for sub_id, endpoint, keys_json in destinos:
         try:
@@ -791,18 +847,22 @@ def _entregar_push(worker_id, destinos, payload, priv_key, email):
                 data=payload,
                 vapid_private_key=priv_key,
                 vapid_claims={'sub': email},
+                ttl=PUSH_TTL_SEGUNDOS,
+                headers={'Urgency': PUSH_URGENCIA},
+                timeout=PUSH_TIMEOUT_SEGUNDOS,
             )
+            entregados += 1
         except WebPushException as e:
-            # 410 Gone o 404 = la suscripcion ya no vale, se descarta
-            if '410' in str(e) or '404' in str(e):
+            if _es_suscripcion_muerta(e):
                 caducadas.append(sub_id)
+                errores.append('Suscripcion caducada, se elimina')
             else:
                 errores.append('El servicio de avisos rechazo el envio: %s' % e)
         except Exception as e:
             errores.append('Error al enviar el aviso push: %s' % e)
 
     if not errores and not caducadas:
-        return
+        return entregados, errores
 
     with app.app_context():
         for msg in errores:
@@ -815,15 +875,22 @@ def _entregar_push(worker_id, destinos, payload, priv_key, email):
             ok, err = _safe_commit('Error al limpiar las suscripciones caducadas')
             if not ok:
                 app.logger.error('No se pudieron limpiar las suscripciones caducadas: %s', err)
+    return entregados, errores
 
 
-def send_push_to_worker(worker_id, title, body, url=None, tag=None):
+def send_push_to_worker(worker_id, title, body, url=None, tag=None,
+                       esperar=False):
     """Envia un aviso push a todas las suscripciones de una trabajadora.
 
     Devuelve a cuantos dispositivos se ha intentado enviar. El envio en si va en
     un hilo: son POST a un servicio externo y antes se hacian dentro de la
     peticion, asi que quien mandaba el mensaje esperaba a FCM. Eso obligaba a
     agrupar los avisos cada cinco minutos y dejaba a la trabajadora sin ninguno.
+
+    Con `esperar=True` el envio es sincrono y devuelve `(intentos, entregados,
+    errores)`. Lo usa la prueba de aviso: ahi la persona esta mirando la pantalla
+    esperando una respuesta, y un "enviado" que en realidad significa "lo he
+    puesto en un hilo" no sirve para diagnosticar nada.
 
     Cada motivo por el que no sale se registra en el log. Un aviso que no llega
     no deja rastro en ningun sitio: no hay pantalla que lo muestre y la persona
@@ -835,14 +902,14 @@ def send_push_to_worker(worker_id, title, body, url=None, tag=None):
     email = current_app.config.get('VAPID_CLAIMS_EMAIL', 'mailto:admin@lavilagran.com')
     if not priv_key:
         app.logger.warning('Aviso push no enviado a %s: falta VAPID_PRIVATE_KEY', worker_id)
-        return 0
+        return (0, 0, ['Faltan las claves VAPID en el servidor']) if esperar else 0
 
     subs = PushSubscription.query.filter_by(worker_id=worker_id).all()
     if not subs:
         # Lo habitual: el navegador nunca llego a suscribirse (permiso denegado,
         # sin HTTPS, o un iPhone con la webapp sin anadir a la pantalla de inicio).
         app.logger.info('Aviso push no enviado a %s: no tiene ningun dispositivo suscrito', worker_id)
-        return 0
+        return (0, 0, []) if esperar else 0
 
     payload = _json.dumps({
         'title': title,
@@ -854,15 +921,19 @@ def send_push_to_worker(worker_id, title, body, url=None, tag=None):
     })
     destinos = [(s.id, s.endpoint, s.keys_json) for s in subs]
 
-    if current_app.config.get('TESTING'):
+    if esperar or current_app.config.get('TESTING'):
         # En los tests el hilo haria las aserciones dependientes del reloj.
-        _entregar_push(worker_id, destinos, payload, priv_key, email)
-    else:
-        threading.Thread(
-            target=_entregar_push,
-            args=(worker_id, destinos, payload, priv_key, email),
-            daemon=True,
-        ).start()
+        entregados, errores = _entregar_push(worker_id, destinos, payload,
+                                             priv_key, email)
+        if esperar:
+            return len(destinos), entregados, errores
+        return len(destinos)
+
+    threading.Thread(
+        target=_entregar_push,
+        args=(worker_id, destinos, payload, priv_key, email),
+        daemon=True,
+    ).start()
     return len(destinos)
 
 
@@ -878,4 +949,8 @@ def send_push_for_notification(notification):
         # El cuerpo repetia el titulo y el aviso salia con el texto dos veces.
         body='Abre la aplicacion para verlo',
         url='/worker',
+        # Su propio tag. Con el de por defecto, dos avisos distintos se pisaban
+        # y solo quedaba el ultimo: con una sesion abierta y un traspaso de
+        # turno pendientes, la trabajadora solo veia uno de los dos.
+        tag='aviso-%s' % notification.id,
     )

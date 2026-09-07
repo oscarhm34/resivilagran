@@ -735,7 +735,7 @@ def avisos_enviados(monkeypatch):
     """Recoge a quién se le habría mandado un aviso, sin salir a internet."""
     enviados = []
 
-    def falso_push(worker_id, title, body, url=None, tag=None):
+    def falso_push(worker_id, title, body, url=None, tag=None, esperar=False):
         enviados.append({'worker_id': worker_id, 'title': title, 'body': body,
                          'url': url, 'tag': tag})
 
@@ -883,13 +883,20 @@ def test_la_agrupacion_sigue_frenando_una_rafaga_a_quien_no_lee(
 
 @pytest.fixture
 def push_no_sale(monkeypatch):
-    """Corta la entrega real: los tests no salen a FCM."""
+    """Corta la entrega real: los tests no salen a FCM.
+
+    Devuelve lo mismo que el original —(entregados, errores)— haciendo como que
+    todas las entregas van bien: la ruta de prueba ahora espera el resultado
+    para poder decir si el aviso ha llegado de verdad.
+    """
     entregas = []
+
+    def falsa_entrega(worker_id, destinos, payload, priv, email):
+        entregas.append((worker_id, destinos))
+        return len(destinos), []
+
     import app.blueprints.notifications as notif
-    monkeypatch.setattr(
-        notif, '_entregar_push',
-        lambda worker_id, destinos, payload, priv, email:
-            entregas.append((worker_id, destinos)))
+    monkeypatch.setattr(notif, '_entregar_push', falsa_entrega)
     return entregas
 
 

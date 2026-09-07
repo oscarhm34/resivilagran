@@ -1740,6 +1740,10 @@ function doLogout() {
     stopChatPolling();
     CHAT.lastUnread = null;
     CHAT.list = []; CHAT.cursor = 0; CHAT.open = null;
+    // Sin esto, en un movil que usan dos personas la segunda que entra no llega a
+    // registrarse nunca: `suscribirAvisos()` se planta en la primera linea y la
+    // suscripcion se queda apuntando a la anterior.
+    avisosSuscritos = false;
     ['wt','wid','wname','wrole'].forEach(k => localStorage.removeItem(k));
     try { $('chat-dialog').close(); } catch(e) {}
     try { $('chat-dialog').style.display = 'none'; } catch(e) {}
@@ -5262,6 +5266,12 @@ function avisarMensaje(nombre, discreto) {
 
 var swReg = null;
 var avisosSuscritos = false;
+// Como fue el registro del service worker: 'esperando', 'ok' o 'fallo'. Hasta
+// ahora se deducia de `navigator.serviceWorker.controller`, y eso es null en la
+// primera carga aunque todo haya ido bien: daba rojos falsos. Y al reves, con un
+// certificado que el navegador no acepta el registro falla y solo quedaba
+// constancia en un console.warn que en un movil no ve nadie.
+var swEstado = ('serviceWorker' in navigator) ? 'esperando' : 'fallo';
 
 function b64ToUint8(base64) {
     var padding = '='.repeat((4 - base64.length % 4) % 4);
@@ -5272,25 +5282,40 @@ function b64ToUint8(base64) {
     return arr;
 }
 
+// Por que no se pudo. Se guarda para poder decirselo a la persona en vez del
+// generico "No se han podido activar los avisos", que no deja hacer nada.
+var avisosMotivo = '';
+
 async function suscribirAvisos() {
     if (avisosSuscritos || !S.token) return;
+    avisosMotivo = '';
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-        console.warn('Avisos: este navegador no los admite. En iPhone hay que añadir '
-            + 'la webapp a la pantalla de inicio.');
+        avisosMotivo = 'Este móvil no admite avisos. En iPhone hay que añadir la aplicación a la pantalla de inicio.';
+        console.warn(avisosMotivo);
         return;
     }
     if (typeof Notification !== 'undefined' && Notification.permission === 'denied') {
-        console.warn('Avisos: el permiso está denegado en los ajustes del navegador.');
+        avisosMotivo = 'Los avisos están bloqueados en los ajustes del navegador';
+        console.warn(avisosMotivo);
         return;
     }
     try {
-        var reg = swReg || await navigator.serviceWorker.ready;
+        // `serviceWorker.ready` no resuelve **nunca** si el registro fallo, y
+        // como activarAvisos() lo espera, el boton se quedaba pulsado sin decir
+        // nada: es el "le doy y no hace nada" que describian las trabajadoras.
+        var reg = swReg || await Promise.race([
+            navigator.serviceWorker.ready,
+            new Promise(function (_, rechaza) {
+                setTimeout(function () { rechaza(new Error('SW_TIMEOUT')); }, 8000);
+            }),
+        ]);
         var res = await fetch('/api/push/vapid-public-key', {
             headers: { 'Authorization': 'Bearer ' + S.token },
         });
         var datos = await res.json();
         if (!datos.public_key) {
-            console.warn('Avisos: el servidor no devuelve la clave pública.');
+            avisosMotivo = 'El servidor no tiene configurados los avisos. Avisa a coordinación.';
+            console.warn(avisosMotivo);
             return;
         }
         // Si ya hay una suscripcion en este navegador se reutiliza: volver a
@@ -5312,13 +5337,19 @@ async function suscribirAvisos() {
             body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }),
         });
         if (!alta.ok) {
-            console.warn('Avisos: el servidor no aceptó la suscripción.', alta.status);
+            avisosMotivo = 'El servidor no ha aceptado el registro de este móvil.';
+            console.warn(avisosMotivo, alta.status);
             return;
         }
         avisosSuscritos = true;
     } catch (e) {
         // Lo mas comun: la persona ha cerrado el aviso de permiso del navegador.
-        console.warn('Avisos: no se pudo activar.', e);
+        // El otro caso es el certificado, que impide registrar el service worker
+        // y deja `serviceWorker.ready` sin resolver hasta que salta el tope.
+        avisosMotivo = (e && e.message === 'SW_TIMEOUT')
+            ? 'Este móvil no ha podido instalar la aplicación. Suele ser la dirección: entra por la dirección con nombre, no por la IP.'
+            : 'No se han podido activar los avisos en este móvil.';
+        console.warn(avisosMotivo, e);
     }
 }
 
@@ -5348,17 +5379,25 @@ async function activarAvisos() {
     avisosSuscritos = false;                       // fuerza el alta aunque ya lo intentara
     await suscribirAvisos();
     await refrescarEstadoAvisos();
-    toast(avisosSuscritos ? 'Avisos activados' : 'No se han podido activar los avisos');
+    toast(avisosSuscritos ? 'Avisos activados'
+                         : (avisosMotivo || 'No se han podido activar los avisos'));
 }
 
 // Estado real de los avisos de esta persona en este movil. Cuatro cosas tienen
 // que salir bien y hasta ahora no habia forma de saber cual fallaba.
-var ESTADO_AVISOS = { seguro: false, permiso: 'default', sw: false, suscripciones: null };
+var ESTADO_AVISOS = { seguro: false, permiso: 'default', sw: false,
+                     swFallo: false, suscripciones: null };
 
 async function refrescarEstadoAvisos() {
     ESTADO_AVISOS.seguro  = !!window.isSecureContext;
     ESTADO_AVISOS.permiso = (typeof Notification !== 'undefined') ? Notification.permission : 'no';
-    ESTADO_AVISOS.sw      = !!(navigator.serviceWorker && navigator.serviceWorker.controller);
+    // `controller` es null en la primera carga aunque el registro haya ido bien,
+    // asi que se mira el resultado del registro y solo se cae a `controller`
+    // mientras todavia no se sabe.
+    ESTADO_AVISOS.sw      = (swEstado === 'ok')
+        || (swEstado === 'esperando'
+            && !!(navigator.serviceWorker && navigator.serviceWorker.controller));
+    ESTADO_AVISOS.swFallo = (swEstado === 'fallo');
     ESTADO_AVISOS.suscripciones = null;
     if (S.token) {
         const { ok, data } = await api('/api/push/status');
@@ -5368,22 +5407,35 @@ async function refrescarEstadoAvisos() {
     pintarDiagnosticoAvisos();
 }
 
-// El banner sale **solo si la trabajadora puede arreglarlo con un toque**: falta
-// el permiso y todo lo demas esta en su sitio. Con un certificado que el
-// navegador no acepta, o una direccion insegura, no hay nada que ella pueda
-// hacer y un aviso naranja permanente es ruido en la pantalla de trabajo. Esos
-// casos los ve la coordinadora en Empleados y cualquiera en la campana.
+// El banner avisa siempre que este movil no vaya a sonar, tambien cuando la
+// trabajadora no puede arreglarlo ella. Antes se escondia justo en ese caso —el
+// service worker fallido por el certificado— y era el mas grave: nadie sabia que
+// no le iban a llegar los mensajes. Que no pueda arreglarlo ella no significa que
+// no tenga que enterarse; significa que hay que decirle a quien avisar.
 function pintarBannerAvisos() {
     var banner = $('home-avisos-off');
     if (!banner) return;
     var e = ESTADO_AVISOS;
+    var falta = !e.seguro || !e.sw || e.permiso !== 'granted'
+                || e.suscripciones === 0;
+    banner.style.display = falta ? '' : 'none';
+    if (!falta) return;
+
     var accionable = e.seguro && e.sw && e.permiso !== 'granted' && e.permiso !== 'no';
-    banner.style.display = accionable ? '' : 'none';
-    if (!accionable) return;
-    $('home-avisos-off-txt').textContent = e.permiso === 'denied'
-        ? 'Los avisos están bloqueados en los ajustes del navegador de este móvil.'
-        : 'El móvil no te avisará cuando te escriban si la aplicación está cerrada.';
-    $('btn-activar-avisos').style.display = e.permiso === 'denied' ? 'none' : '';
+    var txt;
+    if (!e.seguro) {
+        txt = 'Has entrado por una dirección que no permite avisos. Avisa a coordinación.';
+    } else if (!e.sw) {
+        txt = 'Este móvil no ha podido instalar la aplicación, casi siempre por la dirección. Avisa a coordinación.';
+    } else if (e.permiso === 'denied') {
+        txt = 'Los avisos están bloqueados en los ajustes del navegador de este móvil.';
+    } else if (e.permiso !== 'granted') {
+        txt = 'El móvil no te avisará cuando te escriban si la aplicación está cerrada.';
+    } else {
+        txt = 'Este móvil no está registrado para recibir avisos. Prueba a activarlos otra vez.';
+    }
+    $('home-avisos-off-txt').textContent = txt;
+    $('btn-activar-avisos').style.display = accionable ? '' : 'none';
 }
 
 function pintarDiagnosticoAvisos() {
@@ -5402,10 +5454,12 @@ function pintarDiagnosticoAvisos() {
         ['Permiso del móvil', perm[0], perm[1]],
         // Sin service worker y con direccion segura, la causa casi siempre es un
         // certificado que el navegador no acepta (el del NAS por IP lo es): ahi
-        // Chrome se niega a registrarlo y no avisa de nada.
+        // Chrome se niega a registrarlo y no avisa de nada. Aceptar el aviso de
+        // seguridad **no** lo arregla, aunque lo pareciera: hay que entrar por
+        // una direccion con certificado valido.
         ['Aplicación instalada', e.sw ? 'ok' : 'mal',
          e.sw ? 'Correcta'
-              : (e.seguro ? 'No se ha instalado. Suele ser el certificado de la dirección: ábrela una vez y acepta el aviso de seguridad, o usa la dirección de internet.'
+              : (e.seguro ? 'El navegador no acepta el certificado de esta dirección y sin eso no hay avisos. Entra por la dirección con nombre (no por la IP) y vuelve a probar.'
                           : 'No se puede instalar desde esta dirección')],
         ['Avisos registrados', subs[0], subs[1]],
     ];
@@ -5463,10 +5517,17 @@ $('avisos-probar').addEventListener('click', async function () {
     const { ok, data } = await api('/api/push/test', 'POST');
     this.disabled = false;
     if (!ok) { toast((data && data.error) || 'No se ha podido enviar la prueba'); return; }
-    toast(data.dispositivos
-        ? t('Aviso enviado a {0}', [data.dispositivos + ' ' +
-              t(data.dispositivos === 1 ? 'dispositivo' : 'dispositivos')])
-        : 'No tienes ningún dispositivo registrado. Pulsa "Activar avisos".');
+    // El servidor ya ha esperado a la respuesta del servicio de avisos, asi que
+    // esto dice lo que ha pasado de verdad. Antes contaba los moviles
+    // registrados y decia "enviado" antes de saber si habia salido.
+    if (!data.dispositivos) {
+        toast('No tienes ningún dispositivo registrado. Pulsa "Activar avisos".');
+    } else if (data.entregados) {
+        toast(t('Aviso enviado a {0}', [data.entregados + ' ' +
+              t(data.entregados === 1 ? 'dispositivo' : 'dispositivos')]));
+    } else {
+        toast('El servidor no ha podido entregar el aviso. Avisa a coordinación.');
+    }
     refrescarEstadoAvisos();
 });
 
@@ -5477,11 +5538,18 @@ if ('serviceWorker' in navigator) {
     // ruta, esto sigue impidiendo que el movil se quede anclado.
     navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(function(reg) {
         swReg = reg;
+        swEstado = 'ok';
         reg.update().catch(function() {});
         suscribirAvisos();
     }).catch(function(e) {
+        // Chrome se niega a registrar el service worker en una pagina con un
+        // certificado que no acepta, aunque la persona haya pulsado "Acceder de
+        // todos modos". Sin service worker no hay avisos, y esto es lo unico que
+        // lo delata: por eso se guarda y sale en la pantalla de comprobacion.
+        swEstado = 'fallo';
         console.warn('El service worker no se ha registrado. Sin él no hay avisos '
             + 'al móvil; comprueba que la dirección empieza por https.', e);
+        refrescarEstadoAvisos();
     });
 }
 
@@ -5511,7 +5579,7 @@ var CHAT_FAST = 4000, CHAT_SLOW = 10000, CHAT_IDLE = 10000, CHAT_BACKOFF_MS = 60
 
 // Se sube a mano en cada cambio de la webapp. Sirve para saber, mirando el
 // movil, que version esta ejecutando de verdad.
-var APP_BUILD = '2026-09-07 · 11';
+var APP_BUILD = '2026-09-07 · 12';
 
 function chatIniciales(nombre) {
     var partes = (nombre || '?').trim().split(/\s+/);

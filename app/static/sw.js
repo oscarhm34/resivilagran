@@ -44,6 +44,10 @@ self.addEventListener('push', function(event) {
             vibrate: [200, 100, 200],
             tag: data.tag || 'lavilagran',
             renotify: true,
+            // El aviso se queda hasta que lo tocan. Sin esto Android lo retira
+            // solo a los pocos segundos, y quien esta atendiendo a un residente
+            // con las manos ocupadas no llega a tiempo de mirar el movil.
+            requireInteraction: true,
         })
     );
 });

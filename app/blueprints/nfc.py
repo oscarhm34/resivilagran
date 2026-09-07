@@ -300,15 +300,28 @@ def worker_manifest():
         'short_name': 'La Vila Gran',
         'description': 'Registro de limpiezas y atenciones',
         'start_url': '/worker',
+        # Explicito aunque coincida con el que se deduce de `start_url`: de el
+        # depende que el service worker controle la pagina, y de eso dependen
+        # los avisos. No es un detalle que convenga dejar implicito.
+        'scope': '/',
         'display': 'standalone',
         'background_color': '#ffffff',
         'theme_color': '#0069d9',
         'orientation': 'portrait',
         # icon-192.png es cuadrado de verdad. Antes se declaraba 192x192 apuntando
         # al banner apaisado (2048x1063) y Android lo deformaba en el escritorio.
+        #
+        # El de 512 hace falta para que Android de la aplicacion por instalable
+        # y para la pantalla de arranque. Sin instalar, los avisos se comportan
+        # peor: es parte de que no sonara el movil.
         'icons': [{
             'src': url_for('static', filename='icon-192.png'),
             'sizes': '192x192',
+            'type': 'image/png',
+            'purpose': 'any',
+        }, {
+            'src': url_for('static', filename='icon-512.png'),
+            'sizes': '512x512',
             'type': 'image/png',
             'purpose': 'any',
         }],
