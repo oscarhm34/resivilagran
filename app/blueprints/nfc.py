@@ -21,7 +21,7 @@ import os
 from .. import app, db, limiter
 from ..models import (
     Cleaner, Room, Floor, Resident, CareType, CareRecord, CleaningRecord,
-    ResidentGroup, cleaner_groups, ChecklistItem, WorkerSelfie,
+    ResidentGroup, cleaner_groups, WorkerSelfie,
     VitalSignType, VitalSignReading, AppSetting, Notification,
     MoodRecord, MealRecord,
 )
@@ -31,7 +31,7 @@ from ..utils import (
     _allowed_file, ALLOWED_IMAGE_EXTENSIONS, _open_image_oriented,
     _save_image_stream, _falta_para_cerrar, _aviso_falta,
     MIN_SESSION_SECONDS_DEFAULT, _tipos_de_atencion_a_esta_hora,
-    _audio_de_texto, _hay_voz,
+    _audio_de_texto, _hay_voz, _checklist_de_zona,
 )
 
 bp = Blueprint('nfc', __name__)
@@ -836,6 +836,21 @@ def nfc_scan():
             rechazo = _rechazo_por_tiempo(active_this.start_time)
             if rechazo:
                 return rechazo
+            # Antes de cerrar, el checklist de esta zona. Este es el camino que
+            # se usa de verdad: con el modo Solo NFC la limpieza se cierra
+            # acercando el movil a la etiqueta, no con el boton de la tarjeta,
+            # asi que ofrecerlo solo en `end_session` equivalia a no ofrecerlo.
+            # La rama de atenciones de aqui abajo hace lo mismo con el tipo de
+            # atencion. Si la zona no tiene items, se cierra directo como antes.
+            items = _checklist_de_zona(room)
+            if items:
+                return jsonify({
+                    'action': 'select_checklist',
+                    'record_id': active_this.id,
+                    'subject': f'Hab. {room.number}',
+                    'subject_sub': room.description or '',
+                    'items': [{'id': i.id, 'text': i.text} for i in items],
+                }), 200
             active_this.end_time = now
             ok, err = _safe_commit()
             if not ok:
@@ -972,8 +987,8 @@ def end_session():
         if rechazo:
             return rechazo
 
-        # Check if checklist items exist
-        checklist_items = ChecklistItem.query.filter_by(active=True).order_by(ChecklistItem.sort_order).all()
+        # El checklist depende del tipo de zona, igual que en el escaneo NFC.
+        checklist_items = _checklist_de_zona(record.room)
         if checklist_items and not data.get('skip_checklist'):
             room = record.room
             return jsonify({

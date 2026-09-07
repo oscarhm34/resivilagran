@@ -8,15 +8,34 @@
         <a href="{{ url_for('admin_bp.index') }}" class="btn btn-outline-secondary btn-sm">&larr; Inicio</a>
         <h1 class="h3 mb-0">Checklist de Limpieza</h1>
         <span class="badge bg-secondary ms-auto">{{ items|length }} item{{ 's' if items|length != 1 }}</span>
-        <button type="button" class="btn btn-primary btn-sm" onclick="openChecklistForm()">
+        <button type="button" class="btn btn-primary btn-sm" onclick="openChecklistForm()"
+                {% if not room_types %}disabled title="Primero hay que dar de alta algun tipo de zona"{% endif %}>
             <i class="bi bi-plus-lg me-1"></i>Añadir ítem
         </button>
     </div>
 
     <div class="alert alert-info mb-4" role="note" style="font-size:.9rem">
-        Estos ítems aparecen como checklist cuando un trabajador finaliza la limpieza de una habitación.
-        Debe verificar cada punto antes de confirmar.
+        Cada ítem pertenece a un <strong>tipo de zona</strong> y solo aparece cuando un trabajador
+        finaliza la limpieza de una zona de ese tipo. Debe verificar cada punto antes de confirmar.
     </div>
+
+    {% if not room_types %}
+    <div class="alert alert-warning mb-4" role="alert">
+        <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
+        No hay ningún tipo de zona dado de alta. Créalos primero en
+        <a href="{{ url_for('admin_bp.manage_room_types') }}" class="alert-link">Tipos de zona</a>:
+        cada ítem del checklist tiene que pertenecer a uno.
+    </div>
+    {% endif %}
+
+    {% if sin_zona %}
+    <div class="alert alert-warning mb-4" role="alert">
+        <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
+        Hay <strong>{{ sin_zona }}</strong> ítem{{ 's' if sin_zona != 1 }} sin tipo de zona asignado
+        (los primeros de la tabla). <strong>No aparecen en ninguna limpieza</strong> hasta que se les
+        asigne una: edítalos y elige la zona a la que pertenecen.
+    </div>
+    {% endif %}
 
     <!-- Offcanvas formulario añadir / editar -->
     <div class="offcanvas offcanvas-end" tabindex="-1" id="checklistFormPanel" aria-labelledby="checklistFormTitle" style="width:min(480px,90vw)">
@@ -28,6 +47,17 @@
         <div class="offcanvas-body">
             <form id="chk-form" method="POST" action="{{ url_for('care.add_edit_checklist_item') }}" class="needs-validation" novalidate>
                 <input type="hidden" name="item_id" value="">
+                <div class="mb-3">
+                    <label for="room_type_id" class="form-label">Tipo de zona <span class="text-danger" aria-hidden="true">*</span></label>
+                    <select id="room_type_id" name="room_type_id" class="form-select" required>
+                        <option value="">Selecciona una zona...</option>
+                        {% for rt in room_types %}
+                        <option value="{{ rt.id }}">{{ rt.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="invalid-feedback">Selecciona el tipo de zona.</div>
+                    <div class="form-text">El ítem solo saldrá al finalizar limpiezas de este tipo de zona.</div>
+                </div>
                 <div class="mb-3">
                     <label for="text" class="form-label">Texto <span class="text-danger" aria-hidden="true">*</span></label>
                     <input type="text" id="text" name="text" class="form-control" required placeholder="ej. Apagar la luz">
@@ -52,6 +82,7 @@
                 <thead>
                     <tr>
                         <th scope="col">Orden</th>
+                        <th scope="col">Zona</th>
                         <th scope="col">Texto</th>
                         <th scope="col">Estado</th>
                         <th scope="col" class="text-end">Acciones</th>
@@ -61,6 +92,13 @@
                     {% for item in items %}
                     <tr>
                         <td>{{ item.sort_order }}</td>
+                        <td>
+                            {% if item.room_type %}
+                                <span class="badge bg-secondary">{{ item.room_type.name }}</span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark">Sin zona</span>
+                            {% endif %}
+                        </td>
                         <td>{{ item.text }}</td>
                         <td>
                             <label class="form-check m-0 d-flex align-items-center gap-1" style="cursor:pointer">
@@ -72,7 +110,8 @@
                         <td class="text-end">
                             <button type="button" class="btn btn-sm btn-outline-secondary edit-btn me-1"
                                     data-id="{{ item.id }}" data-text="{{ item.text }}"
-                                    data-sort="{{ item.sort_order }}">Editar</button>
+                                    data-sort="{{ item.sort_order }}"
+                                    data-room-type="{{ item.room_type_id or '' }}">Editar</button>
                             <button type="button" class="btn btn-sm btn-outline-danger delete-btn"
                                     data-name="{{ item.text }}"
                                     data-action="{{ url_for('care.delete_checklist_item', id=item.id) }}">Eliminar</button>
@@ -138,6 +177,7 @@
             form.querySelector('[name="item_id"]').value    = this.dataset.id;
             form.querySelector('[name="text"]').value        = this.dataset.text;
             form.querySelector('[name="sort_order"]').value  = this.dataset.sort;
+            form.querySelector('[name="room_type_id"]').value = this.dataset.roomType || '';
             document.getElementById('submit-btn').textContent = 'Guardar cambios';
             document.getElementById('checklistFormTitle').textContent = 'Editando: ' + this.dataset.text;
             document.getElementById('edit-badge').classList.remove('d-none');

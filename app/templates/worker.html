@@ -1635,7 +1635,7 @@ function actualizarEsperaEnPantalla() {
     if (!minimo) return;
     const sess = S.sessions.filter(x => x.record_id === S.pendingEndRecordId)[0];
     [['ct-confirm', 'Confirmar y finalizar'],
-     ['checklist-confirm', 'Finalizar limpieza']].forEach(([id, textoOriginal]) => {
+     ['checklist-confirm', 'Confirmar y finalizar']].forEach(([id, textoOriginal]) => {
         const btn = $(id);
         if (!btn || btn.style.display === 'none') return;
         if (!sess) { btn.disabled = false; return; }
@@ -3138,6 +3138,15 @@ async function handleCode(code, confirmar = false) {
         S.pendingResidentId = data.resident_id;
         S.pendingRName = data.resident_name;
         showCareTypesEnd(data);
+
+    } else if (data.action === 'select_checklist') {
+        // Con Solo NFC el lector sigue vivo en todas las pantallas. Si vuelve a
+        // acercar el movil a la etiqueta con el checklist ya abierto, el
+        // servidor responde otra vez lo mismo, y volver a pintarlo le borraria
+        // todo lo que llevara marcado.
+        if (document.querySelector('.screen.active')?.id === 'screen-checklist'
+            && S.pendingChecklistRecordId === data.record_id) return;
+        showChecklist(data);
 
     } else if (data.action === 'select_mode') {
         // Both room and resident match — ask user to choose
@@ -5415,7 +5424,7 @@ var CHAT_FAST = 4000, CHAT_SLOW = 10000, CHAT_IDLE = 10000, CHAT_BACKOFF_MS = 60
 
 // Se sube a mano en cada cambio de la webapp. Sirve para saber, mirando el
 // movil, que version esta ejecutando de verdad.
-var APP_BUILD = '2026-09-03 · 9';
+var APP_BUILD = '2026-09-07 · 10';
 
 function chatIniciales(nombre) {
     var partes = (nombre || '?').trim().split(/\s+/);

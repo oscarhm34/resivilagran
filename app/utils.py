@@ -12,7 +12,7 @@ from . import app, db
 from .models import (
     Cleaner, Room, Resident, CleaningRecord, CareRecord, CareType,
     AppSetting, CleaningTargetTime, CleaningZoneAssignment,
-    AuditLog,
+    AuditLog, ChecklistItem,
 )
 
 
@@ -511,6 +511,22 @@ def _check_single_session_conflict(worker_id):
 
 
 # ── Cleaning helpers ─────────────────────────────────────────────────────────
+
+def _checklist_de_zona(room) -> list:
+    """Items activos del checklist que tocan al tipo de zona de esta habitacion.
+
+    Un item sin zona asignada no sale en ninguna limpieza: son los heredados de
+    cuando el checklist era una lista unica y estan a la espera de que
+    coordinacion les de una zona desde el panel. Devolverlos en todas las zonas
+    seria adivinar, y aparecerian donde no tocan.
+    """
+    if not room or not room.room_type_id:
+        return []
+    return (ChecklistItem.query
+            .filter_by(active=True, room_type_id=room.room_type_id)
+            .order_by(ChecklistItem.sort_order, ChecklistItem.id)
+            .all())
+
 
 def _calculate_room_urgency(room_id, room_clean_count, room_last_cleaned, now,
                             is_resident_room=False, is_occupied=True):

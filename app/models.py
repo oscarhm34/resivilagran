@@ -214,11 +214,25 @@ class CareRecord(db.Model):
 
 
 class ChecklistItem(db.Model):
+    """Tarea que la trabajadora confirma al finalizar la limpieza de una zona.
+
+    Cada item pertenece a un tipo de zona y solo sale en las limpiezas de ese
+    tipo. La columna es nullable en base de datos, no porque un item pueda no
+    tener zona, sino porque los que ya existian cuando el checklist era una
+    lista unica se quedaron sin ella: un NOT NULL habria hecho fallar el ALTER
+    TABLE en produccion. Un item sin zona no aparece en ninguna limpieza, y el
+    panel lo marca para que se le asigne una.
+    """
     __tablename__ = 'checklist_item'
     id = db.Column(db.Integer, primary_key=True)
     text = db.Column(db.String(200), nullable=False)
     sort_order = db.Column(db.Integer, default=0)
     active = db.Column(db.Boolean, default=True)
+    room_type_id = db.Column(db.Integer,
+                             db.ForeignKey('room_type.id', name='fk_chk_room_type'),
+                             nullable=True, index=True)
+
+    room_type = db.relationship('RoomType')
 
 
 class AppSetting(db.Model):
