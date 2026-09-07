@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% block title %}Traducciones{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+        <a href="{{ url_for('admin_bp.index') }}" class="btn btn-outline-secondary btn-sm">&larr; Inicio</a>
+        <h1 class="h3 mb-0">Traducciones</h1>
+        {% if pendientes %}
+        <span class="badge bg-warning text-dark ms-auto">{{ pendientes }} sin traducir o desfasada{{ 's' if pendientes != 1 }}</span>
+        {% else %}
+        <span class="badge bg-success ms-auto">Todo al día</span>
+        {% endif %}
+    </div>
+
+    <div class="alert alert-info mb-3" role="note" style="font-size:.9rem">
+        Aquí se traduce lo que escribís vosotros y ve la trabajadora en el móvil. Los textos de
+        la propia aplicación (botones, avisos) ya están traducidos y no hay que tocarlos.
+        <br>
+        <strong>La IA se equivoca.</strong> Estas son instrucciones que se siguen mientras se
+        atiende a una persona: repasa cada traducción y guárdala, así queda marcada como revisada.
+    </div>
+
+    <ul class="nav nav-tabs mb-3">
+        {% for code, cfg in entidades.items() %}
+        <li class="nav-item">
+            <a class="nav-link {{ 'active' if code == entity_type }}"
+               href="{{ url_for('translations.manage_translations', entity_type=code) }}">{{ cfg.etiqueta }}</a>
+        </li>
+        {% endfor %}
+    </ul>
+
+    {% if not filas %}
+    <div class="alert alert-info" role="status">
+        No hay nada escrito que traducir en esta sección.
+    </div>
+    {% endif %}
+
+    {% for fila in filas %}
+    <div class="card mb-3" data-entity="{{ entity_type }}" data-id="{{ fila.id }}" data-field="{{ fila.campo }}">
+        <div class="card-header d-flex align-items-center gap-2 flex-wrap">
+            <strong>{{ fila.titulo }}</strong>
+            <span class="badge bg-secondary">{{ fila.campo_nombre }}</span>
+            <button type="button" class="btn btn-sm btn-outline-primary ms-auto btn-traducir">
+                <i class="bi bi-stars me-1" aria-hidden="true"></i>Traducir con IA
+            </button>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label text-secondary" style="font-size:.85rem">Original en castellano</label>
+                <div style="white-space:pre-wrap;background:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:10px">{{ fila.original }}</div>
+            </div>
+            {% for code, l in idiomas.items() %}
+            {% set d = fila.idiomas[code] %}
+            <div class="mb-3" data-lang="{{ code }}">
+                <label for="t-{{ entity_type }}-{{ fila.id }}-{{ fila.campo }}-{{ code }}"
+                       class="form-label d-flex align-items-center gap-2 flex-wrap">
+                    <span aria-hidden="true">{{ l.flag }}</span> {{ l.native }}
+                    {% if d.desfasada %}
+                    <span class="badge bg-warning text-dark estado">Desfasada: el original ha cambiado</span>
+                    {% elif not d.texto %}
+                    <span class="badge bg-secondary estado">Sin traducir</span>
+                    {% elif d.revisada %}
+                    <span class="badge bg-success estado">Revisada</span>
+                    {% else %}
+                    <span class="badge bg-info text-dark estado">Generada con IA, sin revisar</span>
+                    {% endif %}
+                </label>
+                <textarea id="t-{{ entity_type }}-{{ fila.id }}-{{ fila.campo }}-{{ code }}"
+                          class="form-control trad" rows="2"
+                          {% if l.rtl %}dir="rtl"{% endif %}
+                          lang="{{ code }}">{{ d.texto }}</textarea>
+                <div class="d-flex gap-2 mt-2">
+                    <button type="button" class="btn btn-sm btn-primary btn-guardar">Guardar y marcar revisada</button>
+                    {% if d.texto %}
+                    <button type="button" class="btn btn-sm btn-outline-danger btn-borrar">Borrar</button>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            <div class="alert alert-warning py-2 px-3 mb-0 d-none" role="alert" style="font-size:.85rem">
+                Una traducción desfasada <strong>no se le enseña a nadie</strong>: la webapp
+                vuelve al castellano hasta que se rehaga.
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    'use strict';
+
+    function pedir(url, datos) {
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(datos),
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); });
+    }
+
+    function datosDe(el) {
+        var card = el.closest('[data-entity]');
+        return {
+            entity_type: card.dataset.entity,
+            entity_id: parseInt(card.dataset.id, 10),
+            field: card.dataset.field,
+        };
+    }
+
+    function marcar(bloque, texto, clase) {
+        var badge = bloque.querySelector('.estado');
+        if (!badge) return;
+        badge.textContent = texto;
+        badge.className = 'badge estado ' + clase;
+    }
+
+    document.querySelectorAll('.btn-traducir').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var card = btn.closest('[data-entity]');
+            var base = datosDe(btn);
+            var langs = Array.prototype.map.call(
+                card.querySelectorAll('[data-lang]'), function (b) { return b.dataset.lang; });
+            btn.disabled = true;
+            var original = btn.innerHTML;
+            btn.textContent = 'Traduciendo…';
+            pedir('/api/traducciones/generar', Object.assign({ langs: langs }, base))
+                .then(function (res) {
+                    btn.disabled = false;
+                    btn.innerHTML = original;
+                    if (!res.ok) { alert(res.d.error || 'No se ha podido traducir'); return; }
+                    Object.keys(res.d.traducciones).forEach(function (lang) {
+                        var bloque = card.querySelector('[data-lang="' + lang + '"]');
+                        if (!bloque) return;
+                        bloque.querySelector('.trad').value = res.d.traducciones[lang];
+                        marcar(bloque, 'Generada con IA, sin revisar', 'bg-info text-dark');
+                    });
+                });
+        });
+    });
+
+    document.querySelectorAll('.btn-guardar').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var bloque = btn.closest('[data-lang]');
+            var datos = Object.assign(datosDe(btn), {
+                lang: bloque.dataset.lang,
+                text: bloque.querySelector('.trad').value,
+            });
+            btn.disabled = true;
+            pedir('/api/traducciones/guardar', datos).then(function (res) {
+                btn.disabled = false;
+                if (!res.ok) { alert(res.d.error || 'No se ha podido guardar'); return; }
+                marcar(bloque, 'Revisada', 'bg-success');
+            });
+        });
+    });
+
+    document.querySelectorAll('.btn-borrar').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var bloque = btn.closest('[data-lang]');
+            var datos = Object.assign(datosDe(btn), { lang: bloque.dataset.lang });
+            pedir('/api/traducciones/borrar', datos).then(function (res) {
+                if (!res.ok) { alert(res.d.error || 'No se ha podido borrar'); return; }
+                bloque.querySelector('.trad').value = '';
+                marcar(bloque, 'Sin traducir', 'bg-secondary');
+                btn.remove();
+            });
+        });
+    });
+})();
+</script>
+{% endblock %}

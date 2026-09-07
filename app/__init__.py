@@ -103,6 +103,7 @@ from .blueprints.assessments import bp as assessments_bp  # noqa: E402
 from .blueprints.medication import bp as medication_bp  # noqa: E402
 from .blueprints.activities import bp as activities_bp  # noqa: E402
 from .blueprints.messaging import bp as messaging_bp  # noqa: E402
+from .blueprints.translations import bp as translations_bp  # noqa: E402
 app.register_blueprint(nfc_bp)
 app.register_blueprint(training_bp)
 app.register_blueprint(documents_bp)
@@ -118,13 +119,15 @@ app.register_blueprint(assessments_bp)
 app.register_blueprint(medication_bp)
 app.register_blueprint(activities_bp)
 app.register_blueprint(messaging_bp)
+app.register_blueprint(translations_bp)
 
 # Exempt all blueprints from CSRF — app is internal (local network only)
 # CSRF meta tag + JS auto-injection in base.html provides protection for admin forms
 # API routes use JWT Bearer tokens instead of CSRF
 for _bp in [nfc_bp, chat_bp, notifications_bp, admin_bp, training_bp, documents_bp,
             shifts_bp, cleaning_bp, residents_bp, care_bp, incidents_bp,
-            assessments_bp, medication_bp, activities_bp, messaging_bp]:
+            assessments_bp, medication_bp, activities_bp, messaging_bp,
+            translations_bp]:
     csrf.exempt(_bp)
 
 

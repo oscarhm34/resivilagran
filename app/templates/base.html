@@ -495,13 +495,14 @@
                         </ul>
                     </li>
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {% if request.endpoint in ('admin_bp.manage_cleaning_zones','care.manage_checklist','admin_bp.manage_floors','admin_bp.manage_room_types','cleaning.admin_cleaning_analytics','cleaning.admin_cleaning_config','cleaning.admin_cleaning_plan') %}active{% endif %}"
+                        <a class="nav-link dropdown-toggle {% if request.endpoint in ('admin_bp.manage_cleaning_zones','care.manage_checklist','admin_bp.manage_floors','admin_bp.manage_room_types','translations.manage_translations','cleaning.admin_cleaning_analytics','cleaning.admin_cleaning_config','cleaning.admin_cleaning_plan') %}active{% endif %}"
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-building me-1" aria-hidden="true"></i>Espacios
                         </a>
                         <ul class="dropdown-menu shadow-sm" style="border-color:var(--color-border);border-radius:var(--radius-md)">
                             <li><a class="dropdown-item" href="{{ url_for('admin_bp.manage_cleaning_zones') }}"><i class="bi bi-door-open me-1" aria-hidden="true"></i>Zonas de limpieza</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('care.manage_checklist') }}"><i class="bi bi-check2-square me-1" aria-hidden="true"></i>Checklist</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('translations.manage_translations') }}"><i class="bi bi-translate me-1" aria-hidden="true"></i>Traducciones</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ url_for('cleaning.admin_cleaning_plan') }}"><i class="bi bi-map me-1" aria-hidden="true"></i>Plan de limpieza hoy</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('cleaning.admin_cleaning_analytics') }}"><i class="bi bi-speedometer2 me-1" aria-hidden="true"></i>Análisis de limpieza</a></li>

@@ -12,7 +12,7 @@ from . import app, db
 from .models import (
     Cleaner, Room, Resident, CleaningRecord, CareRecord, CareType,
     AppSetting, CleaningTargetTime, CleaningZoneAssignment,
-    AuditLog, ChecklistItem, RoomType,
+    AuditLog, ChecklistItem, RoomType, ContentTranslation,
 )
 
 
@@ -292,6 +292,84 @@ APP_LOCALES = {'es': 'es-ES', 'ar': 'ar-MA', 'fr': 'fr-FR', 'en': 'en-GB'}
 def _idioma_valido(code: str | None) -> str:
     """Normaliza un codigo de idioma a uno de los que la webapp sabe hablar."""
     return code if code in APP_LANGUAGES else 'es'
+
+
+# ── Traduccion del contenido que escribe coordinacion ────────────────────────
+
+# Que campos se traducen de cada modelo. Deliberadamente corto: se traduce lo
+# que una trabajadora necesita entender para hacer bien su trabajo, no todo lo
+# que hay escrito. Un numero de habitacion o el nombre de un grupo ("Planta 2")
+# no gana nada traducido, y cada texto traducido es uno mas que mantener.
+CAMPOS_TRADUCIBLES = {
+    'care_type': ('name', 'instructions'),
+    'checklist_item': ('text',),
+    'resident': ('relevant_info', 'allergies'),
+}
+
+
+def _huella(texto: str) -> str:
+    """Resumen del original, para saber si una traduccion se ha quedado vieja."""
+    import hashlib
+    return hashlib.md5((texto or '').strip().encode('utf-8')).hexdigest()
+
+
+def _traducciones_de(entity_type: str, ids, lang: str) -> dict:
+    """Todas las traducciones vigentes de esas entidades, en una sola consulta.
+
+    Devuelve {(entity_id, field): texto}. Se consulta en bloque porque el uso
+    real es una lista —los tipos de atencion de una pantalla, los items del
+    checklist de una zona— y una consulta por fila seria un N+1 en el camino
+    critico de la webapp.
+    """
+    if lang == 'es' or not ids:
+        return {}
+    filas = ContentTranslation.query.filter(
+        ContentTranslation.entity_type == entity_type,
+        ContentTranslation.entity_id.in_(list(ids)),
+        ContentTranslation.lang == lang,
+    ).all()
+    return {(f.entity_id, f.field): f for f in filas}
+
+
+def _aplicar_traduccion(fila, original: str) -> str:
+    """El texto traducido, o el original si no hay o si se quedo desfasado.
+
+    Desfasada es la que se hizo sobre un castellano que despues cambio. Vale
+    mas ensenar el original que una instruccion que ya no dice lo mismo.
+    """
+    if not fila or not original:
+        return original
+    if fila.source_hash != _huella(original):
+        return original
+    return fila.text
+
+
+def _texto_traducido(entity_type: str, entity_id: int, field: str,
+                     original: str, lang: str) -> str:
+    """Un solo texto traducido. Para listas, usar `_traducciones_de`."""
+    if lang == 'es' or not original:
+        return original
+    fila = ContentTranslation.query.filter_by(
+        entity_type=entity_type, entity_id=entity_id,
+        field=field, lang=lang).first()
+    return _aplicar_traduccion(fila, original)
+
+
+def _idioma_peticion() -> str:
+    """El idioma de quien hace la peticion, segun su ficha.
+
+    Sale del token y no de una cabecera o un parametro: el idioma es una
+    propiedad de la persona, no de la peticion, y asi nadie puede pedir el
+    contenido en un idioma que no es el suyo por error.
+    """
+    try:
+        username = get_jwt_identity()
+    except RuntimeError:
+        return 'es'
+    if not username:
+        return 'es'
+    worker = Cleaner.query.filter_by(username=username).first()
+    return _idioma_valido(worker.lang if worker else None)
 
 
 _TRADUCCIONES_CACHE: dict | None = None

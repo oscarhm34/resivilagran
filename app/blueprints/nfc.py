@@ -33,6 +33,8 @@ from ..utils import (
     MIN_SESSION_SECONDS_DEFAULT, _tipos_de_atencion_a_esta_hora,
     _audio_de_texto, _hay_voz, _checklist_de_zona,
     APP_LANGUAGES, APP_LOCALES, _idioma_valido, _traducciones_webapp,
+    _idioma_peticion, _traducciones_de, _aplicar_traduccion,
+    _texto_traducido,
 )
 
 bp = Blueprint('nfc', __name__)
@@ -63,6 +65,15 @@ def _rechazo_por_tiempo(start_time, quien: str | None = None):
         'code': 'MIN_DURATION',
         'seconds_left': faltan,
     }), 409
+
+
+def _items_checklist(items):
+    """Los items del checklist en el idioma de quien va a marcarlos."""
+    lang = _idioma_peticion()
+    trads = _traducciones_de('checklist_item', [i.id for i in items], lang)
+    return [{'id': i.id,
+             'text': _aplicar_traduccion(trads.get((i.id, 'text')), i.text)}
+            for i in items]
 
 
 def _save_base64_photo(b64_data: str, subfolder: str, cleaner_id: int) -> str:
@@ -311,13 +322,21 @@ def worker_manifest():
 def api_care_types():
     types = CareType.query.filter_by(parent_id=None, active=True).order_by(CareType.sort_order, CareType.name).all()
 
+    # Las traducciones, en una sola consulta para toda la pantalla: padres e
+    # hijos a la vez, que es lo que se acaba pintando.
+    lang = _idioma_peticion()
+    todos = [t for t in types] + [c for t in types for c in (t.children or [])]
+    trads = _traducciones_de('care_type', [t.id for t in todos], lang)
+
     def _ct_dict(ct):
+        instrucciones = _aplicar_traduccion(
+            trads.get((ct.id, 'instructions')), ct.instructions or '')
         d = {
             'id': ct.id,
-            'name': ct.name,
+            'name': _aplicar_traduccion(trads.get((ct.id, 'name')), ct.name),
             'icon': ct.icon or '',
             'icon_url': f'/api/uploads/{ct.icon_path}' if ct.icon_path else None,
-            'instructions': ct.instructions or None,
+            'instructions': instrucciones or None,
         }
         vital_fields = [{'id': vs.id, 'name': vs.name, 'unit': vs.unit,
                          'min_value': vs.min_value, 'max_value': vs.max_value,
@@ -544,15 +563,19 @@ def api_resident_info(resident_id):
     r = db.session.get(Resident, resident_id)
     if not r:
         return jsonify({'error': 'Residente no encontrado'}), 404
+    lang = _idioma_peticion()
+    trads = _traducciones_de('resident', [r.id], lang)
     return jsonify({
         'id': r.id,
         'name': r.name,
         'room_number': r.room_number or '',
-        'relevant_info': r.relevant_info or '',
+        'relevant_info': _aplicar_traduccion(
+            trads.get((r.id, 'relevant_info')), r.relevant_info or ''),
         'photo_url': f'/api/uploads/{r.photo_path}' if r.photo_path else None,
         'group_name': r.group.name if r.group else None,
         'group_color': r.group.color if r.group else None,
-        'allergies': r.allergies or '',
+        'allergies': _aplicar_traduccion(
+            trads.get((r.id, 'allergies')), r.allergies or ''),
         'dependency_level': r.dependency_level or '',
     }), 200
 
@@ -585,7 +608,11 @@ def api_resident_audio(resident_id):
     r = db.session.get(Resident, resident_id)
     if not r or not (r.relevant_info or '').strip():
         return jsonify({'error': 'No hay información que leer'}), 404
-    return _servir_audio(r.relevant_info, 'resident_audio', f'res{r.id}')
+    # El texto que se lee es el mismo que se ve. El nombre del fichero lleva un
+    # hash del texto, asi que cada idioma genera su audio sin tocar nada mas.
+    texto = _texto_traducido('resident', r.id, 'relevant_info',
+                             r.relevant_info, _idioma_peticion())
+    return _servir_audio(texto, 'resident_audio', f'res{r.id}')
 
 
 @bp.route('/api/care-type/<int:care_type_id>/audio')
@@ -596,7 +623,9 @@ def api_care_type_audio(care_type_id):
     ct = db.session.get(CareType, care_type_id)
     if not ct or not (ct.instructions or '').strip():
         return jsonify({'error': 'No hay instrucciones que leer'}), 404
-    return _servir_audio(ct.instructions, 'care_audio', f'ct{ct.id}')
+    texto = _texto_traducido('care_type', ct.id, 'instructions',
+                             ct.instructions, _idioma_peticion())
+    return _servir_audio(texto, 'care_audio', f'ct{ct.id}')
 
 
 @bp.route('/api/worker/active-session')
@@ -855,7 +884,7 @@ def nfc_scan():
                     'record_id': active_this.id,
                     'subject': f'Hab. {room.number}',
                     'subject_sub': room.description or '',
-                    'items': [{'id': i.id, 'text': i.text} for i in items],
+                    'items': _items_checklist(items),
                 }), 200
             active_this.end_time = now
             ok, err = _safe_commit()
@@ -947,20 +976,28 @@ def nfc_scan():
             salida['record_id'] = record.id
             salida['start_time'] = now.isoformat()
         # Lo que hay que saber de esta persona antes de empezar, no despues.
-        info = (resident.relevant_info or '').strip()
+        lang = _idioma_peticion()
+        info = _texto_traducido('resident', resident.id, 'relevant_info',
+                                (resident.relevant_info or '').strip(), lang)
         if info:
             salida['resident_info'] = {'text': info, 'audio': hay_voz}
         if toca:
+            tt = _traducciones_de('care_type', [ct.id for ct in toca], lang)
+            nombres = {ct.id: _aplicar_traduccion(tt.get((ct.id, 'name')), ct.name)
+                       for ct in toca}
+            instr = {ct.id: _aplicar_traduccion(tt.get((ct.id, 'instructions')),
+                                                ct.instructions or '')
+                     for ct in toca}
             salida['care_hint'] = {
-                'name': ', '.join(ct.name for ct in toca),
+                'name': ', '.join(nombres[ct.id] for ct in toca),
                 'icon': toca[0].icon or '',
                 # Cada tipo por separado: con dos atenciones a la misma hora,
                 # cada una necesita su propio boton de escuchar.
                 'types': [{
                     'id': ct.id,
-                    'name': ct.name,
+                    'name': nombres[ct.id],
                     'icon': ct.icon or '',
-                    'instructions': ct.instructions or None,
+                    'instructions': instr[ct.id] or None,
                     'audio': bool(hay_voz and (ct.instructions or '').strip()),
                 } for ct in toca],
             }
@@ -1001,7 +1038,7 @@ def end_session():
                 'action': 'select_checklist',
                 'record_id': record.id,
                 'subject': f'Hab. {room.number}' if room else 'Habitación',
-                'items': [{'id': i.id, 'text': i.text} for i in checklist_items],
+                'items': _items_checklist(checklist_items),
             }), 200
 
         record.end_time = datetime.now()

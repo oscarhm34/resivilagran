@@ -247,6 +247,39 @@ class ChecklistItem(db.Model):
                                  lazy='selectin')
 
 
+class ContentTranslation(db.Model):
+    """Un texto de la residencia en otro idioma.
+
+    Generica y no una tabla por modelo: lo que hay que traducir son campos
+    sueltos de sitios distintos —las instrucciones de un tipo de atencion, un
+    item del checklist, la informacion relevante de un residente— y una tabla
+    para cada uno serian cuatro esquemas y cuatro pantallas de administracion
+    para el mismo problema.
+
+    `source_hash` es el resumen del castellano en el momento de traducirlo. Si
+    despues alguien cambia el original, deja de coincidir y la traduccion se
+    marca como desfasada en vez de seguir mostrandose como si estuviera al dia:
+    una instruccion de trabajo que ya no dice lo que dice la de castellano es
+    peor que no tener traduccion.
+    """
+    __tablename__ = 'content_translation'
+    id = db.Column(db.Integer, primary_key=True)
+    entity_type = db.Column(db.String(30), nullable=False, index=True)
+    entity_id = db.Column(db.Integer, nullable=False, index=True)
+    field = db.Column(db.String(30), nullable=False)
+    lang = db.Column(db.String(5), nullable=False, index=True)
+    text = db.Column(db.Text, nullable=False)
+    source_hash = db.Column(db.String(32), nullable=False)
+    generated_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    reviewed = db.Column(db.Boolean, nullable=False, default=False)
+
+    __table_args__ = (
+        db.UniqueConstraint('entity_type', 'entity_id', 'field', 'lang',
+                            name='uq_content_translation'),
+        db.Index('ix_content_translation_lookup', 'entity_type', 'entity_id', 'lang'),
+    )
+
+
 class AppSetting(db.Model):
     __tablename__ = 'app_setting'
     id = db.Column(db.Integer, primary_key=True)

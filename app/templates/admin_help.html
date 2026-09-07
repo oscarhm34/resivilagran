@@ -1622,11 +1622,27 @@
                 <li>En arabe la pantalla se ordena <strong>de derecha a izquierda</strong>, y el dictado
                     por voz de las observaciones tambien pasa a ese idioma.</li>
             </ul>
-            <p class="mb-0"><strong>Que no se traduce:</strong> lo que escribe coordinacion en el panel
-               sigue saliendo en castellano —nombres de los tipos de atencion y sus instrucciones, items
-               del checklist, nombres y descripciones de las zonas, titulos de las formaciones y de las
-               actividades—. Conviene tenerlo presente al redactar las <em>instrucciones</em> de un tipo
-               de atencion: son texto de seguridad y quien no lea castellano no las entendera.</p>
+            <h6 class="mt-3">Traducir lo que escribis vosotros</h6>
+            <p>Los textos de la aplicacion (botones, avisos) ya vienen traducidos. Lo que escribe
+               coordinacion se traduce desde <strong>Gestion &rarr; Traducciones</strong>:</p>
+            <ul>
+                <li>Se traducen los <strong>tipos de atencion</strong> (nombre e instrucciones), los
+                    <strong>items del checklist</strong> y de cada residente su <strong>informacion
+                    relevante</strong> y sus <strong>alergias</strong>.</li>
+                <li>El boton <strong>Traducir con IA</strong> genera los tres idiomas de golpe. Despues
+                    <strong>hay que repasarlos</strong>: se pueden corregir a mano y al guardar quedan
+                    marcados como <em>Revisada</em>. Los que solo ha tocado la IA salen marcados como
+                    tales, para que se vea de un vistazo lo que nadie ha mirado.</li>
+                <li><strong>Si cambias el texto en castellano, su traduccion se marca como desfasada y
+                    deja de mostrarse:</strong> la trabajadora vuelve a ver el castellano hasta que la
+                    rehagas. Es a proposito — una instruccion traducida que ya no dice lo mismo que la
+                    original es peor que no tener traduccion.</li>
+                <li>El boton de <strong>escuchar</strong> lee el texto en el idioma que se este viendo.</li>
+            </ul>
+            <p class="mb-0"><strong>Que sigue en castellano:</strong> nombres y numeros de habitacion,
+               nombres de las zonas y de los grupos, titulos de formaciones y actividades, y los
+               documentos legales. Los nombres propios no se traducen a proposito; el resto se puede
+               anadir si hace falta.</p>
         </div>
     </div>
 
@@ -1641,6 +1657,7 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>07/09</td><td><strong>Ahora tambien se traduce lo que escribis vosotros:</strong> en <strong>Gestion &rarr; Traducciones</strong> se pueden pasar a arabe, frances e ingles las <strong>instrucciones de los tipos de atencion</strong>, los <strong>items del checklist</strong> y la <strong>informacion relevante</strong> y las <strong>alergias</strong> de cada residente. Un boton lo traduce todo con IA y despues se corrige a mano; lo que nadie ha repasado sale marcado. <strong>Lo importante:</strong> si luego cambiais el texto en castellano, su traduccion se marca desfasada y deja de mostrarse — la trabajadora vuelve a ver el castellano hasta que la rehagais, porque una instruccion traducida que ya no dice lo mismo es peor que ninguna. El boton de escuchar tambien lee el texto en el idioma que se este viendo.</td></tr>
                     <tr><td>07/09</td><td><strong>La webapp ya se puede usar en arabe, frances e ingles:</strong> cada trabajadora elige su idioma con el boton <strong>🌐</strong> de la cabecera de Inicio, y coordinacion tambien se lo puede poner desde <strong>Empleados</strong>. El idioma queda guardado en su ficha, asi que lo mantiene aunque cambie de movil. En arabe la pantalla se ordena de derecha a izquierda y el dictado por voz de las observaciones tambien cambia de idioma. <strong>Ojo:</strong> lo que se escribe desde el panel sigue saliendo en castellano —nombres e instrucciones de los tipos de atencion, items del checklist, nombres de las zonas, titulos de formaciones y actividades—. Las <em>instrucciones</em> de los tipos de atencion son las que mas importan, porque son texto de seguridad. De paso se han pasado a castellano unos cuantos textos de la webapp que habian quedado en catalan (los nombres de las comidas, "Com esta avui?") y se han corregido acentos que faltaban en varios avisos.</td></tr>
                     <tr><td>07/09</td><td><strong>El checklist de limpieza vuelve a salir, y ahora es distinto en cada tipo de zona:</strong> desde que se activo el modo Solo NFC, en agosto, el checklist dejo de aparecer sin que nadie lo tocara. Solo se ofrecia al pulsar el boton <em>Finalizar</em> de la tarjeta, y ese boton dejo de dibujarse cuando las limpiezas pasaron a cerrarse acercando el movil a la etiqueta; por ese camino la limpieza se cerraba directamente. Ningun registro desde entonces tiene checklist guardado, y por eso el <strong>Dashboard de Rendimiento</strong> venia marcando 0% de checklist completado. Ya sale por los dos caminos. Ademas, cada item se marca ahora con <strong>las zonas donde aplica</strong> y solo aparece en las limpiezas de esos tipos de zona, porque lo que hay que repasar en un bano comun no es lo que hay que repasar en una habitacion. Se pueden marcar varias: "papel WC" en banos y apartamentos, "luces apagadas" en todas. <strong>Importante:</strong> los items que ya existian se han quedado sin ninguna zona marcada y no saldran hasta que se les marque alguna desde <strong>Checklist</strong>, donde aparecen los primeros y con un aviso naranja.</td></tr>
                     <tr><td>04/09</td><td><strong>El chatbot ya sabe responder por tipo de atencion:</strong> a preguntas como "quien ha hecho deposiciones hoy" o "cuantas diarreas ha habido esta semana" antes no sabia contestar, porque en el registro solo se guarda el subtipo (FECALOMA, NORMAL, DIARREA) y el nombre no decia de que categoria era. Ahora se puede preguntar por la categoria o por el subtipo, con el periodo de dias que se quiera, y en las respuestas el tipo sale como <em>Deposiciones: DIARREA</em>. Si el nombre no le suena, consulta los tipos configurados en vez de contestar que no hay nada.</td></tr>
