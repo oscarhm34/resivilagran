@@ -19,6 +19,18 @@ care_record_types = db.Table(
     db.Column('care_type_id', db.Integer, db.ForeignKey('care_type.id'), primary_key=True),
 )
 
+# Un item del checklist vale para varias zonas a la vez. Casi ninguno es de una
+# sola: "luces apagadas" toca en las nueve, "papel WC" en banos y apartamentos.
+# Con una FK simple habria que duplicar el mismo item una vez por zona y
+# repasar la lista entera cada vez que se da de alta un tipo de zona nuevo.
+checklist_item_room_types = db.Table(
+    'checklist_item_room_types',
+    db.Column('checklist_item_id', db.Integer,
+              db.ForeignKey('checklist_item.id', name='fk_chkrt_item'), primary_key=True),
+    db.Column('room_type_id', db.Integer,
+              db.ForeignKey('room_type.id', name='fk_chkrt_room_type'), primary_key=True),
+)
+
 
 class Cleaner(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -216,23 +228,20 @@ class CareRecord(db.Model):
 class ChecklistItem(db.Model):
     """Tarea que la trabajadora confirma al finalizar la limpieza de una zona.
 
-    Cada item pertenece a un tipo de zona y solo sale en las limpiezas de ese
-    tipo. La columna es nullable en base de datos, no porque un item pueda no
-    tener zona, sino porque los que ya existian cuando el checklist era una
-    lista unica se quedaron sin ella: un NOT NULL habria hecho fallar el ALTER
-    TABLE en produccion. Un item sin zona no aparece en ninguna limpieza, y el
-    panel lo marca para que se le asigne una.
+    Cada item vale para las zonas que se le marquen y solo sale en las limpiezas
+    de esos tipos. Un item sin ninguna zona no aparece en ninguna parte: son los
+    heredados de cuando el checklist era una lista unica, y el panel los marca
+    para que se les asigne alguna.
     """
     __tablename__ = 'checklist_item'
     id = db.Column(db.Integer, primary_key=True)
     text = db.Column(db.String(200), nullable=False)
     sort_order = db.Column(db.Integer, default=0)
     active = db.Column(db.Boolean, default=True)
-    room_type_id = db.Column(db.Integer,
-                             db.ForeignKey('room_type.id', name='fk_chk_room_type'),
-                             nullable=True, index=True)
 
-    room_type = db.relationship('RoomType')
+    room_types = db.relationship('RoomType', secondary=checklist_item_room_types,
+                                 backref=db.backref('checklist_items', lazy=True),
+                                 lazy='selectin')
 
 
 class AppSetting(db.Model):

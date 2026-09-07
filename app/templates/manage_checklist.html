@@ -15,8 +15,9 @@
     </div>
 
     <div class="alert alert-info mb-4" role="note" style="font-size:.9rem">
-        Cada ítem pertenece a un <strong>tipo de zona</strong> y solo aparece cuando un trabajador
-        finaliza la limpieza de una zona de ese tipo. Debe verificar cada punto antes de confirmar.
+        Cada ítem se marca con los <strong>tipos de zona</strong> en los que aplica, y solo aparece
+        cuando un trabajador finaliza la limpieza de una zona de esos tipos. Debe verificar cada
+        punto antes de confirmar.
     </div>
 
     {% if not room_types %}
@@ -24,16 +25,16 @@
         <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
         No hay ningún tipo de zona dado de alta. Créalos primero en
         <a href="{{ url_for('admin_bp.manage_room_types') }}" class="alert-link">Tipos de zona</a>:
-        cada ítem del checklist tiene que pertenecer a uno.
+        cada ítem del checklist tiene que aplicar al menos a uno.
     </div>
     {% endif %}
 
     {% if sin_zona %}
     <div class="alert alert-warning mb-4" role="alert">
         <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
-        Hay <strong>{{ sin_zona }}</strong> ítem{{ 's' if sin_zona != 1 }} sin tipo de zona asignado
+        Hay <strong>{{ sin_zona }}</strong> ítem{{ 's' if sin_zona != 1 }} sin ninguna zona marcada
         (los primeros de la tabla). <strong>No aparecen en ninguna limpieza</strong> hasta que se les
-        asigne una: edítalos y elige la zona a la que pertenecen.
+        marque alguna: edítalos y elige en qué zonas aplican.
     </div>
     {% endif %}
 
@@ -47,17 +48,27 @@
         <div class="offcanvas-body">
             <form id="chk-form" method="POST" action="{{ url_for('care.add_edit_checklist_item') }}" class="needs-validation" novalidate>
                 <input type="hidden" name="item_id" value="">
-                <div class="mb-3">
-                    <label for="room_type_id" class="form-label">Tipo de zona <span class="text-danger" aria-hidden="true">*</span></label>
-                    <select id="room_type_id" name="room_type_id" class="form-select" required>
-                        <option value="">Selecciona una zona...</option>
+                <fieldset class="mb-3">
+                    <legend class="form-label mb-1" style="font-size:1rem">
+                        Zonas donde aplica <span class="text-danger" aria-hidden="true">*</span>
+                    </legend>
+                    <div class="d-flex gap-2 mb-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="zonas-todas">Marcar todas</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="zonas-ninguna">Desmarcar</button>
+                    </div>
+                    <div id="zonas-lista" style="max-height:220px;overflow-y:auto;border:1px solid var(--color-border);border-radius:var(--radius-md);padding:10px">
                         {% for rt in room_types %}
-                        <option value="{{ rt.id }}">{{ rt.name }}</option>
+                        <label class="form-check d-flex align-items-center gap-2 mb-1" style="cursor:pointer">
+                            <input class="form-check-input zona-chk m-0" type="checkbox"
+                                   name="room_type_ids" value="{{ rt.id }}" style="cursor:pointer"
+                                   {% if loop.first %}required{% endif %}>
+                            <span>{{ rt.name }}</span>
+                        </label>
                         {% endfor %}
-                    </select>
-                    <div class="invalid-feedback">Selecciona el tipo de zona.</div>
-                    <div class="form-text">El ítem solo saldrá al finalizar limpiezas de este tipo de zona.</div>
-                </div>
+                    </div>
+                    <div class="invalid-feedback d-block" id="zonas-error" style="display:none !important">Marca al menos una zona.</div>
+                    <div class="form-text" id="zonas-ayuda">El ítem solo saldrá al finalizar limpiezas de las zonas marcadas.</div>
+                </fieldset>
                 <div class="mb-3">
                     <label for="text" class="form-label">Texto <span class="text-danger" aria-hidden="true">*</span></label>
                     <input type="text" id="text" name="text" class="form-control" required placeholder="ej. Apagar la luz">
@@ -93,8 +104,10 @@
                     <tr>
                         <td>{{ item.sort_order }}</td>
                         <td>
-                            {% if item.room_type %}
-                                <span class="badge bg-secondary">{{ item.room_type.name }}</span>
+                            {% if item.room_types %}
+                                {% for rt in item.room_types|sort(attribute='name') %}
+                                <span class="badge bg-secondary mb-1">{{ rt.name }}</span>
+                                {% endfor %}
                             {% else %}
                                 <span class="badge bg-warning text-dark">Sin zona</span>
                             {% endif %}
@@ -111,7 +124,7 @@
                             <button type="button" class="btn btn-sm btn-outline-secondary edit-btn me-1"
                                     data-id="{{ item.id }}" data-text="{{ item.text }}"
                                     data-sort="{{ item.sort_order }}"
-                                    data-room-type="{{ item.room_type_id or '' }}">Editar</button>
+                                    data-room-types="{{ item.room_types|map(attribute='id')|join(',') }}">Editar</button>
                             <button type="button" class="btn btn-sm btn-outline-danger delete-btn"
                                     data-name="{{ item.text }}"
                                     data-action="{{ url_for('care.delete_checklist_item', id=item.id) }}">Eliminar</button>
@@ -152,6 +165,29 @@
     var offcanvas = new bootstrap.Offcanvas(offcanvasEl);
     var headerBar = document.getElementById('checklist-header-bar');
 
+    // Con casillas no hay un "required" de grupo. Se pone en la primera mientras
+    // no haya ninguna marcada, y asi el checkValidity() global de base.html ya
+    // frena el envio sin repetir la validacion aqui.
+    var primeraZona = document.querySelector('.zona-chk');
+    function sincronizarRequerido() {
+        var alguna = document.querySelectorAll('.zona-chk:checked').length > 0;
+        if (primeraZona) primeraZona.required = !alguna;
+        var err = document.getElementById('zonas-error');
+        if (err) err.style.setProperty('display', alguna ? 'none' : 'block', 'important');
+    }
+    document.querySelectorAll('.zona-chk').forEach(function (cb) {
+        cb.addEventListener('change', sincronizarRequerido);
+    });
+
+    function marcarZonas(valor) {
+        document.querySelectorAll('.zona-chk').forEach(function (cb) { cb.checked = valor; });
+        sincronizarRequerido();
+    }
+    var btnTodas = document.getElementById('zonas-todas');
+    var btnNinguna = document.getElementById('zonas-ninguna');
+    if (btnTodas) btnTodas.addEventListener('click', function () { marcarZonas(true); });
+    if (btnNinguna) btnNinguna.addEventListener('click', function () { marcarZonas(false); });
+
     function resetForm() {
         var form = document.getElementById('chk-form');
         form.reset();
@@ -161,6 +197,7 @@
         document.getElementById('checklistFormTitle').textContent = 'Nuevo ítem';
         document.getElementById('edit-badge').classList.add('d-none');
         headerBar.style.borderTopColor = 'var(--color-primary)';
+        sincronizarRequerido();
     }
 
     window.openChecklistForm = function () {
@@ -169,6 +206,7 @@
     };
 
     offcanvasEl.addEventListener('hidden.bs.offcanvas', resetForm);
+    sincronizarRequerido();
 
     document.querySelectorAll('.edit-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
@@ -177,7 +215,11 @@
             form.querySelector('[name="item_id"]').value    = this.dataset.id;
             form.querySelector('[name="text"]').value        = this.dataset.text;
             form.querySelector('[name="sort_order"]').value  = this.dataset.sort;
-            form.querySelector('[name="room_type_id"]').value = this.dataset.roomType || '';
+            var marcadas = (this.dataset.roomTypes || '').split(',').filter(Boolean);
+            form.querySelectorAll('.zona-chk').forEach(function (cb) {
+                cb.checked = marcadas.indexOf(cb.value) !== -1;
+            });
+            sincronizarRequerido();
             document.getElementById('submit-btn').textContent = 'Guardar cambios';
             document.getElementById('checklistFormTitle').textContent = 'Editando: ' + this.dataset.text;
             document.getElementById('edit-badge').classList.remove('d-none');

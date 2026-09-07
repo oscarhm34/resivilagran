@@ -4,7 +4,7 @@ from __future__ import annotations
 from flask import Blueprint, request, jsonify, redirect, url_for, flash, abort, render_template
 from flask_login import login_required, current_user
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import selectinload
 from datetime import datetime
 import os
 
@@ -279,16 +279,15 @@ def delete_vital_field(vf_id: int):
 @bp.route('/manage-checklist')
 @admin_required
 def manage_checklist():
-    # Los items sin zona van los primeros: son los que no salen en ninguna
-    # limpieza y hay que asignarles una.
     items = (ChecklistItem.query
-             .options(joinedload(ChecklistItem.room_type))
-             .order_by(ChecklistItem.room_type_id.is_(None).desc(),
-                       ChecklistItem.room_type_id,
-                       ChecklistItem.sort_order, ChecklistItem.id)
+             .options(selectinload(ChecklistItem.room_types))
+             .order_by(ChecklistItem.sort_order, ChecklistItem.id)
              .all())
+    # Los que no salen en ninguna limpieza, los primeros. Se ordena aqui y no
+    # en SQL porque "no tiene ninguna zona" es una relacion, no una columna.
+    items.sort(key=lambda i: bool(i.room_types))
     room_types = RoomType.query.order_by(RoomType.name).all()
-    sin_zona = sum(1 for i in items if not i.room_type_id)
+    sin_zona = sum(1 for i in items if not i.room_types)
     return render_template('manage_checklist.html', items=items,
                            room_types=room_types, sin_zona=sin_zona)
 
@@ -304,14 +303,16 @@ def add_edit_checklist_item():
         flash('El texto es obligatorio.', 'danger')
         return redirect(url_for('care.manage_checklist'))
 
-    # La zona es obligatoria: un item sin ella no saldria en ninguna limpieza,
-    # que es justo lo contrario de lo que quiere quien lo esta creando.
+    # Al menos una zona: un item sin ninguna no saldria en ninguna limpieza,
+    # que es justo lo contrario de lo que quiere quien lo esta creando. Los ids
+    # se resuelven contra la tabla, asi que uno inventado no cuela.
     try:
-        room_type_id = int(request.form.get('room_type_id') or 0)
+        pedidos = {int(v) for v in request.form.getlist('room_type_ids')}
     except (TypeError, ValueError):
-        room_type_id = 0
-    if not room_type_id or not db.session.get(RoomType, room_type_id):
-        flash('Selecciona el tipo de zona al que pertenece el item.', 'danger')
+        pedidos = set()
+    zonas = RoomType.query.filter(RoomType.id.in_(pedidos)).all() if pedidos else []
+    if not zonas:
+        flash('Marca al menos un tipo de zona para el item.', 'danger')
         return redirect(url_for('care.manage_checklist'))
 
     if item_id:
@@ -319,9 +320,9 @@ def add_edit_checklist_item():
         if item:
             item.text = text
             item.sort_order = int(sort_order) if sort_order else 0
-            item.room_type_id = room_type_id
+            item.room_types = zonas
             log_audit('update', 'checklist_item', item.id,
-                      {'texto': text, 'tipo_zona_id': room_type_id})
+                      {'texto': text, 'zonas': [z.name for z in zonas]})
             ok, error = _safe_commit('Error al actualizar el item del checklist')
             if not ok:
                 flash(error, 'danger')
@@ -330,10 +331,10 @@ def add_edit_checklist_item():
     else:
         item = ChecklistItem(text=text,
                              sort_order=int(sort_order) if sort_order else 0,
-                             room_type_id=room_type_id)
+                             room_types=zonas)
         db.session.add(item)
         log_audit('create', 'checklist_item', None,
-                  {'texto': text, 'tipo_zona_id': room_type_id})
+                  {'texto': text, 'zonas': [z.name for z in zonas]})
         ok, error = _safe_commit('Error al crear el item del checklist')
         if not ok:
             flash(error, 'danger')

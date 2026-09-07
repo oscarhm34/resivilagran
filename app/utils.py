@@ -12,7 +12,7 @@ from . import app, db
 from .models import (
     Cleaner, Room, Resident, CleaningRecord, CareRecord, CareType,
     AppSetting, CleaningTargetTime, CleaningZoneAssignment,
-    AuditLog, ChecklistItem,
+    AuditLog, ChecklistItem, RoomType,
 )
 
 
@@ -515,15 +515,18 @@ def _check_single_session_conflict(worker_id):
 def _checklist_de_zona(room) -> list:
     """Items activos del checklist que tocan al tipo de zona de esta habitacion.
 
-    Un item sin zona asignada no sale en ninguna limpieza: son los heredados de
-    cuando el checklist era una lista unica y estan a la espera de que
-    coordinacion les de una zona desde el panel. Devolverlos en todas las zonas
-    seria adivinar, y aparecerian donde no tocan.
+    Un item sin ninguna zona marcada no sale en ninguna limpieza: son los
+    heredados de cuando el checklist era una lista unica y estan a la espera de
+    que coordinacion les marque las suyas desde el panel. Sacarlos en todas
+    seria adivinar, y apareceria donde no toca.
+
+    `any()` se traduce a un EXISTS, que funciona igual en SQLite y PostgreSQL.
     """
     if not room or not room.room_type_id:
         return []
     return (ChecklistItem.query
-            .filter_by(active=True, room_type_id=room.room_type_id)
+            .filter(ChecklistItem.active.is_(True),
+                    ChecklistItem.room_types.any(RoomType.id == room.room_type_id))
             .order_by(ChecklistItem.sort_order, ChecklistItem.id)
             .all())
 
