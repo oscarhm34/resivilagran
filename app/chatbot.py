@@ -2,7 +2,9 @@
 Chatbot IA basado en Claude API con tool use para consultas sobre la aplicación.
 """
 from __future__ import annotations
+import difflib
 import json
+import re
 import unicodedata
 from datetime import datetime, timedelta
 from anthropic import Anthropic
@@ -31,6 +33,10 @@ Capacidades importantes:
 - Para preguntas como "cuál es la tensión de María" o "glucemia de Juan", usa constantes_vitales_residente.
 - Para preguntas como "cómo está María" o "estado de Juan", usa info_residente — incluye perfil médico, valoraciones Barthel/Norton, notas recientes del personal e incidencias. Resume el estado del residente de forma clara.
 - Si preguntan sobre valoraciones, dependencia o riesgo de úlceras, la info ya viene en info_residente (campo valoraciones).
+- Para buscar a un residente no hace falta su nombre exacto: buscar_residente entiende el nombre a medias, en cualquier orden y con erratas. Pásale el nombre tal cual te lo digan.
+- Si buscar_residente o buscar_trabajador devuelven "sugerencias", no digas que esa persona no existe: pregunta si se refieren a alguno de esos nombres.
+- Si devuelven varias coincidencias, no elijas por tu cuenta: enuméralas (con la habitación, que ayuda a distinguir) y pide que concreten.
+- Si buscar_residente devuelve "inactivos", esa persona consta dada de baja: dilo y no intentes consultar sus datos.
 - Puedes consultar turnos de cualquier día con consultar_turnos. Para "quién trabaja hoy", "quién está de tarde", etc.
 - Si alguien falta o necesitan cobertura, usa sugerir_cobertura para encontrar al mejor candidato. Analiza horas, descansos y equidad.
 - Para preguntas como "quién puede cubrir mañana por la mañana" o "María está de baja, quién la sustituye", usa sugerir_cobertura."""
@@ -38,11 +44,11 @@ Capacidades importantes:
 TOOLS = [
     {
         "name": "buscar_residente",
-        "description": "Busca residentes por nombre (parcial). Devuelve lista de coincidencias con id, nombre, habitación y grupo.",
+        "description": "Busca residentes por nombre. Acepta el nombre incompleto, las palabras en cualquier orden (nombre y apellidos dan igual), sin tildes y con erratas leves. Devuelve lista de coincidencias con id, nombre, habitación y grupo; si no encuentra a nadie, devuelve nombres parecidos en sugerencias.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "nombre": {"type": "string", "description": "Nombre parcial del residente a buscar"}
+                "nombre": {"type": "string", "description": "Nombre del residente, entero o en parte, en el orden que sea"}
             },
             "required": ["nombre"]
         }
@@ -148,11 +154,11 @@ TOOLS = [
     },
     {
         "name": "buscar_trabajador",
-        "description": "Busca trabajadores por nombre parcial.",
+        "description": "Busca trabajadoras por nombre. Acepta el nombre incompleto, las palabras en cualquier orden, sin tildes y con erratas leves. Si no encuentra a nadie, devuelve nombres parecidos en sugerencias.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "nombre": {"type": "string", "description": "Nombre parcial del trabajador"}
+                "nombre": {"type": "string", "description": "Nombre de la trabajadora, entero o en parte, en el orden que sea"}
             },
             "required": ["nombre"]
         }
@@ -256,18 +262,136 @@ def _tipos_que_coinciden(termino: str) -> list[CareType]:
             or (ct.parent and buscado in _normaliza(ct.parent.name))]
 
 
+# ── Buscar por nombre: ni el orden, ni las tildes, ni una errata deben estorbar ─
+# Los nombres viven en un unico campo libre y sin criterio fijo: unos son "NOMBRE
+# APELLIDOS" y otros "APELLIDOS, NOMBRE". Un `ilike '%texto%'` obliga a acertar el
+# orden exacto, asi que "Tadea Cazorla" no encontraba a "CAZORLA CARRILLO TADEA"
+# y "Assumpcio" no encontraba a "ASSUMPCIO ZAPATER" por la tilde.
+#
+# Se compara palabra a palabra sobre la lista entera —son ciento y pico— por el
+# mismo motivo que en `_tipos_que_coinciden`: para que las tildes den igual y para
+# no depender del motor (`unaccent` y `pg_trgm` no existen en el SQLite de los
+# tests).
+
+MAXIMO_RESULTADOS = 10   # mas que esto no ayuda a nadie a decidir
+PARECIDO_MINIMO = 0.8    # a partir de aqui dos palabras se dan por la misma
+LARGO_MINIMO_ERRATA = 4  # en palabras cortas un parecido alto no significa nada
+
+
+def _palabras(texto: str) -> list[str]:
+    """Las palabras de un nombre, normalizadas y sin signos de puntuacion.
+
+    El split por lo no alfanumerico es lo que despega la coma de los nombres al
+    estilo "ARMADA PUJOL, TERESA".
+    """
+    return [p for p in re.split(r'[^0-9a-z]+', _normaliza(texto)) if p]
+
+
+def _encaja(escrita: str, palabra: str, erratas: bool) -> float:
+    """Cuanto encaja una palabra escrita con una del nombre. 0.0 si no encaja.
+
+    Basta con que sea un prefijo, para que "Tadea C" siga valiendo.
+    """
+    if palabra.startswith(escrita):
+        return 1.0
+    if not erratas or min(len(escrita), len(palabra)) < LARGO_MINIMO_ERRATA:
+        return 0.0
+    parecido = difflib.SequenceMatcher(None, escrita, palabra).ratio()
+    return parecido if parecido >= PARECIDO_MINIMO else 0.0
+
+
+def _puntua(escritas: list[str], nombre: str, erratas: bool) -> float:
+    """Puntua un nombre frente a lo escrito; 0.0 si alguna palabra no encaja.
+
+    Cada palabra escrita tiene que encajar con una palabra distinta del nombre,
+    en el orden que sea. La media permite ordenar despues: quien encaja por
+    prefijo limpio queda por delante de quien encaja arrastrando una errata.
+    """
+    disponibles = _palabras(nombre)
+    if not escritas or not disponibles:
+        return 0.0
+    total = 0.0
+    for escrita in escritas:
+        mejor, cual = 0.0, None
+        for i, palabra in enumerate(disponibles):
+            punto = _encaja(escrita, palabra, erratas)
+            if punto > mejor:
+                mejor, cual = punto, i
+        if not mejor:
+            return 0.0
+        total += mejor
+        disponibles.pop(cual)
+    return total / len(escritas)
+
+
+def _parecidos(escritas: list[str], candidatos: list, cuantos: int = 5) -> list:
+    """Los nombres que mas se parecen a lo escrito, aunque no lleguen a encajar.
+
+    Para que el asistente pueda preguntar "¿te refieres a...?" en lugar de
+    responder que ese residente no existe, que es otra cosa.
+    """
+    buscado = ' '.join(escritas)
+    puntuados = []
+    for c in candidatos:
+        palabras = _palabras(c.name)
+        mejor = difflib.SequenceMatcher(None, buscado, ' '.join(palabras)).ratio()
+        for palabra in palabras:
+            for escrita in escritas:
+                mejor = max(mejor, difflib.SequenceMatcher(
+                    None, escrita, palabra).ratio())
+        puntuados.append((mejor, c))
+    puntuados.sort(key=lambda p: (-p[0], p[1].name))
+    return [c for parecido, c in puntuados[:cuantos] if parecido >= 0.5]
+
+
+def _buscar_por_nombre(consulta: str, candidatos: list) -> tuple[list, list]:
+    """Los candidatos que encajan con lo escrito y, si no hay ninguno, los parecidos.
+
+    Devuelve `(coincidencias, sugerencias)`. Se prueba primero sin tolerar
+    erratas y solo se repite admitiendolas si la primera pasada no da nada: asi
+    una errata no ensucia los resultados cuando la busqueda limpia ya funcionaba.
+    """
+    escritas = _palabras(consulta)
+    if not escritas or not candidatos:
+        return [], []
+    for erratas in (False, True):
+        puntuados = [(_puntua(escritas, c.name, erratas), c) for c in candidatos]
+        encajan = sorted((p for p in puntuados if p[0]),
+                         key=lambda p: (-p[0], p[1].name))
+        if encajan:
+            return [c for _, c in encajan], []
+    return [], _parecidos(escritas, candidatos)
+
+
 # ── Tool implementations ──────────────────────────────────────────────────────
 
 def _buscar_residente(nombre: str) -> str:
-    results = Resident.query.filter(
-        Resident.name.ilike(f'%{nombre}%'), Resident.active == True
-    ).order_by(Resident.name).limit(10).all()
-    if not results:
-        return json.dumps({"resultado": "No se encontraron residentes con ese nombre"})
-    return json.dumps({"residentes": [{
-        "id": r.id, "nombre": r.name, "habitacion": r.room_number or "Sin asignar",
-        "grupo": r.group.name if r.group else "Sin grupo",
-    } for r in results]}, ensure_ascii=False)
+    activos = Resident.query.filter_by(active=True).order_by(Resident.name).all()
+    encontrados, parecidos = _buscar_por_nombre(nombre, activos)
+
+    if encontrados:
+        respuesta = {"residentes": [{
+            "id": r.id, "nombre": r.name,
+            "habitacion": r.room_number or "Sin asignar",
+            "grupo": r.group.name if r.group else "Sin grupo",
+        } for r in encontrados[:MAXIMO_RESULTADOS]]}
+        if len(encontrados) > MAXIMO_RESULTADOS:
+            respuesta["mas_resultados"] = (
+                f"Hay {len(encontrados)} residentes que encajan; se muestran los "
+                f"{MAXIMO_RESULTADOS} que mejor coinciden. Pide un nombre mas concreto.")
+        return json.dumps(respuesta, ensure_ascii=False)
+
+    respuesta = {"resultado": "No se encontraron residentes activos con ese nombre"}
+    # A quien esta de baja se le nombra, pero sin `id`: asi el asistente puede
+    # avisar de que existe y no puede pedir su ficha ni sus datos medicos.
+    de_baja, _ = _buscar_por_nombre(
+        nombre, Resident.query.filter_by(active=False).all())
+    if de_baja:
+        respuesta["inactivos"] = [f"{r.name} (consta como dado de baja)"
+                                  for r in de_baja[:MAXIMO_RESULTADOS]]
+    if parecidos:
+        respuesta["sugerencias"] = [r.name for r in parecidos]
+    return json.dumps(respuesta, ensure_ascii=False)
 
 
 def _extract_doc_text(doc) -> str:
@@ -602,15 +726,17 @@ def _resumen_dia(fecha: str | None = None) -> str:
 
 
 def _buscar_trabajador(nombre: str) -> str:
-    results = Cleaner.query.filter(
-        Cleaner.name.ilike(f'%{nombre}%'), Cleaner.active == True
-    ).order_by(Cleaner.name).limit(10).all()
-    if not results:
-        return json.dumps({"resultado": "No se encontraron trabajadores con ese nombre"})
+    activos = Cleaner.query.filter_by(active=True).order_by(Cleaner.name).all()
+    encontrados, parecidos = _buscar_por_nombre(nombre, activos)
+    if not encontrados:
+        respuesta = {"resultado": "No se encontraron trabajadores con ese nombre"}
+        if parecidos:
+            respuesta["sugerencias"] = [c.name for c in parecidos]
+        return json.dumps(respuesta, ensure_ascii=False)
     return json.dumps({"trabajadores": [{
         "id": c.id, "nombre": c.name, "usuario": c.username,
         "es_admin": c.is_admin, "grupos": [g.name for g in c.groups],
-    } for c in results]}, ensure_ascii=False)
+    } for c in encontrados[:MAXIMO_RESULTADOS]]}, ensure_ascii=False)
 
 
 def _residentes_con_documentos(tipo: str | None = None) -> str:
