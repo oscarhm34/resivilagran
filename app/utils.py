@@ -294,6 +294,33 @@ def _idioma_valido(code: str | None) -> str:
     return code if code in APP_LANGUAGES else 'es'
 
 
+# ── Tono del aviso de mensaje ────────────────────────────────────────────────
+
+# El sonido se sintetiza en el movil (ver `TONOS` en worker.html): aqui solo
+# vive el patron de vibracion, que es lo que el servidor tiene que meter en el
+# aviso push. Con la aplicacion cerrada Android decide el sonido y la web no
+# puede cambiarlo; la vibracion si viaja en el aviso, asi que es lo unico que
+# distingue un tono de otro cuando el movil esta en el bolsillo.
+TONOS_AVISO = {
+    'suave':   [200, 100, 200],
+    'campana': [400],
+    'triple':  [100, 60, 100, 60, 100],
+    'grave':   [300],
+}
+
+TONO_AVISO_DEFECTO = 'suave'
+
+
+def _tono_valido(tono: str | None) -> str:
+    """Normaliza un tono a uno de los que la webapp sabe tocar."""
+    return tono if tono in TONOS_AVISO else TONO_AVISO_DEFECTO
+
+
+def _vibracion_de_tono(tono: str | None) -> list:
+    """Patron de vibracion del tono, para el aviso push."""
+    return TONOS_AVISO[_tono_valido(tono)]
+
+
 # ── Traduccion del contenido que escribe coordinacion ────────────────────────
 
 # Que campos se traducen de cada modelo. Deliberadamente corto: se traduce lo

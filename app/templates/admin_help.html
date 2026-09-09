@@ -1587,19 +1587,30 @@
             <p>Un mensaje nuevo avisa por dos caminos distintos, y conviene saber cual falla
                cuando alguien dice que "no le llega nada":</p>
             <ul>
-                <li><strong>Con la webapp abierta:</strong> suena un tono corto, el movil vibra y
+                <li><strong>Con la webapp abierta:</strong> suena el tono elegido, el movil vibra y
                     aparece un aviso en pantalla con el nombre de quien escribe. Antes solo cambiaba
                     el numero de la tarjeta de Mensajes y no se enteraba nadie.</li>
                 <li><strong>Con la webapp cerrada:</strong> llega una notificacion del movil, con el
                     sonido que tenga configurado el telefono.</li>
             </ul>
+            <p>Ya no salen los dos a la vez: si la trabajadora tiene la aplicacion delante, suena
+               solo el tono de dentro y no se apila ademas una notificacion en la barra. El aviso de
+               prueba si sale siempre, porque para eso esta.</p>
             <p>En la webapp, el boton de la <strong>campana</strong> de la cabecera (arriba, al lado
                de Actualizar) abre una pantalla de comprobacion con cuatro puntos: direccion segura, permiso del
                movil, aplicacion instalada y avisos registrados. El que salga en rojo es el que hay
                que arreglar. Ahi mismo estan el boton <strong>Activar avisos</strong> (pide el
                permiso al telefono) y <strong>Enviar aviso de prueba</strong>, que manda una
                notificacion de verdad para comprobar si llega, sin esperar a que alguien escriba.
-               El interruptor de sonido apaga solo el tono de dentro de la aplicacion.</p>
+               El interruptor de sonido apaga solo el tono de dentro de la aplicacion, y el de
+               vibracion va aparte: antes el movil vibraba aunque se apagara el sonido, que es
+               justo lo que no queria quien lo apagaba.</p>
+            <p>En esa misma pantalla, en <strong>Tono</strong>, cada trabajadora elige entre cuatro
+               sonidos (Suave, Campana, Triple y Grave). Se toca al pulsarlo, asi que elegir y oirlo
+               son el mismo gesto. La eleccion queda guardada en su ficha, no en el telefono, asi que
+               la mantiene aunque cambie de movil. <strong>Con la aplicacion cerrada el sonido lo pone
+               Android y no se puede cambiar desde aqui</strong>; lo que si cambia con el tono es la
+               vibracion, que es lo que distingue un aviso de otro con el movil en el bolsillo.</p>
             <p><strong>La causa mas habitual de que no llegue nada es la direccion.</strong>
                Entrar por la <strong>IP</strong> (<code>192.168.1.99</code>) hace que el navegador
                pida aceptar un aviso de seguridad, y <strong>aceptarlo no arregla nada</strong>:
@@ -1614,7 +1625,18 @@
                inicio</strong>; desde el navegador no hay avisos.</p>
             <p>En <strong>Gestion &rarr; Empleados</strong>, quien no tenga ningun movil registrado
                aparece con la etiqueta naranja <strong>Sin avisos</strong> al lado del nombre. Sirve
-               para verlo de un vistazo sin ir preguntando telefono por telefono.</p>
+               para verlo de un vistazo sin ir preguntando telefono por telefono. Al lado del boton
+               de Editar hay ademas un boton de <strong>campana</strong> que envia un aviso de prueba
+               a su movil y dice cuantos lo han recibido de verdad, para poder comprobarlo sin tener
+               su telefono delante.</p>
+            <p>Y una cosa que antes se perdia en silencio: si el movil se habia quedado con un
+               registro antiguo que ya no valia (porque se rehizo el servidor), volvia a darse de alta
+               igual de inservible en cada arranque y la pantalla de comprobacion seguia diciendo que
+               todo estaba bien mientras no llegaba ni un aviso. Ahora eso se detecta y se renueva
+               solo. Ademas, la primera vez que una trabajadora entra en un movil le sale un aviso
+               pidiendole que active las notificaciones: Chrome solo deja pedir ese permiso cuando se
+               pulsa un boton, y hasta ahora el unico boton posible era el del recuadro naranja, que
+               muchas no llegaban a pulsar.</p>
 
             <h6>Y las copias de seguridad</h6>
             <p>Los adjuntos <strong>no</strong> entran en la copia comprimida de cada noche: con 30 copias
@@ -1675,6 +1697,8 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>09/09</td><td><strong>Cada trabajadora elige el tono de los mensajes:</strong> en la webapp, boton de la <strong>campana</strong> &rarr; <strong>Tono</strong>, hay cuatro sonidos (Suave, Campana, Triple y Grave). Se oye al pulsarlo y queda guardado en su ficha, asi que lo mantiene aunque cambie de movil. El sonido y la vibracion pasan a tener interruptores separados: antes el telefono vibraba aunque se apagara el sonido. Con la aplicacion cerrada el sonido lo pone Android y no se puede cambiar; lo que si cambia con el tono es la vibracion, que es lo que distingue un aviso de otro con el movil en el bolsillo. Ademas, con la webapp abierta ya no avisan las dos cosas a la vez: suena el tono y no se apila encima una notificacion repetida.</td></tr>
+                    <tr><td>09/09</td><td><strong>Los avisos con la aplicacion cerrada dejan de perderse en silencio:</strong> habia tres formas de quedarse sin ellos sin que nada lo dijera. La primera: Chrome solo deja pedir el permiso de avisos cuando se pulsa un boton, asi que quien no se fijaba en el recuadro naranja no llegaba a registrarse <strong>nunca</strong>; ahora, la primera vez que entra en un movil le sale el aviso con el boton delante. La segunda: si el telefono se habia quedado con un registro antiguo que ya no valia, volvia a darse de alta igual de inservible en cada arranque mientras la pantalla de comprobacion decia que todo estaba bien; ahora se detecta y se renueva solo. La tercera: si el registro se caia, no se recuperaba hasta cerrar y volver a entrar; ahora se reintenta al volver a la aplicacion. Y en <strong>Empleados</strong>, junto a Editar, un boton de campana <strong>envia un aviso de prueba</strong> al movil de cualquier trabajadora y dice cuantos han llegado de verdad, para comprobarlo sin tener su telefono delante.</td></tr>
                     <tr><td>08/09</td><td><strong>El chatbot ya encuentra al residente sin saberse el nombre exacto:</strong> hasta ahora habia que escribirlo entero y tal cual esta en la ficha. Preguntar "que atenciones ha recibido Tadea Cazorla" contestaba que ese residente no existe, y solo funcionaba copiando "CAZORLA CARRILLO TADEA" letra por letra, que es justo lo que nadie se sabe de memoria. Ahora basta con el nombre de pila y un apellido, <strong>en el orden que sea</strong>, sin tildes y aunque se cuele alguna errata ("Cazola"). Si el nombre no le suena, propone los mas parecidos en lugar de negarlo en seco; si coinciden varios, los enumera con la habitacion y pide que se concrete; y de quien esta dado de baja avisa de que consta de baja, sin entrar en sus datos. Las trabajadoras se buscan igual.</td></tr>
                     <tr><td>07/09</td><td><strong>Los avisos al movil, otra vez, y ahora con lo que faltaba:</strong> el aviso se enviaba con la orden "entregalo ahora o tiralo", asi que un movil en el bolsillo o en reposo <strong>perdia el mensaje para siempre</strong> y el servidor lo daba por enviado. Ahora se guarda hasta doce horas y llega al despertar el telefono. Ademas: el <strong>Enviar aviso de prueba</strong> decia que si antes de saberlo, y ahora espera la respuesta y dice cuantos moviles lo han recibido de verdad; el boton <strong>Activar avisos</strong> se quedaba pulsado sin decir nada cuando el movil no podia instalar la aplicacion, y ahora explica por que; los avisos ya no se pisan unos a otros ni se borran solos a los pocos segundos; y en un movil compartido, la segunda persona que entraba no llegaba a registrarse nunca. <strong>Importante:</strong> para que todo esto sirva hay que entrar por la <strong>direccion con nombre y no por la IP</strong> — con la IP el navegador no acepta el certificado y no instala la aplicacion, y sin eso no hay avisos por mucho que se arregle el resto.</td></tr>
                     <tr><td>07/09</td><td><strong>Ahora tambien se traduce lo que escribis vosotros:</strong> en <strong>Gestion &rarr; Traducciones</strong> se pueden pasar a arabe, frances e ingles las <strong>instrucciones de los tipos de atencion</strong>, los <strong>items del checklist</strong> y la <strong>informacion relevante</strong> y las <strong>alergias</strong> de cada residente. Un boton lo traduce todo con IA y despues se corrige a mano; lo que nadie ha repasado sale marcado. <strong>Lo importante:</strong> si luego cambiais el texto en castellano, su traduccion se marca desfasada y deja de mostrarse — la trabajadora vuelve a ver el castellano hasta que la rehagais, porque una instruccion traducida que ya no dice lo mismo es peor que ninguna. El boton de escuchar tambien lee el texto en el idioma que se este viendo.</td></tr>

@@ -245,3 +245,144 @@ def test_el_manifest_declara_el_ambito(client):
     """Del ambito depende que el service worker controle la pagina, y de eso
     dependen los avisos."""
     assert client.get('/worker/manifest.json').get_json()['scope'] == '/'
+
+
+# ── Tono del aviso ──────────────────────────────────────────────────────────
+#
+# El sonido de un aviso con la aplicacion cerrada lo decide Android y la web no
+# puede cambiarlo. La vibracion si viaja en el aviso, asi que es lo unico que
+# distingue un tono de otro con el movil en el bolsillo: si el patron no sale de
+# aqui, elegir el tono no sirve de nada en segundo plano.
+
+def test_el_aviso_lleva_la_vibracion_del_tono_elegido(db, app, suscrita,
+                                                      cleaner_user, monkeypatch):
+    import json
+    from app.utils import TONOS_AVISO
+
+    cleaner_user.msg_tone = 'triple'
+    db.session.commit()
+    llamadas = _webpush_falso(monkeypatch)
+
+    with app.test_request_context():
+        notif.send_push_to_worker(cleaner_user.id, 'Hola', 'Mensaje')
+
+    assert json.loads(llamadas[0]['data'])['vibrate'] == TONOS_AVISO['triple']
+
+
+def test_sin_tono_elegido_el_aviso_vibra_como_siempre(db, app, suscrita,
+                                                      cleaner_user, monkeypatch):
+    """NULL en la columna no puede dejar el aviso sin vibracion: quien no ha
+    elegido nada tiene que seguir notando el movil igual que antes."""
+    import json
+    from app.utils import TONOS_AVISO, TONO_AVISO_DEFECTO
+
+    assert cleaner_user.msg_tone is None
+    llamadas = _webpush_falso(monkeypatch)
+
+    with app.test_request_context():
+        notif.send_push_to_worker(cleaner_user.id, 'Hola', 'Mensaje')
+
+    assert json.loads(llamadas[0]['data'])['vibrate'] == TONOS_AVISO[TONO_AVISO_DEFECTO]
+
+
+def test_guardar_el_tono_exige_token(client):
+    assert client.put('/api/worker/msg-tone', json={'tone': 'campana'}).status_code == 401
+
+
+def test_guardar_el_tono_lo_deja_en_el_perfil(client, db, cleaner_user, worker_headers):
+    r = client.put('/api/worker/msg-tone', json={'tone': 'campana'},
+                   headers=worker_headers)
+
+    assert r.status_code == 200
+    assert r.get_json()['tone'] == 'campana'
+    assert db.session.get(Cleaner, cleaner_user.id).msg_tone == 'campana'
+
+
+def test_un_tono_inventado_se_rechaza(client, db, cleaner_user, worker_headers):
+    r = client.put('/api/worker/msg-tone', json={'tone': 'sirena'},
+                   headers=worker_headers)
+
+    assert r.status_code == 400
+    assert db.session.get(Cleaner, cleaner_user.id).msg_tone is None
+
+
+def test_el_tono_se_guarda_en_quien_manda_el_token(client, db, cleaner_user,
+                                                   worker_headers):
+    """La identidad sale del token: un id en el cuerpo no puede cambiarle el
+    tono a otra trabajadora."""
+    otra = Cleaner(username='otra', name='Otra', is_admin=False)
+    otra.set_password('x')
+    db.session.add(otra)
+    db.session.commit()
+
+    client.put('/api/worker/msg-tone',
+               json={'tone': 'grave', 'worker_id': otra.id, 'cleaner_id': otra.id},
+               headers=worker_headers)
+
+    assert db.session.get(Cleaner, cleaner_user.id).msg_tone == 'grave'
+    assert db.session.get(Cleaner, otra.id).msg_tone is None
+
+
+def test_la_configuracion_devuelve_el_tono(client, db, cleaner_user, worker_headers):
+    """La webapp lo lee de aqui para que el tono elegido en otro movil llegue a
+    este sin volver a elegirlo."""
+    cleaner_user.msg_tone = 'grave'
+    db.session.commit()
+
+    assert client.get('/api/config', headers=worker_headers).get_json()['msg_tone'] == 'grave'
+
+
+# ── Aviso de prueba desde el panel ──────────────────────────────────────────
+
+def test_el_aviso_de_prueba_del_panel_exige_admin(client, cleaner_user):
+    r = client.post(f'/cleaners/{cleaner_user.id}/push-test')
+
+    assert r.status_code in (302, 401, 403)
+
+
+def test_el_aviso_de_prueba_del_panel_cuenta_los_entregados(
+        auth_client, db, app, cleaner_user, suscrita, monkeypatch):
+    """Coordinacion no puede comprobar nada con el movil de otra persona
+    delante. El envio es sincrono y dice lo que ha pasado de verdad."""
+    _webpush_falso(monkeypatch)
+
+    datos = auth_client.post(f'/cleaners/{cleaner_user.id}/push-test').get_json()
+
+    assert datos == {'ok': True, 'dispositivos': 1, 'entregados': 1, 'fallidos': 0}
+
+
+def test_el_aviso_de_prueba_avisa_si_no_hay_movil_registrado(
+        auth_client, db, cleaner_user, monkeypatch):
+    _webpush_falso(monkeypatch)
+
+    datos = auth_client.post(f'/cleaners/{cleaner_user.id}/push-test').get_json()
+
+    assert datos['dispositivos'] == 0
+    assert datos['ok'] is False
+
+
+def test_la_prueba_se_ve_aunque_la_aplicacion_este_abierta(db, app, suscrita,
+                                                           cleaner_user, monkeypatch):
+    """El service worker esconde el aviso de un mensaje cuando la pantalla ya
+    esta delante, para no avisar dos veces. La prueba no: sirve para comprobar
+    que la notificacion del sistema sale, y escondida no comprobaria nada."""
+    import json
+    llamadas = _webpush_falso(monkeypatch)
+
+    with app.test_request_context():
+        notif.send_push_to_worker(cleaner_user.id, 'Aviso de prueba', 'x',
+                                  tag='prueba', siempre_visible=True)
+
+    assert json.loads(llamadas[0]['data'])['siempre_visible'] is True
+
+
+def test_el_aviso_de_un_mensaje_no_se_marca_como_siempre_visible(
+        db, app, suscrita, cleaner_user, monkeypatch):
+    import json
+    llamadas = _webpush_falso(monkeypatch)
+
+    with app.test_request_context():
+        notif.send_push_to_worker(cleaner_user.id, 'Ana', 'Te ha enviado un mensaje',
+                                  tag='chat-1')
+
+    assert json.loads(llamadas[0]['data'])['siempre_visible'] is False

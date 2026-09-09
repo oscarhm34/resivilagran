@@ -34,7 +34,7 @@ from ..utils import (
     _audio_de_texto, _hay_voz, _checklist_de_zona,
     APP_LANGUAGES, APP_LOCALES, _idioma_valido, _traducciones_webapp,
     _idioma_peticion, _traducciones_de, _aplicar_traduccion,
-    _texto_traducido,
+    _texto_traducido, TONOS_AVISO, _tono_valido,
 )
 
 bp = Blueprint('nfc', __name__)
@@ -1680,6 +1680,30 @@ def set_worker_lang():
     return jsonify({'ok': True, 'lang': lang}), 200
 
 
+@bp.route('/api/worker/msg-tone', methods=['PUT'])
+@jwt_required()
+def set_worker_msg_tone():
+    """Guarda el tono del aviso de mensaje en el perfil de quien esta autenticada.
+
+    La identidad sale del token y nunca de un id del cuerpo: si no, cualquiera
+    podria cambiarle el tono a otra. Mismo criterio que `set_worker_lang`.
+    """
+    data = request.json or {}
+    tono = str(data.get('tone', '')).strip()
+    if tono not in TONOS_AVISO:
+        return jsonify({'error': 'Tono no disponible', 'code': 'TONE_UNKNOWN'}), 400
+
+    worker = Cleaner.query.filter_by(username=get_jwt_identity()).first()
+    if not worker:
+        return jsonify({'error': 'Trabajador no encontrado'}), 404
+
+    worker.msg_tone = tono
+    ok, error = _safe_commit('Error al guardar el tono de los avisos')
+    if not ok:
+        return jsonify({'error': error}), 500
+    return jsonify({'ok': True, 'tone': tono}), 200
+
+
 @bp.route('/api/worker/languages')
 @jwt_required()
 def api_worker_languages():
@@ -1706,6 +1730,9 @@ def api_config():
         # Va aqui ademas de en el login para que un cambio hecho desde el panel
         # llegue al movil sin tener que volver a entrar.
         'lang': _idioma_valido(_worker_actual().lang if _worker_actual() else None),
+        # Igual que el idioma: viaja aqui para que el tono elegido en otro movil
+        # llegue a este sin tener que volver a elegirlo.
+        'msg_tone': _tono_valido(_worker_actual().msg_tone if _worker_actual() else None),
     }), 200
 
 

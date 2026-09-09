@@ -14,7 +14,7 @@ from ..models import (Notification, VitalSignReading, VitalSignType,
                       Incident, LegalDocument, DocumentSignature,
                       ShiftAssignment, ShiftCoverageRequirement, ShiftType,
                       AppSetting, PushSubscription)
-from ..utils import admin_required, _safe_commit
+from ..utils import admin_required, _safe_commit, _vibracion_de_tono
 import json as _json
 
 bp = Blueprint('notifications', __name__)
@@ -766,7 +766,7 @@ def push_test():
     intentos, entregados, errores = send_push_to_worker(
         worker.id, 'Aviso de prueba',
         'Si ves esto, los avisos funcionan', url='/worker', tag='prueba',
-        esperar=True)
+        esperar=True, siempre_visible=True)
     return jsonify({
         'ok': entregados > 0,
         'dispositivos': intentos,
@@ -879,7 +879,7 @@ def _entregar_push(worker_id, destinos, payload, priv_key, email):
 
 
 def send_push_to_worker(worker_id, title, body, url=None, tag=None,
-                       esperar=False):
+                       esperar=False, siempre_visible=False):
     """Envia un aviso push a todas las suscripciones de una trabajadora.
 
     Devuelve a cuantos dispositivos se ha intentado enviar. El envio en si va en
@@ -896,6 +896,12 @@ def send_push_to_worker(worker_id, title, body, url=None, tag=None,
     no deja rastro en ningun sitio: no hay pantalla que lo muestre y la persona
     solo sabe que no le suena el movil. Sin estas lineas, diagnosticarlo exige
     leer el codigo y adivinar.
+
+    `siempre_visible=True` obliga a que salga la notificacion del sistema aunque
+    la aplicacion este delante. Por defecto no sale, para no avisar dos veces de
+    un mensaje que la trabajadora ya esta viendo; pero la prueba de aviso existe
+    justo para comprobar que esa notificacion aparece, y sin esto no comprobaria
+    nada.
     """
     from flask import current_app
     priv_key = current_app.config.get('VAPID_PRIVATE_KEY')
@@ -918,6 +924,12 @@ def send_push_to_worker(worker_id, title, body, url=None, tag=None,
         # Agrupa los avisos de una misma conversacion: sin `tag`, el service
         # worker apila uno nuevo por mensaje y la barra de Android se llena.
         'tag': tag or 'lavilagran',
+        # El patron del tono que ha elegido ella. Con la aplicacion cerrada el
+        # sonido lo pone Android y la web no lo toca, asi que la vibracion es lo
+        # unico que hace distinto un aviso de otro con el movil en el bolsillo.
+        'vibrate': _vibracion_de_tono(getattr(
+            db.session.get(Cleaner, worker_id), 'msg_tone', None)),
+        'siempre_visible': bool(siempre_visible),
     })
     destinos = [(s.id, s.endpoint, s.keys_json) for s in subs]
 

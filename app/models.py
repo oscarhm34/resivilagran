@@ -45,6 +45,12 @@ class Cleaner(UserMixin, db.Model):
     # Idioma de la webapp. NULL = castellano, que es lo que ve quien no ha
     # elegido nada; asi nadie cambia de idioma por el hecho de anadir la columna.
     lang = db.Column(db.String(5), nullable=True)
+    # Tono del aviso de mensaje. NULL = el de siempre. Se guarda en el perfil y
+    # no solo en el movil para que la siga si cambia de telefono, igual que el
+    # idioma. El servidor lo necesita ademas para mandar el patron de vibracion
+    # en el aviso push: con la aplicacion cerrada, la vibracion es lo unico del
+    # aviso que se puede elegir (el sonido lo pone Android).
+    msg_tone = db.Column(db.String(20), nullable=True)
 
     groups = db.relationship('ResidentGroup', secondary=cleaner_groups, back_populates='workers', lazy=True)
 

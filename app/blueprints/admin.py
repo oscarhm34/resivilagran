@@ -348,6 +348,43 @@ def delete_cleaner(id: int):
     return redirect(url_for('admin_bp.manage_workers'))
 
 
+@bp.route('/cleaners/<int:id>/push-test', methods=['POST'])
+@admin_required
+def cleaner_push_test(id: int):
+    """Manda un aviso de prueba al movil de una trabajadora.
+
+    Que a alguien no le suene el telefono solo se descubria preguntandoselo, y
+    para comprobarlo habia que tener su movil delante. Desde aqui coordinacion
+    lo ve sola: el envio es sincrono y devuelve cuantos han llegado de verdad,
+    no cuantos se han intentado.
+    """
+    from .notifications import send_push_to_worker
+
+    cleaner = db.session.get(Cleaner, id)
+    if cleaner is None:
+        abort(404)
+
+    intentos, entregados, _errores = send_push_to_worker(
+        cleaner.id, 'Aviso de prueba',
+        'Si ves esto, los avisos funcionan', url='/worker', tag='prueba',
+        esperar=True, siempre_visible=True)
+
+    log_audit('push_test', 'cleaner', id,
+              {'dispositivos': intentos, 'entregados': entregados})
+    ok, _ = _safe_commit('Error al registrar el aviso de prueba')
+    if not ok:
+        app.logger.error('No se pudo registrar el aviso de prueba de %s', id)
+
+    return jsonify({
+        'ok': entregados > 0,
+        'dispositivos': intentos,
+        'entregados': entregados,
+        # El detalle del error es del servicio push y no le dice nada a quien
+        # esta en el panel. Queda entero en el log del servidor.
+        'fallidos': max(0, intentos - entregados),
+    }), 200
+
+
 @bp.route('/cleaners/update-groups', methods=['POST'])
 @admin_required
 def update_cleaner_groups():

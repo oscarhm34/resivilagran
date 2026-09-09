@@ -838,10 +838,25 @@
         <label class="avisos-switch" for="avisos-sonido">
             <span style="flex:1">
                 <span style="display:block;font-weight:600;font-size:15px">Sonido al recibir mensajes</span>
-                <span style="display:block;font-size:13px;color:var(--text-2);margin-top:2px">Suena y vibra mientras tienes la aplicación abierta</span>
+                <span style="display:block;font-size:13px;color:var(--text-2);margin-top:2px">Suena mientras tienes la aplicación abierta</span>
             </span>
             <input type="checkbox" id="avisos-sonido" style="width:26px;height:26px;flex-shrink:0">
         </label>
+
+        <label class="avisos-switch" for="avisos-vibrar" style="margin-top:10px">
+            <span style="flex:1">
+                <span style="display:block;font-weight:600;font-size:15px">Vibrar al recibir mensajes</span>
+                <span style="display:block;font-size:13px;color:var(--text-2);margin-top:2px">También cuando tienes la aplicación cerrada</span>
+            </span>
+            <input type="checkbox" id="avisos-vibrar" style="width:26px;height:26px;flex-shrink:0">
+        </label>
+
+        <div class="section-label" style="margin-top:22px">Tono</div>
+        <p style="font-size:13px;color:var(--text-2);margin:0 0 10px">
+            Pulsa uno para oírlo. Con la aplicación cerrada el sonido lo pone el
+            móvil y no se puede cambiar; lo que sí cambia es la vibración.
+        </p>
+        <div id="avisos-tonos" style="display:flex;flex-direction:column;gap:8px"></div>
 
         <div class="section-label" style="margin-top:22px">Comprobación</div>
         <div id="avisos-diag"></div>
@@ -1401,6 +1416,22 @@
         </div>
     </dialog>
 
+    <!-- Permiso de avisos. Chrome en Android solo deja pedirlo desde un gesto, y
+         hasta ahora el unico gesto posible era encontrar el banner. Este dialogo
+         sale una vez por movil y pone el boton delante. -->
+    <dialog id="avisos-pedir" style="border:none;border-radius:20px;padding:0;max-width:340px;width:90vw;background:var(--surface);box-shadow:0 20px 60px rgba(0,0,0,.3)">
+        <div style="padding:28px 24px;text-align:center">
+            <div style="font-size:3rem;margin-bottom:12px">🔔</div>
+            <h3 style="font-family:'Outfit',system-ui,sans-serif;font-weight:700;font-size:18px;margin:0 0 12px;color:var(--text)">Activa los avisos</h3>
+            <p style="font-size:14px;color:var(--text-2);line-height:1.5;margin:0 0 20px">
+                Sin esto el móvil no te avisará cuando una compañera te escriba
+                si tienes la aplicación cerrada.
+            </p>
+            <button id="avisos-pedir-si" style="background:var(--blue);color:#fff;border:none;border-radius:14px;padding:14px 40px;font-size:15px;font-weight:700;cursor:pointer;font-family:'Outfit',system-ui,sans-serif;width:100%;min-height:52px">Activar avisos</button>
+            <button id="avisos-pedir-no" style="background:none;color:var(--text-2);border:none;padding:12px;font-size:14px;cursor:pointer;width:100%;margin-top:6px">Ahora no</button>
+        </div>
+    </dialog>
+
 </div>
 
 <div class="toast" id="toast" aria-live="assertive"></div>
@@ -1780,6 +1811,12 @@ document.addEventListener('visibilitychange', () => {
 async function loadConfig() {
     const { ok, data } = await api('/api/config');
     if (ok && data) S.config = data;
+    // El tono elegido en otro movil llega por aqui. Se aplica antes que el
+    // idioma porque ese hace `return` cuando cambia.
+    if (ok && data && data.msg_tone) {
+        AVISO.tono = tonoValido(data.msg_tone);
+        localStorage.setItem('msg_tone', AVISO.tono);
+    }
     // Un cambio de idioma hecho desde el panel llega por aqui sin tener que
     // volver a entrar.
     if (ok && data && data.lang && data.lang !== I18N.lang()) { I18N.cambiar(data.lang); return; }
@@ -1814,7 +1851,7 @@ async function initHome() {
     startGlobalTimer();
     startNotifPolling();
     suscribirAvisos();
-    refrescarEstadoAvisos();
+    refrescarEstadoAvisos().then(pedirAvisosUnaVez);
     loadChats();
     chatSetDelay(CHAT_IDLE);
     abrirChatDesdeUrl(window.location.search);
@@ -5199,9 +5236,33 @@ function loadQuickPhrases() {
 // El tono se genera con Web Audio y no con un fichero: no hay nada que cachear
 // ni que se quede desincronizado tras un despliegue, y pesa cero.
 
+// Los cuatro tonos. `notas` son pares [frecuencia, retardo en segundos]; `dur`
+// es lo que dura cada nota y `vibra` el patron que la acompana. El patron viaja
+// tambien en el aviso push (ver `_vibracion_de_tono` en el servidor): con la
+// aplicacion cerrada el sonido lo pone Android y no se puede elegir, asi que la
+// vibracion es lo unico que distingue un tono de otro con el movil guardado.
+// Mantener estos patrones iguales a los de `TONOS_AVISO` en app/utils.py.
+var TONOS = {
+    suave:   { nombre: 'Suave',   notas: [[880, 0], [1175, 0.14]],
+               dur: 0.14, tipo: 'sine',     vibra: [200, 100, 200] },
+    campana: { nombre: 'Campana', notas: [[1568, 0]],
+               dur: 0.55, tipo: 'triangle', vibra: [400] },
+    triple:  { nombre: 'Triple',  notas: [[784, 0], [988, 0.11], [1319, 0.22]],
+               dur: 0.11, tipo: 'sine',     vibra: [100, 60, 100, 60, 100] },
+    grave:   { nombre: 'Grave',   notas: [[392, 0], [330, 0.16]],
+               dur: 0.18, tipo: 'sine',     vibra: [300] },
+};
+var TONO_DEFECTO = 'suave';
+
+function tonoValido(t) { return TONOS[t] ? t : TONO_DEFECTO; }
+
 var AVISO = {
     ctx:    null,
     activo: localStorage.getItem('msg_sound') !== '0',
+    // La vibracion tiene su propio interruptor: antes vibraba aunque el sonido
+    // estuviera apagado, y quien lo apagaba lo hacia para no molestar.
+    vibra:  localStorage.getItem('msg_vibrate') !== '0',
+    tono:   tonoValido(localStorage.getItem('msg_tone')),
 };
 
 // Ni iOS ni Chrome dejan sonar nada hasta que ha habido un gesto en la pagina.
@@ -5220,46 +5281,74 @@ function desbloquearAudio() {
 document.addEventListener('pointerdown', desbloquearAudio, { passive: true });
 document.addEventListener('touchstart', desbloquearAudio, { passive: true });
 document.addEventListener('visibilitychange', function () {
-    if (!document.hidden) desbloquearAudio();
+    if (document.hidden) return;
+    desbloquearAudio();
+    // Al volver a la aplicacion se vuelve a mirar si los avisos siguen en pie:
+    // una suscripcion se puede caer sola (el navegador la retira, el servicio
+    // push la caduca) y hasta ahora nada lo detectaba hasta el siguiente inicio
+    // de sesion. Espaciado, que esto pega una llamada al servidor.
+    if (S.token && Date.now() - ultimaRevisionAvisos > REVISION_AVISOS_MS) {
+        ultimaRevisionAvisos = Date.now();
+        refrescarEstadoAvisos();
+    }
 });
 
-function csTono(ctx) {
-    // Dos notas cortas. La rampa de ganancia evita el chasquido del corte.
-    [[880, 0], [1175, 0.14]].forEach(function (par) {
+var REVISION_AVISOS_MS = 10 * 60 * 1000;
+var ultimaRevisionAvisos = 0;
+
+function csTono(ctx, cual) {
+    // Notas cortas encadenadas. La rampa de ganancia evita el chasquido del
+    // corte, y baja a 0.0001 y no a cero porque `exponentialRamp` no admite cero.
+    var tono = TONOS[tonoValido(cual)];
+    tono.notas.forEach(function (par) {
         var osc = ctx.createOscillator();
         var vol = ctx.createGain();
-        osc.type = 'sine';
+        osc.type = tono.tipo;
         osc.frequency.value = par[0];
         var t = ctx.currentTime + par[1];
         vol.gain.setValueAtTime(0.0001, t);
         vol.gain.exponentialRampToValueAtTime(0.28, t + 0.02);
-        vol.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
+        vol.gain.exponentialRampToValueAtTime(0.0001, t + tono.dur - 0.01);
         osc.connect(vol); vol.connect(ctx.destination);
-        osc.start(t); osc.stop(t + 0.14);
+        osc.start(t); osc.stop(t + tono.dur);
     });
 }
 
-function sonarAviso() {
+function sonarAviso(cual) {
     try {
         var AC = window.AudioContext || window.webkitAudioContext;
         if (!AC) return;
         if (!AVISO.ctx) AVISO.ctx = new AC();
         var ctx = AVISO.ctx;
-        if (ctx.state === 'running') { csTono(ctx); return; }
+        var tono = tonoValido(cual || AVISO.tono);
+        if (ctx.state === 'running') { csTono(ctx, tono); return; }
         // `resume()` es una promesa. Sin esperarla, el estado seguia siendo
         // 'suspended' en la linea siguiente y el aviso se descartaba en
         // silencio: en un movil eso era **siempre** el primer mensaje tras
         // volver a abrir la aplicacion.
-        ctx.resume().then(function () { csTono(ctx); }).catch(function () {});
+        ctx.resume().then(function () { csTono(ctx, tono); }).catch(function () {});
     } catch (e) { /* un aviso nunca puede tumbar el sondeo */ }
 }
+
+// Cuando llega un aviso del service worker se toca al momento y ademas se lanza
+// un sondeo, que volveria a ver el mismo mensaje y a avisar por segunda vez. Con
+// esto el segundo aviso se cae. Una rafaga real de dos mensajes en el mismo
+// segundo tampoco necesita sonar dos veces.
+var AVISO_MINIMO_MS = 2500;
+var ultimoAviso = 0;
 
 // `discreto` = la conversacion ya esta abierta y la burbuja se ve sola: suena,
 // pero sin volver a anunciar por escrito lo que la persona esta mirando.
 function avisarMensaje(nombre, discreto) {
     try {
+        var ahora = Date.now();
+        if (ahora - ultimoAviso < AVISO_MINIMO_MS) return;
+        ultimoAviso = ahora;
         if (AVISO.activo) sonarAviso();
-        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        // La vibracion sigue su propio interruptor y el patron del tono elegido.
+        if (AVISO.vibra && navigator.vibrate) {
+            navigator.vibrate(TONOS[tonoValido(AVISO.tono)].vibra);
+        }
         if (!discreto) toast(nombre ? t('Nuevo mensaje de {0}', [nombre]) : 'Tienes un mensaje nuevo');
     } catch (e) { /* idem */ }
 }
@@ -5286,6 +5375,23 @@ function b64ToUint8(base64) {
 // generico "No se han podido activar los avisos", que no deja hacer nada.
 var avisosMotivo = '';
 
+// ¿La suscripcion que ya tiene el navegador se hizo con esta clave VAPID?
+// `applicationServerKey` vuelve como ArrayBuffer, asi que se comparan los bytes
+// contra los de la clave del servidor. Ante la duda devuelve true: renovar una
+// suscripcion buena costaria un aviso perdido, y hay navegadores donde
+// `options` no existe.
+function mismaClave(sub, publicKey) {
+    try {
+        var actual = sub.options && sub.options.applicationServerKey;
+        if (!actual || !publicKey) return true;
+        var a = new Uint8Array(actual);
+        var b = b64ToUint8(publicKey);
+        if (a.length !== b.length) return false;
+        for (var i = 0; i < a.length; i++) { if (a[i] !== b[i]) return false; }
+        return true;
+    } catch (e) { return true; }
+}
+
 async function suscribirAvisos() {
     if (avisosSuscritos || !S.token) return;
     avisosMotivo = '';
@@ -5297,6 +5403,16 @@ async function suscribirAvisos() {
     if (typeof Notification !== 'undefined' && Notification.permission === 'denied') {
         avisosMotivo = 'Los avisos están bloqueados en los ajustes del navegador';
         console.warn(avisosMotivo);
+        return;
+    }
+    // Sin permiso concedido, `subscribe()` tiene que pedirlo, y Chrome en Android
+    // **exige un gesto** para eso: desde el arranque automatico lanza
+    // NotAllowedError y todo se quedaba en un console.warn que en un movil no ve
+    // nadie. Quien no pulsara el banner no llegaba a suscribirse nunca. Aqui se
+    // sale sin ruido y el banner pide el gesto; `activarAvisos()` es quien pide
+    // el permiso, y esa si viene de un boton.
+    if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
+        avisosMotivo = 'Falta darle permiso a los avisos en este móvil';
         return;
     }
     try {
@@ -5321,6 +5437,16 @@ async function suscribirAvisos() {
         // Si ya hay una suscripcion en este navegador se reutiliza: volver a
         // suscribirse con la misma clave devuelve la misma, no duplica.
         var sub = await reg.pushManager.getSubscription();
+        // ...pero solo si se hizo con la clave que el servidor usa **hoy**. Una
+        // suscripcion de otra clave (servidor rehecho, `instance/` perdido) hace
+        // que el servicio push responda 403, el servidor la borre por muerta y
+        // el movil vuelva a darla de alta igual de inservible en el arranque
+        // siguiente: un bucle silencioso, con el diagnostico diciendo
+        // "1 dispositivo" mientras no llega ni un aviso.
+        if (sub && !mismaClave(sub, datos.public_key)) {
+            try { await sub.unsubscribe(); } catch (e) {}
+            sub = null;
+        }
         if (!sub) {
             sub = await reg.pushManager.subscribe({
                 userVisibleOnly: true,
@@ -5383,10 +5509,33 @@ async function activarAvisos() {
                          : (avisosMotivo || 'No se han podido activar los avisos'));
 }
 
+// Pedir el permiso una sola vez por movil, con un boton delante. Chrome en
+// Android no acepta `Notification.requestPermission()` sin gesto, asi que hasta
+// ahora la unica forma de llegar a tener avisos era que la trabajadora se fijara
+// en el banner de la pantalla de inicio. El que dice "ahora no" se queda con el
+// banner, que sigue ahi.
+function pedirAvisosUnaVez() {
+    if (localStorage.getItem('avisos_pedidos_v1')) return;
+    // Nunca encima de otro dialogo (el aviso del cierre por NFC sale en el mismo
+    // arranque). Como se sale sin marcar nada, vuelve a intentarlo la proxima vez.
+    if (document.querySelector('dialog[open]')) return;
+    var e = ESTADO_AVISOS;
+    // Solo cuando pulsar sirve de algo: sin direccion segura o sin service
+    // worker el permiso no arregla nada y el banner ya explica a quien avisar.
+    if (!e.seguro || !e.sw || e.permiso === 'denied' || e.permiso === 'no') return;
+    if (e.permiso === 'granted' && e.suscripciones) return;
+    localStorage.setItem('avisos_pedidos_v1', '1');
+    try { $('avisos-pedir').showModal(); } catch (err) {}
+}
+
 // Estado real de los avisos de esta persona en este movil. Cuatro cosas tienen
 // que salir bien y hasta ahora no habia forma de saber cual fallaba.
 var ESTADO_AVISOS = { seguro: false, permiso: 'default', sw: false,
                      swFallo: false, suscripciones: null };
+
+// Evita que el reintento de alta se llame a si mismo: `refrescarEstadoAvisos()`
+// lo lanza y al terminar vuelve a consultar el estado.
+var reintentandoAlta = false;
 
 async function refrescarEstadoAvisos() {
     ESTADO_AVISOS.seguro  = !!window.isSecureContext;
@@ -5402,6 +5551,23 @@ async function refrescarEstadoAvisos() {
     if (S.token) {
         const { ok, data } = await api('/api/push/status');
         if (ok && data) ESTADO_AVISOS.suscripciones = data.suscripciones;
+    }
+    // El servidor dice que no tiene ningun movil registrado y aqui el permiso
+    // esta dado: algo se perdio por el camino (suscripcion caducada, servidor
+    // rehecho, alta que no llego). `avisosSuscritos` bloqueaba el reintento
+    // durante toda la sesion, asi que no se recuperaba hasta cerrar la
+    // aplicacion. Se intenta una vez y se vuelve a mirar.
+    if (ESTADO_AVISOS.suscripciones === 0 && ESTADO_AVISOS.permiso === 'granted'
+        && ESTADO_AVISOS.sw && !reintentandoAlta) {
+        reintentandoAlta = true;
+        avisosSuscritos = false;
+        try {
+            await suscribirAvisos();
+            if (avisosSuscritos) {
+                const r = await api('/api/push/status');
+                if (r.ok && r.data) ESTADO_AVISOS.suscripciones = r.data.suscripciones;
+            }
+        } finally { reintentandoAlta = false; }
     }
     pintarBannerAvisos();
     pintarDiagnosticoAvisos();
@@ -5472,6 +5638,8 @@ function pintarDiagnosticoAvisos() {
 
 function abrirAvisos() {
     $('avisos-sonido').checked = AVISO.activo;
+    $('avisos-vibrar').checked = AVISO.vibra;
+    pintarTonos();
     pintarDiagnosticoAvisos();
     show('screen-avisos');
     refrescarEstadoAvisos();
@@ -5506,12 +5674,25 @@ $('btn-idioma').addEventListener('click', () => { pintarIdiomas(); $('lang-dialo
 $('lang-cerrar').addEventListener('click', () => $('lang-dialog').close());
 $('avisos-back').addEventListener('click', function () { show('screen-home'); });
 $('btn-activar-avisos').addEventListener('click', activarAvisos);
+$('avisos-pedir-si').addEventListener('click', async function () {
+    $('avisos-pedir').close();
+    await activarAvisos();       // el gesto que Chrome necesita para el permiso
+});
+$('avisos-pedir-no').addEventListener('click', function () { $('avisos-pedir').close(); });
 $('avisos-activar').addEventListener('click', activarAvisos);
 $('avisos-sonido').addEventListener('change', function () {
     AVISO.activo = this.checked;
     localStorage.setItem('msg_sound', AVISO.activo ? '1' : '0');
     if (AVISO.activo) sonarAviso();       // que se oiga lo que acaba de activar
 });
+$('avisos-vibrar').addEventListener('change', function () {
+    AVISO.vibra = this.checked;
+    localStorage.setItem('msg_vibrate', AVISO.vibra ? '1' : '0');
+    if (AVISO.vibra && navigator.vibrate) {
+        navigator.vibrate(TONOS[tonoValido(AVISO.tono)].vibra);
+    }
+});
+
 $('avisos-probar').addEventListener('click', async function () {
     this.disabled = true;
     const { ok, data } = await api('/api/push/test', 'POST');
@@ -5530,6 +5711,37 @@ $('avisos-probar').addEventListener('click', async function () {
     }
     refrescarEstadoAvisos();
 });
+
+// ── Tono del aviso ─────────────────────────────────────────────────────────
+
+function pintarTonos() {
+    $('avisos-tonos').innerHTML = Object.keys(TONOS).map(function (code) {
+        return '<button type="button" class="lang-chip' +
+               (code === AVISO.tono ? ' selected' : '') + '" data-tono="' + code +
+               '" style="width:100%;justify-content:flex-start;min-height:52px">' +
+               '<span aria-hidden="true" style="font-size:18px">🔉</span>' +
+               '<span>' + esc(TONOS[code].nombre) + '</span></button>';
+    }).join('');
+    $('avisos-tonos').querySelectorAll('.lang-chip').forEach(function (chip) {
+        chip.addEventListener('click', function () { elegirTono(chip.dataset.tono); });
+    });
+}
+
+// Elegir y oir son el mismo gesto: con el movil en la mano, tener que pulsar
+// aparte un boton de "probar" sobra. Suena siempre, tambien al repulsar el que
+// ya esta elegido, que es como se comparan.
+async function elegirTono(tono) {
+    AVISO.tono = tonoValido(tono);
+    localStorage.setItem('msg_tone', AVISO.tono);
+    pintarTonos();
+    sonarAviso(AVISO.tono);
+    if (AVISO.vibra && navigator.vibrate) {
+        navigator.vibrate(TONOS[AVISO.tono].vibra);
+    }
+    // Se guarda en el perfil para que lo siga si cambia de movil, pero sin
+    // esperar al servidor: sin cobertura tambien tiene que poder elegirlo.
+    try { await api('/api/worker/msg-tone', 'PUT', { tone: AVISO.tono }); } catch (e) {}
+}
 
 if ('serviceWorker' in navigator) {
     // `updateViaCache: 'none'` obliga a comprobar el sw.js contra el servidor en
@@ -5579,7 +5791,7 @@ var CHAT_FAST = 4000, CHAT_SLOW = 10000, CHAT_IDLE = 10000, CHAT_BACKOFF_MS = 60
 
 // Se sube a mano en cada cambio de la webapp. Sirve para saber, mirando el
 // movil, que version esta ejecutando de verdad.
-var APP_BUILD = '2026-09-07 · 12';
+var APP_BUILD = '2026-09-09 · 13';
 
 function chatIniciales(nombre) {
     var partes = (nombre || '?').trim().split(/\s+/);
@@ -6409,7 +6621,18 @@ if ('serviceWorker' in navigator) {
     // Cuando la PWA ya está abierta, el service worker no puede navegar por su
     // cuenta: manda la URL y la abre la app.
     navigator.serviceWorker.addEventListener('message', function (ev) {
-        if (ev.data && ev.data.type === 'deeplink') abrirChatDesdeUrl(ev.data.url);
+        if (!ev.data) return;
+        if (ev.data.type === 'deeplink') { abrirChatDesdeUrl(ev.data.url); return; }
+        // Aviso de un mensaje con la aplicacion delante. El service worker no
+        // saca la notificacion de Android en ese caso, para no avisar dos veces:
+        // aqui suena el tono elegido y se refresca la lista. Ademas llega en el
+        // momento, sin esperar al siguiente sondeo (de 4 a 20 segundos).
+        if (ev.data.type === 'chat-push') {
+            var d = ev.data.data || {};
+            var enEsaConversacion = !!(CHAT.open && d.tag === 'chat-' + CHAT.open);
+            avisarMensaje(d.title, enEsaConversacion);
+            chatPoll();
+        }
     });
 }
 </script>

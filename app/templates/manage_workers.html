@@ -301,6 +301,14 @@
                                     data-groups="{{ cleaner.groups|map(attribute='id')|list|join(',') }}"
                                     aria-label="Editar a {{ cleaner.name }}">Editar</button>
                             <button type="button"
+                                    class="btn btn-sm btn-outline-secondary push-test me-1"
+                                    data-id="{{ cleaner.id }}"
+                                    data-name="{{ cleaner.name }}"
+                                    title="Enviar un aviso de prueba a su móvil"
+                                    aria-label="Enviar un aviso de prueba a {{ cleaner.name }}">
+                                <i class="bi bi-bell" aria-hidden="true"></i>
+                            </button>
+                            <button type="button"
                                     class="btn btn-sm btn-outline-danger delete-btn"
                                     data-name="{{ cleaner.name }}"
                                     data-action="{{ url_for('admin_bp.delete_cleaner', id=cleaner.id) }}"
@@ -449,6 +457,35 @@
                 this.checked = !active;
                 showToast('Error al actualizar', 'error');
             }
+        });
+    });
+
+    // Aviso de prueba al móvil de una trabajadora. El servidor espera a la
+    // respuesta del servicio de avisos, así que el mensaje dice lo que ha pasado
+    // de verdad y no solo que se ha intentado.
+    document.querySelectorAll('.push-test').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+            var nombre = this.dataset.name;
+            this.disabled = true;
+            try {
+                var res = await fetch('/cleaners/' + parseInt(this.dataset.id) + '/push-test',
+                                      { method: 'POST' });
+                var data = await res.json();
+                if (!res.ok) {
+                    showToast((data && data.error) || 'No se ha podido enviar el aviso', 'error');
+                } else if (!data.dispositivos) {
+                    showToast(nombre + ' no tiene ningún móvil registrado para los avisos', 'warning');
+                } else if (data.entregados) {
+                    showToast('Aviso enviado a ' + data.entregados +
+                              (data.entregados === 1 ? ' dispositivo de ' : ' dispositivos de ') + nombre,
+                              'success');
+                } else {
+                    showToast('No se ha podido entregar el aviso a ' + nombre, 'error');
+                }
+            } catch (e) {
+                showToast('No se ha podido enviar el aviso', 'error');
+            }
+            this.disabled = false;
         });
     });
 
