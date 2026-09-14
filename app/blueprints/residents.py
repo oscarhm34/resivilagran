@@ -686,6 +686,20 @@ def exportar_fichajes():
 
 # ── ADMIN – REGISTROS DE ATENCIÓN ───────────────────────────────────────────
 
+def _filtro_tipo_atencion(care_type_id):
+    """Condicion para filtrar atenciones por tipo, mirando los dos sitios.
+
+    La webapp guarda los tipos en la relacion multiple `care_types`, asi que
+    mirar solo `care_type_id` -la columna antigua de un unico tipo- dejaba el
+    filtro vacio para todo lo registrado desde la webapp. Los registros
+    anteriores a los tipos multiples solo tienen la columna antigua.
+    """
+    return db.or_(
+        CareRecord.care_types.any(CareType.id == care_type_id),
+        CareRecord.care_type_id == care_type_id,
+    )
+
+
 @bp.route('/registros-atencion')
 @admin_required
 def registros_atencion():
@@ -713,7 +727,7 @@ def registros_atencion():
     if resident_id:
         query = query.filter(CareRecord.resident_id == resident_id)
     if care_type_id:
-        query = query.filter(CareRecord.care_type_id == care_type_id)
+        query = query.filter(_filtro_tipo_atencion(care_type_id))
     if start_date:
         query = query.filter(CareRecord.start_time >= datetime.strptime(start_date, '%Y-%m-%d'))
     if end_date:
@@ -783,7 +797,7 @@ def exportar_atenciones_excel():
     if resident_id:
         query = query.filter(CareRecord.resident_id == resident_id)
     if care_type_id:
-        query = query.filter(CareRecord.care_type_id == care_type_id)
+        query = query.filter(_filtro_tipo_atencion(care_type_id))
     if start_date:
         query = query.filter(CareRecord.start_time >= datetime.strptime(start_date, '%Y-%m-%d'))
     if end_date:
