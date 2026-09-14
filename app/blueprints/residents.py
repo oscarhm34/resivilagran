@@ -695,7 +695,9 @@ def _grafica_de_constante(grafica: dict) -> dict:
     """
     momentos = sorted(grafica['momentos'])
     series = []
-    for serie in grafica['series'].values():
+    # El mismo orden que en la webapp y en el listado: sort_order y, si empatan,
+    # el alta. Si no, la linea de la sistolica podria salir la segunda.
+    for serie in sorted(grafica['series'].values(), key=lambda x: x['orden']):
         datos = [serie['valores'].get(m) for m in momentos]
         medidos = [v for v in datos if v is not None]
         delta = round(medidos[-1] - medidos[-2], 1) if len(medidos) > 1 else None
@@ -914,6 +916,7 @@ def resident_detail(resident_id: int):
         })
         serie = grafica['series'].setdefault(vst.id, {
             'name': vst.name,
+            'orden': (vst.sort_order or 0, vst.id),
             'min_value': float(vst.min_value) if vst.min_value is not None else None,
             'max_value': float(vst.max_value) if vst.max_value is not None else None,
             'valores': {},

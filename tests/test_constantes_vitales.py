@@ -268,9 +268,11 @@ def test_la_grafica_agrupada_alinea_los_huecos(db, tension, atencion_abierta,
         'unit': 'mmHg',
         'momentos': {t1: True, t2: True},
         'series': {
-            1: {'name': 'Sistólica', 'min_value': 90, 'max_value': 140,
+            1: {'name': 'Sistólica', 'orden': (0, 1),
+                'min_value': 90, 'max_value': 140,
                 'valores': {t1: 130.0, t2: 172.0}},
-            2: {'name': 'Diastólica', 'min_value': 50, 'max_value': 90,
+            2: {'name': 'Diastólica', 'orden': (0, 2),
+                'min_value': 50, 'max_value': 90,
                 'valores': {t2: 98.0}},
         },
     })
@@ -285,3 +287,73 @@ def test_la_grafica_agrupada_alinea_los_huecos(db, tension, atencion_abierta,
     assert dia['data'] == [None, 98.0]
     assert dia['last'] == 98.0
     assert dia['delta'] is None
+
+
+# ── El caso real de produccion: los dos campos con el mismo orden ────────────
+
+@pytest.fixture
+def tension_sin_orden(db):
+    """Como estaba en el NAS: sistólica y diastólica, ambas con sort_order 0.
+
+    Con el empate, ordenar por nombre ponía "Diastólica" delante y la tensión
+    se leía 80/120. El desempate es el alta, no el alfabeto.
+    """
+    ct = CareType(name='TENSIÓN ARTERIAL', active=True)
+    db.session.add(ct)
+    db.session.flush()
+    sis = VitalSignType(care_type_id=ct.id, name='Sistólica', unit='mmHg',
+                        input_type='number', group_label='Tensión arterial',
+                        sort_order=0, active=True)
+    db.session.add(sis)
+    db.session.flush()          # la sistólica se da de alta primero
+    dia = VitalSignType(care_type_id=ct.id, name='Diastólica', unit='mmHg',
+                        input_type='number', group_label='Tensión arterial',
+                        sort_order=0, active=True)
+    db.session.add(dia)
+    db.session.commit()
+    return {'ct': ct, 'sis': sis, 'dia': dia}
+
+
+def test_con_el_mismo_orden_manda_el_alta_en_la_webapp(
+        client, tension_sin_orden, worker_headers):
+    res = client.get('/api/care-types', headers=worker_headers)
+
+    campos = next(t for t in res.get_json()
+                  if t['id'] == tension_sin_orden['ct'].id)['vital_fields']
+    assert [c['name'] for c in campos] == ['Sistólica', 'Diastólica']
+
+
+def test_con_el_mismo_orden_el_listado_lee_120_80(
+        db, tension_sin_orden, atencion_abierta):
+    db.session.add_all([
+        VitalSignReading(care_record_id=atencion_abierta.id,
+                         vital_sign_type_id=tension_sin_orden['dia'].id, value=80),
+        VitalSignReading(care_record_id=atencion_abierta.id,
+                         vital_sign_type_id=tension_sin_orden['sis'].id, value=120),
+    ])
+    db.session.commit()
+
+    grupos = atencion_abierta.constantes_agrupadas()
+
+    assert grupos == [
+        {'name': 'Tensión arterial', 'valores': ['120', '80'], 'unit': 'mmHg'},
+    ]
+
+
+def test_con_el_mismo_orden_la_grafica_pinta_primero_la_sistolica(
+        auth_client, db, tension_sin_orden, atencion_abierta):
+    atencion_abierta.end_time = datetime.now()
+    db.session.add_all([
+        VitalSignReading(care_record_id=atencion_abierta.id,
+                         vital_sign_type_id=tension_sin_orden['dia'].id, value=95),
+        VitalSignReading(care_record_id=atencion_abierta.id,
+                         vital_sign_type_id=tension_sin_orden['sis'].id, value=160),
+    ])
+    db.session.commit()
+
+    resp = auth_client.get(f'/admin/resident/{atencion_abierta.resident_id}')
+    graficas = _vital_data(resp.get_data(as_text=True))
+
+    assert len(graficas) == 1
+    assert [x['name'] for x in graficas[0]['series']] == ['Sistólica', 'Diastólica']
+    assert [x['last_display'] for x in graficas[0]['series']] == ['160', '95']

@@ -251,7 +251,9 @@ class CareRecord(db.Model):
         por_clave: dict[tuple, dict] = {}
         lecturas = sorted(
             self.vital_sign_readings,
-            key=lambda r: (r.vital_sign_type.sort_order or 0, r.vital_sign_type.name))
+            # Con el mismo orden manda el id, el alta: por nombre saldria
+            # "Diastolica" antes que "Sistolica" y la tension leeria 80/120.
+            key=lambda r: (r.vital_sign_type.sort_order or 0, r.vital_sign_type.id))
         for lectura in lecturas:
             vst = lectura.vital_sign_type
             etiqueta = (vst.group_label or '').strip()

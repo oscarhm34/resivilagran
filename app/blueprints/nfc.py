@@ -352,13 +352,15 @@ def api_care_types():
             'instructions': instrucciones or None,
         }
         # Ordenados: dentro de un grupo el orden decide cual va primero, y
-        # una tension que saliera 80/120 seria peor que no agruparla.
+        # una tension que saliera 80/120 seria peor que no agruparla. Con el
+        # mismo orden manda el id, o sea como se dieron de alta: alfabetico
+        # pondria la diastolica delante de la sistolica, que es justo al reves.
         vital_fields = [{'id': vs.id, 'name': vs.name, 'unit': vs.unit,
                          'min_value': vs.min_value, 'max_value': vs.max_value,
                          'input_type': vs.input_type or 'number',
                          'group_label': vs.group_label or None,
                          } for vs in sorted((ct.vital_sign_types or []),
-                                            key=lambda v: (v.sort_order or 0, v.name))
+                                            key=lambda v: (v.sort_order or 0, v.id))
                         if vs.active]
         if vital_fields:
             d['vital_fields'] = vital_fields
