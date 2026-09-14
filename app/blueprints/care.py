@@ -212,6 +212,8 @@ def add_edit_vital_field(care_type_id: int):
     min_val = request.form.get('vf_min', '').strip()
     max_val = request.form.get('vf_max', '').strip()
     input_type = request.form.get('vf_input_type', 'number').strip()
+    # Dos campos con el mismo grupo se piden en una sola linea (120/80).
+    group_label = request.form.get('vf_group', '').strip()
     sort_order = request.form.get('vf_sort_order', '0').strip()
     if not name or not unit:
         flash('Nombre y unidad son obligatorios.', 'error')
@@ -226,6 +228,7 @@ def add_edit_vital_field(care_type_id: int):
         vf.min_value = float(min_val) if min_val else None
         vf.max_value = float(max_val) if max_val else None
         vf.input_type = input_type
+        vf.group_label = group_label or None
         vf.sort_order = int(sort_order) if sort_order else 0
     else:
         vf = VitalSignType(
@@ -233,6 +236,7 @@ def add_edit_vital_field(care_type_id: int):
             min_value=float(min_val) if min_val else None,
             max_value=float(max_val) if max_val else None,
             input_type=input_type,
+            group_label=group_label or None,
             sort_order=int(sort_order) if sort_order else 0,
         )
         db.session.add(vf)

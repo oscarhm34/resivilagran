@@ -809,7 +809,7 @@ def exportar_atenciones_excel():
     data = []
     for r in records:
         types = ', '.join(ct.name for ct in r.care_types) if r.care_types else (r.care_type.name if r.care_type else '')
-        vitals = '; '.join(f'{v.vital_sign_type.name}: {v.value} {v.vital_sign_type.unit}' for v in r.vital_sign_readings) if r.vital_sign_readings else ''
+        vitals = '; '.join(f"{c['name']}: {'/'.join(c['valores'])} {c['unit']}" for c in r.constantes_agrupadas())
         data.append({
             'Residente': r.resident.name if r.resident else 'Sin asignar',
             'Tipo de atención': types,
@@ -937,7 +937,7 @@ def export_resident_care_excel(resident_id: int):
     data = []
     for r in records:
         types = ', '.join(ct.name for ct in r.care_types) if r.care_types else (r.care_type.name if r.care_type else '')
-        vitals = '; '.join(f'{v.vital_sign_type.name}: {v.value} {v.vital_sign_type.unit}' for v in r.vital_sign_readings) if r.vital_sign_readings else ''
+        vitals = '; '.join(f"{c['name']}: {'/'.join(c['valores'])} {c['unit']}" for c in r.constantes_agrupadas())
         data.append({
             'Tipo de atención': types,
             'Trabajador': r.worker.name if r.worker else '',

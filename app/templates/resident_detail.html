@@ -587,9 +587,9 @@
                                 </td>
                                 <td>
                                     {% if record.vital_sign_readings %}
-                                        {% for reading in record.vital_sign_readings %}
+                                        {% for constante in record.constantes_agrupadas() %}
                                         <div style="font-size:.85rem">
-                                            {{ reading.vital_sign_type.name }}: <strong>{{ reading.value|round(1) }}</strong> {{ reading.vital_sign_type.unit }}
+                                            {{ constante.name }}: <strong>{{ constante.valores|join('/') }}</strong> {{ constante.unit }}
                                         </div>
                                         {% endfor %}
                                     {% else %}

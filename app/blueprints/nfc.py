@@ -351,10 +351,15 @@ def api_care_types():
             'icon_url': f'/api/uploads/{ct.icon_path}' if ct.icon_path else None,
             'instructions': instrucciones or None,
         }
+        # Ordenados: dentro de un grupo el orden decide cual va primero, y
+        # una tension que saliera 80/120 seria peor que no agruparla.
         vital_fields = [{'id': vs.id, 'name': vs.name, 'unit': vs.unit,
                          'min_value': vs.min_value, 'max_value': vs.max_value,
                          'input_type': vs.input_type or 'number',
-                         } for vs in (ct.vital_sign_types or []) if vs.active]
+                         'group_label': vs.group_label or None,
+                         } for vs in sorted((ct.vital_sign_types or []),
+                                            key=lambda v: (v.sort_order or 0, v.name))
+                        if vs.active]
         if vital_fields:
             d['vital_fields'] = vital_fields
         return d
@@ -1277,19 +1282,22 @@ def finalize_care():
     if not tipos:
         return jsonify({'error': 'Selecciona al menos un tipo de atención'}), 400
 
+    # Las constantes obligatorias, tambien antes de tocar el registro y por la
+    # misma razon. Leer `ct.vital_sign_types` con el registro ya modificado
+    # provoca un flush, asi que validar despues dejaba la sesion marcada como
+    # cerrada aunque la respuesta fuera un 400.
+    provided_vst_ids = {vs.get('vital_sign_type_id') for vs in vital_signs if vs.get('value') not in (None, '')}
+    for ct in tipos:
+        for vst in ct.vital_sign_types:
+            if vst.active and vst.id not in provided_vst_ids:
+                return jsonify({'error': f'Falta el valor de {vst.name}'}), 400
+
     record.end_time = datetime.now()
     worker_notes = data.get('notes', '').strip()
     if worker_notes:
         record.notes = worker_notes
     for ct in tipos:
         record.care_types.append(ct)
-
-    # Validate: if selected care types have vital sign fields, values are required
-    provided_vst_ids = {vs.get('vital_sign_type_id') for vs in vital_signs if vs.get('value') not in (None, '')}
-    for ct in tipos:
-        for vst in ct.vital_sign_types:
-            if vst.active and vst.id not in provided_vst_ids:
-                return jsonify({'error': f'Falta el valor de {vst.name}'}), 400
 
     # Save vital sign readings
     for vs_data in vital_signs:

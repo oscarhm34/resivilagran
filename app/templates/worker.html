@@ -304,7 +304,23 @@
         .ct-category-name { font-weight:700;font-size:15px;flex:1; }
         .ct-category-arrow { font-size:12px;color:var(--text-2);transition:transform .2s; }
         .ct-category-arrow.open { transform:rotate(90deg); }
-        .ct-sub-grid { display:flex;flex-wrap:wrap;gap:8px;padding:4px 0 8px 44px; }
+        .ct-sub-grid { display:flex;flex-wrap:wrap;gap:8px;padding:4px 0 8px 44px;align-items:center; }
+        /* La casilla se anota al lado del boton que la ha abierto. Lo de antes
+           —un bloque con todas las constantes al final de la pantalla— obligaba
+           a bajar a escribir y volver a subir por cada constante. */
+        .ct-row { display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:6px; }
+        .ct-row > .ct-btn { flex:1 1 auto;margin-bottom:0; }
+        .ct-row.con-constantes > .ct-btn { flex:0 1 auto; }
+        .ct-vitals { display:flex;flex-wrap:wrap;align-items:center;gap:8px; }
+        .ct-vital-box { display:flex;align-items:center;gap:6px;background:var(--green-lt);border:1.5px solid var(--green);border-radius:12px;padding:6px 10px; }
+        .ct-vital-box .vital-name { font-size:12px;font-weight:700;color:var(--green-dk); }
+        .ct-vital-box .vital-sep { font-size:15px;font-weight:700;color:var(--green-dk); }
+        .ct-vital-box .vital-unit { font-size:11px;color:var(--text-2); }
+        .vital-input { width:64px;padding:8px 4px;border:1.5px solid var(--border);border-radius:10px;font-size:17px;font-family:inherit;background:var(--surface);color:inherit;text-align:center; }
+        .vital-input:focus { outline:none;border-color:var(--green); }
+        /* Un campo solo lleva el rango de placeholder ("30-200") y no cabe en
+           el ancho de una casilla de tension, que solo tiene tres digitos. */
+        .vital-input.sola { width:88px; }
         .ct-sub-btn { padding:10px 16px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;font-size:13px;font-weight:500;display:flex;align-items:center;gap:6px;transition:all .15s;font-family:inherit;position:relative; }
         .ct-sub-btn:hover { border-color:var(--green); }
         .ct-sub-btn.selected { border-color:var(--green);background:var(--green-lt);color:var(--green-dk); }
@@ -1074,11 +1090,6 @@
             <div id="ct-group-picker-list" style="display:flex;flex-direction:column;gap:8px"></div>
         </div>
         <div class="ct-grid" id="ct-grid" style="display:block"></div>
-        <!-- Vital signs input (shown dynamically when care types with vital fields are selected) -->
-        <div id="ct-vital-signs" style="display:none;padding:12px 0">
-            <div style="font-size:13px;font-weight:600;color:var(--danger,#dc3545);text-align:center;margin-bottom:10px">Introduce las constantes vitales (obligatorio):</div>
-            <div id="ct-vital-fields" style="display:flex;flex-direction:column;gap:10px"></div>
-        </div>
         <!-- Ambient Voice Scribe -->
         <div id="scribe-section" style="padding:8px 0">
             <button type="button" class="scribe-toggle" id="scribe-toggle">
@@ -3462,8 +3473,7 @@ function showCareTypesEnd(data) {
     $('ct-grid').style.display = 'block';
     $('ct-footer').style.display = '';
     $('ct-confirm').style.display = '';
-    $('ct-vital-signs').style.display = 'none';
-    $('ct-vital-fields').innerHTML = '';
+    limpiarConstantes();
     if ($('care-notes')) $('care-notes').value = '';
     // Reset inline mood
     S._ctMoodScore = null;
@@ -3552,16 +3562,18 @@ function showCareTypesEnd(data) {
                                 <span>${sub.icon_url ? `<img data-auth-src="${sub.icon_url}" style="width:20px;height:20px;object-fit:contain">` : (sub.icon || '')}</span>
                                 <span>${sub.name}</span>
                                 <span class="ct-selected-mark">✓</span>
-                            </button>`).join('')}
+                            </button>${huecoConstantes(sub)}`).join('')}
                     </div>
                 </div>`;
             } else {
                 // Standalone type
-                html += `<button class="ct-btn" data-id="${ct.id}" style="display:flex;flex-direction:row;gap:10px;padding:12px 14px;border-radius:14px;margin-bottom:6px;width:100%">
-                    <span class="ct-icon">${ct.icon_url ? `<img data-auth-src="${ct.icon_url}" style="width:28px;height:28px;object-fit:contain">` : (ct.icon || '❤️')}</span>
-                    <span class="ct-label" style="text-align:left;flex:1">${ct.name}</span>
-                    <span class="ct-selected-mark">✓</span>
-                </button>`;
+                html += `<div class="ct-row">
+                    <button class="ct-btn" data-id="${ct.id}" style="display:flex;flex-direction:row;gap:10px;padding:12px 14px;border-radius:14px">
+                        <span class="ct-icon">${ct.icon_url ? `<img data-auth-src="${ct.icon_url}" style="width:28px;height:28px;object-fit:contain">` : (ct.icon || '❤️')}</span>
+                        <span class="ct-label" style="text-align:left;flex:1">${ct.name}</span>
+                        <span class="ct-selected-mark">✓</span>
+                    </button>${huecoConstantes(ct)}
+                </div>`;
             }
         }
         grid.innerHTML = html;
@@ -3690,62 +3702,103 @@ function renderGroupPicker() {
     show('screen-care-type');
 }
 
-function updateVitalSignsForSelection() {
-    const selected = [];
-    $('ct-grid').querySelectorAll('.ct-sub-btn.selected, .ct-btn.selected').forEach(btn => {
-        selected.push(parseInt(btn.dataset.id));
-    });
-    const fields = findVitalFieldsForSelected(selected);
-    if (fields.length) {
-        showVitalSignsInputs(fields);
-        setTimeout(() => $('ct-vital-signs').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-    } else {
-        $('ct-vital-signs').style.display = 'none';
-        $('ct-vital-fields').innerHTML = '';
-    }
+// El hueco donde saldran las constantes de un tipo, justo detras de su boton.
+// Solo se pinta para los tipos que tienen constantes: el resto no lleva nada.
+function huecoConstantes(ct) {
+    if (!ct.vital_fields || !ct.vital_fields.length) return '';
+    return `<span class="ct-vitals" data-vitals-for="${ct.id}" style="display:none"></span>`;
 }
 
-function findVitalFieldsForSelected(selectedIds) {
-    const fields = [];
-    for (const ctId of selectedIds) {
-        for (const ct of S.careTypes) {
-            if (ct.id === ctId && ct.vital_fields) {
-                fields.push(...ct.vital_fields);
-            }
-            if (ct.children) {
-                for (const child of ct.children) {
-                    if (child.id === ctId && child.vital_fields && child.vital_fields.length) {
-                        fields.push(...child.vital_fields);
-                    }
-                }
-            }
+function vitalFieldsOf(ctId) {
+    for (const ct of S.careTypes) {
+        if (ct.id === ctId) return ct.vital_fields || [];
+        for (const child of (ct.children || [])) {
+            if (child.id === ctId) return child.vital_fields || [];
         }
     }
-    return fields;
+    return [];
 }
 
-function showVitalSignsInputs(fields) {
-    const container = $('ct-vital-fields');
-    container.innerHTML = fields.map(f => {
-        const step = f.input_type === 'decimal' ? '0.1' : '1';
-        const minAttr = f.min_value != null ? `min="${f.min_value}"` : '';
-        const maxAttr = f.max_value != null ? `max="${f.max_value}"` : '';
-        const placeholder = (f.min_value != null && f.max_value != null) ? `${f.min_value} - ${f.max_value}` : '';
-        return `<div style="display:flex;align-items:center;gap:10px;background:var(--bg);padding:10px 14px;border-radius:12px">
-            <label style="font-size:13px;font-weight:600;min-width:80px">${esc(f.name)}</label>
-            <input type="number" class="vital-input" data-vst-id="${f.id}" step="${step}" ${minAttr} ${maxAttr}
-                   placeholder="${placeholder}"
-                   style="flex:1;padding:10px;border:1.5px solid var(--border);border-radius:10px;font-size:16px;font-family:inherit;background:var(--surface);text-align:center"
-                   inputmode="decimal">
-            <span style="font-size:12px;color:var(--text-2);min-width:40px">${esc(f.unit)}</span>
-        </div>`;
+// Abre las casillas del tipo que se acaba de marcar y cierra las del que se ha
+// desmarcado. Sin scrollIntoView a proposito: el salto de pantalla era justo el
+// problema. Lo ya escrito no se vuelve a pintar, o marcar otra constante
+// borraria el valor anterior.
+function updateVitalSignsForSelection() {
+    let primeraNueva = null;
+    $('ct-grid').querySelectorAll('.ct-vitals').forEach(hueco => {
+        const ctId = parseInt(hueco.dataset.vitalsFor);
+        const btn = $('ct-grid').querySelector(`[data-id="${ctId}"]`);
+        const marcado = btn && btn.classList.contains('selected');
+        if (!marcado) {
+            hueco.style.display = 'none';
+            hueco.innerHTML = '';
+            delete hueco.dataset.pintado;
+            const fila = hueco.closest('.ct-row');
+            if (fila) fila.classList.remove('con-constantes');
+            return;
+        }
+        if (!hueco.dataset.pintado) {
+            hueco.innerHTML = cajasDeConstantes(vitalFieldsOf(ctId));
+            hueco.dataset.pintado = '1';
+            if (!primeraNueva) primeraNueva = hueco.querySelector('.vital-input');
+        }
+        hueco.style.display = '';
+        const fila = hueco.closest('.ct-row');
+        if (fila) fila.classList.add('con-constantes');
+    });
+    // El teclado se abre solo en la casilla recien aparecida: una constante
+    // marcada es una constante que toca anotar ahora mismo.
+    if (primeraNueva) primeraNueva.focus({ preventScroll: true });
+}
+
+// Los campos que comparten grupo se piden en una sola caja: la tension arterial
+// es una toma, 120/80, no dos constantes sueltas. Cada valor conserva su propia
+// casilla y su propio id, asi que se sigue guardando por separado.
+function cajasDeConstantes(fields) {
+    const cajas = [];
+    for (const f of fields) {
+        const grupo = (f.group_label || '').trim();
+        const ultima = cajas.length ? cajas[cajas.length - 1] : null;
+        if (grupo && ultima && ultima.grupo === grupo) ultima.campos.push(f);
+        else cajas.push({ grupo: grupo, campos: [f] });
+    }
+    return cajas.map(caja => {
+        const inputs = caja.campos.map(f => {
+            const step = f.input_type === 'decimal' ? '0.1' : '1';
+            const minAttr = f.min_value != null ? `min="${f.min_value}"` : '';
+            const maxAttr = f.max_value != null ? `max="${f.max_value}"` : '';
+            const ph = caja.campos.length > 1
+                ? esc(f.name.slice(0, 3))
+                : ((f.min_value != null && f.max_value != null) ? `${f.min_value}-${f.max_value}` : '');
+            const sola = caja.campos.length > 1 ? '' : ' sola';
+            return `<input type="number" class="vital-input${sola}" data-vst-id="${f.id}" step="${step}" ${minAttr} ${maxAttr}
+                   placeholder="${ph}" aria-label="${esc(f.name)}" inputmode="decimal">`;
+        }).join('<span class="vital-sep">/</span>');
+        const nombre = caja.grupo || caja.campos[0].name;
+        return `<span class="ct-vital-box">
+            <span class="vital-name">${esc(nombre)}</span>
+            ${inputs}
+            <span class="vital-unit">${esc(caja.campos[0].unit)}</span>
+        </span>`;
     }).join('');
-    $('ct-vital-signs').style.display = '';
+}
+
+function limpiarConstantes() {
+    $('ct-grid').querySelectorAll('.ct-vitals').forEach(hueco => {
+        hueco.style.display = 'none';
+        hueco.innerHTML = '';
+        delete hueco.dataset.pintado;
+    });
+}
+
+// Solo las casillas visibles: las de un tipo desmarcado ya se han vaciado.
+function inputsDeConstantes() {
+    return Array.from($('ct-grid').querySelectorAll('.ct-vitals .vital-input'));
 }
 
 function collectVitalSigns() {
     const readings = [];
-    $('ct-vital-fields').querySelectorAll('.vital-input').forEach(input => {
+    inputsDeConstantes().forEach(input => {
         const val = input.value.trim();
         if (val !== '') {
             readings.push({ vital_sign_type_id: parseInt(input.dataset.vstId), value: parseFloat(val) });
@@ -3831,20 +3884,23 @@ async function finalizeCare() {
     }
 
     // Validate vital signs: if fields are visible, ALL must be filled
-    const visibleInputs = $('ct-vital-fields').querySelectorAll('.vital-input');
+    const visibleInputs = inputsDeConstantes();
     if (visibleInputs.length > 0) {
         let missing = [];
+        let primeraVacia = null;
         visibleInputs.forEach(input => {
             if (input.value.trim() === '') {
-                missing.push(input.closest('div').querySelector('label').textContent.trim());
+                missing.push(input.getAttribute('aria-label') || '');
                 input.style.borderColor = 'var(--danger, #dc3545)';
+                if (!primeraVacia) primeraVacia = input;
             } else {
                 input.style.borderColor = 'var(--border)';
             }
         });
         if (missing.length) {
             toast(t('Completa las constantes vitales: {0}', [missing.join(', ')]));
-            visibleInputs[0].focus();
+            primeraVacia.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            primeraVacia.focus({ preventScroll: true });
             return;
         }
     }

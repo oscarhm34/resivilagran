@@ -197,6 +197,10 @@ class VitalSignType(db.Model):
     min_value = db.Column(db.Float, nullable=True)
     max_value = db.Column(db.Float, nullable=True)
     input_type = db.Column(db.String(20), default='number')
+    # Los campos que comparten etiqueta de grupo se piden juntos en una sola
+    # linea: la tension arterial es una toma, no dos constantes sueltas.
+    # NULL = campo suelto, que es como estaba todo antes de existir la columna.
+    group_label = db.Column(db.String(60), nullable=True)
     sort_order = db.Column(db.Integer, default=0)
     active = db.Column(db.Boolean, default=True)
 
@@ -232,6 +236,39 @@ class CareRecord(db.Model):
         if self.start_time and self.end_time:
             return (self.end_time - self.start_time).total_seconds()
         return None
+
+    def constantes_agrupadas(self) -> list[dict]:
+        """Las constantes listas para mostrar, juntando las del mismo grupo.
+
+        La tension arterial se toma de una vez, asi que se ensena de una vez:
+        "Tension arterial: 120/80 mmHg" en lugar de una linea para la sistolica
+        y otra para la diastolica. Lo que se guarda no cambia — cada valor sigue
+        siendo su propia lectura, con su minimo y su maximo.
+        """
+        def _texto(valor: float) -> str:
+            return str(int(valor)) if float(valor).is_integer() else f'{valor:.1f}'
+
+        grupos: list[dict] = []
+        por_clave: dict[tuple, dict] = {}
+        lecturas = sorted(
+            self.vital_sign_readings,
+            key=lambda r: (r.vital_sign_type.sort_order or 0, r.vital_sign_type.name))
+        for lectura in lecturas:
+            vst = lectura.vital_sign_type
+            etiqueta = (vst.group_label or '').strip()
+            clave = (vst.care_type_id, etiqueta) if etiqueta else None
+            if clave is not None and clave in por_clave:
+                por_clave[clave]['valores'].append(_texto(lectura.value))
+                continue
+            grupo = {
+                'name': etiqueta or vst.name,
+                'valores': [_texto(lectura.value)],
+                'unit': vst.unit,
+            }
+            grupos.append(grupo)
+            if clave is not None:
+                por_clave[clave] = grupo
+        return grupos
 
 
 class ChecklistItem(db.Model):
