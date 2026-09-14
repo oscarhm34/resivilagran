@@ -10,6 +10,7 @@ Lo que se cubre aquí es que agrupar sea solo presentación: cada valor sigue
 guardándose como su propia lectura y el servidor sigue exigiéndolos todos.
 """
 
+import json
 from datetime import datetime, timedelta
 
 import pytest
@@ -205,3 +206,82 @@ def test_los_campos_vitales_exigen_admin(client, tension):
 
     assert resp.status_code in (302, 401, 403)
     assert VitalSignType.query.filter_by(name='X').first() is None
+
+
+# ── Graficas del resumen del residente ───────────────────────────────────────
+
+def _vital_data(html: str) -> list:
+    """Las graficas tal como le llegan a Chart.js desde la plantilla."""
+    marca = 'const vitalData = '
+    inicio = html.index(marca) + len(marca)
+    fin = html.index(';' + chr(10), inicio)
+    return json.loads(html[inicio:fin])
+
+
+def test_la_grafica_junta_sistolica_y_diastolica(auth_client, db, tension,
+                                                 atencion_abierta, cleaner_user):
+    """Una sola grafica "Tension arterial" con dos lineas, no dos graficas."""
+    otra = CareRecord(worker_id=cleaner_user.id,
+                      resident_id=atencion_abierta.resident_id,
+                      start_time=datetime.now() - timedelta(days=1),
+                      end_time=datetime.now() - timedelta(days=1))
+    db.session.add(otra)
+    db.session.flush()
+    atencion_abierta.end_time = datetime.now()
+    db.session.add_all([
+        VitalSignReading(care_record_id=otra.id,
+                         vital_sign_type_id=tension['sis'].id, value=130),
+        VitalSignReading(care_record_id=otra.id,
+                         vital_sign_type_id=tension['dia'].id, value=85),
+        VitalSignReading(care_record_id=atencion_abierta.id,
+                         vital_sign_type_id=tension['sis'].id, value=172),
+        VitalSignReading(care_record_id=atencion_abierta.id,
+                         vital_sign_type_id=tension['dia'].id, value=98),
+        VitalSignReading(care_record_id=atencion_abierta.id,
+                         vital_sign_type_id=tension['peso'].id, value=62.5),
+    ])
+    db.session.commit()
+
+    resp = auth_client.get(f'/admin/resident/{atencion_abierta.resident_id}')
+    assert resp.status_code == 200
+
+    graficas = _vital_data(resp.get_data(as_text=True))
+    por_nombre = {g['name']: g for g in graficas}
+    # La tension es UNA grafica con dos lineas, y el peso va aparte.
+    assert sorted(por_nombre) == ['Peso', 'Tensión arterial']
+    tension_chart = por_nombre['Tensión arterial']
+    assert [x['name'] for x in tension_chart['series']] == ['Sistólica', 'Diastólica']
+    assert [x['data'] for x in tension_chart['series']] == [[130.0, 172.0], [85.0, 98.0]]
+    assert len(tension_chart['labels']) == 2
+    assert len(por_nombre['Peso']['series']) == 1
+
+
+def test_la_grafica_agrupada_alinea_los_huecos(db, tension, atencion_abierta,
+                                               cleaner_user):
+    """Si una toma solo trae la sistolica, la diastolica no se desplaza."""
+    from app.blueprints.residents import _grafica_de_constante
+
+    t1 = datetime(2026, 9, 1, 10, 0)
+    t2 = datetime(2026, 9, 2, 10, 0)
+    grafica = _grafica_de_constante({
+        'name': 'Tensión arterial',
+        'unit': 'mmHg',
+        'momentos': {t1: True, t2: True},
+        'series': {
+            1: {'name': 'Sistólica', 'min_value': 90, 'max_value': 140,
+                'valores': {t1: 130.0, t2: 172.0}},
+            2: {'name': 'Diastólica', 'min_value': 50, 'max_value': 90,
+                'valores': {t2: 98.0}},
+        },
+    })
+
+    assert grafica['name'] == 'Tensión arterial'
+    assert len(grafica['series']) == 2
+    assert grafica['labels'] == ['01/09/2026 10:00', '02/09/2026 10:00']
+    sis, dia = grafica['series']
+    assert sis['data'] == [130.0, 172.0]
+    assert sis['delta'] == 42.0
+    # El hueco va a None, no se adelanta el valor del dia siguiente.
+    assert dia['data'] == [None, 98.0]
+    assert dia['last'] == 98.0
+    assert dia['delta'] is None

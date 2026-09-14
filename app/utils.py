@@ -747,6 +747,20 @@ def _compute_cleaning_stats(days_back: int = 90) -> dict:
     }
 
 
+def formato_constante(valor) -> str:
+    """El valor de una constante como se ensena: 120, no 120.0; 36.5, si.
+
+    Una tension de "160.0/95.0" se lee peor que "160/95", y el decimal de un
+    peso si hace falta. Lo usan la lista de registros, la ficha del residente y
+    las graficas, que tienen que decir lo mismo.
+    """
+    try:
+        numero = float(valor)
+    except (TypeError, ValueError):
+        return ''
+    return str(int(numero)) if numero.is_integer() else f'{numero:.1f}'
+
+
 def log_audit(action, table_name, record_id=None, details=None):
     """Record an audit log entry."""
     import json

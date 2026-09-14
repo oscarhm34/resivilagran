@@ -26,7 +26,7 @@ from ..utils import (
     volver_atras,
     admin_required, _format_duration, _allowed_file, _safe_commit,
     ALLOWED_IMAGE_EXTENSIONS, ALLOWED_DOC_EXTENSIONS,
-    _open_image_oriented, log_audit, _safe_flush,
+    _open_image_oriented, log_audit, _safe_flush, formato_constante,
 )
 
 bp = Blueprint('residents', __name__)
@@ -686,6 +686,38 @@ def exportar_fichajes():
 
 # ── ADMIN – REGISTROS DE ATENCIÓN ───────────────────────────────────────────
 
+def _grafica_de_constante(grafica: dict) -> dict:
+    """Una grafica lista para pintar, con una linea por constante del grupo.
+
+    Los momentos se comparten entre las lineas y los huecos van a None: si una
+    toma solo trae la sistolica, la diastolica no puede desplazarse una posicion
+    y quedar dibujada en la fecha equivocada.
+    """
+    momentos = sorted(grafica['momentos'])
+    series = []
+    for serie in grafica['series'].values():
+        datos = [serie['valores'].get(m) for m in momentos]
+        medidos = [v for v in datos if v is not None]
+        delta = round(medidos[-1] - medidos[-2], 1) if len(medidos) > 1 else None
+        series.append({
+            'name': serie['name'],
+            'data': datos,
+            'min_value': serie['min_value'],
+            'max_value': serie['max_value'],
+            'last': medidos[-1] if medidos else None,
+            'last_display': formato_constante(medidos[-1]) if medidos else '',
+            'delta': delta,
+            'delta_display': formato_constante(abs(delta)) if delta is not None else '',
+        })
+    return {
+        'name': grafica['name'],
+        'unit': grafica['unit'],
+        'labels': [m.strftime('%d/%m/%Y %H:%M') for m in momentos],
+        'last_label': momentos[-1].strftime('%d/%m/%Y %H:%M') if momentos else '',
+        'series': series,
+    }
+
+
 def _filtro_tipo_atencion(care_type_id):
     """Condicion para filtrar atenciones por tipo, mirando los dos sitios.
 
@@ -865,22 +897,31 @@ def resident_detail(resident_id: int):
     ).join(CareRecord, VitalSignReading.care_record_id == CareRecord.id)     .join(VitalSignType, VitalSignReading.vital_sign_type_id == VitalSignType.id)     .filter(CareRecord.resident_id == resident_id,
              CareRecord.start_time >= un_ano_atras)     .order_by(CareRecord.start_time.asc()).all()
 
-    vital_charts = {}
+    # Las constantes del mismo grupo van a una sola grafica, cada una con su
+    # linea: la sistolica y la diastolica se leen juntas o no se leen.
+    graficas = {}
     for valor, medido_en, vst in lecturas:
         if valor is None or not medido_en:
             continue
-        key = vst.id
-        if key not in vital_charts:
-            vital_charts[key] = {
-                'name': vst.name,
-                'unit': vst.unit,
-                'min_value': float(vst.min_value) if vst.min_value is not None else None,
-                'max_value': float(vst.max_value) if vst.max_value is not None else None,
-                'labels': [],
-                'data': [],
-            }
-        vital_charts[key]['labels'].append(medido_en.strftime('%d/%m/%Y %H:%M'))
-        vital_charts[key]['data'].append(float(valor))
+        etiqueta = (vst.group_label or '').strip()
+        clave = ('grupo', vst.care_type_id, etiqueta) if etiqueta else ('campo', vst.id)
+        grafica = graficas.setdefault(clave, {
+            'name': etiqueta or vst.name,
+            'unit': vst.unit,
+            # dict como conjunto ordenado: las lecturas ya vienen por fecha.
+            'momentos': {},
+            'series': {},
+        })
+        serie = grafica['series'].setdefault(vst.id, {
+            'name': vst.name,
+            'min_value': float(vst.min_value) if vst.min_value is not None else None,
+            'max_value': float(vst.max_value) if vst.max_value is not None else None,
+            'valores': {},
+        })
+        grafica['momentos'][medido_en] = True
+        serie['valores'][medido_en] = float(valor)
+
+    vital_charts = [_grafica_de_constante(g) for g in graficas.values()]
 
     # Care activity heatmap: count care records per day (last 6 months)
     six_months_ago = datetime.now() - timedelta(days=180)
@@ -912,7 +953,7 @@ def resident_detail(resident_id: int):
         resident=resident,
         records=pagination.items,
         pagination=pagination,
-        vital_charts=list(vital_charts.values()),
+        vital_charts=vital_charts,
         heatmap_data=heatmap_data,
         prescriptions=prescriptions,
         route_labels=ROUTE_LABELS,

@@ -270,21 +270,22 @@
                 <div class="col-md-6">
                     <div class="card h-100">
                         <div class="card-body">
-                            <div class="d-flex align-items-center justify-content-between mb-1">
+                            <div class="d-flex align-items-center justify-content-between mb-1 gap-2 flex-wrap">
                                 <span style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--color-text-secondary)">{{ chart.name }}</span>
-                                {% if chart.data|length > 1 %}
-                                {% set diff = chart.data[-1] - chart.data[-2] %}
+                                <span class="d-flex gap-1 flex-wrap">
+                                {% for serie in chart.series if serie.delta is not none %}
                                 <span class="status-tint" style="font-size:.75rem;font-weight:600;padding:2px 8px;border-radius:20px;
-                                    {% if diff < 0 %}--tint:var(--color-success){% elif diff > 0 %}--tint:var(--color-danger){% else %}--tint:var(--color-text-secondary){% endif %}">
-                                    {{ '↓' if diff < 0 else '↑' if diff > 0 else '→' }} {{ diff|abs|round(1) }} {{ chart.unit }}
+                                    {% if serie.delta < 0 %}--tint:var(--color-success){% elif serie.delta > 0 %}--tint:var(--color-danger){% else %}--tint:var(--color-text-secondary){% endif %}">
+                                    {% if chart.series|length > 1 %}{{ serie.name }} {% endif %}{{ '↓' if serie.delta < 0 else '↑' if serie.delta > 0 else '→' }} {{ serie.delta_display }} {{ chart.unit }}
                                 </span>
-                                {% endif %}
+                                {% endfor %}
+                                </span>
                             </div>
-                            {% if chart.data %}
+                            {% if chart.labels %}
                             <div style="font-size:2rem;font-weight:700;line-height:1.2">
-                                {{ chart.data[-1]|round(1) }}<span style="font-size:1rem;font-weight:400;color:var(--color-text-secondary)">{{ chart.unit }}</span>
+                                {{ chart.series|map(attribute='last_display')|select|join('/') }}<span style="font-size:1rem;font-weight:400;color:var(--color-text-secondary)">{{ chart.unit }}</span>
                             </div>
-                            <div style="font-size:.7rem;color:var(--color-text-secondary);margin-bottom:12px">{{ chart.labels[-1] }}</div>
+                            <div style="font-size:.7rem;color:var(--color-text-secondary);margin-bottom:12px">{{ chart.last_label }}</div>
                             {% endif %}
                             <div style="position:relative;height:150px">
                                 <canvas id="vital-chart-{{ loop.index }}"></canvas>
@@ -935,51 +936,55 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script>
 const vitalData = {{ vital_charts | tojson }};
+// Tokens de la paleta del panel. La primera constante del grupo se queda con el
+// verde de siempre; la segunda necesita otro color o las dos lineas no se
+// distinguen.
+const COLORES_CONSTANTES = ['26, 127, 55', '0, 105, 217', '191, 135, 0', '207, 34, 46'];
+
 vitalData.forEach((chart, i) => {
     const ctx = document.getElementById('vital-chart-' + (i + 1));
     if (!ctx) return;
-    const datasets = [{
-        label: chart.name,
-        data: chart.data,
-        borderColor: 'rgba(26, 127, 55, 1)',
-        backgroundColor: 'rgba(26, 127, 55, 0.1)',
-        borderWidth: 2,
-        pointRadius: 3,
-        pointHoverRadius: 6,
-        tension: 0.3,
-        fill: true,
-    }];
-    // Add min/max reference lines if defined
-    if (chart.min_value != null) {
-        datasets.push({
-            label: 'Mín (' + chart.min_value + ')',
-            data: Array(chart.data.length).fill(chart.min_value),
-            borderColor: 'rgba(220, 53, 69, 0.4)',
-            borderWidth: 1,
-            borderDash: [5, 5],
-            pointRadius: 0,
-            fill: false,
-        });
-    }
-    if (chart.max_value != null) {
-        datasets.push({
-            label: 'Máx (' + chart.max_value + ')',
-            data: Array(chart.data.length).fill(chart.max_value),
-            borderColor: 'rgba(220, 53, 69, 0.4)',
-            borderWidth: 1,
-            borderDash: [5, 5],
-            pointRadius: 0,
-            fill: false,
-        });
-    }
-    // Show only last 20 data points to keep chart clean
+
+    // Solo los ultimos 20 momentos, para que la grafica siga leyendose.
     const maxPoints = 20;
-    const sliceStart = Math.max(0, chart.data.length - maxPoints);
-    const slicedData = chart.data.slice(sliceStart);
+    const sliceStart = Math.max(0, chart.labels.length - maxPoints);
     const slicedLabels = chart.labels.slice(sliceStart).map(l => l.split(' ')[0]); // date only
-    datasets[0].data = slicedData;
-    if (datasets[1]) datasets[1].data = Array(slicedData.length).fill(chart.min_value);
-    if (datasets[2]) datasets[2].data = Array(slicedData.length).fill(chart.max_value);
+    const varias = chart.series.length > 1;
+
+    const datasets = chart.series.map((serie, n) => {
+        const rgb = COLORES_CONSTANTES[n % COLORES_CONSTANTES.length];
+        return {
+            label: serie.name,
+            data: serie.data.slice(sliceStart),
+            borderColor: 'rgba(' + rgb + ', 1)',
+            backgroundColor: 'rgba(' + rgb + ', 0.1)',
+            borderWidth: 2,
+            pointRadius: 3,
+            pointHoverRadius: 6,
+            tension: 0.3,
+            // Con dos lineas el relleno las ensucia y tapa la de abajo.
+            fill: !varias,
+            spanGaps: true,
+        };
+    });
+
+    // Las lineas de minimo y maximo, solo con una constante: con dos serian
+    // cuatro rayas discontinuas y la grafica dejaria de leerse.
+    if (!varias) {
+        const serie = chart.series[0];
+        [['Mín', serie.min_value], ['Máx', serie.max_value]].forEach(([etiqueta, limite]) => {
+            if (limite == null) return;
+            datasets.push({
+                label: etiqueta + ' (' + limite + ')',
+                data: Array(slicedLabels.length).fill(limite),
+                borderColor: 'rgba(220, 53, 69, 0.4)',
+                borderWidth: 1,
+                borderDash: [5, 5],
+                pointRadius: 0,
+                fill: false,
+            });
+        });
+    }
 
     new Chart(ctx, {
         type: 'line',
@@ -988,8 +993,12 @@ vitalData.forEach((chart, i) => {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: false },
-                tooltip: { callbacks: { label: (c) => c.parsed.y + ' ' + chart.unit } },
+                legend: {
+                    display: varias,
+                    position: 'bottom',
+                    labels: { boxWidth: 10, boxHeight: 10, font: { size: 10 }, padding: 8 },
+                },
+                tooltip: { callbacks: { label: (c) => c.dataset.label + ': ' + c.parsed.y + ' ' + chart.unit } },
             },
             scales: {
                 y: { display: false },

@@ -245,8 +245,7 @@ class CareRecord(db.Model):
         y otra para la diastolica. Lo que se guarda no cambia — cada valor sigue
         siendo su propia lectura, con su minimo y su maximo.
         """
-        def _texto(valor: float) -> str:
-            return str(int(valor)) if float(valor).is_integer() else f'{valor:.1f}'
+        from .utils import formato_constante
 
         grupos: list[dict] = []
         por_clave: dict[tuple, dict] = {}
@@ -258,11 +257,11 @@ class CareRecord(db.Model):
             etiqueta = (vst.group_label or '').strip()
             clave = (vst.care_type_id, etiqueta) if etiqueta else None
             if clave is not None and clave in por_clave:
-                por_clave[clave]['valores'].append(_texto(lectura.value))
+                por_clave[clave]['valores'].append(formato_constante(lectura.value))
                 continue
             grupo = {
                 'name': etiqueta or vst.name,
-                'valores': [_texto(lectura.value)],
+                'valores': [formato_constante(lectura.value)],
                 'unit': vst.unit,
             }
             grupos.append(grupo)
