@@ -155,6 +155,22 @@ class TestLoginRegistraDispositivo:
         login(client, headers=cabeceras(ua=UA_RECORTADO, modelo='SM-A556B'))
         assert WorkerDevice.query.one().model == 'Samsung Galaxy A55'
 
+    def test_el_redmi_sale_por_su_nombre_comercial(self, client, cleaner_user):
+        """Xiaomi solo manda el codigo interno: "23053RN02Y" no lo reconoce nadie."""
+        login(client, headers=cabeceras(ua=UA_RECORTADO, modelo='23053RN02Y'))
+        assert WorkerDevice.query.one().model == 'Xiaomi Redmi 12'
+
+    def test_una_entrada_sin_client_hints_no_borra_el_modelo(self, client, cleaner_user):
+        """Los Client Hints se piden de forma asincrona: una entrada puede llegar
+        sin el modelo aunque el telefono si lo tenga. Antes lo dejaba en blanco."""
+        login(client, headers=cabeceras(ua=UA_RECORTADO, modelo='SM-A546B'))
+        assert WorkerDevice.query.one().model == 'Samsung Galaxy A54'
+
+        login(client, headers=cabeceras(ua=UA_RECORTADO))      # sin X-Device-Model
+        device = WorkerDevice.query.one()
+        assert device.model == 'Samsung Galaxy A54'            # se conserva
+        assert device.browser == 'Chrome 131'                  # lo demas se refresca
+
     def test_repetir_login_no_duplica_y_cuenta_la_entrada(self, client, cleaner_user):
         login(client, headers=cabeceras())
         login(client, headers=cabeceras())

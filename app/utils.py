@@ -369,6 +369,8 @@ _MODELOS_CONOCIDOS = {
     'SM-G991B': 'Samsung Galaxy S21',
     'SM-S911B': 'Samsung Galaxy S23',
     'SM-T500': 'Samsung Galaxy Tab A7',
+    # Xiaomi solo manda el codigo interno; este es el que hay en la casa.
+    '23053RN02Y': 'Xiaomi Redmi 12',
     'SM-X200': 'Samsung Galaxy Tab A8',
 }
 
@@ -523,18 +525,20 @@ def _registrar_dispositivo(worker_id, device_uid, user_agent, es_login=False,
         db.session.flush()          # hace falta el id para la fila de uso
     else:
         device.last_seen = ahora
-        # El movil puede haber actualizado Android o el navegador, y el modelo
-        # puede llegar por Client Hints en una peticion posterior al alta (se
-        # pide de forma asincrona). Se revisa al iniciar sesion, o en cuanto
-        # aparezca un modelo que antes no teniamos.
-        if (es_login and ua and ua != device.user_agent) or \
-           (modelo_cliente and not device.model):
+        # En cada entrada se vuelve a leer quien es este telefono: asi un movil
+        # ya dado de alta se arregla solo cuando se anade su codigo a la tabla de
+        # modelos, sin tener que tocar la base de datos a mano.
+        if es_login:
             modelo, sistema, navegador = _describir_dispositivo(ua, modelo_cliente)
-            device.user_agent = ua
-            # Si el parser no saca nada, se conserva lo que ya habia: un dato
-            # antiguo pero bueno vale mas que un hueco.
-            if modelo or sistema or navegador:
-                device.model, device.os_name, device.browser = modelo, sistema, navegador
+            if ua:
+                device.user_agent = ua
+            # Campo a campo y sin pisar lo bueno con un hueco. Los Client Hints
+            # se piden de forma asincrona, asi que una entrada puede llegar sin
+            # el modelo aunque el telefono si lo tenga: sobreescribir a ciegas
+            # dejaba en blanco un modelo que ya se sabia.
+            device.model = modelo or device.model
+            device.os_name = sistema or device.os_name
+            device.browser = navegador or device.browser
 
     uso = WorkerDeviceUse.query.filter_by(device_id=device.id,
                                           worker_id=worker_id).first()
