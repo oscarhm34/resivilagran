@@ -6,7 +6,7 @@ import difflib
 import json
 import re
 import unicodedata
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dt_time
 from anthropic import Anthropic
 from . import db
 from .models import (Resident, CareRecord, CareType, CleaningRecord, Room, Floor,
@@ -26,6 +26,9 @@ Capacidades importantes:
 - Los tipos de atención se organizan en categorías con subtipos: "Deposiciones" tiene FECALOMA, NORMAL y DIARREA; en el registro se guarda el subtipo. Las herramientas te lo devuelven como "Deposiciones: DIARREA".
 - Para "quién ha hecho deposiciones", "a quién se le ha cambiado el pañal" o "cuántas diarreas ha habido", usa atenciones_por_tipo. Acepta tanto la categoría (Deposiciones) como el subtipo (DIARREA), y un periodo de varios días con el parámetro dias.
 - Si atenciones_por_tipo no encuentra el tipo, mira los nombres reales con tipos_de_atencion y vuelve a intentarlo; no des por hecho que no ha pasado nada.
+- atenciones_por_tipo acepta una franja horaria con desde_hora y hasta_hora ("9", "9:30"). Para "qué cambios de pañal ha habido esta mañana", pásale desde_hora y hasta_hora.
+- Para preguntas EN NEGATIVO —"a quién NO se le ha cambiado el pañal", "quién no ha desayunado", "qué residentes se han quedado sin X"— usa residentes_sin_atencion, que también acepta franja horaria. No intentes deducirlo de atenciones_por_tipo: esa herramienta no sabe quiénes son todos los residentes.
+- Al responder a eso, ten cuidado: la aplicación NO sabe qué residentes necesitan cada atención, así que la lista no es una lista de fallos. Nombra primero a los que tienen la_recibe_habitualmente=true, que son los que sí la reciben normalmente y hoy no, y di cuánto llevan sin ella. De los que la tienen en false, di que no la han recibido en dos semanas y que probablemente no la necesiten — no los enumeres uno a uno si son muchos.
 - Puedes buscar qué residentes tienen documentos adjuntos (PIAs, informes médicos, etc.) con residentes_con_documentos.
 - Cuando pides info de un residente con info_residente, ya incluye el CONTENIDO de sus documentos (PIAs, informes). No necesitas llamar a leer_documento_residente por separado.
 - Puedes responder preguntas sobre el contenido de los documentos (medicación, dietas, objetivos, etc.) directamente con la info que devuelve info_residente.
@@ -104,9 +107,29 @@ TOOLS = [
             "properties": {
                 "tipo": {"type": "string", "description": "Nombre de la categoría o del subtipo de atención a buscar"},
                 "fecha": {"type": "string", "description": "Día final del periodo, en formato YYYY-MM-DD (opcional, por defecto hoy)"},
-                "dias": {"type": "integer", "description": "Cuántos días hacia atrás mirar, contando el de la fecha (por defecto 1, solo ese día)"}
+                "dias": {"type": "integer", "description": "Cuántos días hacia atrás mirar, contando el de la fecha (por defecto 1, solo ese día)"},
+                "desde_hora": {"type": "string", "description": "Hora de inicio de la franja, HH:MM o HH (opcional). Solo tiene sentido con dias=1"},
+                "hasta_hora": {"type": "string", "description": "Hora de fin de la franja, HH:MM o HH (opcional)"}
             },
             "required": ["tipo"]
+        }
+    },
+    {
+        "name": "residentes_sin_atencion",
+        "description": ("Residentes que NO han recibido un tipo de atención en un día, opcionalmente "
+                        "dentro de una franja horaria. Para preguntas en negativo: \"a quién no se le "
+                        "ha cambiado el pañal entre las 9 y las 13\", \"quién no ha desayunado\". "
+                        "De cada residente sin la atención dice cuándo la recibió por última vez, que "
+                        "es lo que distingue a quien se ha quedado sin ella de quien no la necesita."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "tipo": {"type": "string", "description": "Tipo o categoría de atención (ej. 'Cambio de pañal', 'Deposiciones')"},
+                "fecha": {"type": "string", "description": "Fecha YYYY-MM-DD (opcional, por defecto hoy)"},
+                "desde_hora": {"type": "string", "description": "Hora de inicio de la franja, HH:MM o HH (opcional)"},
+                "hasta_hora": {"type": "string", "description": "Hora de fin de la franja, HH:MM o HH (opcional)"},
+            },
+            "required": ["tipo"],
         }
     },
     {
@@ -590,28 +613,152 @@ def _atenciones_hoy() -> str:
     }, ensure_ascii=False)
 
 
-def _atenciones_por_tipo(tipo: str, fecha: str | None = None, dias: int = 1) -> str:
-    coincidencias = _tipos_que_coinciden(tipo)
-    if not coincidencias:
-        return json.dumps({
-            "error": f'No hay ningún tipo de atención que coincida con "{tipo}"',
-            "tipos_disponibles": [_nombre_tipo(ct) for ct in
-                                  CareType.query.filter_by(active=True).all()],
-        }, ensure_ascii=False)
+def _hora(texto: str | None, por_defecto):
+    """Convierte "9", "9:30" o "09:30" en un time. `por_defecto` si no se entiende.
 
-    dia = datetime.strptime(fecha, '%Y-%m-%d').date() if fecha else datetime.now().date()
-    dias = max(1, int(dias or 1))
-    inicio = datetime.combine(dia - timedelta(days=dias - 1), datetime.min.time())
-    fin = datetime.combine(dia + timedelta(days=1), datetime.min.time())
+    Se acepta la hora suelta porque es como la dice la gente: "entre las nueve y
+    las trece" llega al modelo como "9" y "13", no como "09:00".
+    """
+    if not texto:
+        return por_defecto
+    m = re.match(r'^\s*(\d{1,2})(?:[:h.](\d{1,2}))?\s*$', str(texto))
+    if not m:
+        return por_defecto
+    h = int(m.group(1))
+    mi = int(m.group(2) or 0)
+    if not (0 <= h <= 23 and 0 <= mi <= 59):
+        return por_defecto
+    return dt_time(h, mi)
 
-    ids = {ct.id for ct in coincidencias}
-    records = CareRecord.query.filter(
+
+def _franja(dia, desde_hora, hasta_hora):
+    """(inicio, fin, etiqueta) del dia, recortado a la franja si se pide."""
+    d = _hora(desde_hora, None)
+    h = _hora(hasta_hora, None)
+    inicio = datetime.combine(dia, d or datetime.min.time())
+    if h:
+        fin = datetime.combine(dia, h)
+    else:
+        fin = datetime.combine(dia + timedelta(days=1), datetime.min.time())
+    if fin <= inicio:       # franja al reves o vacia: se ignora y va el dia entero
+        return (datetime.combine(dia, datetime.min.time()),
+                datetime.combine(dia + timedelta(days=1), datetime.min.time()),
+                'todo el día')
+    if d or h:
+        return inicio, fin, 'de %s a %s' % (inicio.strftime('%H:%M'), fin.strftime('%H:%M'))
+    return inicio, fin, 'todo el día'
+
+
+def _tipo_no_encontrado(tipo: str) -> str:
+    return json.dumps({
+        "error": f'No hay ningún tipo de atención que coincida con "{tipo}"',
+        "tipos_disponibles": [_nombre_tipo(ct) for ct in
+                              CareType.query.filter_by(active=True).all()],
+    }, ensure_ascii=False)
+
+
+def _registros_del_tipo(ids, inicio, fin):
+    """Registros de esos tipos en la ventana. `care_type_id` es el campo antiguo:
+    los registros de antes de los tipos multiples solo lo tienen a el."""
+    return CareRecord.query.filter(
         CareRecord.start_time >= inicio, CareRecord.start_time < fin,
-        # care_type_id es el campo antiguo: los registros de antes de los tipos
-        # múltiples solo lo tienen a él.
         db.or_(CareRecord.care_types.any(CareType.id.in_(ids)),
                CareRecord.care_type_id.in_(ids)),
     ).order_by(CareRecord.start_time).all()
+
+
+def _residentes_sin_atencion(tipo: str, fecha: str | None = None,
+                             desde_hora: str | None = None,
+                             hasta_hora: str | None = None) -> str:
+    """Quien NO ha recibido esta atencion. La pregunta en negativo.
+
+    El sistema no sabe que residentes necesitan cada atencion: un residente
+    continente saldria en la lista de "sin cambio de panal" sin que eso signifique
+    nada. Por eso de cada uno se dice cuando la recibio por ultima vez: quien la
+    recibe cada dia y hoy no, es un aviso; quien no la ha recibido nunca,
+    seguramente no la necesita.
+    """
+    coincidencias = _tipos_que_coinciden(tipo)
+    if not coincidencias:
+        return _tipo_no_encontrado(tipo)
+
+    dia = datetime.strptime(fecha, '%Y-%m-%d').date() if fecha else datetime.now().date()
+    inicio, fin, etiqueta = _franja(dia, desde_hora, hasta_hora)
+    ids = {ct.id for ct in coincidencias}
+
+    recibidas: dict[int, str] = {}
+    for c in _registros_del_tipo(ids, inicio, fin):
+        if c.resident_id and c.resident_id not in recibidas:
+            recibidas[c.resident_id] = c.start_time.strftime('%H:%M')
+
+    # Cuando la recibio por ultima vez cada uno, mirando dos semanas atras. Es lo
+    # que separa a quien se ha quedado sin ella de quien no la necesita.
+    previas: dict[int, datetime] = {}
+    for c in _registros_del_tipo(ids, inicio - timedelta(days=14), inicio):
+        if c.resident_id:
+            previas[c.resident_id] = c.start_time      # ordenados: gana el ultimo
+
+    sin, con = [], []
+    for r in Resident.query.filter_by(active=True).order_by(Resident.name).all():
+        if r.id in recibidas:
+            con.append({"residente": r.name,
+                        "habitacion": r.room_number or 'Sin asignar',
+                        "hora": recibidas[r.id]})
+            continue
+        ultima = previas.get(r.id)
+        sin.append({
+            "residente": r.name,
+            "habitacion": r.room_number or 'Sin asignar',
+            "grupo": r.group.name if r.group else None,
+            "nivel_dependencia": r.dependency_level,
+            "ultima_vez_que_la_recibio": ultima.strftime('%d/%m %H:%M') if ultima else None,
+            "horas_desde_la_ultima_vez": (round((inicio - ultima).total_seconds() / 3600)
+                                          if ultima else None),
+            "la_recibe_habitualmente": ultima is not None,
+        })
+
+    # Primero los que si la reciben normalmente y hoy no: son los que importan.
+    sin.sort(key=lambda x: (not x["la_recibe_habitualmente"],
+                            -(x["horas_desde_la_ultima_vez"] or 0)))
+
+    return json.dumps({
+        "tipo_buscado": tipo,
+        "tipos_encontrados": [_nombre_tipo(ct) for ct in coincidencias],
+        "fecha": dia.strftime('%d/%m/%Y'),
+        "franja": etiqueta,
+        "total_residentes_activos": len(con) + len(sin),
+        "la_han_recibido": con,
+        "no_la_han_recibido": sin,
+        "como_leerlo": (
+            "El sistema NO sabe que residentes necesitan cada atencion, asi que "
+            "esta lista no es una lista de fallos. Mirad la_recibe_habitualmente: "
+            "quien la tiene en true y hoy no la ha recibido es lo que hay que "
+            "revisar, y horas_desde_la_ultima_vez dice cuanto lleva. Quien la "
+            "tiene en false no la ha recibido en dos semanas, asi que lo mas "
+            "probable es que no la necesite. Nombra primero a los de true."
+        ),
+    }, ensure_ascii=False)
+
+
+def _atenciones_por_tipo(tipo: str, fecha: str | None = None, dias: int = 1,
+                         desde_hora: str | None = None,
+                         hasta_hora: str | None = None) -> str:
+    coincidencias = _tipos_que_coinciden(tipo)
+    if not coincidencias:
+        return _tipo_no_encontrado(tipo)
+
+    dia = datetime.strptime(fecha, '%Y-%m-%d').date() if fecha else datetime.now().date()
+    dias = max(1, int(dias or 1))
+    if dias == 1:
+        inicio, fin, franja = _franja(dia, desde_hora, hasta_hora)
+    else:
+        # Una franja horaria sobre varios dias no significa nada claro; manda el rango.
+        inicio = datetime.combine(dia - timedelta(days=dias - 1), datetime.min.time())
+        fin = datetime.combine(dia + timedelta(days=1), datetime.min.time())
+        franja = 'todo el día'
+
+    ids = {ct.id for ct in coincidencias}
+    records = _registros_del_tipo(ids, inicio, fin)
 
     atenciones = [{
         "residente": c.resident.name if c.resident else '?',
@@ -631,6 +778,9 @@ def _atenciones_por_tipo(tipo: str, fecha: str | None = None, dias: int = 1) -> 
         "tipos_encontrados": [_nombre_tipo(ct) for ct in coincidencias],
         "periodo": (f"{inicio.strftime('%d/%m/%Y')} a {dia.strftime('%d/%m/%Y')}"
                     if dias > 1 else dia.strftime('%d/%m/%Y')),
+        # Sin esto, una respuesta filtrada de 9 a 13 se contaria como si fuera
+        # del dia entero y nadie sabria que se ha mirado solo un rato.
+        "franja": franja,
         "total": len(atenciones),
         "residentes_distintos": len({a["residente"] for a in atenciones}),
         "atenciones": atenciones,
@@ -1103,7 +1253,8 @@ def _get_tool_handlers(is_admin: bool = False):
         "info_residente": lambda args: _info_residente(args["residente_id"], include_content=is_admin),
         "atenciones_residente": lambda args: _atenciones_residente(args["residente_id"], args.get("fecha")),
         "atenciones_hoy": lambda args: _atenciones_hoy(),
-        "atenciones_por_tipo": lambda args: _atenciones_por_tipo(args["tipo"], args.get("fecha"), args.get("dias", 1)),
+        "atenciones_por_tipo": lambda args: _atenciones_por_tipo(args["tipo"], args.get("fecha"), args.get("dias", 1), args.get("desde_hora"), args.get("hasta_hora")),
+        "residentes_sin_atencion": lambda args: _residentes_sin_atencion(args["tipo"], args.get("fecha"), args.get("desde_hora"), args.get("hasta_hora")),
         "tipos_de_atencion": lambda args: _tipos_de_atencion(),
         "limpiezas_hoy": lambda args: _limpiezas_hoy(),
         "ultima_limpieza_zona": lambda args: _ultima_limpieza_zona(args["numero_zona"]),
