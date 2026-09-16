@@ -35,7 +35,7 @@ from ..utils import (
     APP_LANGUAGES, APP_LOCALES, _idioma_valido, _traducciones_webapp,
     _idioma_peticion, _traducciones_de, _aplicar_traduccion,
     _texto_traducido, TONOS_AVISO, _tono_valido,
-    _registrar_dispositivo,
+    _registrar_dispositivo, _dispositivo_actual,
 )
 
 bp = Blueprint('nfc', __name__)
@@ -184,7 +184,9 @@ def start_cleaning():
     if _check_single_session_conflict(cleaner_id):
         return jsonify({'error': 'Ya tienes una sesión activa. Finalízala antes de iniciar otra.'}), 409
 
-    new_record = CleaningRecord(cleaner_id=cleaner_id, room_id=room.id, start_time=datetime.now())
+    new_record = CleaningRecord(cleaner_id=cleaner_id, room_id=room.id,
+                                start_time=datetime.now(),
+                                device_id=_dispositivo_actual())
     db.session.add(new_record)
     ok, err = _safe_commit()
     if not ok:
@@ -938,7 +940,8 @@ def nfc_scan():
         if _check_single_session_conflict(worker_id):
             return jsonify({'error': 'Ya tienes una sesión activa. Finalízala antes de iniciar otra.'}), 409
 
-        record = CleaningRecord(cleaner_id=worker_id, room_id=room.id, start_time=now)
+        record = CleaningRecord(cleaner_id=worker_id, room_id=room.id, start_time=now,
+                                device_id=_dispositivo_actual())
         db.session.add(record)
         ok, err = _safe_commit()
         if not ok:
@@ -1002,6 +1005,7 @@ def nfc_scan():
                 worker_id=worker_id,
                 resident_id=resident.id,
                 start_time=now,
+                device_id=_dispositivo_actual(),
             )
             db.session.add(record)
             ok, err = _safe_commit()
@@ -1139,12 +1143,14 @@ def start_group_care():
 
     now = datetime.now()
     records_out = []
+    movil_actual = _dispositivo_actual()
     for rid in resident_ids:
         resident = db.session.get(Resident, rid)
         # Los residentes dados de baja no forman parte de ningun grupo
         if not resident or not resident.active:
             continue
-        rec = CareRecord(worker_id=worker_id, resident_id=rid, start_time=now)
+        rec = CareRecord(worker_id=worker_id, resident_id=rid, start_time=now,
+                         device_id=movil_actual)
         db.session.add(rec)
         db.session.flush()
         records_out.append({

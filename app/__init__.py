@@ -50,6 +50,13 @@ def load_user(user_id: str) -> Cleaner | None:
     return Cleaner.query.get(int(user_id))
 
 
+@app.template_filter('desde_hace')
+def _filtro_desde_hace(cuando):
+    """"hace 5 min", "ayer"... Import local para no cerrar el circulo con utils."""
+    from .utils import desde_hace
+    return desde_hace(cuando)
+
+
 # ── Track last_active for workers (JWT) and admins (Flask-Login) ───────────
 from datetime import datetime as _dt, timedelta as _td
 

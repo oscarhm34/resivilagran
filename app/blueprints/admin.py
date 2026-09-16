@@ -16,11 +16,12 @@ from ..models import (Cleaner, Room, CleaningRecord, Floor, RoomType, Resident,
                       VitalSignType, VitalSignReading,
                       ShiftAssignment, ChecklistItem,
                       CleaningTargetTime, AuditLog, PushSubscription,
-                      WorkerDevice, WorkerDeviceUse)
+                      WorkerDevice, WorkerDeviceUse, WorkerDeviceLogin)
 from ..utils import (admin_required, _format_duration,
                      _compute_cleaning_stats, _calculate_room_urgency,
                      _safe_commit, _safe_flush, log_audit, volver_atras,
-                     APP_LANGUAGES, _ultimo_movil_por_trabajadora)
+                     APP_LANGUAGES, _ultimo_movil_por_trabajadora,
+                     _movil_de_cada_conectada)
 
 bp = Blueprint('admin_bp', __name__)
 
@@ -222,6 +223,11 @@ def index():
         Cleaner.id.in_(working_now_ids),
     ).order_by(Cleaner.name).all() if working_now_ids else []
 
+    # Con que movil esta cada una. Los telefonos no son de nadie: se coge el que
+    # esta libre, asi que saber quien esta conectada sin saber que aparato lleva
+    # no sirve para ir a buscarlo.
+    movil_de = _movil_de_cada_conectada()
+
     return render_template(
         'index.html',
         limpiezas_hoy=limpiezas_hoy,
@@ -240,7 +246,7 @@ def index():
         shift_summary=shift_summary,
         pending_signatures=pending_signatures,
         unread_notifs=unread_notifs,
-        online_workers=online_workers,
+        online_workers=online_workers, movil_de=movil_de,
         working_now=working_now,
     )
 
@@ -625,8 +631,44 @@ def manage_devices():
                          WorkerDevice.last_seen.desc())
                .all())
     sin_nombre = sum(1 for d in devices if not d.label)
+    # Los que llevan mas de una semana parados: o se han perdido, o estan en un
+    # cajon estropeados, y de las dos maneras conviene enterarse.
+    parados = sum(1 for d in devices if d.dias_parado >= 7)
     return render_template('admin_devices.html', devices=devices,
-                           sin_nombre=sin_nombre)
+                           sin_nombre=sin_nombre, parados=parados,
+                           minutos_en_uso=WorkerDevice.MINUTOS_EN_USO)
+
+
+@bp.route('/devices/historial')
+@admin_required
+def devices_history():
+    """Quien llevaba que movil y cuando.
+
+    Con los telefonos rotando, el resumen de la pantalla anterior solo contesta
+    por hoy. Aqui se mira hacia atras: por movil, por persona o por dia.
+    """
+    device_id = request.args.get('device_id', type=int)
+    worker_id = request.args.get('worker_id', type=int)
+    dias = request.args.get('dias', 30, type=int)
+    dias = min(max(dias, 1), 365)
+
+    q = (WorkerDeviceLogin.query
+         .options(joinedload(WorkerDeviceLogin.device),
+                  joinedload(WorkerDeviceLogin.worker))
+         .filter(WorkerDeviceLogin.at >= datetime.now() - timedelta(days=dias)))
+    if device_id:
+        q = q.filter(WorkerDeviceLogin.device_id == device_id)
+    if worker_id:
+        q = q.filter(WorkerDeviceLogin.worker_id == worker_id)
+    # Tope duro: el historial crece solo y nadie quiere una pagina de 20.000 filas.
+    entradas = q.order_by(WorkerDeviceLogin.at.desc()).limit(500).all()
+
+    return render_template(
+        'admin_devices_history.html', entradas=entradas, dias=dias,
+        device_id=device_id, worker_id=worker_id,
+        devices=WorkerDevice.query.order_by(WorkerDevice.label).all(),
+        workers=Cleaner.query.filter_by(active=True).order_by(Cleaner.name).all(),
+        tope=len(entradas) == 500)
 
 
 @bp.route('/devices/<int:id>/rename', methods=['POST'])

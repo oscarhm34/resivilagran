@@ -125,6 +125,11 @@
                 {% for w in online_workers %}
                 <span class="badge status-tint" style="--tint:{% if w.is_admin %}var(--color-primary){% else %}#14682c{% endif %};font-weight:500;font-size:.78rem">
                     {{ w.name }}{% if w.is_admin %} <i class="bi bi-shield-check" style="font-size:.65rem"></i>{% endif %}
+                    {%- if movil_de.get(w.id) %}
+                    <span style="opacity:.75;font-weight:400" title="Está usando este móvil ahora mismo">
+                        <i class="bi bi-phone" style="font-size:.65rem"></i> {{ movil_de[w.id].nombre_visible }}
+                    </span>
+                    {%- endif %}
                 </span>
                 {% endfor %}
             </div>

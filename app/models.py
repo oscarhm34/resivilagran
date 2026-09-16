@@ -69,7 +69,16 @@ class CleaningRecord(db.Model):
     end_time = db.Column(db.DateTime, nullable=True)
     checklist_json = db.Column(db.Text, nullable=True)
     notes = db.Column(db.Text, nullable=True)
+    # Con que movil se registro. Como los telefonos rotan, saberlo por la persona
+    # ya no vale: si una lectura NFC sale rara hay que poder ir al aparato.
+    # NULL en todo lo anterior a septiembre de 2026 y en lo que entre por la app
+    # Android antigua, que no manda la cabecera.
+    device_id = db.Column(db.Integer,
+                          db.ForeignKey('worker_device.id', name='fk_cleaning_device',
+                                        ondelete='SET NULL'),
+                          nullable=True, index=True)
 
+    device = db.relationship('WorkerDevice')
     room = db.relationship('Room', primaryjoin='CleaningRecord.room_id == foreign(Room.id)', uselist=False)
     cleaner = db.relationship('Cleaner', backref=db.backref('cleaning_records', lazy=True))
 
@@ -226,7 +235,13 @@ class CareRecord(db.Model):
     start_time = db.Column(db.DateTime, nullable=False, index=True)
     end_time = db.Column(db.DateTime, nullable=True)
     notes = db.Column(db.Text, nullable=True)
+    # Con que movil se registro. Ver el comentario de CleaningRecord.device_id.
+    device_id = db.Column(db.Integer,
+                          db.ForeignKey('worker_device.id', name='fk_care_device',
+                                        ondelete='SET NULL'),
+                          nullable=True, index=True)
 
+    device = db.relationship('WorkerDevice')
     worker = db.relationship('Cleaner', backref=db.backref('care_records', lazy=True))
     resident = db.relationship('Resident', back_populates='care_records')
     care_type = db.relationship('CareType', back_populates='care_records')
@@ -1010,14 +1025,41 @@ class WorkerDevice(db.Model):
         partes = [p for p in (self.model, self.os_name, self.browser) if p]
         return ' · '.join(partes) if partes else 'Dispositivo desconocido'
 
+    # Misma ventana que "Conectados ahora" del panel principal: si no se ha visto
+    # en 10 minutos, se da por soltado. Los telefonos se dejan en la mesa sin
+    # cerrar sesion, asi que el ultimo movimiento es la mejor senal que hay.
+    MINUTOS_EN_USO = 10
+
+    def quien_lo_lleva(self):
+        """La `WorkerDeviceUse` mas reciente, o None si no lo ha cogido nadie."""
+        if not self.usos:
+            return None
+        return max(self.usos, key=lambda u: u.last_used)
+
+    @property
+    def en_uso(self) -> bool:
+        return bool(self.last_seen and
+                    (datetime.now() - self.last_seen).total_seconds() < self.MINUTOS_EN_USO * 60)
+
+    @property
+    def dias_parado(self) -> int:
+        """Dias desde la ultima vez que se uso. Sirve para dar con los que se
+        han perdido o se han quedado en un cajon estropeados."""
+        if not self.last_seen:
+            return 0
+        return (datetime.now() - self.last_seen).days
+
 
 class WorkerDeviceUse(db.Model):
-    """Una trabajadora en un movil.
+    """Una trabajadora en un movil: el resumen de quien usa que.
 
-    Una fila por pareja (movil, trabajadora), actualizada en su sitio. No es un
-    historial de inicios de sesion: es el estado de quien usa que. Un movil
-    compartido entre el turno de manana y el de noche tiene dos filas, no
-    doscientas.
+    Una fila por pareja (movil, trabajadora), actualizada en su sitio. Los
+    telefonos no son de nadie —cada una coge el que esta libre—, asi que un movil
+    acaba teniendo tantas filas como personas han trabajado con el, y la mas
+    reciente es quien lo lleva ahora.
+
+    El historial completo esta en `WorkerDeviceLogin`; esta tabla es el estado
+    actual, que es lo que leen las pantallas en cada carga.
     """
     __tablename__ = 'worker_device_use'
     id = db.Column(db.Integer, primary_key=True)
@@ -1028,7 +1070,10 @@ class WorkerDeviceUse(db.Model):
     worker_id = db.Column(db.Integer,
                           db.ForeignKey('cleaner.id', name='fk_wdu_cleaner'),
                           nullable=False, index=True)
-    last_login = db.Column(db.DateTime, nullable=False, default=datetime.now, index=True)
+    # Ultima vez que esta persona hizo algo con este movil. Se refresca en cada
+    # peticion, no solo al entrar: con los telefonos rotando, "quien lo lleva
+    # ahora" es justo el maximo de esta columna por dispositivo.
+    last_used = db.Column(db.DateTime, nullable=False, default=datetime.now, index=True)
     login_count = db.Column(db.Integer, nullable=False, default=1)
 
     device = db.relationship('WorkerDevice', back_populates='usos')
@@ -1037,6 +1082,30 @@ class WorkerDeviceUse(db.Model):
     __table_args__ = (
         db.UniqueConstraint('device_id', 'worker_id', name='uq_wdu_device_worker'),
     )
+
+
+class WorkerDeviceLogin(db.Model):
+    """Cada vez que alguien entra en la webapp desde un movil.
+
+    Tabla de solo anadir. Con los telefonos rotando entre turnos, el resumen de
+    `WorkerDeviceUse` no basta para reconstruir quien llevaba que la semana
+    pasada, y esa es justo la pregunta cuando hay que revisar algo de hace dias.
+
+    Crece poco: un punado de entradas por persona y dia.
+    """
+    __tablename__ = 'worker_device_login'
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.Integer,
+                          db.ForeignKey('worker_device.id', name='fk_wdl_device',
+                                        ondelete='CASCADE'),
+                          nullable=False, index=True)
+    worker_id = db.Column(db.Integer,
+                          db.ForeignKey('cleaner.id', name='fk_wdl_cleaner'),
+                          nullable=False, index=True)
+    at = db.Column(db.DateTime, nullable=False, default=datetime.now, index=True)
+
+    device = db.relationship('WorkerDevice')
+    worker = db.relationship('Cleaner')
 
 
 class WoundRecord(db.Model):

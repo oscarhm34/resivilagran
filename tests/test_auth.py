@@ -78,6 +78,7 @@ class TestProtectedRoutes:
         "/",
         "/manage_workers",
         "/devices",
+        "/devices/historial",
         "/zonas-limpieza",
         "/manage_room_types",
         "/manage_floors",

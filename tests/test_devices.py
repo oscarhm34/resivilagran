@@ -23,8 +23,9 @@ import json
 import pytest
 
 from app import db as _db
-from app.models import Cleaner, WorkerDevice, WorkerDeviceUse
-from app.utils import _describir_dispositivo, _device_uid_valido
+from app.models import (Cleaner, WorkerDevice, WorkerDeviceUse, WorkerDeviceLogin,
+                        CleaningRecord, CareRecord)
+from app.utils import _describir_dispositivo, _device_uid_valido, desde_hace
 
 
 UID = 'a1b2c3d4-e5f6-4788-9a0b-1c2d3e4f5061'
@@ -240,9 +241,164 @@ def device(db, cleaner_user):
     db.session.add(d)
     db.session.flush()
     db.session.add(WorkerDeviceUse(device_id=d.id, worker_id=cleaner_user.id,
-                                   last_login=datetime.now(), login_count=3))
+                                   last_used=datetime.now(), login_count=3))
     db.session.commit()
     return d
+
+
+class TestMovilesCompartidos:
+    """Los telefonos no son de nadie: cada una coge el que esta libre.
+
+    Es el caso real de la residencia, y el que rompe cualquier diseno que
+    suponga un movil por persona.
+    """
+
+    def test_quien_lo_lleva_es_la_ultima_que_lo_toco(self, client, db, cleaner_user):
+        otra = Cleaner(username='limpiadora2', name='Ana Ruiz', is_admin=False)
+        otra.set_password('limpia456')
+        db.session.add(otra)
+        db.session.commit()
+
+        login(client, headers=cabeceras())                      # Maria primero
+        login(client, username='limpiadora2', password='limpia456',
+              headers=cabeceras())                              # Ana despues
+
+        device = WorkerDevice.query.one()
+        assert device.quien_lo_lleva().worker_id == otra.id
+        assert device.en_uso is True
+
+    def test_una_trabajadora_puede_cambiar_de_movil(self, client, cleaner_user):
+        """Coge el 1 por la manana y el 2 por la tarde: dos dispositivos, y su
+        ultimo movil es el segundo."""
+        login(client, headers=cabeceras(uid=UID))
+        login(client, headers=cabeceras(uid=UID_2))
+
+        assert WorkerDevice.query.count() == 2
+        from app.utils import _ultimo_movil_por_trabajadora
+        ultimo = _ultimo_movil_por_trabajadora()[cleaner_user.id]
+        assert ultimo.device.device_uid == UID_2
+
+    def test_un_movil_parado_no_lo_lleva_nadie(self, db, cleaner_user):
+        from datetime import datetime, timedelta
+        hace_rato = datetime.now() - timedelta(hours=3)
+        d = WorkerDevice(device_uid=UID, first_seen=hace_rato, last_seen=hace_rato)
+        db.session.add(d)
+        db.session.flush()
+        db.session.add(WorkerDeviceUse(device_id=d.id, worker_id=cleaner_user.id,
+                                       last_used=hace_rato, login_count=1))
+        db.session.commit()
+
+        assert d.en_uso is False
+        assert d.quien_lo_lleva().worker_id == cleaner_user.id   # la ultima que lo uso
+
+    def test_dias_parado_localiza_los_perdidos(self, db):
+        from datetime import datetime, timedelta
+        viejo = datetime.now() - timedelta(days=12)
+        d = WorkerDevice(device_uid=UID, first_seen=viejo, last_seen=viejo)
+        db.session.add(d)
+        db.session.commit()
+        assert d.dias_parado == 12
+
+
+class TestHistorial:
+
+    def test_cada_login_deja_una_entrada(self, client, cleaner_user):
+        login(client, headers=cabeceras())
+        login(client, headers=cabeceras())
+        assert WorkerDeviceLogin.query.count() == 2
+
+    def test_navegar_no_ensucia_el_historial(self, client, cleaner_user):
+        """Solo los inicios de sesion, no cada peticion: si no, el historial
+        seria ilegible y crecería sin freno."""
+        token = login(client, headers=cabeceras()).get_json()['access_token']
+        for _ in range(3):
+            client.get('/check_cleaning',
+                       headers={'Authorization': 'Bearer ' + token,
+                                'X-Device-Id': UID, 'User-Agent': UA_SAMSUNG})
+        assert WorkerDeviceLogin.query.count() == 1
+
+    def test_la_pagina_de_historial_filtra(self, auth_client, client, db, cleaner_user):
+        login(client, headers=cabeceras())
+        response = auth_client.get('/devices/historial')
+        assert response.status_code == 200
+        assert 'Maria García' in response.get_data(as_text=True)
+
+        device = WorkerDevice.query.one()
+        assert auth_client.get('/devices/historial?device_id=%d' % device.id)\
+            .status_code == 200
+        # Filtrando por otro movil no debe salir esta entrada
+        vacio = auth_client.get('/devices/historial?device_id=99999')
+        assert 'No hay ninguna entrada' in vacio.get_data(as_text=True)
+
+    def test_el_periodo_se_acota_a_un_rango_sensato(self, auth_client, db):
+        for dias in ('0', '-5', '99999', 'abc'):
+            assert auth_client.get('/devices/historial?dias=%s' % dias).status_code == 200
+
+
+class TestSelloEnLosRegistros:
+    """Con los moviles rotando, saber la persona ya no dice el aparato."""
+
+    def test_una_limpieza_guarda_desde_que_movil_se_hizo(self, client, db,
+                                                         cleaner_user, room):
+        token = login(client, headers=cabeceras()).get_json()['access_token']
+        device = WorkerDevice.query.one()
+
+        response = client.post('/start_cleaning',
+                               data=json.dumps({'room_id': room.number,
+                                                'cleaner_id': cleaner_user.id}),
+                               content_type='application/json',
+                               headers={'Authorization': 'Bearer ' + token,
+                                        'X-Device-Id': UID, 'User-Agent': UA_SAMSUNG})
+        assert response.status_code in (200, 201), response.get_data(as_text=True)
+        assert CleaningRecord.query.one().device_id == device.id
+
+    def test_sin_cabecera_el_registro_se_guarda_igual(self, client, db,
+                                                      cleaner_user, room):
+        """La app Android antigua no manda nada: no puede impedir trabajar."""
+        token = login(client).get_json()['access_token']
+        response = client.post('/start_cleaning',
+                               data=json.dumps({'room_id': room.number,
+                                                'cleaner_id': cleaner_user.id}),
+                               content_type='application/json',
+                               headers={'Authorization': 'Bearer ' + token})
+        assert response.status_code in (200, 201)
+        assert CleaningRecord.query.one().device_id is None
+
+    def test_borrar_el_movil_no_borra_los_registros(self, auth_client, client, db,
+                                                   cleaner_user, room):
+        token = login(client, headers=cabeceras()).get_json()['access_token']
+        client.post('/start_cleaning',
+                    data=json.dumps({'room_id': room.number,
+                                     'cleaner_id': cleaner_user.id}),
+                    content_type='application/json',
+                    headers={'Authorization': 'Bearer ' + token,
+                             'X-Device-Id': UID, 'User-Agent': UA_SAMSUNG})
+        device = WorkerDevice.query.one()
+
+        auth_client.post('/devices/%d/delete' % device.id, follow_redirects=True)
+
+        registro = CleaningRecord.query.one()
+        assert registro is not None              # la limpieza sigue ahi
+        assert registro.device_id is None        # solo pierde el sello
+
+
+class TestDesdeHace:
+
+    def test_lo_de_ahora_mismo(self):
+        from datetime import datetime
+        assert desde_hace(datetime.now()) == 'ahora mismo'
+
+    def test_minutos_horas_y_dias(self):
+        from datetime import datetime, timedelta
+        ahora = datetime.now()
+        assert desde_hace(ahora - timedelta(minutes=5)) == 'hace 5 min'
+        assert desde_hace(ahora - timedelta(hours=3)) == 'hace 3 horas'
+        assert desde_hace(ahora - timedelta(days=1, hours=1)) == 'ayer'
+        assert desde_hace(ahora - timedelta(days=3)) == 'hace 3 dias'
+        assert desde_hace(ahora - timedelta(days=40)).startswith('el ')
+
+    def test_sin_fecha(self):
+        assert desde_hace(None) == 'nunca'
 
 
 class TestPanelDispositivos:
@@ -252,8 +408,8 @@ class TestPanelDispositivos:
         assert response.status_code == 302
         assert '/admin/login' in response.headers['Location']
 
-    def test_el_listado_ensena_el_movil_y_quien_lo_usa(self, auth_client, device,
-                                                       cleaner_user):
+    def test_el_listado_ensena_el_movil_y_quien_lo_lleva(self, auth_client, device,
+                                                         cleaner_user):
         response = auth_client.get('/devices')
         assert response.status_code == 200
         texto = response.get_data(as_text=True)

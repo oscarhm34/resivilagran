@@ -233,7 +233,7 @@
                         data-admin="{{ '1' if cleaner.is_admin else '' }}"
                         data-active="{{ '1' if cleaner.active else '' }}"
                         data-groups="{{ cleaner.groups|map(attribute='id')|list|join(',') }}"
-                        data-device="{{ ultimo_movil[cleaner.id].nombre_visible if cleaner.id in ultimo_movil else '' }}">
+                        data-device="{{ ultimo_movil[cleaner.id].device.nombre_visible if cleaner.id in ultimo_movil else '' }}">
                         <td><code style="color:var(--color-primary);background:var(--color-primary-lt);padding:1px 6px;border-radius:4px">{{ cleaner.username }}</code></td>
                         <td>
                             {{ cleaner.name }}
@@ -268,11 +268,14 @@
                             </label>
                         </td>
                         <td class="hide-mobile">
-                            {% set mv = ultimo_movil[cleaner.id] if cleaner.id in ultimo_movil else None %}
-                            {% if mv %}
-                            <span title="{{ mv.descripcion_tecnica }} &#183; Última vez: {{ mv.last_seen.strftime('%d/%m/%Y %H:%M') }}">
-                                <i class="bi bi-phone me-1" aria-hidden="true"></i>{{ mv.nombre_visible }}
+                            {# Los moviles no son de nadie: se coge el que esta libre. Por eso
+                               la fecha va al lado — sin ella, "su movil" parece fijo y no lo es. #}
+                            {% set uso = ultimo_movil[cleaner.id] if cleaner.id in ultimo_movil else None %}
+                            {% if uso %}
+                            <span title="{{ uso.device.descripcion_tecnica }} &#183; {{ uso.last_used.strftime('%d/%m/%Y %H:%M') }}">
+                                <i class="bi bi-phone me-1" aria-hidden="true"></i>{{ uso.device.nombre_visible }}
                             </span>
+                            <div style="font-size:.75rem;color:var(--color-text-secondary)">{{ uso.last_used|desde_hace }}</div>
                             {% else %}
                             <span style="color:var(--color-text-secondary)" title="Todavía no ha entrado en la webapp desde ningún móvil">&mdash;</span>
                             {% endif %}

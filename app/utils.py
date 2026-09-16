@@ -15,7 +15,7 @@ from .models import (
     Cleaner, Room, Resident, CleaningRecord, CareRecord, CareType,
     AppSetting, CleaningTargetTime, CleaningZoneAssignment,
     AuditLog, ChecklistItem, RoomType, ContentTranslation,
-    WorkerDevice, WorkerDeviceUse,
+    WorkerDevice, WorkerDeviceUse, WorkerDeviceLogin,
 )
 
 
@@ -540,26 +540,100 @@ def _registrar_dispositivo(worker_id, device_uid, user_agent, es_login=False,
                                           worker_id=worker_id).first()
     if uso is None:
         db.session.add(WorkerDeviceUse(device_id=device.id, worker_id=worker_id,
-                                       last_login=ahora, login_count=1))
+                                       last_used=ahora, login_count=1))
     else:
-        uso.last_login = ahora
+        uso.last_used = ahora
         if es_login:
             uso.login_count = (uso.login_count or 0) + 1
+
+    # El resumen de arriba dice quien lo lleva hoy; esto deja constancia de quien
+    # lo llevaba hace dos semanas, que con los moviles rotando es una pregunta
+    # que el resumen ya no puede contestar.
+    if es_login:
+        db.session.add(WorkerDeviceLogin(device_id=device.id, worker_id=worker_id,
+                                         at=ahora))
     return True
 
 
 def _ultimo_movil_por_trabajadora() -> dict:
-    """{worker_id: WorkerDevice} con el ultimo movil de cada una.
+    """{worker_id: WorkerDeviceUse} con el ultimo movil que cogio cada una.
+
+    Devuelve la fila de uso entera, no solo el dispositivo, porque sin la fecha
+    el dato enganaria: los telefonos no son de nadie, cada una coge el que esta
+    libre, asi que "su movil" caduca en horas. La pantalla tiene que poder decir
+    "hace 5 min" o "ayer".
 
     Una sola consulta con el dispositivo ya cargado: la columna de Empleados lo
     pinta en bucle y sin esto serian tantas consultas como empleados.
     """
     filas = (WorkerDeviceUse.query
              .options(joinedload(WorkerDeviceUse.device))
-             .order_by(WorkerDeviceUse.last_login.asc())
+             .order_by(WorkerDeviceUse.last_used.asc())
              .all())
     # Ascendente y sobrescribiendo: la ultima que se escribe es la mas reciente.
+    return {f.worker_id: f for f in filas if f.device is not None}
+
+
+def _movil_de_cada_conectada() -> dict:
+    """{worker_id: WorkerDevice} de quien esta usando un movil ahora mismo.
+
+    Para el panel principal: con los telefonos rotando, saber quien esta
+    conectada sin saber que aparato lleva no sirve para ir a buscarlo.
+
+    Solo cuenta lo reciente (`WorkerDevice.MINUTOS_EN_USO`). Un movil que se dejo
+    en la mesa hace dos horas no lo lleva nadie, por mucho que la ultima que lo
+    toco siga conectada desde otro.
+    """
+    corte = datetime.now() - timedelta(minutes=WorkerDevice.MINUTOS_EN_USO)
+    filas = (WorkerDeviceUse.query
+             .options(joinedload(WorkerDeviceUse.device))
+             .filter(WorkerDeviceUse.last_used >= corte)
+             .order_by(WorkerDeviceUse.last_used.asc())
+             .all())
     return {f.worker_id: f.device for f in filas if f.device is not None}
+
+
+def desde_hace(cuando) -> str:
+    """"hace 5 min", "ayer", "el 03/09". En castellano y sin precision de mas.
+
+    Con los moviles rotando, una fecha suelta no dice lo que hace falta saber:
+    lo que importa es si el dato es de ahora o de la semana pasada, y eso una
+    marca de tiempo exacta obliga a calcularlo mentalmente cada vez.
+    """
+    if not cuando:
+        return 'nunca'
+    seg = (datetime.now() - cuando).total_seconds()
+    if seg < 60:
+        return 'ahora mismo'
+    if seg < 3600:
+        return 'hace %d min' % (seg // 60)
+    if seg < 86400:
+        horas = int(seg // 3600)
+        return 'hace %d hora%s' % (horas, 's' if horas != 1 else '')
+    dias = int(seg // 86400)
+    if dias == 1:
+        return 'ayer'
+    if dias < 7:
+        return 'hace %d dias' % dias
+    return 'el %s' % cuando.strftime('%d/%m')
+
+
+def _dispositivo_actual() -> int | None:
+    """El id del movil desde el que llega esta peticion, para sellar el registro.
+
+    None si no manda la cabecera (la app Android antigua) o si el movil todavia
+    no esta dado de alta, que solo puede pasar en la primera peticion de todas.
+    Nunca levanta: sellar el aparato no puede impedir guardar una limpieza.
+    """
+    try:
+        uid = _device_uid_valido(request.headers.get('X-Device-Id'))
+        if not uid:
+            return None
+        fila = db.session.query(WorkerDevice.id).filter_by(device_uid=uid).first()
+        return fila[0] if fila else None
+    except Exception as e:
+        app.logger.warning('No se pudo resolver el dispositivo: %s', e)
+        return None
 
 
 # ── Traduccion del contenido que escribe coordinacion ────────────────────────

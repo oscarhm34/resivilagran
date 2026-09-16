@@ -512,10 +512,13 @@
             </ul>
 
             <h6 class="mt-3">Columna Movil</h6>
-            <p>Cada fila lleva el <strong>telefono desde el que esa persona entro por ultima
-               vez</strong> en la webapp, con su filtro propio. Los moviles se gestionan en
-               <a href="#dispositivos">Personas &rarr; Dispositivos</a>, donde se les pone
-               nombre para poder distinguirlos.</p>
+            <p>Cada fila lleva el <strong>ultimo telefono que cogio esa persona</strong>, con
+               su filtro propio y <strong>con la fecha debajo</strong> ("hace 5 min", "ayer").
+               La fecha importa: los moviles no son de nadie, asi que un dato de ayer no dice
+               con que esta trabajando hoy. Para saber quien lleva cada aparato ahora mismo,
+               mirad <a href="#dispositivos">Personas &rarr; Dispositivos</a> o el recuadro
+               <strong>Conectados ahora</strong> de la pantalla de inicio, donde al lado de
+               cada nombre sale el movil que lleva.</p>
 
             <h6 class="mt-3">Grupos de residentes</h6>
             <ul>
@@ -541,6 +544,9 @@
                columna <strong>Movil</strong> con el telefono desde el que entro cada una la
                ultima vez, y su filtro.</p>
 
+            <p class="mb-0"><strong>Los telefonos no son de nadie:</strong> cada trabajadora
+               coge el que esta libre. Toda esta pantalla esta pensada asi.</p>
+
             <h6 class="mt-3">Los moviles aparecen solos</h6>
             <ul>
                 <li>La primera vez que alguien entra en la webapp desde un telefono, ese
@@ -550,31 +556,54 @@
                     de la lista para que se vea que esta pendiente.</li>
             </ul>
 
-            <h6 class="mt-3">Hay que ponerles nombre</h6>
+            <h6 class="mt-3">Hay que ponerles nombre (y escribirlo en el telefono)</h6>
             <p>Es el paso que hace util toda la pantalla. Varios moviles de la residencia son
                <strong>del mismo modelo</strong>: cinco telefonos que ponen "Samsung Galaxy A54"
                son indistinguibles. Con el boton <strong>Nombre</strong> se les pone uno que
-               diga algo &mdash;<em>Movil planta 1</em>, <em>Movil de noche</em>,
-               <em>Movil cocina</em>&mdash; y ya se sabe de cual se habla.</p>
+               diga algo &mdash;<em>Movil 1</em>, <em>Movil de noche</em>&mdash; y
+               <strong>se pega una etiqueta con ese mismo nombre en el propio telefono</strong>.
+               Sin la etiqueta, el nombre del panel no sirve de nada: quien coge el aparato de
+               la mesa no sabe cual es.</p>
 
             <h6 class="mt-3">Que significa cada columna</h6>
             <ul>
                 <li><strong>Nombre:</strong> el que le hayais puesto. Si no tiene, sale el
                     modelo con un codigo corto al final.</li>
-                <li><strong>Modelo, Sistema y Navegador:</strong> lo que dice el telefono de si
+                <li><strong>Quien lo lleva:</strong> la ultima persona que hizo algo con ese
+                    telefono. Si hace mas de <strong>10 minutos</strong> que nadie lo toca,
+                    pasa a <strong>Libre</strong> y debajo pone quien fue la ultima y cuando.
+                    Se hace asi porque los moviles se dejan en la mesa sin cerrar sesion: el
+                    ultimo movimiento es la senal mas fiable que hay.</li>
+                <li><strong>Modelo, Sistema y navegador:</strong> lo que dice el telefono de si
                     mismo. Sirve para saber si un movil se ha quedado con una version vieja.</li>
-                <li><strong>Quien lo usa:</strong> todas las que han entrado desde el. Un movil
-                    compartido entre dos turnos sale <strong>una sola vez</strong>, con las dos
-                    personas. Pasando el raton por encima de cada nombre sale cuando entro por
-                    ultima vez y cuantas veces.</li>
-                <li><strong>Ultima vez:</strong> la ultima vez que se trabajo con ese telefono,
-                    sea quien sea.</li>
+                <li><strong>Tambien lo usan:</strong> cuantas personas mas lo han cogido.
+                    Pasando el raton por encima salen los nombres con la fecha.</li>
+                <li>Un movil <strong>parado varios dias</strong> sale marcado: suele querer
+                    decir que se ha perdido o que esta estropeado en un cajon.</li>
             </ul>
+
+            <h6 class="mt-3">Historial: quien llevaba que y cuando</h6>
+            <p>El boton <strong>Historial</strong> abre la lista de todas las veces que alguien
+               ha entrado en la webapp desde un telefono, con la fecha y la hora. Se puede
+               filtrar <strong>por movil, por trabajadora y por periodo</strong>. El reloj de
+               cada fila del listado lleva directo al historial de ese aparato.</p>
+            <p>Sirve para lo que el listado ya no puede contestar pasado el dia: quien llevaba
+               el Movil 2 el martes por la tarde.</p>
+
+            <h6 class="mt-3">Desde que movil se hizo cada registro</h6>
+            <p>Cada <strong>limpieza</strong> y cada <strong>atencion</strong> que se graba
+               desde la webapp guarda con que telefono se hizo. Antes se deducia de la persona,
+               pero con los moviles rotando eso ya no vale. Si una lectura NFC sale rara o falta
+               una foto, asi se sabe <strong>que aparato hay que revisar</strong>.</p>
+            <p>Los registros anteriores a septiembre de 2026 no lo tienen, y los que entren por
+               la aplicacion Android antigua tampoco.</p>
 
             <h6 class="mt-3">Eliminar un movil</h6>
             <p>Sirve para sacar de la lista un telefono que ya no se usa o que se ha quedado
-               duplicado. <strong>No bloquea nada:</strong> si alguien vuelve a entrar con el,
-               reaparece sin nombre.</p>
+               duplicado. Se borra tambien su historial, pero <strong>no se borra ninguna
+               limpieza ni ninguna atencion</strong>: esos registros se quedan, solo pierden la
+               referencia al aparato. <strong>No bloquea nada:</strong> si alguien vuelve a
+               entrar con el, reaparece sin nombre.</p>
 
             <h6 class="mt-3">Lo que hay que saber</h6>
             <ul>
@@ -1778,6 +1807,7 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>16/09</td><td><strong>Los moviles van rotando, y el panel ya cuenta con ello:</strong> como cada una coge el telefono que esta libre, saber "el movil de fulana" no servia de nada al dia siguiente. Ahora, en <strong>Personas &rarr; Dispositivos</strong>, cada aparato dice <strong>quien lo lleva ahora mismo</strong> y cual esta <strong>Libre</strong> (si hace mas de 10 minutos que nadie lo toca, se da por soltado: los moviles se dejan en la mesa sin cerrar sesion). En la pantalla de <strong>inicio</strong>, el recuadro <em>Conectados ahora</em> ensena al lado de cada nombre <strong>que movil lleva</strong>, que es lo que hace falta para ir a buscarlo. Hay un <strong>Historial</strong> para mirar hacia atras &mdash;quien llevaba el Movil 2 el martes por la tarde&mdash; filtrable por movil, por trabajadora y por periodo. Cada <strong>limpieza</strong> y cada <strong>atencion</strong> guarda ademas <strong>desde que telefono se registro</strong>, para cuando una lectura NFC sale rara y hay que saber que aparato revisar. Y los moviles que llevan <strong>dias parados</strong> salen marcados, que suele querer decir perdido o estropeado. <strong>Importante:</strong> al ponerle nombre a un movil, escribid ese mismo nombre <strong>en una pegatina en el telefono</strong>; si no, quien lo coge de la mesa no sabe cual es.</td></tr>
                     <tr><td>16/09</td><td><strong>Ya se sabe con que movil trabaja cada una:</strong> hasta ahora no habia forma de saberlo. Cuando a alguien no le funcionaba el NFC o habia que cambiarle el telefono, lo unico que se podia hacer era preguntarselo. En <strong>Empleados</strong> hay ahora una columna <strong>Movil</strong> con el telefono desde el que entro cada una la ultima vez, con su filtro, y en <strong>Personas &rarr; Dispositivos</strong> estan todos los moviles de la casa: quien los usa, con que modelo y cuando se uso cada uno. <strong>Los telefonos aparecen solos</strong> la primera vez que alguien entra desde ellos; la trabajadora no tiene que hacer nada. Eso si, <strong>hay que ponerles nombre</strong> &mdash;"Movil planta 1", "Movil de noche"&mdash; porque varios son del mismo modelo y cinco "Samsung Galaxy A54" son indistinguibles: los que no lo tienen salen los primeros y marcados en naranja. Un movil compartido entre dos turnos sale una sola vez, con las dos personas. Los que ya no se usan se eliminan de la lista. <strong>Importante:</strong> hay que entrar siempre por la direccion con nombre y no por la IP, o el mismo telefono sale dos veces. Esto sirve para dar soporte y llevar el inventario de aparatos; no es una ubicacion ni un control de rendimiento, y no se guarda ninguna direccion de red.</td></tr>
                     <tr><td>14/09</td><td><strong>Las constantes se anotan al lado del boton, y la tension en una sola casilla:</strong> en la webapp, al marcar una constante la casilla salia abajo del todo, despues de la lista entera de tipos. La trabajadora tenia que bajar a escribir el valor y volver a subir para marcar la siguiente, y con cuatro o cinco constantes eso son diez viajes de pantalla con el movil en la mano. Ahora la casilla aparece <strong>pegada al boton que se acaba de marcar</strong>, en la misma linea, y el teclado se abre solo. Ademas, la sistolica y la diastolica se pedian como dos constantes sueltas cuando son una sola toma: en <strong>Tipos de atencion &rarr; 🩺</strong> cada campo tiene ahora un <strong>Grupo</strong>, y los que comparten grupo se piden y se muestran juntos, <strong>120/80</strong>. Para la tension basta con escribir el mismo grupo en los dos campos y dejar la sistolica con el orden mas bajo. Cada valor se sigue guardando por separado, asi que las alertas de fuera de rango y el historico no cambian. Los campos vitales ya creados se pueden <strong>editar</strong> sin borrarlos, que antes no se podia si ya tenian valores registrados. Y en el <strong>Resumen de la ficha del residente</strong> la sistolica y la diastolica comparten una sola grafica, con una linea de cada color y su leyenda debajo, en vez de salir en dos graficas separadas donde no habia manera de ver como iban juntas. La cifra grande deja de arrastrar decimales inventados: pone <strong>160/95</strong>, no 160.0/95.0.</td></tr>
                     <tr><td>14/09</td><td><strong>El filtro por tipo de atencion volvia la lista vacia:</strong> en <strong>Registros &rarr; Atenciones</strong>, elegir un tipo (por ejemplo <em>Ducha</em>) no devolvia ningun registro, aunque las atenciones estuvieran bien guardadas y se vieran sin filtrar. El filtro miraba un campo antiguo que solo tienen los registros de antes de que una atencion pudiera llevar varios tipos, y que ninguno de los que graba la webapp rellena. Ahora encuentra los dos, los antiguos y los nuevos. La <strong>exportacion a Excel</strong>, que usaba el mismo filtro, salia igual de vacia y queda arreglada tambien.</td></tr>

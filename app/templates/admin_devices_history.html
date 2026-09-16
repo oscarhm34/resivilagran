@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Historial de dispositivos{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb bg-transparent p-0 mb-0" style="font-size:.875rem">
+            <li class="breadcrumb-item"><a href="{{ url_for('admin_bp.manage_devices') }}">Dispositivos</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Historial</li>
+        </ol>
+    </nav>
+
+    <div class="mb-3">
+        <h1 class="h3 mb-1">Quién llevaba cada móvil</h1>
+        <p class="mb-0" style="color:var(--color-text-secondary);font-size:.9rem">
+            Cada vez que alguien inicia sesión en la webapp desde un teléfono queda
+            anotado aquí. Sirve para saber quién llevaba qué en un momento concreto,
+            que es lo que el listado de dispositivos ya no puede decir pasado el día.
+        </p>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body py-3">
+            <form method="GET" class="row g-2 align-items-end">
+                <div class="col-12 col-md-4">
+                    <label for="f-device" class="form-label mb-1" style="font-size:.85rem">Móvil</label>
+                    <select name="device_id" id="f-device" class="form-select form-select-sm">
+                        <option value="">Todos</option>
+                        {% for d in devices %}
+                        <option value="{{ d.id }}" {{ 'selected' if d.id == device_id }}>{{ d.nombre_visible }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label for="f-worker" class="form-label mb-1" style="font-size:.85rem">Trabajadora</label>
+                    <select name="worker_id" id="f-worker" class="form-select form-select-sm">
+                        <option value="">Todas</option>
+                        {% for w in workers %}
+                        <option value="{{ w.id }}" {{ 'selected' if w.id == worker_id }}>{{ w.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-8 col-md-2">
+                    <label for="f-dias" class="form-label mb-1" style="font-size:.85rem">Últimos</label>
+                    <select name="dias" id="f-dias" class="form-select form-select-sm">
+                        {% for d in [7, 30, 90, 365] %}
+                        <option value="{{ d }}" {{ 'selected' if d == dias }}>{{ d }} días</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-4 col-md-2 d-flex gap-1">
+                    <button type="submit" class="btn btn-primary btn-sm flex-grow-1">Ver</button>
+                    <a href="{{ url_for('admin_bp.devices_history') }}"
+                       class="btn btn-outline-secondary btn-sm" title="Quitar filtros"
+                       aria-label="Quitar filtros"><i class="bi bi-x-lg" aria-hidden="true"></i></a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if tope %}
+    <div class="alert alert-info" role="status">
+        Se muestran las <strong>500 entradas más recientes</strong> del periodo elegido.
+        Hay más: acota por móvil, por trabajadora o por días para verlas.
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <div class="card-header">
+            {{ entradas|length }} entrada{{ 's' if entradas|length != 1 }}
+        </div>
+        {% if entradas %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col">Cuándo</th>
+                        <th scope="col">Trabajadora</th>
+                        <th scope="col">Móvil</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in entradas %}
+                    <tr>
+                        <td style="white-space:nowrap">
+                            {{ e.at.strftime('%d/%m/%Y %H:%M') }}
+                            <span style="font-size:.78rem;color:var(--color-text-secondary)">
+                                · {{ e.at|desde_hace }}
+                            </span>
+                        </td>
+                        <td>{{ e.worker.name if e.worker else '—' }}</td>
+                        <td>
+                            {% if e.device %}
+                            <i class="bi bi-phone me-1" aria-hidden="true"></i>{{ e.device.nombre_visible }}
+                            {% else %}
+                            <span style="color:var(--color-text-secondary)">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card-body">
+            <p class="text-body-secondary mb-0">
+                No hay ninguna entrada con estos filtros. Prueba a ampliar el periodo.
+            </p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="mt-3">
+        <a href="{{ url_for('admin_bp.manage_devices') }}" class="btn btn-outline-secondary btn-sm">&larr; Volver</a>
+    </div>
+</div>
+{% endblock %}

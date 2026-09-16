@@ -8,11 +8,16 @@
         <div>
             <h1 class="h3 mb-1">Dispositivos</h1>
             <p class="mb-0" style="color:var(--color-text-secondary);font-size:.9rem">
-                Los móviles desde los que se entra en la webapp de trabajadoras.
-                Se dan de alta solos la primera vez que alguien entra.
+                Los móviles de la casa y quién lleva cada uno. Se dan de alta solos
+                la primera vez que alguien entra en la webapp con ellos.
             </p>
         </div>
-        <span class="badge bg-secondary">{{ devices|length }} dispositivo{{ 's' if devices|length != 1 }}</span>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-secondary">{{ devices|length }} dispositivo{{ 's' if devices|length != 1 }}</span>
+            <a href="{{ url_for('admin_bp.devices_history') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Historial
+            </a>
+        </div>
     </div>
 
     {% if sin_nombre %}
@@ -20,9 +25,10 @@
         <i class="bi bi-exclamation-triangle-fill mt-1" aria-hidden="true"></i>
         <div>
             <strong>{{ sin_nombre }} dispositivo{{ 's' if sin_nombre != 1 }} sin nombre.</strong>
-            Ponle{{ 's' if sin_nombre != 1 }} uno —&nbsp;«Móvil planta 1», «Móvil de noche»—
-            porque varios móviles son del mismo modelo y sin nombre no hay manera de
-            saber cuál es cuál. Salen los primeros de la lista.
+            Ponle{{ 's' if sin_nombre != 1 }} uno —&nbsp;«Móvil 1», «Móvil de noche»—
+            y escríbelo también <strong>en una pegatina en el propio teléfono</strong>.
+            Como cada una coge el que está libre, sin nombre no hay forma de saber
+            cuál es cuál. Salen los primeros de la lista.
         </div>
     </div>
     {% endif %}
@@ -45,9 +51,11 @@
                 <div class="mb-3">
                     <label for="device-label" class="form-label">Nombre</label>
                     <input type="text" id="device-label" name="label" class="form-control"
-                           maxlength="60" placeholder="ej. Móvil planta 1, Móvil de noche…">
+                           maxlength="60" placeholder="ej. Móvil 1, Móvil de noche…">
                     <div class="form-text">
-                        Déjalo vacío para quitarle el nombre y que vuelva a salir como pendiente.
+                        Ponle el mismo nombre que lleve escrito el teléfono, para que
+                        quien lo coge y quien mira esta pantalla hablen de lo mismo.
+                        Déjalo vacío para quitárselo.
                     </div>
                 </div>
                 <div class="d-grid">
@@ -65,16 +73,16 @@
                 <thead>
                     <tr>
                         <th scope="col">Nombre</th>
+                        <th scope="col">Quién lo lleva</th>
                         <th scope="col" class="hide-mobile">Modelo</th>
-                        <th scope="col" class="hide-mobile">Sistema</th>
-                        <th scope="col" class="hide-mobile">Navegador</th>
-                        <th scope="col">Quién lo usa</th>
-                        <th scope="col">Última vez</th>
+                        <th scope="col" class="hide-mobile">Sistema y navegador</th>
+                        <th scope="col" class="hide-mobile">También lo usan</th>
                         <th scope="col" class="text-end">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for d in devices %}
+                    {% set ultimo = d.quien_lo_lleva() %}
                     <tr>
                         <td>
                             {% if d.label %}
@@ -85,24 +93,54 @@
                                 <i class="bi bi-tag" aria-hidden="true"></i> Sin nombre
                             </span>
                             {% endif %}
+                            {% if d.dias_parado >= 7 %}
+                            <div>
+                                <span class="status-badge status-warning" style="font-size:.7rem"
+                                      title="Nadie lo usa desde hace tiempo: puede estar perdido o estropeado">
+                                    <i class="bi bi-question-circle" aria-hidden="true"></i>
+                                    Parado {{ d.dias_parado }} días
+                                </span>
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if d.en_uso and ultimo %}
+                            <span class="status-badge status-success">{{ ultimo.worker.name }}</span>
+                            <div style="font-size:.75rem;color:var(--color-text-secondary)">
+                                en uso ahora
+                            </div>
+                            {% elif ultimo %}
+                            <span class="status-badge status-muted">Libre</span>
+                            <div style="font-size:.75rem;color:var(--color-text-secondary)">
+                                última: {{ ultimo.worker.name }}, {{ d.last_seen|desde_hace }}
+                            </div>
+                            {% else %}
+                            <span class="status-badge status-muted">Libre</span>
+                            {% endif %}
                         </td>
                         <td class="hide-mobile">{{ d.model or '—' }}</td>
-                        <td class="hide-mobile">{{ d.os_name or '—' }}</td>
-                        <td class="hide-mobile">{{ d.browser or '—' }}</td>
-                        <td>
-                            {% for uso in d.usos|sort(attribute='last_login', reverse=true) %}
-                                {% if uso.worker %}
-                                <span class="status-badge status-info" style="font-size:.75rem"
-                                      title="Última entrada: {{ uso.last_login.strftime('%d/%m/%Y %H:%M') }} · {{ uso.login_count }} inicio{{ 's' if uso.login_count != 1 }} de sesión">
-                                    {{ uso.worker.name }}
-                                </span>
-                                {% endif %}
+                        <td class="hide-mobile" style="font-size:.85rem">
+                            {{ d.os_name or '—' }}<br>
+                            <span style="color:var(--color-text-secondary)">{{ d.browser or '' }}</span>
+                        </td>
+                        <td class="hide-mobile">
+                            {% set otros = d.usos|rejectattr('id', 'equalto', ultimo.id if ultimo else 0)|list %}
+                            {% if otros %}
+                            <span style="font-size:.8rem;color:var(--color-text-secondary)"
+                                  title="{% for u in otros %}{{ u.worker.name }} ({{ u.last_used.strftime('%d/%m %H:%M') }}){% if not loop.last %}, {% endif %}{% endfor %}">
+                                {{ otros|length }} persona{{ 's' if otros|length != 1 }} más
+                            </span>
                             {% else %}
                             <span style="color:var(--color-text-secondary)">—</span>
-                            {% endfor %}
+                            {% endif %}
                         </td>
-                        <td style="white-space:nowrap">{{ d.last_seen.strftime('%d/%m/%Y %H:%M') }}</td>
                         <td class="text-end">
+                            <a href="{{ url_for('admin_bp.devices_history', device_id=d.id) }}"
+                               class="btn btn-sm btn-outline-secondary me-1"
+                               aria-label="Ver el historial de {{ d.nombre_visible }}"
+                               title="Quién lo ha llevado y cuándo">
+                                <i class="bi bi-clock-history" aria-hidden="true"></i>
+                            </a>
                             <button type="button"
                                     class="btn btn-sm btn-outline-secondary rename-device me-1"
                                     data-action="{{ url_for('admin_bp.rename_device', id=d.id) }}"
@@ -139,7 +177,12 @@
         <div class="card-body" style="font-size:.875rem;color:var(--color-text-secondary)">
             <p class="mb-1"><strong>Cosas que conviene saber:</strong></p>
             <ul class="mb-0">
-                <li>Un móvil que usan dos personas sale <strong>una sola vez</strong>, con las dos.</li>
+                <li><strong>«Quién lo lleva»</strong> es la última persona que hizo algo con
+                    ese teléfono. Si hace más de {{ minutos_en_uso }} minutos que no se toca, pasa a
+                    <strong>Libre</strong>: los móviles se dejan en la mesa sin cerrar sesión,
+                    así que no hay forma más fiable de saberlo.</li>
+                <li>Un móvil <strong>parado varios días</strong> suele estar perdido o
+                    estropeado. Sale marcado.</li>
                 <li>Si se borran los datos del navegador o se reinstala la webapp, ese móvil
                     aparece como <strong>nuevo</strong>. El antiguo se puede eliminar aquí.</li>
                 <li>De un iPhone el navegador no dice el modelo, solo «iPhone». Es una
@@ -160,7 +203,8 @@
             <div class="modal-body">
                 ¿Seguro que quieres eliminar <strong id="delete-name"></strong>?<br>
                 <small class="text-body-secondary">
-                    Si ese móvil vuelve a usarse, se dará de alta otra vez sin nombre.
+                    Se borra también su historial. Si ese móvil vuelve a usarse, se dará de
+                    alta otra vez sin nombre.
                 </small>
             </div>
             <div class="modal-footer">
@@ -186,8 +230,8 @@
 
     document.querySelectorAll('.rename-device').forEach(function (btn) {
         btn.addEventListener('click', function () {
-            document.getElementById('device-form').action    = this.dataset.action;
-            document.getElementById('device-label').value    = this.dataset.label;
+            document.getElementById('device-form').action      = this.dataset.action;
+            document.getElementById('device-label').value      = this.dataset.label;
             document.getElementById('device-tech').textContent = this.dataset.tech;
             document.getElementById('device-ua').textContent   = this.dataset.ua;
             offcanvas.show();
