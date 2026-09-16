@@ -15,11 +15,12 @@ from ..models import (Cleaner, Room, CleaningRecord, Floor, RoomType, Resident,
                       CareType, CareRecord, ResidentGroup,
                       VitalSignType, VitalSignReading,
                       ShiftAssignment, ChecklistItem,
-                      CleaningTargetTime, AuditLog, PushSubscription)
+                      CleaningTargetTime, AuditLog, PushSubscription,
+                      WorkerDevice, WorkerDeviceUse)
 from ..utils import (admin_required, _format_duration,
                      _compute_cleaning_stats, _calculate_room_urgency,
                      _safe_commit, _safe_flush, log_audit, volver_atras,
-                     APP_LANGUAGES)
+                     APP_LANGUAGES, _ultimo_movil_por_trabajadora)
 
 bp = Blueprint('admin_bp', __name__)
 
@@ -262,8 +263,12 @@ def manage_workers():
     con_avisos = {
         wid for (wid,) in db.session.query(PushSubscription.worker_id).distinct()
     }
+    # Desde que movil trabaja cada una. Sin esto, saber que telefono hay que
+    # mirar cuando a alguien no le va el NFC pasa por preguntarselo.
+    ultimo_movil = _ultimo_movil_por_trabajadora()
     return render_template('manage_workers.html', cleaners=cleaners, groups=groups,
                            estado_filtro=estado, con_avisos=con_avisos,
+                           ultimo_movil=ultimo_movil,
                            languages=APP_LANGUAGES)
 
 
@@ -601,6 +606,57 @@ def delete_floor(id: int):
     else:
         flash('Planta eliminada correctamente.', 'success')
     return redirect(url_for('admin_bp.manage_floors'))
+
+
+# ── WEB ADMIN – DISPOSITIVOS ───────────────────────────────────────────────
+
+@bp.route('/devices')
+@admin_required
+def manage_devices():
+    """Los moviles desde los que se entra en la webapp de trabajadoras.
+
+    Se dan de alta solos la primera vez que alguien entra desde ellos. Salen
+    primero los que no tienen nombre puesto, que son los que piden atencion:
+    sin nombre no hay forma de saber cual es cual cuando el modelo se repite.
+    """
+    devices = (WorkerDevice.query
+               .options(joinedload(WorkerDevice.usos).joinedload(WorkerDeviceUse.worker))
+               .order_by(WorkerDevice.label.is_(None).desc(),
+                         WorkerDevice.last_seen.desc())
+               .all())
+    sin_nombre = sum(1 for d in devices if not d.label)
+    return render_template('admin_devices.html', devices=devices,
+                           sin_nombre=sin_nombre)
+
+
+@bp.route('/devices/<int:id>/rename', methods=['POST'])
+@admin_required
+def rename_device(id: int):
+    device = db.session.get(WorkerDevice, id)
+    if device is None:
+        abort(404)
+    label = request.form.get('label', '').strip()[:60]
+    device.label = label or None      # vacio = vuelve a quedarse sin nombre
+    log_audit('update', 'worker_device', id, {'label': device.label})
+    ok, err = _safe_commit('Error al guardar el nombre del dispositivo')
+    flash(err if not ok else 'Dispositivo actualizado correctamente.',
+          'danger' if not ok else 'success')
+    return redirect(volver_atras(url_for('admin_bp.manage_devices')))
+
+
+@bp.route('/devices/<int:id>/delete', methods=['POST'])
+@admin_required
+def delete_device(id: int):
+    device = db.session.get(WorkerDevice, id)
+    if device is None:
+        abort(404)
+    log_audit('delete', 'worker_device', id,
+              {'uid': device.device_uid, 'label': device.label})
+    db.session.delete(device)         # el cascade se lleva las filas de uso
+    ok, err = _safe_commit('Error al eliminar el dispositivo')
+    flash(err if not ok else 'Dispositivo eliminado correctamente.',
+          'danger' if not ok else 'success')
+    return redirect(url_for('admin_bp.manage_devices'))
 
 
 # ── WEB ADMIN – REGISTROS DE LIMPIEZA ──────────────────────────────────────

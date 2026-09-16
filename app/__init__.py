@@ -56,12 +56,23 @@ from datetime import datetime as _dt, timedelta as _td
 _ACTIVE_THROTTLE = _td(seconds=60)
 
 
-def _update_if_stale(cleaner):
-    """Update last_active only if more than 60s since last update."""
+def _update_if_stale(cleaner, device_uid=None, user_agent=None, modelo_cliente=None):
+    """Update last_active only if more than 60s since last update.
+
+    Aprovecha la misma escritura para anotar desde que movil se esta trabajando.
+    Hace falta aqui y no solo en el login: la webapp entra sola si encuentra el
+    token guardado, asi que una trabajadora puede pasarse semanas sin volver a
+    pisar `/login` y su telefono no se actualizaria nunca. Como solo se ejecuta
+    cuando el throttle ya iba a escribir, no anade ni un commit.
+    """
     now = _dt.now()
     if cleaner.last_active and (now - cleaner.last_active) < _ACTIVE_THROTTLE:
         return
     cleaner.last_active = now
+    if device_uid:
+        from .utils import _registrar_dispositivo
+        _registrar_dispositivo(cleaner.id, device_uid, user_agent,
+                               modelo_cliente=modelo_cliente)
     db.session.commit()
 
 
@@ -81,7 +92,10 @@ def _track_last_active(response):
         if identity:
             cleaner = Cleaner.query.filter_by(username=identity).first()
             if cleaner:
-                _update_if_stale(cleaner)
+                _update_if_stale(cleaner,
+                                 request.headers.get('X-Device-Id'),
+                                 request.headers.get('User-Agent'),
+                                 request.headers.get('X-Device-Model'))
     except Exception:
         db.session.rollback()
     return response

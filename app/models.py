@@ -968,6 +968,77 @@ class PushSubscription(db.Model):
     worker = db.relationship('Cleaner')
 
 
+class WorkerDevice(db.Model):
+    """Un movil concreto desde el que se entra en la webapp de trabajadoras.
+
+    Se identifica por `device_uid`, un identificador que genera el navegador la
+    primera vez y que sobrevive al cierre de sesion. Es lo unico que distingue dos
+    telefonos del mismo modelo: en la residencia hay varios moviles iguales y su
+    User-Agent es identico, asi que sin esto no habria manera de separarlos. La IP
+    tampoco sirve, porque la red va por DHCP.
+    """
+    __tablename__ = 'worker_device'
+    id = db.Column(db.Integer, primary_key=True)
+    device_uid = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    # Nombre que le pone coordinacion ("Movil planta 1"). NULL = sin nombre todavia.
+    label = db.Column(db.String(60), nullable=True)
+    # El User-Agent crudo se guarda ademas de lo ya interpretado: si el parser se
+    # queda corto con un movil nuevo, aqui esta el dato original para mirarlo.
+    user_agent = db.Column(db.String(500), nullable=True)
+    model = db.Column(db.String(80), nullable=True)     # "Samsung Galaxy A54"
+    os_name = db.Column(db.String(40), nullable=True)   # "Android 14"
+    browser = db.Column(db.String(40), nullable=True)   # "Chrome 128"
+    first_seen = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    last_seen = db.Column(db.DateTime, nullable=False, default=datetime.now, index=True)
+
+    usos = db.relationship('WorkerDeviceUse', back_populates='device',
+                           cascade='all, delete-orphan', lazy=True)
+
+    @property
+    def nombre_visible(self) -> str:
+        """Lo que se ensena en el panel. Sin nombre puesto, el modelo mas los
+        ultimos caracteres del identificador, que es lo unico que permite senalar
+        un movil concreto cuando hay cinco iguales."""
+        if self.label:
+            return self.label
+        base = self.model or 'Dispositivo desconocido'
+        return '%s #%s' % (base, (self.device_uid or '')[-6:])
+
+    @property
+    def descripcion_tecnica(self) -> str:
+        """Modelo, sistema y navegador en una linea, para la columna de Empleados."""
+        partes = [p for p in (self.model, self.os_name, self.browser) if p]
+        return ' · '.join(partes) if partes else 'Dispositivo desconocido'
+
+
+class WorkerDeviceUse(db.Model):
+    """Una trabajadora en un movil.
+
+    Una fila por pareja (movil, trabajadora), actualizada en su sitio. No es un
+    historial de inicios de sesion: es el estado de quien usa que. Un movil
+    compartido entre el turno de manana y el de noche tiene dos filas, no
+    doscientas.
+    """
+    __tablename__ = 'worker_device_use'
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.Integer,
+                          db.ForeignKey('worker_device.id', name='fk_wdu_device',
+                                        ondelete='CASCADE'),
+                          nullable=False, index=True)
+    worker_id = db.Column(db.Integer,
+                          db.ForeignKey('cleaner.id', name='fk_wdu_cleaner'),
+                          nullable=False, index=True)
+    last_login = db.Column(db.DateTime, nullable=False, default=datetime.now, index=True)
+    login_count = db.Column(db.Integer, nullable=False, default=1)
+
+    device = db.relationship('WorkerDevice', back_populates='usos')
+    worker = db.relationship('Cleaner')
+
+    __table_args__ = (
+        db.UniqueConstraint('device_id', 'worker_id', name='uq_wdu_device_worker'),
+    )
+
+
 class WoundRecord(db.Model):
     """Track wounds/injuries on a resident's body map."""
     __tablename__ = 'wound_record'

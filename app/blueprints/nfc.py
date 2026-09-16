@@ -35,6 +35,7 @@ from ..utils import (
     APP_LANGUAGES, APP_LOCALES, _idioma_valido, _traducciones_webapp,
     _idioma_peticion, _traducciones_de, _aplicar_traduccion,
     _texto_traducido, TONOS_AVISO, _tono_valido,
+    _registrar_dispositivo,
 )
 
 bp = Blueprint('nfc', __name__)
@@ -118,6 +119,19 @@ def login():
         if not user.active:
             return jsonify({'error': 'Tu cuenta esta desactivada. Contacta con administracion.'}), 403
         access_token = create_access_token(identity=username, expires_delta=timedelta(days=7))
+        # Se anota desde que movil entra. Va despues de emitir el token y con su
+        # propio try: que no se pueda apuntar el telefono no es motivo para dejar
+        # a nadie fuera de su turno.
+        try:
+            if _registrar_dispositivo(user.id, request.headers.get('X-Device-Id'),
+                                      request.headers.get('User-Agent'), es_login=True,
+                                      modelo_cliente=request.headers.get('X-Device-Model')):
+                ok, err = _safe_commit('Error al registrar el dispositivo')
+                if not ok:
+                    app.logger.error('No se pudo registrar el dispositivo: %s', err)
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error('Error al registrar el dispositivo: %s', e)
         return jsonify(access_token=access_token, id_cleaner=user.id,
                        cleaner_name=user.name, role=user.role,
                        lang=_idioma_valido(user.lang)), 200

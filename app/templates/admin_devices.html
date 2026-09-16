@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}Dispositivos{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div>
+            <h1 class="h3 mb-1">Dispositivos</h1>
+            <p class="mb-0" style="color:var(--color-text-secondary);font-size:.9rem">
+                Los móviles desde los que se entra en la webapp de trabajadoras.
+                Se dan de alta solos la primera vez que alguien entra.
+            </p>
+        </div>
+        <span class="badge bg-secondary">{{ devices|length }} dispositivo{{ 's' if devices|length != 1 }}</span>
+    </div>
+
+    {% if sin_nombre %}
+    <div class="alert alert-warning d-flex align-items-start gap-2" role="alert">
+        <i class="bi bi-exclamation-triangle-fill mt-1" aria-hidden="true"></i>
+        <div>
+            <strong>{{ sin_nombre }} dispositivo{{ 's' if sin_nombre != 1 }} sin nombre.</strong>
+            Ponle{{ 's' if sin_nombre != 1 }} uno —&nbsp;«Móvil planta 1», «Móvil de noche»—
+            porque varios móviles son del mismo modelo y sin nombre no hay manera de
+            saber cuál es cuál. Salen los primeros de la lista.
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Offcanvas para poner nombre -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="deviceFormPanel"
+         aria-labelledby="deviceFormTitle" style="width:min(480px,90vw)">
+        <div class="offcanvas-header" id="device-header-bar"
+             style="border-bottom:1px solid var(--color-border);border-top:3px solid var(--color-primary)">
+            <h5 class="offcanvas-title" id="deviceFormTitle">Nombre del dispositivo</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+        </div>
+        <div class="offcanvas-body">
+            <form id="device-form" method="POST" action="">
+                <p id="device-tech" class="mb-3" style="color:var(--color-text-secondary);font-size:.9rem"></p>
+                <details class="mb-3" style="font-size:.78rem;color:var(--color-text-secondary)">
+                    <summary style="cursor:pointer">Datos técnicos del navegador</summary>
+                    <code id="device-ua" style="word-break:break-all"></code>
+                </details>
+                <div class="mb-3">
+                    <label for="device-label" class="form-label">Nombre</label>
+                    <input type="text" id="device-label" name="label" class="form-control"
+                           maxlength="60" placeholder="ej. Móvil planta 1, Móvil de noche…">
+                    <div class="form-text">
+                        Déjalo vacío para quitarle el nombre y que vuelva a salir como pendiente.
+                    </div>
+                </div>
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary">Guardar nombre</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Listado de dispositivos</div>
+        {% if devices %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="devices-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Nombre</th>
+                        <th scope="col" class="hide-mobile">Modelo</th>
+                        <th scope="col" class="hide-mobile">Sistema</th>
+                        <th scope="col" class="hide-mobile">Navegador</th>
+                        <th scope="col">Quién lo usa</th>
+                        <th scope="col">Última vez</th>
+                        <th scope="col" class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in devices %}
+                    <tr>
+                        <td>
+                            {% if d.label %}
+                            <strong>{{ d.label }}</strong>
+                            {% else %}
+                            <span style="color:var(--color-text-secondary)">{{ d.nombre_visible }}</span>
+                            <span class="status-badge status-warning" style="font-size:.7rem">
+                                <i class="bi bi-tag" aria-hidden="true"></i> Sin nombre
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="hide-mobile">{{ d.model or '—' }}</td>
+                        <td class="hide-mobile">{{ d.os_name or '—' }}</td>
+                        <td class="hide-mobile">{{ d.browser or '—' }}</td>
+                        <td>
+                            {% for uso in d.usos|sort(attribute='last_login', reverse=true) %}
+                                {% if uso.worker %}
+                                <span class="status-badge status-info" style="font-size:.75rem"
+                                      title="Última entrada: {{ uso.last_login.strftime('%d/%m/%Y %H:%M') }} · {{ uso.login_count }} inicio{{ 's' if uso.login_count != 1 }} de sesión">
+                                    {{ uso.worker.name }}
+                                </span>
+                                {% endif %}
+                            {% else %}
+                            <span style="color:var(--color-text-secondary)">—</span>
+                            {% endfor %}
+                        </td>
+                        <td style="white-space:nowrap">{{ d.last_seen.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td class="text-end">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-secondary rename-device me-1"
+                                    data-action="{{ url_for('admin_bp.rename_device', id=d.id) }}"
+                                    data-label="{{ d.label or '' }}"
+                                    data-tech="{{ d.descripcion_tecnica }}"
+                                    data-ua="{{ d.user_agent or 'Sin datos' }}"
+                                    aria-label="Poner nombre a {{ d.nombre_visible }}">
+                                Nombre
+                            </button>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-danger delete-btn"
+                                    data-name="{{ d.nombre_visible }}"
+                                    data-action="{{ url_for('admin_bp.delete_device', id=d.id) }}"
+                                    aria-label="Eliminar {{ d.nombre_visible }}">
+                                Eliminar
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card-body">
+            <p class="text-body-secondary mb-0">
+                Todavía no ha entrado nadie desde ningún móvil. En cuanto una trabajadora
+                inicie sesión en la webapp, su teléfono aparecerá aquí.
+            </p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="card mt-3">
+        <div class="card-body" style="font-size:.875rem;color:var(--color-text-secondary)">
+            <p class="mb-1"><strong>Cosas que conviene saber:</strong></p>
+            <ul class="mb-0">
+                <li>Un móvil que usan dos personas sale <strong>una sola vez</strong>, con las dos.</li>
+                <li>Si se borran los datos del navegador o se reinstala la webapp, ese móvil
+                    aparece como <strong>nuevo</strong>. El antiguo se puede eliminar aquí.</li>
+                <li>De un iPhone el navegador no dice el modelo, solo «iPhone». Es una
+                    limitación de Apple, no un fallo.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- Modal eliminación -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-modal="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:var(--radius-lg);border:1px solid var(--color-border)">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Confirmar eliminación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                ¿Seguro que quieres eliminar <strong id="delete-name"></strong>?<br>
+                <small class="text-body-secondary">
+                    Si ese móvil vuelve a usarse, se dará de alta otra vez sin nombre.
+                </small>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form id="delete-form" method="POST" action="" class="m-0">
+                    <button type="submit" class="btn btn-danger">Eliminar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    'use strict';
+
+    var offcanvasEl = document.getElementById('deviceFormPanel');
+    if (!offcanvasEl) return;
+    var offcanvas = new bootstrap.Offcanvas(offcanvasEl);
+
+    document.querySelectorAll('.rename-device').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.getElementById('device-form').action    = this.dataset.action;
+            document.getElementById('device-label').value    = this.dataset.label;
+            document.getElementById('device-tech').textContent = this.dataset.tech;
+            document.getElementById('device-ua').textContent   = this.dataset.ua;
+            offcanvas.show();
+            document.getElementById('device-label').focus();
+        });
+    });
+
+    document.querySelectorAll('.delete-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.getElementById('delete-name').textContent = this.dataset.name;
+            document.getElementById('delete-form').action      = this.dataset.action;
+            new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        });
+    });
+})();
+</script>
+{% endblock %}

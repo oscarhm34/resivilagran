@@ -77,6 +77,7 @@ class TestProtectedRoutes:
     PROTECTED_ROUTES = [
         "/",
         "/manage_workers",
+        "/devices",
         "/zonas-limpieza",
         "/manage_room_types",
         "/manage_floors",

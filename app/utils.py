@@ -1,5 +1,6 @@
 """Shared utilities used across blueprints and routes."""
 from __future__ import annotations
+import re
 from functools import wraps
 from datetime import datetime, timedelta, date, time as dt_time
 
@@ -7,12 +8,14 @@ from flask import abort, request, jsonify, redirect, url_for, flash, g
 from flask_login import login_required, current_user
 from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
+from sqlalchemy.orm import joinedload
 
 from . import app, db
 from .models import (
     Cleaner, Room, Resident, CleaningRecord, CareRecord, CareType,
     AppSetting, CleaningTargetTime, CleaningZoneAssignment,
     AuditLog, ChecklistItem, RoomType, ContentTranslation,
+    WorkerDevice, WorkerDeviceUse,
 )
 
 
@@ -319,6 +322,244 @@ def _tono_valido(tono: str | None) -> str:
 def _vibracion_de_tono(tono: str | None) -> list:
     """Patron de vibracion del tono, para el aviso push."""
     return TONOS_AVISO[_tono_valido(tono)]
+
+
+# ── Dispositivos de las trabajadoras ───────────────────────────────────────────
+
+# Un identificador que genera el navegador y guarda en localStorage. Llega en la
+# cabecera `X-Device-Id` de todas las peticiones de la webapp. Como en `/login`
+# viaja SIN autenticar, se valida el formato antes de tocar la base de datos.
+_DEVICE_UID_RE = re.compile(r'^[A-Za-z0-9-]{8,64}$')
+
+# Prefijos comerciales de los modelos que da el User-Agent de Android. Lo que no
+# este aqui se ensena tal cual venga: es mejor un "SM-X999" sin traducir que una
+# marca inventada.
+_MARCAS_ANDROID = (
+    ('SM-', 'Samsung'),
+    ('GT-', 'Samsung'),
+    ('Redmi', 'Xiaomi'),
+    ('POCO', 'Xiaomi'),
+    ('Mi ', 'Xiaomi'),
+    ('CPH', 'Oppo'),
+    ('RMX', 'Realme'),
+    ('VOG-', 'Huawei'),
+    ('ANE-', 'Huawei'),
+    ('STK-', 'Huawei'),
+    ('moto', 'Motorola'),
+    ('Pixel', 'Google'),
+    ('Nokia', 'Nokia'),
+    ('TCL', 'TCL'),
+    ('Infinix', 'Infinix'),
+)
+
+# Nombre comercial de los modelos que hay en la residencia. El User-Agent solo
+# da el codigo interno ("SM-A546B") y ese codigo no se lo sabe nadie; con el
+# nombre de venta, coordinacion reconoce el telefono que tiene en la mano.
+# Ampliable segun entren moviles nuevos.
+_MODELOS_CONOCIDOS = {
+    'SM-A546B': 'Samsung Galaxy A54',
+    'SM-A556B': 'Samsung Galaxy A55',
+    'SM-A536B': 'Samsung Galaxy A53',
+    'SM-A526B': 'Samsung Galaxy A52',
+    'SM-A146B': 'Samsung Galaxy A14',
+    'SM-A156B': 'Samsung Galaxy A15',
+    'SM-A166B': 'Samsung Galaxy A16',
+    'SM-A047F': 'Samsung Galaxy A04s',
+    'SM-A135F': 'Samsung Galaxy A13',
+    'SM-G991B': 'Samsung Galaxy S21',
+    'SM-S911B': 'Samsung Galaxy S23',
+    'SM-T500': 'Samsung Galaxy Tab A7',
+    'SM-X200': 'Samsung Galaxy Tab A8',
+}
+
+# Orden importante: Edge y Samsung Internet se hacen pasar por Chrome, y Chrome
+# se hace pasar por Safari. El primero que encaje manda.
+_NAVEGADORES = (
+    ('Edg/', 'Edge'),
+    ('EdgA/', 'Edge'),
+    ('OPR/', 'Opera'),
+    ('SamsungBrowser/', 'Samsung Internet'),
+    ('Firefox/', 'Firefox'),
+    ('FxiOS/', 'Firefox'),
+    ('CriOS/', 'Chrome'),
+    ('Chrome/', 'Chrome'),
+    ('Version/', 'Safari'),
+)
+
+
+def _nombrar_modelo(codigo: str) -> str:
+    """Antepone la marca a un codigo de modelo que no esta en la tabla."""
+    for prefijo, marca in _MARCAS_ANDROID:
+        if codigo.upper().startswith(prefijo.upper()):
+            if codigo.lower().startswith(marca.lower()):
+                return codigo
+            return '%s %s' % (marca, codigo)
+    # Xiaomi numera sus modelos con el ano y el mes de salida: "23078RKD5G" es
+    # de julio de 2023. No dice que telefono es, pero al menos dice la marca.
+    if re.match(r'^2[0-9]{3,6}[A-Z]', codigo):
+        return 'Xiaomi %s' % codigo
+    return codigo
+
+
+def _modelo_android(ua: str) -> str | None:
+    """Saca el modelo del User-Agent de un Android.
+
+    Viene dentro del parentesis, despues de "Linux" y de la version del sistema:
+    "(Linux; Android 14; SM-A546B)" o "(Linux; Android 11; Redmi Note 10
+    Build/RKQ1...)". Se descartan los trozos que no son un modelo (el idioma, la
+    palabra `wv` de las webviews) para no acabar ensenando "es-es" como telefono.
+    """
+    m = re.search(r'\(([^)]*)\)', ua)
+    if not m:
+        return None
+    trozos = [t.strip() for t in m.group(1).split(';')]
+    for trozo in trozos[2:]:            # 0 = "Linux", 1 = "Android X"
+        trozo = trozo.split('Build/')[0].strip()
+        # 'wv' es el WebView. 'K' es lo que manda Chrome desde la version 110,
+        # que dejo de decir el modelo: todos los Android del mundo dicen "K".
+        # Por eso el modelo de verdad llega aparte, en `X-Device-Model`.
+        if not trozo or trozo.lower() == 'wv' or trozo == 'K':
+            continue
+        if re.match(r'^[a-z]{2}([-_][A-Za-z]{2})?$', trozo):   # "es-es", "ca"
+            continue
+        return _MODELOS_CONOCIDOS.get(trozo) or _nombrar_modelo(trozo)
+    return None
+
+
+def _describir_dispositivo(ua: str | None, modelo_cliente: str | None = None) -> tuple:
+    """Interpreta un User-Agent y devuelve (modelo, sistema, navegador).
+
+    `modelo_cliente` llega en la cabecera `X-Device-Model` y MANDA sobre lo que
+    diga el User-Agent. Hace falta porque desde Chrome 110 Android ya no manda
+    el modelo ahi: envia "Android 10; K" para todos los telefonos, sean lo que
+    sean. El modelo real solo se consigue pidiendolo con Client Hints desde el
+    navegador, que es lo que hace la webapp.
+
+    Devuelve `(None, None, None)` con lo que no reconoce, a proposito: es
+    preferible que el panel diga "Dispositivo desconocido" y ensene el
+    User-Agent crudo a que se invente una marca.
+
+    Werkzeug 3 ya no parsea el User-Agent y no hay libreria para ello en el
+    proyecto; anadir una obligaria a un rebuild en el NAS por muy poco.
+    """
+    codigo = (modelo_cliente or '').strip()[:60]
+    if not ua and not codigo:
+        return None, None, None
+
+    ua = ua or ''
+    modelo = sistema = navegador = None
+
+    m = re.search(r'Android\s+([\d.]+)', ua)
+    if m:
+        sistema = 'Android %s' % m.group(1)
+        modelo = _modelo_android(ua)
+    elif 'iPhone' in ua or 'iPad' in ua or 'iPod' in ua:
+        # El User-Agent de Apple nunca dice el modelo: todos los iPhone dicen
+        # "iPhone" y punto. Es una limitacion del navegador, no del parser.
+        modelo = 'iPad' if 'iPad' in ua else 'iPhone'
+        m = re.search(r'OS\s+(\d+)[_.](\d+)', ua)
+        sistema = 'iOS %s.%s' % (m.group(1), m.group(2)) if m else 'iOS'
+    elif 'Windows NT' in ua:
+        modelo = 'Ordenador'
+        sistema = 'Windows 10 u 11' if 'Windows NT 10.0' in ua else 'Windows'
+    elif 'Mac OS X' in ua:
+        modelo = 'Ordenador'
+        sistema = 'macOS'
+    elif 'CrOS' in ua:
+        modelo = 'Ordenador'
+        sistema = 'ChromeOS'
+    elif 'Linux' in ua or 'X11' in ua:
+        modelo = 'Ordenador'
+        sistema = 'Linux'
+
+    for marca, nombre in _NAVEGADORES:
+        if marca not in ua:
+            continue
+        if nombre == 'Safari' and 'Safari' not in ua:
+            continue
+        m = re.search(re.escape(marca) + r'(\d+)', ua)
+        navegador = '%s %s' % (nombre, m.group(1)) if m else nombre
+        break
+
+    # El modelo que da el navegador por Client Hints es el bueno: el del
+    # User-Agent, cuando lo hay, es un resto de antes de Chrome 110.
+    if codigo:
+        modelo = _MODELOS_CONOCIDOS.get(codigo) or _nombrar_modelo(codigo)
+
+    if not (modelo or sistema or navegador):
+        return None, None, None
+    return modelo, sistema, navegador
+
+
+def _device_uid_valido(uid):
+    """Filtra el identificador que manda el navegador. None si no vale."""
+    uid = (uid or '').strip()
+    return uid if _DEVICE_UID_RE.match(uid) else None
+
+
+def _registrar_dispositivo(worker_id, device_uid, user_agent, es_login=False,
+                           modelo_cliente=None):
+    """Anota que `worker_id` esta usando este movil. Devuelve si escribio algo.
+
+    NO hace commit: lo deja preparado en la sesion para que lo cierre quien
+    llama, que en el `after_request` ya va a escribir de todos modos.
+
+    `es_login` distingue un inicio de sesion de una peticion cualquiera: el
+    contador cuenta inicios de sesion, no peticiones.
+    """
+    uid = _device_uid_valido(device_uid)
+    if not uid:
+        return False
+
+    ahora = datetime.now()
+    ua = (user_agent or '')[:500]
+    device = WorkerDevice.query.filter_by(device_uid=uid).first()
+    if device is None:
+        modelo, sistema, navegador = _describir_dispositivo(ua, modelo_cliente)
+        device = WorkerDevice(device_uid=uid, user_agent=ua, model=modelo,
+                              os_name=sistema, browser=navegador,
+                              first_seen=ahora, last_seen=ahora)
+        db.session.add(device)
+        db.session.flush()          # hace falta el id para la fila de uso
+    else:
+        device.last_seen = ahora
+        # El movil puede haber actualizado Android o el navegador, y el modelo
+        # puede llegar por Client Hints en una peticion posterior al alta (se
+        # pide de forma asincrona). Se revisa al iniciar sesion, o en cuanto
+        # aparezca un modelo que antes no teniamos.
+        if (es_login and ua and ua != device.user_agent) or \
+           (modelo_cliente and not device.model):
+            modelo, sistema, navegador = _describir_dispositivo(ua, modelo_cliente)
+            device.user_agent = ua
+            # Si el parser no saca nada, se conserva lo que ya habia: un dato
+            # antiguo pero bueno vale mas que un hueco.
+            if modelo or sistema or navegador:
+                device.model, device.os_name, device.browser = modelo, sistema, navegador
+
+    uso = WorkerDeviceUse.query.filter_by(device_id=device.id,
+                                          worker_id=worker_id).first()
+    if uso is None:
+        db.session.add(WorkerDeviceUse(device_id=device.id, worker_id=worker_id,
+                                       last_login=ahora, login_count=1))
+    else:
+        uso.last_login = ahora
+        if es_login:
+            uso.login_count = (uso.login_count or 0) + 1
+    return True
+
+
+def _ultimo_movil_por_trabajadora() -> dict:
+    """{worker_id: WorkerDevice} con el ultimo movil de cada una.
+
+    Una sola consulta con el dispositivo ya cargado: la columna de Empleados lo
+    pinta en bucle y sin esto serian tantas consultas como empleados.
+    """
+    filas = (WorkerDeviceUse.query
+             .options(joinedload(WorkerDeviceUse.device))
+             .order_by(WorkerDeviceUse.last_login.asc())
+             .all())
+    # Ascendente y sobrescribiendo: la ultima que se escribe es la mas reciente.
+    return {f.worker_id: f.device for f in filas if f.device is not None}
 
 
 # ── Traduccion del contenido que escribe coordinacion ────────────────────────

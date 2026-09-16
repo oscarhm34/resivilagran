@@ -1616,9 +1616,57 @@ async function loadAuthImg(imgEl, url) {
 }
 
 // ── API ────────────────────────────────────────────────────────────────────
+/**
+ * Identificador de este movil. Se genera una sola vez y NO se borra al cerrar
+ * sesion: es lo unico que distingue dos telefonos del mismo modelo, que en el
+ * User-Agent son identicos, y la IP tampoco vale porque la red va por DHCP.
+ *
+ * Si se borran los datos del navegador o se reinstala la webapp, el movil pasa
+ * por nuevo en el panel. Es el precio de no poner nada raro en el telefono.
+ */
+function deviceId() {
+    let id = localStorage.getItem('wdev');
+    if (!id) {
+        // crypto.randomUUID solo existe en contexto seguro: entrando por la IP en
+        // vez de por el nombre del servidor, no esta. El respaldo no es
+        // criptografico, pero para separar unos cuantos moviles sobra.
+        id = (window.crypto && crypto.randomUUID)
+             ? crypto.randomUUID()
+             : 'f-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+        try { localStorage.setItem('wdev', id); } catch (e) {}
+    }
+    return id;
+}
+S.deviceId = deviceId();
+S.deviceModel = localStorage.getItem('wdevm') || '';
+
+/**
+ * El modelo real del telefono ya no viene en el User-Agent: desde Chrome 110,
+ * Android manda "Android 10; K" para todos, sea un Galaxy A54 o un Redmi. El
+ * modelo sigue estando, pero hay que pedirlo aparte con Client Hints. Sin esto
+ * la columna Modelo del panel saldria vacia en todos los moviles de la casa.
+ *
+ * Se pregunta una vez y se guarda: no cambia nunca en el mismo telefono. Como
+ * es asincrono, las primeras peticiones pueden salir sin el; el servidor lo
+ * recoge en cuanto llega.
+ */
+(async function detectarModelo() {
+    if (S.deviceModel || !navigator.userAgentData ||
+        !navigator.userAgentData.getHighEntropyValues) return;
+    try {
+        const info = await navigator.userAgentData.getHighEntropyValues(['model']);
+        if (info && info.model) {
+            S.deviceModel = String(info.model).slice(0, 60);
+            localStorage.setItem('wdevm', S.deviceModel);
+        }
+    } catch (e) {}
+})();
+
 async function api(path, method = 'GET', body = null) {
     const opts = { method, headers: { 'Content-Type': 'application/json' } };
     if (S.token) opts.headers['Authorization'] = 'Bearer ' + S.token;
+    if (S.deviceId)    opts.headers['X-Device-Id']    = S.deviceId;
+    if (S.deviceModel) opts.headers['X-Device-Model'] = S.deviceModel;
     if (body)    opts.body = JSON.stringify(body);
     try {
         const res  = await fetch(path, opts);
@@ -1786,6 +1834,9 @@ function doLogout() {
     // registrarse nunca: `suscribirAvisos()` se planta en la primera linea y la
     // suscripcion se queda apuntando a la anterior.
     avisosSuscritos = false;
+    // 'wdev' y 'wdevm' NO se borran a proposito: identifican al movil, no a la
+    // sesion. Si se fuera con el logout, cada inicio de sesion crearia un
+    // dispositivo nuevo en el panel y no habria manera de saber cual es cual.
     ['wt','wid','wname','wrole'].forEach(k => localStorage.removeItem(k));
     try { $('chat-dialog').close(); } catch(e) {}
     try { $('chat-dialog').style.display = 'none'; } catch(e) {}
