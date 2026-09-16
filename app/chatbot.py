@@ -11,7 +11,8 @@ from anthropic import Anthropic
 from . import db
 from .models import (Resident, CareRecord, CareType, CleaningRecord, Room, Floor,
                      Cleaner, ResidentGroup, ChecklistItem, ResidentDocument,
-                     VitalSignType, VitalSignReading, AssessmentRecord, Incident)
+                     VitalSignType, VitalSignReading, AssessmentRecord, Incident,
+                     WorkerDeviceLogin, ShiftAssignment, Absence)
 
 SYSTEM_PROMPT = """Eres un asistente de la residencia de mayores "La Vila Gran".
 Ayudas al personal a consultar información sobre residentes, limpiezas y atenciones.
@@ -39,7 +40,12 @@ Capacidades importantes:
 - Si buscar_residente devuelve "inactivos", esa persona consta dada de baja: dilo y no intentes consultar sus datos.
 - Puedes consultar turnos de cualquier día con consultar_turnos. Para "quién trabaja hoy", "quién está de tarde", etc.
 - Si alguien falta o necesitan cobertura, usa sugerir_cobertura para encontrar al mejor candidato. Analiza horas, descansos y equidad.
-- Para preguntas como "quién puede cubrir mañana por la mañana" o "María está de baja, quién la sustituye", usa sugerir_cobertura."""
+- Para preguntas como "quién puede cubrir mañana por la mañana" o "María está de baja, quién la sustituye", usa sugerir_cobertura.
+- Para preguntas sobre el uso de la aplicación —"quién la está usando menos", "quién no entra en la webapp", "quién no registra nada", "quién lleva días sin aparecer"— usa uso_de_la_aplicacion. Viene ordenada de menos uso a más uso.
+- Al responder a eso, ten cuidado: estás hablando del trabajo de personas concretas. La herramienta ya separa el grano de la paja con el campo uso_comparable. Responde SOLO con las de uso_comparable=true, que vienen primero y ordenadas de menos uso a más. A las de uso_comparable=false no las nombres como si usaran poco la aplicación: si las mencionas, di su motivo_no_comparable (está de baja, no ha tenido turnos, trabaja desde el panel).
+- Da también el contexto en la respuesta: cuántas entradas y cuántos registros tiene cada una, y sobre cuántos días de turno. Un número suelto no dice nada.
+- Compara por registros_por_dia_con_turno, no por el total: quien ha trabajado dos días no es comparable con quien ha trabajado veinte.
+- Si te preguntan por un periodo distinto ("este mes", "la última semana"), pasa los días con el parámetro dias."""
 
 TOOLS = [
     {
@@ -140,6 +146,19 @@ TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {},
+        }
+    },
+    {
+        "name": "uso_de_la_aplicacion",
+        "description": ("Cuánto usa cada trabajadora la webapp del móvil en un periodo: veces que ha entrado, "
+                        "limpiezas y atenciones que ha registrado, y cuándo se la vio por última vez. "
+                        "Devuelve también los días de turno y los días de ausencia de cada una, que hacen falta "
+                        "para interpretar los ceros. La lista viene ordenada de menos uso a más uso."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "dias": {"type": "integer", "description": "Días hacia atrás que se miran (por defecto 30)"}
+            },
         }
     },
     {
@@ -696,6 +715,118 @@ def _trabajadores_activos() -> str:
     }, ensure_ascii=False)
 
 
+def _uso_de_la_aplicacion(dias: int = 30) -> str:
+    """Cuanto usa cada trabajadora la webapp, con el contexto para juzgarlo.
+
+    La pregunta que responde ("quien la esta usando menos") es facil de contestar
+    mal: quien ha estado de baja o de vacaciones sale a cero sin haber hecho nada
+    malo, y quien tiene rol de gestion no usa la webapp del movil en absoluto.
+    Por eso se devuelven tambien los dias de turno y los de ausencia, y el
+    promedio por dia trabajado, que es lo unico comparable entre personas.
+    """
+    from datetime import date as _date
+    dias = min(max(int(dias or 30), 1), 365)
+    desde = datetime.now() - timedelta(days=dias)
+    desde_dia = desde.date()
+    hoy = _date.today()
+
+    trabajadoras = Cleaner.query.filter_by(active=True).order_by(Cleaner.name).all()
+    datos = {c.id: {
+        "nombre": c.name,
+        "rol": c.role,
+        "es_admin": bool(c.is_admin),
+        "ultima_vez_vista": c.last_active.strftime('%d/%m/%Y %H:%M') if c.last_active else None,
+        "dias_desde_la_ultima_vez": (datetime.now() - c.last_active).days if c.last_active else None,
+        "entradas_en_la_webapp": 0,
+        "limpiezas_registradas": 0,
+        "atenciones_registradas": 0,
+        "dias_distintos_con_registros": 0,
+        "dias_con_turno": 0,
+        "dias_de_ausencia": 0,
+    } for c in trabajadoras}
+
+    for wid, n in (db.session.query(WorkerDeviceLogin.worker_id, db.func.count())
+                   .filter(WorkerDeviceLogin.at >= desde)
+                   .group_by(WorkerDeviceLogin.worker_id).all()):
+        if wid in datos:
+            datos[wid]["entradas_en_la_webapp"] = n
+
+    # Los dias distintos se cuentan en Python: `date(timestamp)` no se escribe
+    # igual en SQLite que en PostgreSQL y aqui corren los dos.
+    dias_con = {cid: set() for cid in datos}
+    for wid, inicio in (db.session.query(CleaningRecord.cleaner_id, CleaningRecord.start_time)
+                        .filter(CleaningRecord.start_time >= desde).all()):
+        if wid in datos:
+            datos[wid]["limpiezas_registradas"] += 1
+            if inicio:
+                dias_con[wid].add(inicio.date())
+    for wid, inicio in (db.session.query(CareRecord.worker_id, CareRecord.start_time)
+                        .filter(CareRecord.start_time >= desde).all()):
+        if wid in datos:
+            datos[wid]["atenciones_registradas"] += 1
+            if inicio:
+                dias_con[wid].add(inicio.date())
+    for wid, fechas in dias_con.items():
+        datos[wid]["dias_distintos_con_registros"] = len(fechas)
+
+    for wid, n in (db.session.query(ShiftAssignment.cleaner_id, db.func.count())
+                   .filter(ShiftAssignment.date >= desde_dia,
+                           ShiftAssignment.date <= hoy)
+                   .group_by(ShiftAssignment.cleaner_id).all()):
+        if wid in datos:
+            datos[wid]["dias_con_turno"] = n
+
+    for aus in Absence.query.filter(Absence.end_date >= desde_dia,
+                                    Absence.start_date <= hoy).all():
+        if aus.cleaner_id not in datos:
+            continue
+        ini = max(aus.start_date, desde_dia)
+        fin = min(aus.end_date, hoy)
+        datos[aus.cleaner_id]["dias_de_ausencia"] += max(0, (fin - ini).days + 1)
+
+    comparables, aparte = [], []
+    for d in datos.values():
+        registros = d["limpiezas_registradas"] + d["atenciones_registradas"]
+        d["registros_totales"] = registros
+        # Lo unico comparable entre personas: quien trabaja veinte dias y quien
+        # trabaja dos no se pueden medir por el total.
+        d["registros_por_dia_con_turno"] = (round(registros / d["dias_con_turno"], 1)
+                                            if d["dias_con_turno"] else None)
+
+        # Quien no cuenta, y por que. Se decide aqui y no se deja al criterio del
+        # modelo: encabezar la lista es senalar a alguien, y una persona de baja o
+        # una gestora que trabaja desde el panel no han hecho nada malo.
+        motivo = None
+        if d["rol"] == 'gestion' or d["es_admin"]:
+            motivo = "Trabaja desde el panel de administracion, no desde la webapp del movil."
+        elif not d["dias_con_turno"]:
+            motivo = "No ha tenido ningun turno en este periodo."
+        elif d["dias_de_ausencia"] >= d["dias_con_turno"] / 2:
+            motivo = ("Ha estado ausente %d de los %d dias con turno."
+                      % (d["dias_de_ausencia"], d["dias_con_turno"]))
+        d["uso_comparable"] = motivo is None
+        d["motivo_no_comparable"] = motivo
+        (comparables if motivo is None else aparte).append(d)
+
+    comparables.sort(key=lambda d: (d["registros_por_dia_con_turno"] or 0,
+                                    d["registros_totales"]))
+    aparte.sort(key=lambda d: d["nombre"])
+
+    return json.dumps({
+        "periodo_dias": dias,
+        "desde": desde.strftime('%d/%m/%Y'),
+        "trabajadoras": comparables + aparte,
+        "como_leerlo": (
+            "Las que tienen uso_comparable=true van primero y ordenadas de menos "
+            "uso a mas: la respuesta a 'quien usa menos la aplicacion' es la "
+            "primera de esas. Las de uso_comparable=false NO se pueden juzgar y no "
+            "hay que nombrarlas como si usaran poco la aplicacion: su "
+            "motivo_no_comparable explica por que (de baja, sin turnos, o trabaja "
+            "desde el panel). Si hace falta mencionarlas, di el motivo."
+        ),
+    }, ensure_ascii=False)
+
+
 def _resumen_dia(fecha: str | None = None) -> str:
     if fecha:
         dia = datetime.strptime(fecha, '%Y-%m-%d').date()
@@ -977,6 +1108,7 @@ def _get_tool_handlers(is_admin: bool = False):
         "limpiezas_hoy": lambda args: _limpiezas_hoy(),
         "ultima_limpieza_zona": lambda args: _ultima_limpieza_zona(args["numero_zona"]),
         "trabajadores_activos": lambda args: _trabajadores_activos(),
+        "uso_de_la_aplicacion": lambda args: _uso_de_la_aplicacion(args.get("dias", 30)),
         "resumen_dia": lambda args: _resumen_dia(args.get("fecha")),
         "buscar_trabajador": lambda args: _buscar_trabajador(args["nombre"]),
         "residentes_con_documentos": lambda args: _residentes_con_documentos(args.get("tipo")),
