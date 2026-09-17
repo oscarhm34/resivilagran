@@ -343,7 +343,9 @@ class AppSetting(db.Model):
     __tablename__ = 'app_setting'
     id = db.Column(db.Integer, primary_key=True)
     key = db.Column(db.String(100), unique=True, nullable=False)
-    value = db.Column(db.String(500), nullable=False, default='')
+    # Text y no String(500): aqui caben desde un 'true' hasta las instrucciones
+    # adicionales del chatbot o el JSON de las frases rapidas.
+    value = db.Column(db.Text, nullable=False, default='')
 
     @staticmethod
     def get(key: str, default: str = '') -> str:

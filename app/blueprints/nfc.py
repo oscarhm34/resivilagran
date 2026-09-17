@@ -1640,6 +1640,10 @@ def verify_selfie():
 @bp.route('/admin/settings', methods=['GET', 'POST'])
 @admin_required
 def admin_settings():
+    # Import diferido, como en `chat.py`: el modulo del chatbot no hace falta
+    # para arrancar el blueprint.
+    from ..chatbot import (SYSTEM_PROMPT, TOOLS, CHATBOT_EXTRA_KEY,
+                           MAX_EXTRA_PROMPT)
     if request.method == 'POST':
         AppSetting.set('allow_group_care', 'true' if request.form.get('allow_group_care') else 'false')
         AppSetting.set('nfc_only', 'true' if request.form.get('nfc_only') else 'false')
@@ -1666,6 +1670,13 @@ def admin_settings():
         except (ValueError, TypeError):
             session_min = MIN_SESSION_SECONDS_DEFAULT
         AppSetting.set('min_session_seconds', session_min)
+        # Se audita el cambio, pero no el texto: cambia como responde el
+        # asistente a todo el mundo y conviene saber quien lo toco y cuando.
+        extra = (request.form.get('chatbot_extra_prompt') or '').strip()[:MAX_EXTRA_PROMPT]
+        if extra != AppSetting.get(CHATBOT_EXTRA_KEY, ''):
+            log_audit('update', 'app_setting', None,
+                      {'ajuste': CHATBOT_EXTRA_KEY, 'caracteres': len(extra)})
+        AppSetting.set(CHATBOT_EXTRA_KEY, extra)
         flash('Configuración guardada.', 'success')
         return redirect(url_for('nfc.admin_settings'))
     return render_template('admin_settings.html',
@@ -1677,6 +1688,11 @@ def admin_settings():
         session_max_minutes=int(AppSetting.get('session_max_minutes', '120')),
         hidden_logout_minutes=int(AppSetting.get('hidden_logout_minutes', '30')),
         min_session_seconds=int(AppSetting.get('min_session_seconds', MIN_SESSION_SECONDS_DEFAULT)),
+        chatbot_base_prompt=SYSTEM_PROMPT,
+        chatbot_extra_prompt=AppSetting.get(CHATBOT_EXTRA_KEY, ''),
+        chatbot_max_extra=MAX_EXTRA_PROMPT,
+        chatbot_tools=[{'nombre': t['name'], 'descripcion': t['description']}
+                       for t in TOOLS],
     )
 
 

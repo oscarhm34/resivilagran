@@ -12,7 +12,7 @@ from . import db
 from .models import (Resident, CareRecord, CareType, CleaningRecord, Room, Floor,
                      Cleaner, ResidentGroup, ChecklistItem, ResidentDocument,
                      VitalSignType, VitalSignReading, AssessmentRecord, Incident,
-                     WorkerDeviceLogin, ShiftAssignment, Absence)
+                     WorkerDeviceLogin, ShiftAssignment, Absence, AppSetting)
 
 SYSTEM_PROMPT = """Eres un asistente de la residencia de mayores "La Vila Gran".
 Ayudas al personal a consultar información sobre residentes, limpiezas y atenciones.
@@ -49,6 +49,25 @@ Capacidades importantes:
 - Da también el contexto en la respuesta: cuántas entradas y cuántos registros tiene cada una, y sobre cuántos días de turno. Un número suelto no dice nada.
 - Compara por registros_por_dia_con_turno, no por el total: quien ha trabajado dos días no es comparable con quien ha trabajado veinte.
 - Si te preguntan por un periodo distinto ("este mes", "la última semana"), pasa los días con el parámetro dias."""
+
+# ── Instrucciones que anade la direccion desde Configuracion ──────────────────
+# El prompt de arriba es codigo y no se toca desde el panel: lleva reglas que se
+# romperian con un descuido (como hablar del uso de la app sin senalar a nadie,
+# o como leer la lista de "no la han recibido"). Lo que si se puede es anadirle
+# instrucciones propias sin desplegar, y se ven junto al prompt en /admin/settings.
+
+CHATBOT_EXTRA_KEY = 'chatbot_extra_prompt'
+MAX_EXTRA_PROMPT = 4000   # el mismo tope que valida el formulario
+
+
+def system_prompt() -> str:
+    """El prompt base mas las instrucciones adicionales, si las hay."""
+    extra = (AppSetting.get(CHATBOT_EXTRA_KEY, '') or '').strip()
+    if not extra:
+        return SYSTEM_PROMPT
+    return (f'{SYSTEM_PROMPT}\n\n'
+            f'Instrucciones adicionales de la residencia:\n{extra[:MAX_EXTRA_PROMPT]}')
+
 
 TOOLS = [
     {
@@ -1277,6 +1296,9 @@ def chat(message: str, api_key: str, is_admin: bool = False) -> str:
     client = Anthropic(api_key=api_key)
     messages = [{"role": "user", "content": message}]
     handlers = _get_tool_handlers(is_admin)
+    # Se lee una sola vez: las dos llamadas tienen que ir con el mismo prompt,
+    # y no tiene sentido volver a la BD en cada vuelta del bucle de tools.
+    prompt = system_prompt()
     # Filter tools to only those available for this role
     available_tools = [t for t in TOOLS if t['name'] in handlers]
 
@@ -1284,7 +1306,7 @@ def chat(message: str, api_key: str, is_admin: bool = False) -> str:
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=1024,
-        system=SYSTEM_PROMPT,
+        system=prompt,
         tools=available_tools,
         messages=messages,
     )
@@ -1308,7 +1330,7 @@ def chat(message: str, api_key: str, is_admin: bool = False) -> str:
         response = client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=1024,
-            system=SYSTEM_PROMPT,
+            system=prompt,
             tools=available_tools,
             messages=messages,
         )
