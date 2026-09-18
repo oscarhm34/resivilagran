@@ -414,6 +414,22 @@
         .pending-icon.docs { background:var(--tint-warn-bg); }
         .pending-icon.training { background:var(--tint-ok-bg); }
         .mode-badge-mood     { background:var(--tint-mood-bg); color:var(--tint-mood-fg); }
+        .mode-badge-inv      { background:var(--tint-warn-bg); color:var(--tint-warn-fg); }
+
+        /* ── Inventario de pertenencias ── */
+        .inv-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:10px; }
+        .inv-thumb { position:relative; aspect-ratio:1; border-radius:12px; overflow:hidden; background:var(--bg); border:none; padding:0; cursor:pointer; }
+        .inv-thumb img { width:100%; height:100%; object-fit:cover; }
+        .inv-cap { position:absolute; inset-inline:0; bottom:0; background:rgba(0,0,0,.55); color:#fff; font-size:10px; padding:3px 5px; text-align:start; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .inv-note { display:flex; align-items:center; gap:12px; padding:14px; border-radius:14px; background:var(--bg); color:var(--text); border:none; width:100%; text-align:start; font-family:inherit; margin-bottom:6px; min-height:44px; cursor:pointer; }
+        .inv-note-icon { width:36px; height:36px; border-radius:10px; background:var(--tint-warn-bg); display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+        .inv-chip { padding:9px 14px; min-height:40px; border-radius:20px; border:1.5px solid var(--border); background:var(--surface); color:var(--text); font-size:12px; font-family:inherit; cursor:pointer; transition:all .15s; }
+        .inv-chip.active { background:var(--blue); color:#fff; border-color:var(--blue); }
+        .inv-textarea { width:100%; border:1px solid var(--border); border-radius:12px; padding:12px; font-size:15px; resize:none; font-family:inherit; background:var(--surface); color:var(--text); }
+        /* El reset global (* { margin:0 }) se lleva por delante el margin:auto
+           con el que el navegador centra los <dialog> modales. */
+        #inv-delete-dialog { margin:auto; }
+        #inv-delete-dialog::backdrop { background:rgba(0,0,0,.4); }
         .mode-badge-food     { background:var(--tint-food-bg); color:var(--tint-food-fg); }
         .mode-badge-docs     { background:var(--tint-warn-bg); color:var(--tint-warn-fg); }
         .mode-badge-training { background:var(--tint-ok-bg);   color:var(--tint-ok-fg); }
@@ -688,6 +704,18 @@
             <button class="mode-card care" id="btn-care">
                 <div class="mode-icon">🤲</div>
                 <div class="mode-label">Residentes</div>
+            </button>
+        </div>
+
+        <!-- Inventario de pertenencias -->
+        <div style="margin-bottom:20px">
+            <button class="mode-card" id="btn-inventory" style="grid-column:1/-1;flex-direction:row;padding:14px 18px;border-radius:14px;gap:12px;background:var(--bg);color:var(--text)">
+                <div class="mode-icon" style="font-size:22px">🧳</div>
+                <div style="text-align:left;flex:1">
+                    <div class="mode-label" style="font-size:14px">Pertenencias</div>
+                    <div style="font-size:12px;color:var(--text-2);font-family:'Inter',system-ui,sans-serif;font-weight:400;margin-top:2px">Inventario de objetos del residente</div>
+                </div>
+                <div style="font-size:18px;color:var(--text-2)">→</div>
             </button>
         </div>
 
@@ -1238,6 +1266,7 @@
                 <div id="ri-room" style="color:var(--text-2);font-size:14px;margin-bottom:6px"></div>
                 <div id="ri-group" style="margin-bottom:14px;font-size:13px"></div>
                 <div id="ri-info" style="text-align:left;white-space:pre-wrap;font-size:14px;background:var(--bg);padding:14px;border-radius:12px;color:var(--text);min-height:40px"></div>
+                <button type="button" id="ri-belongings" style="width:100%;margin-top:12px;min-height:48px;border-radius:14px;border:1.5px solid var(--border);background:var(--surface);color:var(--text);font-size:15px;font-weight:600;font-family:inherit;cursor:pointer">🧳 Ver pertenencias</button>
             </div>
         </div>
     </div>
@@ -1391,6 +1420,142 @@
         <div id="route-list" style="display:flex;flex-direction:column;gap:8px"></div>
     </div>
 
+    <!-- ══ INVENTARIO · elegir residente ══ -->
+    <div id="screen-inv-select" class="screen">
+        <div class="scan-header">
+            <button class="btn-back" id="inv-select-back" aria-label="Volver">←</button>
+            <span class="mode-badge mode-badge-inv">🧳 Pertenencias</span>
+            <button id="inv-nfc-btn" style="margin-left:auto;background:var(--blue);color:#fff;border:none;border-radius:20px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;min-height:40px">📡 NFC</button>
+        </div>
+        <div style="margin:12px 0 8px">
+            <input class="fallback-input" type="text" id="inv-search"
+                   placeholder="Buscar residente..." autocomplete="off" style="width:100%">
+        </div>
+        <div id="inv-select-list" style="flex:1;overflow-y:auto"></div>
+    </div>
+
+    <!-- ══ INVENTARIO · consultar o anadir ══ -->
+    <div id="screen-inv-actions" class="screen">
+        <div class="scan-header">
+            <button class="btn-back" id="inv-actions-back" aria-label="Volver">←</button>
+            <span class="mode-badge mode-badge-inv">🧳 Pertenencias</span>
+        </div>
+        <div style="text-align:center;padding:20px 0 24px">
+            <div id="inv-res-photo-wrap" style="margin-bottom:10px">
+                <img id="inv-res-photo" alt="" style="width:92px;height:92px;border-radius:50%;object-fit:cover;border:3px solid var(--border)">
+            </div>
+            <h3 id="inv-res-name" style="font-family:'Outfit',system-ui,sans-serif;font-weight:700;font-size:20px;margin:0;color:var(--text)"></h3>
+            <p style="color:var(--text-2);font-size:13px;margin-top:4px">¿Qué quieres hacer?</p>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+            <button class="mode-card" id="inv-go-list" style="flex-direction:row;padding:16px 18px;border-radius:16px;gap:14px;background:var(--bg);color:var(--text)">
+                <div class="mode-icon" style="font-size:24px">📋</div>
+                <div style="text-align:left;flex:1">
+                    <div class="mode-label" style="font-size:15px">Consultar inventario</div>
+                    <div id="inv-count-sub" style="font-size:12px;color:var(--text-2);font-family:'Inter',system-ui,sans-serif;font-weight:400;margin-top:2px">Ver lo que tiene registrado</div>
+                </div>
+                <div style="font-size:18px;color:var(--text-2)">→</div>
+            </button>
+            <button class="mode-card care" id="inv-go-add" style="flex-direction:row;padding:16px 18px;border-radius:16px;gap:14px;color:var(--text)">
+                <div class="mode-icon" style="font-size:24px">➕</div>
+                <div style="text-align:left;flex:1">
+                    <div class="mode-label" style="font-size:15px">Añadir un objeto</div>
+                    <div style="font-size:12px;color:var(--text-2);font-family:'Inter',system-ui,sans-serif;font-weight:400;margin-top:2px">Con foto o solo con texto</div>
+                </div>
+                <div style="font-size:18px;color:var(--text-2)">→</div>
+            </button>
+        </div>
+    </div>
+
+    <!-- ══ INVENTARIO · listado ══ -->
+    <div id="screen-inv-list" class="screen">
+        <div class="scan-header">
+            <button class="btn-back" id="inv-list-back" aria-label="Volver">←</button>
+            <span class="mode-badge mode-badge-inv">🧳 <span id="inv-list-name"></span></span>
+        </div>
+        <div id="inv-filters" style="display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 12px"></div>
+        <div id="inv-list-body" style="flex:1;overflow-y:auto"></div>
+        <button id="inv-list-add" class="fab-group-start">➕ Añadir un objeto</button>
+    </div>
+
+    <!-- ══ INVENTARIO · ficha de un objeto ══ -->
+    <div id="screen-inv-item" class="screen">
+        <div class="scan-header" style="margin-bottom:14px">
+            <button class="btn-back" id="inv-item-back" aria-label="Volver">←</button>
+            <span class="mode-badge mode-badge-inv">🧳 Objeto</span>
+        </div>
+        <div id="inv-item-photo-wrap" style="margin-bottom:14px">
+            <img id="inv-item-photo" alt="" style="width:100%;border-radius:16px;background:var(--bg);display:block">
+        </div>
+        <div class="textarea-mic-wrap">
+            <textarea id="inv-item-desc" class="inv-textarea" rows="3"
+                      placeholder="Sin descripción" readonly></textarea>
+            <button type="button" class="voice-mic-btn" data-target="inv-item-desc" aria-label="Dictar" style="display:none">🎤</button>
+        </div>
+        <div id="inv-item-chips" style="display:none;flex-wrap:wrap;gap:6px;margin-top:10px"></div>
+        <div id="inv-item-cat" style="margin-top:10px"></div>
+        <p id="inv-item-meta" style="font-size:12px;color:var(--text-2);margin-top:12px"></p>
+        <div class="spacer"></div>
+        <div style="display:flex;gap:10px;margin-top:16px">
+            <button id="inv-item-edit" class="btn-cam secondary" style="flex:1;min-height:48px">Editar</button>
+            <button id="inv-item-save" class="btn-cam primary" style="flex:1;min-height:48px;display:none">Guardar</button>
+            <button id="inv-item-del" class="btn-cam" style="flex:1;min-height:48px;background:none;border:1.5px solid var(--danger);color:var(--danger)">Eliminar</button>
+        </div>
+    </div>
+
+    <!-- ══ INVENTARIO · anadir ══ -->
+    <div id="screen-inv-add" class="screen">
+        <div class="scan-header" style="margin-bottom:14px">
+            <button class="btn-back" id="inv-add-back" aria-label="Volver">←</button>
+            <span class="mode-badge mode-badge-inv">🧳 <span id="inv-add-name"></span></span>
+        </div>
+        <div id="inv-add-choice" style="display:flex;flex-direction:column;gap:12px;margin-top:16px">
+            <button class="mode-card" id="inv-add-cam" style="flex-direction:row;padding:18px;border-radius:16px;gap:14px;background:var(--blue-lt);color:var(--text)">
+                <div class="mode-icon" style="font-size:26px">📷</div>
+                <div style="text-align:left;flex:1">
+                    <div class="mode-label" style="font-size:15px;color:var(--blue)">Hacer una foto</div>
+                    <div style="font-size:12px;color:var(--text-2);font-family:'Inter',system-ui,sans-serif;font-weight:400;margin-top:2px">Se abre la cámara del móvil</div>
+                </div>
+            </button>
+            <button class="mode-card" id="inv-add-text" style="flex-direction:row;padding:18px;border-radius:16px;gap:14px;background:var(--bg);color:var(--text)">
+                <div class="mode-icon" style="font-size:26px">✏️</div>
+                <div style="text-align:left;flex:1">
+                    <div class="mode-label" style="font-size:15px">Solo texto</div>
+                    <div style="font-size:12px;color:var(--text-2);font-family:'Inter',system-ui,sans-serif;font-weight:400;margin-top:2px">Describir el objeto sin foto</div>
+                </div>
+            </button>
+        </div>
+        <div id="inv-add-form" style="display:none;flex:1;flex-direction:column">
+            <div id="inv-add-preview-wrap" style="margin-bottom:12px;display:none">
+                <img id="inv-add-preview" alt="" style="width:100%;max-height:44vh;object-fit:contain;border-radius:16px;background:var(--bg);display:block">
+            </div>
+            <div class="textarea-mic-wrap">
+                <textarea id="inv-add-desc" class="inv-textarea" rows="3"
+                          placeholder="Describe el objeto (opcional si hay foto)..."></textarea>
+                <button type="button" class="voice-mic-btn" data-target="inv-add-desc" aria-label="Dictar">🎤</button>
+            </div>
+            <div style="font-size:12px;font-weight:600;color:var(--text-2);margin:14px 0 8px">Categoría (opcional):</div>
+            <div id="inv-add-chips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+            <div class="spacer"></div>
+            <div style="display:flex;gap:10px;margin-top:16px">
+                <button id="inv-add-retake" class="btn-cam secondary" style="flex:1;min-height:48px;display:none">Repetir foto</button>
+                <button id="inv-add-save" class="btn-cam primary" style="flex:2;min-height:48px">Guardar</button>
+            </div>
+        </div>
+        <input type="file" id="inv-file" accept="image/*" capture="environment" hidden>
+    </div>
+
+    <dialog id="inv-delete-dialog" style="border-radius:18px;border:none;padding:0;max-width:320px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.3);background:var(--surface)">
+        <div style="padding:24px">
+            <p style="font-weight:700;font-size:16px;font-family:'Outfit',system-ui,sans-serif;margin:0 0 6px;color:var(--text)">Eliminar objeto</p>
+            <p style="color:var(--text-2);font-size:14px;margin:0 0 22px">Se borrará del inventario junto con su foto. ¿Continuar?</p>
+            <div style="display:flex;gap:10px;justify-content:flex-end">
+                <button id="inv-del-no" style="padding:10px 18px;border-radius:12px;border:1.5px solid var(--border);background:none;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Mantener</button>
+                <button id="inv-del-yes" style="padding:10px 18px;border-radius:12px;border:none;background:var(--danger);color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Eliminar</button>
+            </div>
+        </div>
+    </dialog>
+
     <dialog id="cancel-dialog" style="border-radius:18px;border:none;padding:0;max-width:320px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.3);background:var(--surface)">
         <div style="padding:24px">
             <p style="font-weight:700;font-size:16px;font-family:'Outfit',system-ui,sans-serif;margin:0 0 6px">Cancelar sesión</p>
@@ -1537,6 +1702,10 @@ const S = {
     groupStepData: [],
     nfcGroupMode: false,
     nfcGroupScanned: [],
+    invScanMode: false,          // la etiqueta NFC solo identifica al residente
+    invResidentId: null,
+    invResidentName: '',
+    invResidentPhoto: null,
     config: { allow_group_care: true, nfc_only: true },
 };
 
@@ -3110,6 +3279,7 @@ $('scan-back').addEventListener('click', () => {
     stopNfc();
     S.nfcGroupMode = false;
     S.nfcGroupScanned = [];
+    if (S.invScanMode) { S.invScanMode = false; show('screen-inv-select'); return; }
     S.mode ? show('screen-select') : show('screen-home');
 });
 $('btn-manual').addEventListener('click',   () => { const c = $('manual-code').value.trim(); if (c) handleCode(c); });
@@ -3219,6 +3389,24 @@ async function handleCode(code, confirmar = false) {
     nfcProcessing = true;
 
     try {
+    // Inventario: la etiqueta solo sirve para saber de quien es la maleta, asi
+    // que se resuelve con dry_run y no se abre ninguna atencion.
+    if (S.invScanMode) {
+        $('scan-sub').textContent = 'Buscando residente…';
+        const { ok, data } = await api('/api/nfc/scan', 'POST', {
+            nfc_code: code, worker_id: parseInt(S.workerId), mode: 'care', dry_run: true,
+        });
+        if (!ok) {
+            toast(data.error || 'Residente no encontrado');
+            $('scan-sub').textContent = 'Lector NFC activo ✓';
+            return;
+        }
+        stopNfc();
+        S.invScanMode = false;
+        openInvActions(data.resident_id, data.resident_name || data.subject, data.photo_url || null);
+        return;
+    }
+
     // NFC group scan mode: look up resident and add to list instead of starting session
     if (S.nfcGroupMode) {
         $('scan-sub').textContent = 'Buscando residente…';
@@ -4082,6 +4270,10 @@ async function showResidentInfo(residentId) {
         $('ri-group').textContent = '';
     }
     $('ri-info').textContent = data.relevant_info || 'Sin información adicional';
+    // Guardado para el botón de pertenencias del propio diálogo.
+    S.riResidentId = residentId;
+    S.riResidentName = data.name;
+    S.riResidentPhoto = data.photo_url || null;
     $('resident-info-dialog').style.display = 'flex';
 }
 
@@ -4876,6 +5068,392 @@ function renderRoute(data) {
 
 $('btn-my-route').addEventListener('click', function() { show('screen-route'); });
 $('route-back').addEventListener('click', function() { show('screen-home'); });
+
+// ── Inventario de pertenencias ─────────────────────────────────────────────
+// Dos puertas al mismo sitio: la pulsera NFC del residente y la lista con
+// buscador, porque hay que poder mirar la maleta de quien no está delante.
+var INV = {
+    items: [],
+    categories: [],
+    rows: [],          // residentes tal y como los pinta el selector
+    filter: '',
+    current: null,     // objeto abierto en la ficha
+    addCategory: '',
+    photo: null,       // Blob ya comprimido, pendiente de subir
+    urls: [],          // object URLs de las miniaturas, para revocarlas al salir
+};
+var invPreviewUrl = null;
+
+// En un Android modesto una rejilla de treinta fotos se come la memoria si
+// nadie devuelve las URLs de los blobs.
+function invLiberarUrls() {
+    INV.urls.forEach(function (u) { URL.revokeObjectURL(u); });
+    INV.urls = [];
+}
+
+function enterInventory() {
+    S.invScanMode = false;
+    $('inv-search').value = '';
+    show('screen-inv-select');
+    loadInvResidents();
+}
+
+async function loadInvResidents() {
+    const list = $('inv-select-list');
+    list.innerHTML = '<p class="sel-empty"><span class="spinner"></span></p>';
+    const { ok, data } = await api('/api/residents?worker_id=' + parseInt(S.workerId));
+    if (!ok) { list.innerHTML = '<p class="sel-empty">No se pudo cargar la lista</p>'; return; }
+
+    INV.rows = [];
+    function fila(r) {
+        const idx = INV.rows.push(r) - 1;
+        const icon = r.photo_url
+            ? '<div class="sel-icon care" style="padding:0;overflow:hidden"><img data-auth-src="' + r.photo_url + '" style="width:100%;height:100%;border-radius:12px;object-fit:cover" alt=""></div>'
+            : '<div class="sel-icon care">🤲</div>';
+        return '<div class="sel-item-wrap" data-search="' + esc(r.name + ' ' + (r.room_number || '')) + '">'
+            + '<div class="sel-item-row">'
+            + '<button class="sel-item care" data-idx="' + idx + '">' + icon
+            + '<div class="sel-info"><div class="sel-name-row"><span class="sel-name-text">' + esc(r.name) + '</span></div>'
+            + '<div class="sel-sub">' + (r.room_number ? esc(t('Hab. {0}', [r.room_number])) : '') + '</div>'
+            + '</div></button></div></div>';
+    }
+
+    let html = '';
+    for (const g of (data.groups || [])) {
+        const mia = g.is_mine ? ' <span style="font-size:10px;opacity:.6">★ mi grupo</span>' : '';
+        html += '<div class="sel-group" data-group><div class="sel-group-header">'
+             + '<span class="sel-group-dot" style="background:' + esc(g.color) + '"></span>'
+             + esc(g.name) + mia + '</div>';
+        for (const r of g.residents) html += fila(r);
+        html += '</div>';
+    }
+    const sueltos = data.ungrouped || [];
+    if (sueltos.length) {
+        html += '<div class="sel-group" data-group><div class="sel-group-header">Sin grupo</div>';
+        for (const r of sueltos) html += fila(r);
+        html += '</div>';
+    }
+    list.innerHTML = html || '<p class="sel-empty">No hay residentes</p>';
+
+    list.querySelectorAll('.sel-item[data-idx]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const r = INV.rows[parseInt(btn.dataset.idx)];
+            if (r) openInvActions(r.id, r.name, r.photo_url || null);
+        });
+    });
+    list.querySelectorAll('img[data-auth-src]').forEach(img => loadAuthImg(img, img.dataset.authSrc));
+}
+
+$('inv-search').addEventListener('input', function () {
+    const q = this.value.toLowerCase().trim();
+    const list = $('inv-select-list');
+    list.querySelectorAll('.sel-item-wrap').forEach(function (item) {
+        const texto = (item.dataset.search || '').toLowerCase();
+        item.style.display = (!q || texto.includes(q)) ? '' : 'none';
+    });
+    list.querySelectorAll('[data-group]').forEach(function (g) {
+        const visibles = g.querySelectorAll('.sel-item-wrap:not([style*="display: none"])').length;
+        g.style.display = visibles ? '' : 'none';
+    });
+});
+
+function enterInvScan() {
+    S.mode = null;
+    S.invScanMode = true;
+    S.nfcGroupMode = false;
+    S.nfcGroupScanned = [];
+    const badge = $('scan-badge');
+    badge.className = 'mode-badge mode-badge-inv';
+    badge.style.background = '';
+    badge.style.color = '';
+    badge.textContent = '🧳 Pertenencias';
+    $('scan-instr').textContent = 'Acerca el NFC a la pulsera del residente';
+    $('scan-sub').textContent   = 'Preparando lector NFC…';
+    $('nfc-inner').className    = 'nfc-inner';
+    $('nfc-unsupported').classList.remove('visible');
+    $('scan-group-toggle').style.display = 'none';
+    $('scan-group-list').style.display = 'none';
+    $('scan-start-group').style.display = 'none';
+    show('screen-scan');
+    startNfc();
+}
+
+async function openInvActions(residentId, residentName, photoUrl) {
+    S.invResidentId = residentId;
+    S.invResidentName = residentName || '';
+    S.invResidentPhoto = photoUrl || null;
+    $('inv-res-name').textContent = S.invResidentName;
+    if (photoUrl) {
+        $('inv-res-photo-wrap').style.display = '';
+        $('inv-res-photo').src = '';
+        loadAuthImg($('inv-res-photo'), photoUrl);
+    } else {
+        $('inv-res-photo-wrap').style.display = 'none';
+    }
+    $('inv-count-sub').textContent = 'Cargando…';
+    show('screen-inv-actions');
+    await loadInvItems();
+    const n = INV.items.length;
+    $('inv-count-sub').textContent = n === 0 ? 'Todavía no hay nada registrado'
+        : (n === 1 ? '1 objeto registrado' : t('{0} objetos registrados', [n]));
+}
+
+async function loadInvItems() {
+    const { ok, data } = await api('/api/worker/resident/' + S.invResidentId + '/belongings');
+    if (!ok) { toast(data.error || 'No se pudo cargar el inventario'); INV.items = []; return false; }
+    INV.items = data.belongings || [];
+    INV.categories = data.categories || [];
+    return true;
+}
+
+function renderCatChips(container, seleccionada, alElegir) {
+    container.dataset.sel = seleccionada || '';
+    container.innerHTML = INV.categories.map(function (c) {
+        return '<button type="button" class="inv-chip' + (c.id === seleccionada ? ' active' : '')
+             + '" data-cat="' + esc(c.id) + '">' + esc(c.label) + '</button>';
+    }).join('');
+    container.querySelectorAll('.inv-chip').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const nueva = container.dataset.sel === btn.dataset.cat ? '' : btn.dataset.cat;
+            container.dataset.sel = nueva;
+            container.querySelectorAll('.inv-chip').forEach(function (b) {
+                b.classList.toggle('active', b.dataset.cat === nueva);
+            });
+            if (alElegir) alElegir(nueva);
+        });
+    });
+}
+
+function openInvList() {
+    $('inv-list-name').textContent = S.invResidentName;
+    renderInvFilters();
+    renderInvList();
+    show('screen-inv-list');
+}
+
+function renderInvFilters() {
+    const usadas = INV.categories.filter(function (c) {
+        return INV.items.some(function (i) { return i.category === c.id; });
+    });
+    const cont = $('inv-filters');
+    if (!usadas.length) { cont.innerHTML = ''; return; }
+    cont.innerHTML = '<button type="button" class="inv-chip' + (INV.filter ? '' : ' active') + '" data-cat="">Todo</button>'
+        + usadas.map(function (c) {
+            return '<button type="button" class="inv-chip' + (INV.filter === c.id ? ' active' : '')
+                 + '" data-cat="' + esc(c.id) + '">' + esc(c.label) + '</button>';
+        }).join('');
+    cont.querySelectorAll('.inv-chip').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            INV.filter = btn.dataset.cat;
+            renderInvFilters();
+            renderInvList();
+        });
+    });
+}
+
+function renderInvList() {
+    invLiberarUrls();
+    const body = $('inv-list-body');
+    const items = INV.filter ? INV.items.filter(function (i) { return i.category === INV.filter; }) : INV.items;
+    if (!items.length) {
+        body.innerHTML = '<p class="sel-empty">Todavía no hay objetos registrados</p>';
+        return;
+    }
+    const conFoto = items.filter(function (i) { return i.photo_url; });
+    const sinFoto = items.filter(function (i) { return !i.photo_url; });
+
+    let html = '';
+    if (conFoto.length) {
+        html += '<div class="inv-grid">' + conFoto.map(function (i) {
+            return '<button class="inv-thumb" data-id="' + i.id + '">'
+                 + '<img alt="" data-inv-src="' + i.photo_url + '">'
+                 + (i.description ? '<span class="inv-cap">' + esc(i.description) + '</span>' : '')
+                 + '</button>';
+        }).join('') + '</div>';
+    }
+    html += sinFoto.map(function (i) {
+        return '<button class="inv-note" data-id="' + i.id + '">'
+             + '<div class="inv-note-icon">📝</div>'
+             + '<div style="flex:1;min-width:0">'
+             + '<div style="font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(i.description) + '</div>'
+             + '<div style="font-size:12px;color:var(--text-2)">' + esc(i.category_label) + '</div>'
+             + '</div></button>';
+    }).join('');
+    body.innerHTML = html;
+
+    body.querySelectorAll('[data-id]').forEach(function (el) {
+        el.addEventListener('click', function () { openInvItem(parseInt(el.dataset.id)); });
+    });
+    body.querySelectorAll('img[data-inv-src]').forEach(async function (img) {
+        try {
+            const url = await blobAutenticado(img.dataset.invSrc);
+            INV.urls.push(url);
+            img.src = url;
+        } catch (e) { /* la foto no está: el resto de la rejilla sigue sirviendo */ }
+    });
+}
+
+function openInvItem(id) {
+    const item = INV.items.find(function (i) { return i.id === id; });
+    if (!item) return;
+    INV.current = item;
+    if (item.photo_url) {
+        $('inv-item-photo-wrap').style.display = '';
+        $('inv-item-photo').src = '';
+        loadAuthImg($('inv-item-photo'), item.photo_url);
+    } else {
+        $('inv-item-photo-wrap').style.display = 'none';
+    }
+    $('inv-item-desc').value = item.description || '';
+    $('inv-item-desc').readOnly = true;
+    $('inv-item-chips').style.display = 'none';
+    $('inv-item-cat').style.display = '';
+    $('inv-item-cat').innerHTML = item.category_label
+        ? '<span class="inv-chip active" style="cursor:default">' + esc(item.category_label) + '</span>' : '';
+    $('inv-item-meta').textContent = item.created_by_name
+        ? t('Registrado por {0} el {1}', [item.created_by_name, item.created_at])
+        : t('Registrado el {0}', [item.created_at]);
+    $('inv-item-edit').style.display = '';
+    $('inv-item-save').style.display = 'none';
+    const mic = document.querySelector('.voice-mic-btn[data-target="inv-item-desc"]');
+    if (mic) mic.style.display = 'none';
+    show('screen-inv-item');
+}
+
+function openInvAdd() {
+    INV.photo = null;
+    INV.addCategory = '';
+    if (invPreviewUrl) { URL.revokeObjectURL(invPreviewUrl); invPreviewUrl = null; }
+    $('inv-add-name').textContent = S.invResidentName;
+    $('inv-add-choice').style.display = 'flex';
+    $('inv-add-form').style.display = 'none';
+    $('inv-add-preview-wrap').style.display = 'none';
+    $('inv-add-preview').src = '';
+    $('inv-add-desc').value = '';
+    $('inv-add-retake').style.display = 'none';
+    show('screen-inv-add');
+}
+
+function mostrarInvForm(conFoto) {
+    $('inv-add-choice').style.display = 'none';
+    $('inv-add-form').style.display = 'flex';
+    $('inv-add-retake').style.display = conFoto ? '' : 'none';
+    renderCatChips($('inv-add-chips'), INV.addCategory, function (c) { INV.addCategory = c; });
+}
+
+// ── Listeners del inventario ──
+$('btn-inventory') && $('btn-inventory').addEventListener('click', enterInventory);
+$('inv-select-back').addEventListener('click', function () { show('screen-home'); });
+$('inv-nfc-btn').addEventListener('click', enterInvScan);
+$('inv-actions-back').addEventListener('click', function () { show('screen-inv-select'); });
+$('inv-go-list').addEventListener('click', openInvList);
+$('inv-go-add').addEventListener('click', openInvAdd);
+$('inv-list-back').addEventListener('click', function () { invLiberarUrls(); show('screen-inv-actions'); });
+$('inv-list-add').addEventListener('click', openInvAdd);
+$('inv-item-back').addEventListener('click', openInvList);
+$('inv-add-back').addEventListener('click', function () { show('screen-inv-actions'); });
+
+// La cámara nativa se abre con un input de fichero: da mejor foto que un
+// <video> propio, ya trae flash y enfoque, y el permiso lo gestiona el sistema.
+$('inv-add-cam').addEventListener('click', function () { $('inv-file').click(); });
+$('inv-add-retake').addEventListener('click', function () { $('inv-file').click(); });
+$('inv-add-text').addEventListener('click', function () {
+    INV.photo = null;
+    mostrarInvForm(false);
+    $('inv-add-desc').focus();
+});
+
+$('inv-file').addEventListener('change', async function (e) {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;                     // la usuaria ha salido de la cámara sin foto
+    INV.photo = await comprimirFoto(f);
+    if (invPreviewUrl) URL.revokeObjectURL(invPreviewUrl);
+    invPreviewUrl = URL.createObjectURL(INV.photo);
+    $('inv-add-preview').src = invPreviewUrl;
+    $('inv-add-preview-wrap').style.display = '';
+    mostrarInvForm(true);
+});
+
+$('inv-add-save').addEventListener('click', async function () {
+    const desc = $('inv-add-desc').value.trim();
+    if (!INV.photo && !desc) { toast('Añade una foto o una descripción'); return; }
+    const btn = this;
+    btn.disabled = true;
+    btn.textContent = 'Guardando…';
+    const fd = new FormData();
+    if (INV.photo) fd.append('photo', INV.photo, 'objeto.jpg');
+    if (desc) fd.append('description', desc);
+    if (INV.addCategory) fd.append('category', INV.addCategory);
+    try {
+        // FormData con fetch a pelo: api() fuerza Content-Type JSON.
+        const res = await fetch('/api/worker/resident/' + S.invResidentId + '/belongings', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + S.token },
+            body: fd,
+        });
+        const datos = await res.json().catch(() => ({}));
+        if (!res.ok) { toast(datos.error || 'No se pudo guardar'); return; }
+        INV.items.unshift(datos.belonging);
+        toast('Objeto registrado');
+        openInvList();
+    } catch (err) {
+        toast('No se pudo guardar. Comprueba la conexión.');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Guardar';
+    }
+});
+
+$('inv-item-edit').addEventListener('click', function () {
+    $('inv-item-desc').readOnly = false;
+    $('inv-item-desc').focus();
+    $('inv-item-cat').style.display = 'none';
+    $('inv-item-chips').style.display = 'flex';
+    renderCatChips($('inv-item-chips'), INV.current ? (INV.current.category || '') : '', null);
+    const mic = document.querySelector('.voice-mic-btn[data-target="inv-item-desc"]');
+    if (mic) mic.style.display = '';
+    this.style.display = 'none';
+    $('inv-item-save').style.display = '';
+});
+
+$('inv-item-save').addEventListener('click', async function () {
+    if (!INV.current) return;
+    const btn = this;
+    btn.disabled = true;
+    btn.textContent = 'Guardando…';
+    const { ok, data } = await api('/api/worker/belongings/' + INV.current.id + '/update', 'POST', {
+        description: $('inv-item-desc').value.trim(),
+        category: $('inv-item-chips').dataset.sel || '',
+    });
+    btn.disabled = false;
+    btn.textContent = 'Guardar';
+    if (!ok) { toast(data.error || 'No se pudo guardar'); return; }
+    const idx = INV.items.findIndex(function (i) { return i.id === data.belonging.id; });
+    if (idx >= 0) INV.items[idx] = data.belonging;
+    toast('Cambios guardados');
+    openInvItem(data.belonging.id);
+});
+
+// Borrar no se deshace: diálogo propio, nunca confirm() nativo.
+$('inv-item-del').addEventListener('click', function () { $('inv-delete-dialog').showModal(); });
+$('inv-del-no').addEventListener('click', function () { $('inv-delete-dialog').close(); });
+$('inv-del-yes').addEventListener('click', async function () {
+    $('inv-delete-dialog').close();
+    if (!INV.current) return;
+    const id = INV.current.id;
+    const { ok, data } = await api('/api/worker/belongings/' + id + '/delete', 'POST');
+    if (!ok) { toast(data.error || 'No se pudo eliminar'); return; }
+    INV.items = INV.items.filter(function (i) { return i.id !== id; });
+    INV.current = null;
+    toast('Objeto eliminado');
+    openInvList();
+});
+
+$('ri-belongings').addEventListener('click', function () {
+    $('resident-info-dialog').style.display = 'none';
+    if (S.riResidentId) openInvActions(S.riResidentId, S.riResidentName, S.riResidentPhoto);
+});
 
 // ── Boot ───────────────────────────────────────────────────────────────────
 (async function boot() {

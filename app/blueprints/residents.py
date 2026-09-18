@@ -11,14 +11,15 @@ import pandas as pd
 from io import BytesIO
 from collections import defaultdict
 import os
+import uuid
 
-from .. import app, db
+from .. import app, db, limiter
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..models import (
     Cleaner, Resident, ResidentGroup, CareRecord, CareType,
     CleaningRecord, Room, ResidentDocument,
     VitalSignType, VitalSignReading, MoodRecord,
-    WoundRecord, WoundUpdate, Notification,
+    WoundRecord, WoundUpdate, Notification, ResidentBelonging,
 )
 from .assessments import get_resident_assessment_data
 from ..models import MedicationPrescription, MedicationAdministration
@@ -26,7 +27,8 @@ from ..utils import (
     volver_atras,
     admin_required, _format_duration, _allowed_file, _safe_commit,
     ALLOWED_IMAGE_EXTENSIONS, ALLOWED_DOC_EXTENSIONS,
-    _open_image_oriented, log_audit, _safe_flush, formato_constante,
+    _open_image_oriented, _save_image_stream, log_audit, _safe_flush,
+    formato_constante,
 )
 
 bp = Blueprint('residents', __name__)
@@ -49,6 +51,39 @@ def _save_resident_photo(file_storage, resident_id: int) -> str:
         app.logger.error('Error saving resident photo: %s', e)
         raise ValueError('No se pudo guardar la foto. Formato no válido o disco lleno.')
     return f'residents/{filename}'
+
+
+# Categorias de pertenencias. Opcionales: sirven para filtrar el inventario,
+# no para obligar a clasificar nada mientras se hace la foto.
+BELONGING_CATEGORIES = {
+    'ropa': 'Ropa',
+    'calzado': 'Calzado',
+    'higiene': 'Higiene',
+    'complementos': 'Complementos',
+    'aparatos': 'Aparatos',
+    'otros': 'Otros',
+}
+
+
+def _save_belonging_photo(file_storage, resident_id: int) -> str:
+    """Guarda la foto de una pertenencia y devuelve su path relativo.
+
+    El sufijo aleatorio evita lo que le pasa a `_save_base64_photo`: registrar
+    una maleta son diez fotos seguidas y con solo la marca de segundos se
+    pisarian entre ellas.
+    """
+    ts = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+    sufijo = uuid.uuid4().hex[:6]
+    folder = os.path.join(app.config['UPLOAD_FOLDER'], 'belongings', f'res_{resident_id}')
+    file_storage.seek(0)
+    try:
+        filename, _w, _h = _save_image_stream(
+            file_storage, folder, f'bel_{resident_id}_{ts}_{sufijo}',
+            max_side=1000, quality=80)
+    except (OSError, IOError) as e:
+        app.logger.error('Error saving belonging photo: %s', e)
+        raise ValueError('No se pudo guardar la foto. Formato no valido o disco lleno.')
+    return f'belongings/res_{resident_id}/{filename}'
 
 
 def _build_fichajes(worker_id: int, year: int, mon: int) -> list[dict]:
@@ -1313,3 +1348,159 @@ def worker_create_wound(resident_id: int):
     if not ok:
         return jsonify({'error': error}), 500
     return jsonify({'ok': True, 'id': wound.id}), 201
+
+
+# ── Worker API: Inventario de pertenencias (JWT) ──────────────────────────
+
+def _belonging_data(b: ResidentBelonging) -> dict:
+    return {
+        'id': b.id,
+        'photo_url': f'/api/uploads/{b.photo_path}' if b.photo_path else None,
+        'category': b.category,
+        'category_label': BELONGING_CATEGORIES.get(b.category, ''),
+        'description': b.description or '',
+        'created_by_name': b.creator.name if b.creator else '',
+        'created_at': b.created_at.strftime('%d/%m/%Y'),
+    }
+
+
+def _resident_activo(resident_id: int):
+    """El residente si existe y esta de alta; None si no."""
+    resident = db.session.get(Resident, resident_id)
+    if not resident or not resident.active:
+        return None
+    return resident
+
+
+@bp.route('/api/worker/resident/<int:resident_id>/belongings')
+@jwt_required()
+def worker_get_belongings(resident_id: int):
+    """Inventario de pertenencias de un residente (vista de la webapp)."""
+    if not _resident_activo(resident_id):
+        return jsonify({'error': 'Residente no encontrado'}), 404
+
+    items = ResidentBelonging.query.options(
+        joinedload(ResidentBelonging.creator)
+    ).filter_by(resident_id=resident_id).order_by(
+        ResidentBelonging.created_at.desc(), ResidentBelonging.id.desc()
+    ).all()
+    return jsonify({
+        'categories': [{'id': k, 'label': v} for k, v in BELONGING_CATEGORIES.items()],
+        'belongings': [_belonging_data(b) for b in items],
+    })
+
+
+@bp.route('/api/worker/resident/<int:resident_id>/belongings', methods=['POST'])
+@limiter.limit('20/minute')
+@jwt_required()
+def worker_create_belonging(resident_id: int):
+    """Registra una pertenencia desde la webapp: foto opcional y descripcion.
+
+    Multipart en vez de JSON porque la foto llega ya comprimida como Blob desde
+    el movil; el limite es de 20 al minuto y no de 5 porque registrar la maleta
+    de un ingreso son diez o quince objetos seguidos.
+    """
+    worker = Cleaner.query.filter_by(username=get_jwt_identity()).first()
+    if not worker:
+        return jsonify({'error': 'No autorizado'}), 403
+    if not _resident_activo(resident_id):
+        return jsonify({'error': 'Residente no encontrado'}), 404
+
+    description = (request.form.get('description') or '').strip() or None
+    category = request.form.get('category') or None
+    if category not in BELONGING_CATEGORIES:
+        category = None
+
+    photo = request.files.get('photo')
+    if photo and not photo.filename:
+        photo = None
+    if not photo and not description:
+        return jsonify({'error': 'Anade una foto o una descripcion.'}), 400
+
+    photo_path = None
+    if photo:
+        if not _allowed_file(photo.filename, ALLOWED_IMAGE_EXTENSIONS):
+            return jsonify({'error': 'Formato de imagen no permitido.'}), 400
+        try:
+            photo_path = _save_belonging_photo(photo, resident_id)
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+
+    item = ResidentBelonging(
+        resident_id=resident_id,
+        photo_path=photo_path,
+        category=category,
+        description=description,
+        created_by=worker.id,
+    )
+    db.session.add(item)
+    ok, error = _safe_flush('Error al guardar la pertenencia')
+    if not ok:
+        return jsonify({'error': error}), 500
+
+    log_audit('create', 'resident_belonging', item.id,
+              {'resident_id': resident_id, 'categoria': category or '',
+               'con_foto': bool(photo_path), 'cleaner_id': worker.id})
+    ok, error = _safe_commit('Error al guardar la pertenencia')
+    if not ok:
+        return jsonify({'error': error}), 500
+    return jsonify({'ok': True, 'belonging': _belonging_data(item)}), 201
+
+
+@bp.route('/api/worker/belongings/<int:item_id>/update', methods=['POST'])
+@jwt_required()
+def worker_update_belonging(item_id: int):
+    """Corrige la descripcion o la categoria de una pertenencia."""
+    worker = Cleaner.query.filter_by(username=get_jwt_identity()).first()
+    if not worker:
+        return jsonify({'error': 'No autorizado'}), 403
+
+    item = db.session.get(ResidentBelonging, item_id)
+    if not item:
+        return jsonify({'error': 'Pertenencia no encontrada'}), 404
+
+    data = request.get_json(silent=True) or {}
+    if 'description' in data:
+        item.description = (data.get('description') or '').strip() or None
+    if 'category' in data:
+        cat = data.get('category') or None
+        item.category = cat if cat in BELONGING_CATEGORIES else None
+    if not item.photo_path and not item.description:
+        db.session.rollback()
+        return jsonify({'error': 'La pertenencia necesita una foto o una descripcion.'}), 400
+
+    item.updated_at = datetime.now()
+    log_audit('update', 'resident_belonging', item.id,
+              {'resident_id': item.resident_id, 'cleaner_id': worker.id})
+    ok, error = _safe_commit('Error al actualizar la pertenencia')
+    if not ok:
+        return jsonify({'error': error}), 500
+    return jsonify({'ok': True, 'belonging': _belonging_data(item)})
+
+
+@bp.route('/api/worker/belongings/<int:item_id>/delete', methods=['POST'])
+@jwt_required()
+def worker_delete_belonging(item_id: int):
+    """Elimina una pertenencia y su foto del disco."""
+    worker = Cleaner.query.filter_by(username=get_jwt_identity()).first()
+    if not worker:
+        return jsonify({'error': 'No autorizado'}), 403
+
+    item = db.session.get(ResidentBelonging, item_id)
+    if not item:
+        return jsonify({'error': 'Pertenencia no encontrada'}), 404
+
+    photo_path = item.photo_path
+    log_audit('delete', 'resident_belonging', item.id,
+              {'resident_id': item.resident_id, 'cleaner_id': worker.id})
+    db.session.delete(item)
+    ok, error = _safe_commit('Error al eliminar la pertenencia')
+    if not ok:
+        return jsonify({'error': error}), 500
+
+    if photo_path:
+        try:
+            os.remove(os.path.join(app.config['UPLOAD_FOLDER'], photo_path))
+        except OSError as e:
+            app.logger.warning('No se pudo borrar la foto de la pertenencia: %s', e)
+    return jsonify({'ok': True})

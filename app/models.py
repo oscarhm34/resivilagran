@@ -1306,3 +1306,31 @@ class MessageAttachment(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
 
     message = db.relationship('Message', back_populates='attachments')
+
+
+class ResidentBelonging(db.Model):
+    """Pertenencia personal de un residente: una foto opcional y su descripcion.
+
+    Ropa, maquinillas, panuelos, peines, cinturones. Cuando una prenda se pierde
+    nadie puede decir si llego o no, asi que aqui queda la foto, quien la
+    registro y cuando.
+    """
+    __tablename__ = 'resident_belonging'
+    id = db.Column(db.Integer, primary_key=True)
+    resident_id = db.Column(db.Integer,
+                            db.ForeignKey('resident.id', name='fk_belonging_resident_id'),
+                            nullable=False, index=True)
+    photo_path = db.Column(db.String(255), nullable=True)  # relativo a UPLOAD_FOLDER
+    category = db.Column(db.String(20), nullable=True, index=True)
+    description = db.Column(db.Text, nullable=True)
+    created_by = db.Column(db.Integer,
+                           db.ForeignKey('cleaner.id', name='fk_belonging_cleaner_id'),
+                           nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.now, index=True)
+    updated_at = db.Column(db.DateTime, nullable=True)
+
+    # Dar de baja a un residente no puede dejar filas huerfanas. Los ficheros
+    # del disco se borran en la ruta de delete, que es donde se sabe la ruta.
+    resident = db.relationship('Resident', backref=db.backref(
+        'belongings', lazy=True, cascade='all, delete-orphan'))
+    creator = db.relationship('Cleaner', foreign_keys=[created_by])
