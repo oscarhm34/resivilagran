@@ -148,6 +148,7 @@
                 <li><strong>Si no aparece nadie</strong> lo mas probable no es que el sistema falle, sino que <strong>esa prenda no se llego a fotografiar nunca</strong>. La identificacion solo puede encontrar lo que esta en el inventario: cuantas mas fotos haya, mejor funciona.</li>
                 <li><strong>La foto del objeto perdido no se guarda.</strong> Se compara y se descarta. Todo el calculo se hace dentro del servidor de la residencia: ninguna imagen se envia a ningun servicio de fuera.</li>
             </ul>
+            <p class="mb-0">Desde el panel, el inventario de cada residente se consulta en la pestana <strong>Inventario</strong> de su ficha (Residentes &rarr; nombre del residente). Ver <a href="#residentes">2. Gestion de residentes</a>.</p>
         </div>
     </div>
 
@@ -161,6 +162,7 @@
                 <li><strong>Foto:</strong> Se puede subir una foto del residente que se mostrara en la webapp.</li>
                 <li><strong>Informacion relevante:</strong> Texto libre visible para el personal en la webapp (alergias, indicaciones especiales).</li>
                 <li><strong>Notas:</strong> Observaciones internas.</li>
+                <li><strong>Inventario:</strong> en la ficha de cada residente hay una pestana <strong>Inventario</strong> con sus pertenencias registradas: la foto de cada objeto, su descripcion, la categoria, el dia y la trabajadora que lo apunto. Al pulsar una foto se ve en grande. Se anaden desde la webapp del trabajador; ver <a href="#webapp">1. Webapp del trabajador</a>.</li>
             </ul>
 
             <h6 class="mt-3">Perfil medico</h6>
@@ -1871,6 +1873,7 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>18/09</td><td><strong>El inventario, tambien en la ficha del residente:</strong> la ficha de cada residente tiene una pestana <strong>Inventario</strong> donde se ven sus pertenencias sin salir del panel: la foto de cada objeto, la descripcion, la categoria, el dia y quien lo apunto. Al pulsar una foto se abre en grande. Hasta ahora solo se podian consultar desde la webapp del movil.</td></tr>
                     <tr><td>18/09</td><td><strong>Identificar un objeto perdido por la foto:</strong> aparece una prenda sin nombre y nadie sabe de quien es. En <strong>Pertenencias</strong> hay ahora <strong>Identificar un objeto</strong>: se hace una foto y la aplicacion la compara con el inventario de toda la residencia, y saca una lista de posibles duenos con su foto, el nombre, la habitacion y una etiqueta de coincidencia alta, media o baja. Se ven las dos fotos lado a lado para comparar antes de confirmar. <strong>La aplicacion no decide:</strong> solo propone, porque hay muchas prendas parecidas y si la prenda nunca se fotografio no puede aparecer. Todo el calculo se hace dentro del servidor de la residencia y la foto del objeto perdido no se guarda.</td></tr>
                     <tr><td>18/09</td><td><strong>Eliminar pertenencias queda para administracion:</strong> el boton de eliminar un objeto del inventario solo sale a quien tiene permisos de administrador. Borrar la foto no se deshace y ademas es la que sirve para identificar objetos perdidos. Corregir la descripcion y la categoria lo sigue pudiendo hacer cualquier trabajadora.</td></tr>
                     <tr><td>18/09</td><td><strong>Inventario de pertenencias de los residentes:</strong> en la webapp del trabajador hay un boton nuevo, <strong>Pertenencias</strong>, con un icono de maleta. Se elige al residente acercando el movil a su pulsera o buscandolo en la lista (por si no esta delante) y desde ahi se consulta lo que tiene registrado o se anade algo nuevo: una foto hecha con la camara del movil, con su descripcion debajo, o solo un texto si no hace falta foto. Cada objeto guarda quien lo apunto y que dia. Se puede filtrar por categoria, corregir la descripcion y eliminar objetos. Sirve para que, cuando se pierde una prenda, haya una foto y una fecha que digan si estaba.</td></tr>

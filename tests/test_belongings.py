@@ -280,3 +280,34 @@ def test_una_trabajadora_no_puede_eliminar(
 def test_eliminar_una_pertenencia_inexistente_devuelve_404(client, db, admin_headers):
     assert client.post('/api/worker/belongings/9999/delete',
                        headers=admin_headers).status_code == 404
+
+
+# ── La ficha del panel de administracion ──────────────────────────────────────
+
+def test_la_ficha_del_residente_muestra_su_inventario(
+        auth_client, db, residente, cleaner_user):
+    db.session.add(ResidentBelonging(
+        resident_id=residente.id, description='Cinturon marron de piel',
+        category='complementos', created_by=cleaner_user.id,
+        photo_path=f'belongings/res_{residente.id}/x.jpg'))
+    db.session.commit()
+
+    html = auth_client.get(f'/admin/resident/{residente.id}').get_data(as_text=True)
+
+    assert 'tab-inventario' in html
+    assert 'Cinturon marron de piel' in html
+    assert 'Complementos' in html
+    assert cleaner_user.name in html
+
+
+def test_la_ficha_lo_dice_cuando_no_hay_nada_registrado(auth_client, db, residente):
+    html = auth_client.get(f'/admin/resident/{residente.id}').get_data(as_text=True)
+
+    assert 'tab-inventario' in html
+    assert 'no tiene pertenencias registradas' in html
+
+
+def test_la_ficha_del_residente_necesita_admin(client, db, residente):
+    res = client.get(f'/admin/resident/{residente.id}')
+
+    assert res.status_code in (302, 401, 403)

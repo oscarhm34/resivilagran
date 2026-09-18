@@ -986,9 +986,19 @@ def resident_detail(resident_id: int):
 
     from .medication import ROUTE_LABELS
 
+    # Inventario de pertenencias. Con joinedload para no hacer una consulta por
+    # fila al pintar quien registro cada objeto.
+    belongings = ResidentBelonging.query.options(
+        joinedload(ResidentBelonging.creator)
+    ).filter_by(resident_id=resident_id).order_by(
+        ResidentBelonging.created_at.desc(), ResidentBelonging.id.desc()
+    ).all()
+
     return render_template(
         'resident_detail.html',
         resident=resident,
+        belongings=belongings,
+        belonging_categories=BELONGING_CATEGORIES,
         records=pagination.items,
         pagination=pagination,
         vital_charts=vital_charts,
