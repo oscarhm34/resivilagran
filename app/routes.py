@@ -241,3 +241,52 @@ def purge_messages(dry_run: bool) -> None:
                 except OSError:
                     pass
         print('Hecho.')
+
+
+@app.cli.command('backfill-descriptores')
+@click.option('--todos', is_flag=True,
+              help='Recalcula tambien los que ya tienen descriptor de otra version.')
+def backfill_descriptores(todos: bool) -> None:
+    """Calcula los descriptores de imagen de las pertenencias que no los tengan.
+
+    Hace falta despues del primer despliegue (las fotos ya registradas no los
+    tienen) y cada vez que cambie DESCRIPTOR_VERSION en `image_match.py`.
+    """
+    import os
+    from .models import ResidentBelonging
+    from .image_match import DESCRIPTOR_VERSION, describe, model_available, to_bytes
+    from .utils import _open_image_oriented
+
+    if not model_available():
+        click.echo('No esta el modelo de imagen. Nada que hacer.')
+        return
+
+    q = ResidentBelonging.query.filter(ResidentBelonging.photo_path.isnot(None))
+    if not todos:
+        q = q.filter(db.or_(
+            ResidentBelonging.descriptor_version.is_(None),
+            ResidentBelonging.descriptor_version != DESCRIPTOR_VERSION))
+    pendientes = q.all()
+    click.echo(f'Pertenencias con foto por describir: {len(pendientes)}')
+
+    hechas = fallos = 0
+    for item in pendientes:
+        ruta = os.path.join(app.config['UPLOAD_FOLDER'], item.photo_path)
+        try:
+            with _open_image_oriented(ruta) as img:
+                emb, hist = describe(img)
+            if emb is None:
+                raise ValueError('el modelo no devolvio vector')
+            item.embedding = to_bytes(emb)
+            item.color_hist = to_bytes(hist)
+            item.descriptor_version = DESCRIPTOR_VERSION
+            hechas += 1
+        except Exception as e:                   # noqa: BLE001
+            fallos += 1
+            click.echo(f'  [!] {item.photo_path}: {e}')
+        if hechas and hechas % 50 == 0:
+            db.session.commit()
+            click.echo(f'  ...{hechas}')
+
+    db.session.commit()
+    click.echo(f'Listo. Descritas {hechas}, fallidas {fallos}.')

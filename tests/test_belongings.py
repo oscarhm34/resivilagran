@@ -29,6 +29,14 @@ def worker_headers(db, cleaner_user, app):
 
 
 @pytest.fixture
+def admin_headers(db, admin_user, app):
+    """Cabecera JWT de una administradora: la unica que puede eliminar."""
+    with app.app_context():
+        token = create_access_token(identity=admin_user.username)
+    return {'Authorization': f'Bearer {token}'}
+
+
+@pytest.fixture
 def otra_trabajadora(db):
     """Segunda trabajadora, para comprobar de quien queda constancia."""
     u = Cleaner(username='limpiadora2', name='Otra Trabajadora', is_admin=False)
@@ -237,7 +245,7 @@ def test_no_se_puede_dejar_un_elemento_mudo(
 # ── Eliminar ──────────────────────────────────────────────────────────────────
 
 def test_eliminar_borra_la_fila_y_la_foto(
-        client, db, residente, worker_headers, uploads):
+        client, db, residente, worker_headers, admin_headers, uploads):
     creada = client.post(
         f'/api/worker/resident/{residente.id}/belongings',
         headers=worker_headers,
@@ -248,13 +256,27 @@ def test_eliminar_borra_la_fila_y_la_foto(
                         db.session.get(ResidentBelonging, item_id).photo_path)
     assert os.path.exists(ruta)
 
-    res = client.post(f'/api/worker/belongings/{item_id}/delete', headers=worker_headers)
+    res = client.post(f'/api/worker/belongings/{item_id}/delete', headers=admin_headers)
 
     assert res.status_code == 200
     assert db.session.get(ResidentBelonging, item_id) is None
     assert not os.path.exists(ruta)
 
 
-def test_eliminar_una_pertenencia_inexistente_devuelve_404(client, db, worker_headers):
+def test_una_trabajadora_no_puede_eliminar(
+        client, db, residente, cleaner_user, worker_headers):
+    """Borrar la foto no se deshace: queda para administracion."""
+    item = ResidentBelonging(resident_id=residente.id, description='Peine',
+                             created_by=cleaner_user.id)
+    db.session.add(item)
+    db.session.commit()
+
+    res = client.post(f'/api/worker/belongings/{item.id}/delete', headers=worker_headers)
+
+    assert res.status_code == 403
+    assert db.session.get(ResidentBelonging, item.id) is not None
+
+
+def test_eliminar_una_pertenencia_inexistente_devuelve_404(client, db, admin_headers):
     assert client.post('/api/worker/belongings/9999/delete',
-                       headers=worker_headers).status_code == 404
+                       headers=admin_headers).status_code == 404

@@ -29,3 +29,6 @@ app/static/qr
 
 # Editor
 .vscode/
+
+# Modelo de imagen: se descarga en el build, no se versiona (23 MB)
+models/

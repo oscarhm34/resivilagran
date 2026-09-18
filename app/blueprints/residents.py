@@ -1372,6 +1372,25 @@ def _resident_activo(resident_id: int):
     return resident
 
 
+def _describir_foto(ruta_relativa: str, item: ResidentBelonging) -> None:
+    """Calcula y guarda los descriptores de la foto de una pertenencia.
+
+    Nunca levanta: si el modelo falla o falta, la pertenencia se guarda igual y
+    queda sin describir. Registrar el objeto es lo importante; poder buscarlo
+    despues por parecido es un extra que recupera `flask backfill-descriptores`.
+    """
+    from ..image_match import DESCRIPTOR_VERSION, describe, to_bytes
+    try:
+        ruta = os.path.join(app.config['UPLOAD_FOLDER'], ruta_relativa)
+        with _open_image_oriented(ruta) as img:
+            emb, hist = describe(img)
+        item.color_hist = to_bytes(hist)
+        item.embedding = to_bytes(emb)
+        item.descriptor_version = DESCRIPTOR_VERSION if emb is not None else None
+    except Exception as e:                       # noqa: BLE001
+        app.logger.warning('No se pudieron calcular los descriptores: %s', e)
+
+
 @bp.route('/api/worker/resident/<int:resident_id>/belongings')
 @jwt_required()
 def worker_get_belongings(resident_id: int):
@@ -1433,6 +1452,8 @@ def worker_create_belonging(resident_id: int):
         description=description,
         created_by=worker.id,
     )
+    if photo_path:
+        _describir_foto(photo_path, item)
     db.session.add(item)
     ok, error = _safe_flush('Error al guardar la pertenencia')
     if not ok:
@@ -1481,10 +1502,17 @@ def worker_update_belonging(item_id: int):
 @bp.route('/api/worker/belongings/<int:item_id>/delete', methods=['POST'])
 @jwt_required()
 def worker_delete_belonging(item_id: int):
-    """Elimina una pertenencia y su foto del disco."""
+    """Elimina una pertenencia y su foto del disco.
+
+    Reservado a administracion: borrar la foto no se deshace, y el resto de la
+    webapp la usa para identificar objetos perdidos. Corregir la descripcion si
+    lo puede hacer cualquier trabajadora.
+    """
     worker = Cleaner.query.filter_by(username=get_jwt_identity()).first()
     if not worker:
         return jsonify({'error': 'No autorizado'}), 403
+    if not worker.is_admin:
+        return jsonify({'error': 'Solo administracion puede eliminar pertenencias.'}), 403
 
     item = db.session.get(ResidentBelonging, item_id)
     if not item:
@@ -1504,3 +1532,71 @@ def worker_delete_belonging(item_id: int):
         except OSError as e:
             app.logger.warning('No se pudo borrar la foto de la pertenencia: %s', e)
     return jsonify({'ok': True})
+
+
+@bp.route('/api/worker/belongings/identify', methods=['POST'])
+@limiter.limit('10/minute')
+@jwt_required()
+def worker_identify_belonging():
+    """Compara la foto de un objeto perdido con el inventario de toda la casa.
+
+    La foto de consulta NO se guarda: se describe en memoria y se descarta. Es
+    de un objeto sin dueno conocido y no hace falta para nada mas.
+
+    Devuelve candidatos ordenados, con banda en vez de porcentaje. Nunca decide:
+    quien identifica es la trabajadora mirando las dos fotos.
+    """
+    from ..image_match import (DESCRIPTOR_VERSION, EMBED_DIM, HIST_DIM, BAND_LABELS,
+                               color_histogram, embed, from_bytes, model_available, rank)
+
+    if not Cleaner.query.filter_by(username=get_jwt_identity()).first():
+        return jsonify({'error': 'No autorizado'}), 403
+    if not model_available():
+        return jsonify({'error': 'La identificacion por foto no esta disponible.'}), 503
+
+    photo = request.files.get('photo')
+    if not photo or not photo.filename:
+        return jsonify({'error': 'Haz una foto del objeto.'}), 400
+    if not _allowed_file(photo.filename, ALLOWED_IMAGE_EXTENSIONS):
+        return jsonify({'error': 'Formato de imagen no permitido.'}), 400
+
+    try:
+        photo.seek(0)
+        with _open_image_oriented(photo) as img:
+            emb_q = embed(img)
+            hist_q = color_histogram(img)
+    except (OSError, IOError, ValueError) as e:
+        app.logger.error('Error al leer la foto a identificar: %s', e)
+        return jsonify({'error': 'No se pudo leer la foto.'}), 400
+    if emb_q is None:
+        return jsonify({'error': 'La identificacion por foto no esta disponible.'}), 503
+
+    # Solo inventario de residentes de alta y descriptores de la version actual:
+    # los de una version anterior no son comparables con este vector.
+    filas = ResidentBelonging.query.options(
+        joinedload(ResidentBelonging.resident)
+    ).join(Resident).filter(
+        Resident.active.is_(True),
+        ResidentBelonging.descriptor_version == DESCRIPTOR_VERSION,
+        ResidentBelonging.embedding.isnot(None),
+    ).all()
+
+    candidatos = ((f, from_bytes(f.embedding, EMBED_DIM),
+                   from_bytes(f.color_hist, HIST_DIM)) for f in filas)
+    resultados = rank(emb_q, hist_q, candidatos)
+
+    return jsonify({
+        'comparadas': len(filas),
+        'matches': [{
+            'belonging_id': f.id,
+            'photo_url': f'/api/uploads/{f.photo_path}' if f.photo_path else None,
+            'description': f.description or '',
+            'category_label': BELONGING_CATEGORIES.get(f.category, ''),
+            'resident_id': f.resident_id,
+            'resident_name': f.resident.name if f.resident else '',
+            'room_number': (f.resident.room_number or '') if f.resident else '',
+            'band': banda,
+            'band_label': BAND_LABELS.get(banda, ''),
+            'score': round(valor, 4),
+        } for f, valor, banda in resultados],
+    })

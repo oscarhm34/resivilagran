@@ -43,6 +43,15 @@ bp = Blueprint('nfc', __name__)
 
 # ── HELPER ──────────────────────────────────────────────────────────────────
 
+def _hay_modelo_de_imagen() -> bool:
+    """Si el modelo de comparacion de imagenes esta en el contenedor.
+
+    Import local: `image_match` carga numpy y, al usarse, onnxruntime. No tiene
+    que pagarlo cada arranque quien no identifique nada.
+    """
+    from ..image_match import model_available
+    return model_available()
+
 def _rechazo_por_tiempo(start_time, quien: str | None = None):
     """Respuesta de rechazo si aun no ha pasado el minimo, o None si ya se puede.
 
@@ -1773,6 +1782,13 @@ def api_config():
         'session_max_minutes': int(AppSetting.get('session_max_minutes', '120')),
         'hidden_logout_minutes': int(AppSetting.get('hidden_logout_minutes', '30')),
         'min_session_seconds': int(AppSetting.get('min_session_seconds', MIN_SESSION_SECONDS_DEFAULT)),
+        # Identificar un objeto perdido necesita el modelo de imagen dentro del
+        # contenedor. Si no esta, el boton no se ensena en vez de fallar al pulsarlo.
+        'allow_identify': _hay_modelo_de_imagen(),
+        # Borrar una pertenencia (y su foto) es cosa de administracion. Viaja
+        # aqui y no en el login para que quitar el permiso surta efecto sin
+        # tener que esperar a que la trabajadora vuelva a entrar.
+        'is_admin': bool(_worker_actual() and _worker_actual().is_admin),
         # Va aqui ademas de en el login para que un cambio hecho desde el panel
         # llegue al movil sin tener que volver a entrar.
         'lang': _idioma_valido(_worker_actual().lang if _worker_actual() else None),

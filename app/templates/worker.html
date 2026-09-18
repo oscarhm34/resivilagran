@@ -426,6 +426,17 @@
         .inv-chip { padding:9px 14px; min-height:40px; border-radius:20px; border:1.5px solid var(--border); background:var(--surface); color:var(--text); font-size:12px; font-family:inherit; cursor:pointer; transition:all .15s; }
         .inv-chip.active { background:var(--blue); color:#fff; border-color:var(--blue); }
         .inv-textarea { width:100%; border:1px solid var(--border); border-radius:12px; padding:12px; font-size:15px; resize:none; font-family:inherit; background:var(--surface); color:var(--text); }
+        .inv-band { display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
+        .inv-band.alta  { background:var(--tint-ok-bg);   color:var(--tint-ok-fg); }
+        .inv-band.media { background:var(--tint-warn-bg); color:var(--tint-warn-fg); }
+        .inv-band.baja  { background:var(--muted-bg);     color:var(--text-2); }
+        .inv-cand { display:flex; align-items:center; gap:12px; padding:10px; border-radius:14px; background:var(--bg); color:var(--text); border:none; width:100%; text-align:start; font-family:inherit; margin-bottom:8px; cursor:pointer; min-height:44px; }
+        .inv-cand img { width:64px; height:64px; border-radius:10px; object-fit:cover; flex-shrink:0; background:var(--surface-2); }
+        .inv-compare { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+        .inv-compare figure { margin:0; }
+        .inv-compare img { width:100%; aspect-ratio:1; object-fit:cover; border-radius:14px; background:var(--bg); display:block; }
+        .inv-compare figcaption { font-size:11px; color:var(--text-2); text-align:center; margin-top:6px; }
+
         /* El reset global (* { margin:0 }) se lleva por delante el margin:auto
            con el que el navegador centra los <dialog> modales. */
         #inv-delete-dialog { margin:auto; }
@@ -1427,11 +1438,87 @@
             <span class="mode-badge mode-badge-inv">🧳 Pertenencias</span>
             <button id="inv-nfc-btn" style="margin-left:auto;background:var(--blue);color:#fff;border:none;border-radius:20px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;min-height:40px">📡 NFC</button>
         </div>
-        <div style="margin:12px 0 8px">
+        <button class="mode-card" id="inv-identify-card" style="display:none;flex-direction:row;padding:14px 18px;border-radius:14px;gap:12px;background:var(--tint-warn-bg);color:var(--text);margin-top:14px">
+            <div class="mode-icon" style="font-size:22px">🔎</div>
+            <div style="text-align:left;flex:1">
+                <div class="mode-label" style="font-size:14px;color:var(--tint-warn-fg)">Identificar un objeto</div>
+                <div style="font-size:12px;color:var(--text-2);font-family:'Inter',system-ui,sans-serif;font-weight:400;margin-top:2px">Has encontrado algo sin nombre y no sabes de quién es</div>
+            </div>
+            <div style="font-size:18px;color:var(--text-2)">→</div>
+        </button>
+        <div class="section-label" style="margin-top:18px">O elige un residente</div>
+        <div style="margin:0 0 8px">
             <input class="fallback-input" type="text" id="inv-search"
                    placeholder="Buscar residente..." autocomplete="off" style="width:100%">
         </div>
         <div id="inv-select-list" style="flex:1;overflow-y:auto"></div>
+    </div>
+
+    <!-- ══ INVENTARIO · identificar un objeto perdido ══ -->
+    <div id="screen-inv-identify" class="screen">
+        <div class="scan-header" style="margin-bottom:14px">
+            <button class="btn-back" id="inv-id-back" aria-label="Volver">←</button>
+            <span class="mode-badge mode-badge-inv">🔎 Identificar</span>
+        </div>
+        <div id="inv-id-start">
+            <p style="font-size:14px;color:var(--text-2);margin-bottom:16px">
+                Haz una foto del objeto y se compara con el inventario de toda la residencia.
+                La foto no se guarda en ningún sitio.
+            </p>
+            <button class="mode-card" id="inv-id-cam" style="flex-direction:row;padding:18px;border-radius:16px;gap:14px;background:var(--blue-lt);color:var(--text);width:100%">
+                <div class="mode-icon" style="font-size:26px">📷</div>
+                <div style="text-align:left;flex:1">
+                    <div class="mode-label" style="font-size:15px;color:var(--blue)">Hacer la foto</div>
+                    <div style="font-size:12px;color:var(--text-2);font-family:'Inter',system-ui,sans-serif;font-weight:400;margin-top:2px">Se abre la cámara del móvil</div>
+                </div>
+            </button>
+        </div>
+        <div id="inv-id-working" style="display:none;flex:1;flex-direction:column">
+            <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px">
+                <img id="inv-id-photo" alt="" style="width:76px;height:76px;border-radius:12px;object-fit:cover;background:var(--bg);flex-shrink:0">
+                <div style="flex:1">
+                    <div id="inv-id-state" style="font-weight:600;font-size:14px">Buscando…</div>
+                    <div id="inv-id-sub" style="font-size:12px;color:var(--text-2);margin-top:2px"></div>
+                </div>
+                <button id="inv-id-retake" class="ri-btn" title="Repetir foto" aria-label="Repetir foto">🔄</button>
+            </div>
+            <div id="inv-id-results" style="flex:1;overflow-y:auto"></div>
+        </div>
+        <input type="file" id="inv-id-file" accept="image/*" capture="environment" hidden>
+    </div>
+
+    <!-- ══ INVENTARIO · confirmar la identificacion ══ -->
+    <div id="screen-inv-match" class="screen">
+        <div class="scan-header" style="margin-bottom:16px">
+            <button class="btn-back" id="inv-match-back" aria-label="Volver">←</button>
+            <span class="mode-badge mode-badge-inv">🔎 ¿Es el mismo?</span>
+        </div>
+        <div class="inv-compare">
+            <figure>
+                <img id="inv-match-found" alt="">
+                <figcaption>Lo que has encontrado</figcaption>
+            </figure>
+            <figure>
+                <img id="inv-match-stored" alt="">
+                <figcaption>En el inventario</figcaption>
+            </figure>
+        </div>
+        <div style="text-align:center;margin-top:18px">
+            <span id="inv-match-band" class="inv-band"></span>
+            <h3 id="inv-match-name" style="font-family:'Outfit',system-ui,sans-serif;font-weight:700;font-size:20px;margin:10px 0 2px;color:var(--text)"></h3>
+            <div id="inv-match-room" style="color:var(--text-2);font-size:14px"></div>
+            <div id="inv-match-desc" style="color:var(--text-2);font-size:13px;margin-top:8px"></div>
+        </div>
+        <div id="inv-match-done" style="display:none;margin-top:20px;padding:16px;border-radius:14px;background:var(--green-lt);text-align:center">
+            <div style="font-size:15px;font-weight:700;color:var(--green)">Devuélveselo a <span id="inv-match-done-name"></span></div>
+            <div id="inv-match-done-room" style="font-size:13px;color:var(--text-2);margin-top:4px"></div>
+        </div>
+        <div class="spacer"></div>
+        <div id="inv-match-actions" style="display:flex;gap:10px;margin-top:16px">
+            <button id="inv-match-no" class="btn-cam secondary" style="flex:1;min-height:48px">No es este</button>
+            <button id="inv-match-yes" class="btn-cam primary" style="flex:1;min-height:48px;background:var(--green)">Sí, es suyo</button>
+        </div>
+        <button id="inv-match-end" class="btn-cam secondary" style="display:none;min-height:48px;margin-top:16px">Terminar</button>
     </div>
 
     <!-- ══ INVENTARIO · consultar o anadir ══ -->
@@ -5094,6 +5181,9 @@ function invLiberarUrls() {
 function enterInventory() {
     S.invScanMode = false;
     $('inv-search').value = '';
+    // Sin el modelo de imagen en el servidor no hay identificacion: se esconde
+    // el boton en vez de dejar que falle al pulsarlo.
+    $('inv-identify-card').style.display = S.config.allow_identify ? '' : 'none';
     show('screen-inv-select');
     loadInvResidents();
 }
@@ -5315,6 +5405,9 @@ function openInvItem(id) {
         : t('Registrado el {0}', [item.created_at]);
     $('inv-item-edit').style.display = '';
     $('inv-item-save').style.display = 'none';
+    // Borrar la foto no se deshace y el resto de la webapp la usa para
+    // identificar objetos perdidos: el boton solo sale para administracion.
+    $('inv-item-del').style.display = S.config.is_admin ? '' : 'none';
     const mic = document.querySelector('.voice-mic-btn[data-target="inv-item-desc"]');
     if (mic) mic.style.display = 'none';
     show('screen-inv-item');
@@ -5453,6 +5546,150 @@ $('inv-del-yes').addEventListener('click', async function () {
 $('ri-belongings').addEventListener('click', function () {
     $('resident-info-dialog').style.display = 'none';
     if (S.riResidentId) openInvActions(S.riResidentId, S.riResidentName, S.riResidentPhoto);
+});
+
+// ── Identificar un objeto perdido ──────────────────────────────────────────
+// La foto se compara contra el inventario de toda la casa y no se sube a
+// ningun sitio: el servidor la describe en memoria y la descarta.
+var IDF = { photo: null, url: null, matches: [], current: null };
+
+function invIdReset() {
+    if (IDF.url) { URL.revokeObjectURL(IDF.url); IDF.url = null; }
+    IDF.photo = null;
+    IDF.matches = [];
+    IDF.current = null;
+    $('inv-id-start').style.display = '';
+    $('inv-id-working').style.display = 'none';
+    $('inv-id-results').innerHTML = '';
+    $('inv-id-photo').src = '';
+}
+
+function openInvIdentify() {
+    invIdReset();
+    show('screen-inv-identify');
+}
+
+async function invIdBuscar(fichero) {
+    IDF.photo = await comprimirFoto(fichero);
+    if (IDF.url) URL.revokeObjectURL(IDF.url);
+    IDF.url = URL.createObjectURL(IDF.photo);
+    $('inv-id-photo').src = IDF.url;
+    $('inv-id-start').style.display = 'none';
+    $('inv-id-working').style.display = 'flex';
+    $('inv-id-state').textContent = 'Buscando…';
+    $('inv-id-sub').textContent = '';
+    $('inv-id-results').innerHTML = '<p class="sel-empty"><span class="spinner"></span></p>';
+
+    const fd = new FormData();
+    fd.append('photo', IDF.photo, 'objeto.jpg');
+    let datos = null, res = null;
+    try {
+        res = await fetch('/api/worker/belongings/identify', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + S.token },
+            body: fd,
+        });
+        datos = await res.json().catch(() => ({}));
+    } catch (e) {
+        $('inv-id-state').textContent = 'Sin conexión';
+        $('inv-id-results').innerHTML = '<p class="sel-empty">No se pudo comparar. Inténtalo de nuevo.</p>';
+        return;
+    }
+    if (!res.ok) {
+        $('inv-id-state').textContent = 'No se pudo comparar';
+        $('inv-id-results').innerHTML = '<p class="sel-empty">' + esc((datos && datos.error) || 'Error al comparar') + '</p>';
+        return;
+    }
+
+    IDF.matches = datos.matches || [];
+    $('inv-id-state').textContent = IDF.matches.length
+        ? (IDF.matches.length === 1 ? '1 posible dueño' : t('{0} posibles dueños', [IDF.matches.length]))
+        : 'Sin coincidencias';
+    $('inv-id-sub').textContent = t('Comparado con {0} objetos', [datos.comparadas || 0]);
+    invIdRender();
+}
+
+function invIdRender() {
+    const cont = $('inv-id-results');
+    if (!IDF.matches.length) {
+        // Lo mas probable no es que el sistema falle, sino que el objeto no se
+        // llegara a fotografiar nunca. Decirlo, para que nadie lo lea como un "no es de nadie".
+        cont.innerHTML = '<p class="sel-empty">Ningún objeto del inventario se le parece.<br>'
+            + 'Puede que nunca se llegara a fotografiar.</p>';
+        return;
+    }
+    cont.innerHTML = IDF.matches.map(function (m, i) {
+        return '<button class="inv-cand" data-i="' + i + '">'
+             + '<img alt="" data-inv-src="' + (m.photo_url || '') + '">'
+             + '<div style="flex:1;min-width:0">'
+             + '<div style="font-weight:600;font-size:15px">' + esc(m.resident_name) + '</div>'
+             + '<div style="font-size:12px;color:var(--text-2);margin:2px 0 6px">'
+             + (m.room_number ? esc(t('Hab. {0}', [m.room_number])) : '')
+             + (m.description ? ' · ' + esc(m.description) : '') + '</div>'
+             + '<span class="inv-band ' + esc(m.band) + '">' + esc(m.band_label) + '</span>'
+             + '</div></button>';
+    }).join('')
+    + '<p class="sel-empty" style="padding:16px 0 0">Si no es ninguno, vuelve atrás.</p>';
+
+    cont.querySelectorAll('.inv-cand').forEach(function (btn) {
+        btn.addEventListener('click', function () { openInvMatch(IDF.matches[parseInt(btn.dataset.i)]); });
+    });
+    cont.querySelectorAll('img[data-inv-src]').forEach(async function (img) {
+        if (!img.dataset.invSrc) return;
+        try {
+            const url = await blobAutenticado(img.dataset.invSrc);
+            INV.urls.push(url);
+            img.src = url;
+        } catch (e) { /* sin foto: la fila sigue diciendo de quien es */ }
+    });
+}
+
+function openInvMatch(m) {
+    IDF.current = m;
+    $('inv-match-found').src = IDF.url || '';
+    $('inv-match-stored').src = '';
+    if (m.photo_url) {
+        blobAutenticado(m.photo_url).then(function (u) {
+            INV.urls.push(u);
+            $('inv-match-stored').src = u;
+        }).catch(function () {});
+    }
+    $('inv-match-band').className = 'inv-band ' + m.band;
+    $('inv-match-band').textContent = m.band_label;
+    $('inv-match-name').textContent = m.resident_name;
+    $('inv-match-room').textContent = m.room_number ? t('Hab. {0}', [m.room_number]) : '';
+    $('inv-match-desc').textContent = m.description || '';
+    $('inv-match-done').style.display = 'none';
+    $('inv-match-actions').style.display = 'flex';
+    $('inv-match-end').style.display = 'none';
+    show('screen-inv-match');
+}
+
+$('inv-identify-card').addEventListener('click', openInvIdentify);
+$('inv-id-back').addEventListener('click', function () { invIdReset(); show('screen-inv-select'); });
+$('inv-id-cam').addEventListener('click', function () { $('inv-id-file').click(); });
+$('inv-id-retake').addEventListener('click', function () { $('inv-id-file').click(); });
+$('inv-id-file').addEventListener('change', async function (e) {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    await invIdBuscar(f);
+});
+
+$('inv-match-back').addEventListener('click', function () { show('screen-inv-identify'); });
+$('inv-match-no').addEventListener('click', function () { show('screen-inv-identify'); });
+$('inv-match-yes').addEventListener('click', function () {
+    if (!IDF.current) return;
+    $('inv-match-done-name').textContent = IDF.current.resident_name;
+    $('inv-match-done-room').textContent = IDF.current.room_number
+        ? t('Hab. {0}', [IDF.current.room_number]) : '';
+    $('inv-match-done').style.display = '';
+    $('inv-match-actions').style.display = 'none';
+    $('inv-match-end').style.display = '';
+});
+$('inv-match-end').addEventListener('click', function () {
+    invIdReset();
+    show('screen-inv-select');
 });
 
 // ── Boot ───────────────────────────────────────────────────────────────────

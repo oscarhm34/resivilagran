@@ -1329,6 +1329,14 @@ class ResidentBelonging(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.now, index=True)
     updated_at = db.Column(db.DateTime, nullable=True)
 
+    # Descriptores de la foto, para identificar un objeto perdido comparandolo
+    # con el inventario. LargeBinary es BYTEA en PostgreSQL y BLOB en SQLite:
+    # sin tipos propios de un motor. `descriptor_version` permite recalcular
+    # solo lo que quede viejo si cambia la forma de describir la imagen.
+    embedding = db.Column(db.LargeBinary, nullable=True)
+    color_hist = db.Column(db.LargeBinary, nullable=True)
+    descriptor_version = db.Column(db.String(40), nullable=True, index=True)
+
     # Dar de baja a un residente no puede dejar filas huerfanas. Los ficheros
     # del disco se borran en la ruta de delete, que es donde se sabe la ruta.
     resident = db.relationship('Resident', backref=db.backref(
