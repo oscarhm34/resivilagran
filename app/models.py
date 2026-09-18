@@ -1309,18 +1309,21 @@ class MessageAttachment(db.Model):
 
 
 class ResidentBelonging(db.Model):
-    """Pertenencia personal de un residente: una foto opcional y su descripcion.
+    """Pertenencia personal de un residente: sus fotos y una descripcion.
 
     Ropa, maquinillas, panuelos, peines, cinturones. Cuando una prenda se pierde
     nadie puede decir si llego o no, asi que aqui queda la foto, quien la
     registro y cuando.
+
+    Las fotos viven en `BelongingPhoto`, una fila por foto: un jersey se
+    reconoce mejor con el conjunto, la etiqueta de la talla y el remiendo del
+    puno que con una sola imagen de frente.
     """
     __tablename__ = 'resident_belonging'
     id = db.Column(db.Integer, primary_key=True)
     resident_id = db.Column(db.Integer,
                             db.ForeignKey('resident.id', name='fk_belonging_resident_id'),
                             nullable=False, index=True)
-    photo_path = db.Column(db.String(255), nullable=True)  # relativo a UPLOAD_FOLDER
     category = db.Column(db.String(20), nullable=True, index=True)
     description = db.Column(db.Text, nullable=True)
     created_by = db.Column(db.Integer,
@@ -1329,16 +1332,41 @@ class ResidentBelonging(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.now, index=True)
     updated_at = db.Column(db.DateTime, nullable=True)
 
-    # Descriptores de la foto, para identificar un objeto perdido comparandolo
-    # con el inventario. LargeBinary es BYTEA en PostgreSQL y BLOB en SQLite:
-    # sin tipos propios de un motor. `descriptor_version` permite recalcular
-    # solo lo que quede viejo si cambia la forma de describir la imagen.
-    embedding = db.Column(db.LargeBinary, nullable=True)
-    color_hist = db.Column(db.LargeBinary, nullable=True)
-    descriptor_version = db.Column(db.String(40), nullable=True, index=True)
-
     # Dar de baja a un residente no puede dejar filas huerfanas. Los ficheros
     # del disco se borran en la ruta de delete, que es donde se sabe la ruta.
     resident = db.relationship('Resident', backref=db.backref(
         'belongings', lazy=True, cascade='all, delete-orphan'))
     creator = db.relationship('Cleaner', foreign_keys=[created_by])
+    photos = db.relationship('BelongingPhoto', back_populates='belonging', lazy=True,
+                             cascade='all, delete-orphan',
+                             order_by='BelongingPhoto.id')
+
+    @property
+    def cover(self):
+        """La primera foto, la que representa al objeto en las cuadriculas."""
+        return self.photos[0] if self.photos else None
+
+
+class BelongingPhoto(db.Model):
+    """Una foto de una pertenencia, con los descriptores para identificarla.
+
+    Los descriptores van por foto y no por objeto porque cada toma se compara
+    por separado: al buscar un objeto perdido gana la mejor de sus fotos, que
+    es lo que hace que anadir angulos mejore el acierto.
+    """
+    __tablename__ = 'belonging_photo'
+    id = db.Column(db.Integer, primary_key=True)
+    belonging_id = db.Column(db.Integer,
+                             db.ForeignKey('resident_belonging.id',
+                                           name='fk_photo_belonging_id'),
+                             nullable=False, index=True)
+    photo_path = db.Column(db.String(255), nullable=False)  # relativo a UPLOAD_FOLDER
+    # LargeBinary es BYTEA en PostgreSQL y BLOB en SQLite: sin tipos propios de
+    # un motor. `descriptor_version` permite recalcular solo lo que quede viejo
+    # si cambia la forma de describir la imagen.
+    embedding = db.Column(db.LargeBinary, nullable=True)
+    color_hist = db.Column(db.LargeBinary, nullable=True)
+    descriptor_version = db.Column(db.String(40), nullable=True, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
+
+    belonging = db.relationship('ResidentBelonging', back_populates='photos')

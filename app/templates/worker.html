@@ -432,6 +432,14 @@
         .inv-band.baja  { background:var(--muted-bg);     color:var(--text-2); }
         .inv-cand { display:flex; align-items:center; gap:12px; padding:10px; border-radius:14px; background:var(--bg); color:var(--text); border:none; width:100%; text-align:start; font-family:inherit; margin-bottom:8px; cursor:pointer; min-height:44px; }
         .inv-cand img { width:64px; height:64px; border-radius:10px; object-fit:cover; flex-shrink:0; background:var(--surface-2); }
+        /* Tira de miniaturas: las demas fotos del mismo objeto */
+        .inv-tira { display:flex; gap:6px; overflow-x:auto; margin-top:8px; padding-bottom:2px; }
+        .inv-tira button { position:relative; flex-shrink:0; width:56px; height:56px; border-radius:10px; overflow:hidden; border:2px solid transparent; background:var(--bg); padding:0; cursor:pointer; }
+        .inv-tira button.sel { border-color:var(--blue); }
+        .inv-tira img { width:100%; height:100%; object-fit:cover; }
+        .inv-tira .quitar { position:absolute; top:0; inset-inline-end:0; width:20px; height:20px; border:none; border-radius:0 8px 0 8px; background:rgba(0,0,0,.6); color:#fff; font-size:12px; line-height:20px; padding:0; cursor:pointer; }
+        .inv-foto-badge { position:absolute; top:6px; inset-inline-end:6px; background:rgba(0,0,0,.6); color:#fff; border-radius:12px; padding:2px 8px; font-size:11px; font-weight:700; }
+
         .inv-compare { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
         .inv-compare figure { margin:0; }
         .inv-compare img { width:100%; aspect-ratio:1; object-fit:cover; border-radius:14px; background:var(--bg); display:block; }
@@ -1573,7 +1581,10 @@
         </div>
         <div id="inv-item-photo-wrap" style="margin-bottom:14px">
             <img id="inv-item-photo" alt="" style="width:100%;border-radius:16px;background:var(--bg);display:block">
+            <div id="inv-item-tira" class="inv-tira"></div>
         </div>
+        <button id="inv-item-addphoto" class="btn-cam secondary" style="width:100%;min-height:44px;margin-bottom:12px">📷 Añadir otra foto</button>
+        <input type="file" id="inv-item-file" accept="image/*" capture="environment" hidden>
         <div class="textarea-mic-wrap">
             <textarea id="inv-item-desc" class="inv-textarea" rows="3"
                       placeholder="Sin descripción" readonly></textarea>
@@ -1614,7 +1625,8 @@
         </div>
         <div id="inv-add-form" style="display:none;flex:1;flex-direction:column">
             <div id="inv-add-preview-wrap" style="margin-bottom:12px;display:none">
-                <img id="inv-add-preview" alt="" style="width:100%;max-height:44vh;object-fit:contain;border-radius:16px;background:var(--bg);display:block">
+                <img id="inv-add-preview" alt="" style="width:100%;max-height:38vh;object-fit:contain;border-radius:16px;background:var(--bg);display:block">
+                <div id="inv-add-tira" class="inv-tira"></div>
             </div>
             <div class="textarea-mic-wrap">
                 <textarea id="inv-add-desc" class="inv-textarea" rows="3"
@@ -1625,7 +1637,7 @@
             <div id="inv-add-chips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
             <div class="spacer"></div>
             <div style="display:flex;gap:10px;margin-top:16px">
-                <button id="inv-add-retake" class="btn-cam secondary" style="flex:1;min-height:48px;display:none">Repetir foto</button>
+                <button id="inv-add-more" class="btn-cam secondary" style="flex:1;min-height:48px;display:none">📷 Otra foto</button>
                 <button id="inv-add-save" class="btn-cam primary" style="flex:2;min-height:48px">Guardar</button>
             </div>
         </div>
@@ -5166,10 +5178,12 @@ var INV = {
     filter: '',
     current: null,     // objeto abierto en la ficha
     addCategory: '',
-    photo: null,       // Blob ya comprimido, pendiente de subir
+    photos: [],        // Blobs ya comprimidos, pendientes de subir
+    previews: [],      // sus object URLs, en el mismo orden
+    sel: 0,            // cual de ellas se ve en grande
+    maxPhotos: 6,      // lo dice el servidor al cargar el inventario
     urls: [],          // object URLs de las miniaturas, para revocarlas al salir
 };
-var invPreviewUrl = null;
 
 // En un Android modesto una rejilla de treinta fotos se come la memoria si
 // nadie devuelve las URLs de los blobs.
@@ -5293,6 +5307,7 @@ async function loadInvItems() {
     if (!ok) { toast(data.error || 'No se pudo cargar el inventario'); INV.items = []; return false; }
     INV.items = data.belongings || [];
     INV.categories = data.categories || [];
+    if (data.max_photos) INV.maxPhotos = data.max_photos;
     return true;
 }
 
@@ -5357,6 +5372,7 @@ function renderInvList() {
         html += '<div class="inv-grid">' + conFoto.map(function (i) {
             return '<button class="inv-thumb" data-id="' + i.id + '">'
                  + '<img alt="" data-inv-src="' + i.photo_url + '">'
+                 + (i.photo_count > 1 ? '<span class="inv-foto-badge">' + i.photo_count + '</span>' : '')
                  + (i.description ? '<span class="inv-cap">' + esc(i.description) + '</span>' : '')
                  + '</button>';
         }).join('') + '</div>';
@@ -5383,17 +5399,60 @@ function renderInvList() {
     });
 }
 
+// Las fotos del objeto abierto: la grande y, si hay mas de una, la tira para
+// pasar de una a otra. El aspa de quitar solo sale para administracion.
+function renderInvItemFotos() {
+    const item = INV.current;
+    const fotos = (item && item.photos) || [];
+    const tira = $('inv-item-tira');
+    if (!fotos.length) {
+        $('inv-item-photo-wrap').style.display = 'none';
+        tira.innerHTML = '';
+        $('inv-item-addphoto').style.display = '';
+        return;
+    }
+    if (INV.sel >= fotos.length) INV.sel = fotos.length - 1;
+    $('inv-item-photo-wrap').style.display = '';
+    $('inv-item-photo').src = '';
+    loadAuthImg($('inv-item-photo'), fotos[INV.sel].url);
+    $('inv-item-addphoto').style.display = fotos.length < INV.maxPhotos ? '' : 'none';
+
+    tira.innerHTML = fotos.length < 2 ? '' : fotos.map(function (f, i) {
+        return '<button type="button" class="' + (i === INV.sel ? 'sel' : '') + '" data-i="' + i + '">'
+             + '<img alt="" data-auth-src="' + f.url + '">'
+             + (S.config.is_admin ? '<span class="quitar" data-foto="' + f.id + '">✕</span>' : '')
+             + '</button>';
+    }).join('');
+    tira.querySelectorAll('img[data-auth-src]').forEach(function (img) {
+        loadAuthImg(img, img.dataset.authSrc);
+    });
+    tira.querySelectorAll('[data-i]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+            const fotoId = e.target.dataset.foto;
+            if (fotoId !== undefined) { borrarFotoInventario(parseInt(fotoId)); return; }
+            INV.sel = parseInt(btn.dataset.i);
+            renderInvItemFotos();
+        });
+    });
+}
+
+async function borrarFotoInventario(fotoId) {
+    const { ok, data } = await api('/api/worker/belongings/photos/' + fotoId + '/delete', 'POST');
+    if (!ok) { toast(data.error || 'No se pudo eliminar la foto'); return; }
+    INV.current = data.belonging;
+    const idx = INV.items.findIndex(function (i) { return i.id === data.belonging.id; });
+    if (idx >= 0) INV.items[idx] = data.belonging;
+    INV.sel = 0;
+    renderInvItemFotos();
+    toast('Foto eliminada');
+}
+
 function openInvItem(id) {
     const item = INV.items.find(function (i) { return i.id === id; });
     if (!item) return;
     INV.current = item;
-    if (item.photo_url) {
-        $('inv-item-photo-wrap').style.display = '';
-        $('inv-item-photo').src = '';
-        loadAuthImg($('inv-item-photo'), item.photo_url);
-    } else {
-        $('inv-item-photo-wrap').style.display = 'none';
-    }
+    INV.sel = 0;
+    renderInvItemFotos();
     $('inv-item-desc').value = item.description || '';
     $('inv-item-desc').readOnly = true;
     $('inv-item-chips').style.display = 'none';
@@ -5413,25 +5472,68 @@ function openInvItem(id) {
     show('screen-inv-item');
 }
 
+function invSoltarPrevias() {
+    INV.previews.forEach(function (u) { URL.revokeObjectURL(u); });
+    INV.previews = [];
+    INV.photos = [];
+    INV.sel = 0;
+}
+
 function openInvAdd() {
-    INV.photo = null;
+    invSoltarPrevias();
     INV.addCategory = '';
-    if (invPreviewUrl) { URL.revokeObjectURL(invPreviewUrl); invPreviewUrl = null; }
     $('inv-add-name').textContent = S.invResidentName;
     $('inv-add-choice').style.display = 'flex';
     $('inv-add-form').style.display = 'none';
     $('inv-add-preview-wrap').style.display = 'none';
     $('inv-add-preview').src = '';
     $('inv-add-desc').value = '';
-    $('inv-add-retake').style.display = 'none';
+    $('inv-add-more').style.display = 'none';
     show('screen-inv-add');
 }
 
 function mostrarInvForm(conFoto) {
     $('inv-add-choice').style.display = 'none';
     $('inv-add-form').style.display = 'flex';
-    $('inv-add-retake').style.display = conFoto ? '' : 'none';
+    $('inv-add-more').style.display = conFoto ? '' : 'none';
     renderCatChips($('inv-add-chips'), INV.addCategory, function (c) { INV.addCategory = c; });
+}
+
+// Tira de las fotos que se van haciendo, con su aspa para descartar la que
+// haya salido mal antes de guardar nada.
+function renderInvAddTira() {
+    const tira = $('inv-add-tira');
+    if (!INV.photos.length) {
+        tira.innerHTML = '';
+        $('inv-add-preview-wrap').style.display = 'none';
+        $('inv-add-more').style.display = 'none';
+        return;
+    }
+    if (INV.sel >= INV.photos.length) INV.sel = INV.photos.length - 1;
+    $('inv-add-preview').src = INV.previews[INV.sel];
+    $('inv-add-preview-wrap').style.display = '';
+    $('inv-add-more').style.display = INV.photos.length < INV.maxPhotos ? '' : 'none';
+
+    tira.innerHTML = INV.photos.length < 2 ? '' : INV.previews.map(function (u, i) {
+        return '<button type="button" class="' + (i === INV.sel ? 'sel' : '') + '" data-i="' + i + '">'
+             + '<img alt="" src="' + u + '">'
+             + '<span class="quitar" data-quitar="' + i + '">✕</span></button>';
+    }).join('');
+    tira.querySelectorAll('[data-i]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+            const quitar = e.target.dataset.quitar;
+            if (quitar !== undefined) {
+                const j = parseInt(quitar);
+                URL.revokeObjectURL(INV.previews[j]);
+                INV.photos.splice(j, 1);
+                INV.previews.splice(j, 1);
+                if (INV.sel >= j && INV.sel > 0) INV.sel--;
+            } else {
+                INV.sel = parseInt(btn.dataset.i);
+            }
+            renderInvAddTira();
+        });
+    });
 }
 
 // ── Listeners del inventario ──
@@ -5446,12 +5548,46 @@ $('inv-list-add').addEventListener('click', openInvAdd);
 $('inv-item-back').addEventListener('click', openInvList);
 $('inv-add-back').addEventListener('click', function () { show('screen-inv-actions'); });
 
+// Anadir otra foto a un objeto ya registrado: otro angulo, la etiqueta de la
+// talla, la marca de la maquinilla. Cada foto nueva mejora la identificacion.
+$('inv-item-addphoto').addEventListener('click', function () { $('inv-item-file').click(); });
+$('inv-item-file').addEventListener('change', async function (e) {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f || !INV.current) return;
+    const btn = $('inv-item-addphoto');
+    btn.disabled = true;
+    btn.textContent = 'Guardando…';
+    const fd = new FormData();
+    fd.append('photos', await comprimirFoto(f), 'objeto.jpg');
+    try {
+        const res = await fetch('/api/worker/belongings/' + INV.current.id + '/photos', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + S.token },
+            body: fd,
+        });
+        const datos = await res.json().catch(() => ({}));
+        if (!res.ok) { toast(datos.error || 'No se pudo guardar la foto'); return; }
+        INV.current = datos.belonging;
+        const idx = INV.items.findIndex(function (i) { return i.id === datos.belonging.id; });
+        if (idx >= 0) INV.items[idx] = datos.belonging;
+        INV.sel = datos.belonging.photos.length - 1;
+        renderInvItemFotos();
+        toast('Foto añadida');
+    } catch (err) {
+        toast('No se pudo guardar. Comprueba la conexión.');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '📷 Añadir otra foto';
+    }
+});
+
 // La cámara nativa se abre con un input de fichero: da mejor foto que un
 // <video> propio, ya trae flash y enfoque, y el permiso lo gestiona el sistema.
 $('inv-add-cam').addEventListener('click', function () { $('inv-file').click(); });
-$('inv-add-retake').addEventListener('click', function () { $('inv-file').click(); });
+$('inv-add-more').addEventListener('click', function () { $('inv-file').click(); });
 $('inv-add-text').addEventListener('click', function () {
-    INV.photo = null;
+    invSoltarPrevias();
     mostrarInvForm(false);
     $('inv-add-desc').focus();
 });
@@ -5460,22 +5596,26 @@ $('inv-file').addEventListener('change', async function (e) {
     const f = e.target.files && e.target.files[0];
     e.target.value = '';
     if (!f) return;                     // la usuaria ha salido de la cámara sin foto
-    INV.photo = await comprimirFoto(f);
-    if (invPreviewUrl) URL.revokeObjectURL(invPreviewUrl);
-    invPreviewUrl = URL.createObjectURL(INV.photo);
-    $('inv-add-preview').src = invPreviewUrl;
-    $('inv-add-preview-wrap').style.display = '';
+    if (INV.photos.length >= INV.maxPhotos) {
+        toast(t('Como mucho {0} fotos por objeto', [INV.maxPhotos]));
+        return;
+    }
+    const blob = await comprimirFoto(f);
+    INV.photos.push(blob);
+    INV.previews.push(URL.createObjectURL(blob));
+    INV.sel = INV.photos.length - 1;
     mostrarInvForm(true);
+    renderInvAddTira();
 });
 
 $('inv-add-save').addEventListener('click', async function () {
     const desc = $('inv-add-desc').value.trim();
-    if (!INV.photo && !desc) { toast('Añade una foto o una descripción'); return; }
+    if (!INV.photos.length && !desc) { toast('Añade una foto o una descripción'); return; }
     const btn = this;
     btn.disabled = true;
     btn.textContent = 'Guardando…';
     const fd = new FormData();
-    if (INV.photo) fd.append('photo', INV.photo, 'objeto.jpg');
+    INV.photos.forEach(function (blob, i) { fd.append('photos', blob, 'objeto' + i + '.jpg'); });
     if (desc) fd.append('description', desc);
     if (INV.addCategory) fd.append('category', INV.addCategory);
     try {
@@ -5488,6 +5628,7 @@ $('inv-add-save').addEventListener('click', async function () {
         const datos = await res.json().catch(() => ({}));
         if (!res.ok) { toast(datos.error || 'No se pudo guardar'); return; }
         INV.items.unshift(datos.belonging);
+        invSoltarPrevias();
         toast('Objeto registrado');
         openInvList();
     } catch (err) {

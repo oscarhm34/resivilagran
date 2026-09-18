@@ -24,7 +24,7 @@ from flask_jwt_extended import create_access_token
 from PIL import Image
 
 from app import image_match as im
-from app.models import Resident, ResidentBelonging
+from app.models import BelongingPhoto, Resident, ResidentBelonging
 
 
 # ── Utilidades ────────────────────────────────────────────────────────────────
@@ -73,16 +73,23 @@ def uploads(app, tmp_path, monkeypatch):
     return tmp_path
 
 
-def _pertenencia(db, resident, color, descripcion, version=im.DESCRIPTOR_VERSION):
+def _foto(color, nombre, version=im.DESCRIPTOR_VERSION):
     img = _img(color)
-    item = ResidentBelonging(
-        resident_id=resident.id,
-        photo_path=f'belongings/res_{resident.id}/{descripcion}.jpg',
-        description=descripcion,
+    return BelongingPhoto(
+        photo_path=f'belongings/{nombre}.jpg',
         embedding=im.to_bytes(_fake_embed(img)),
         color_hist=im.to_bytes(im.color_histogram(img)),
         descriptor_version=version,
     )
+
+
+def _pertenencia(db, resident, colores, descripcion, version=im.DESCRIPTOR_VERSION):
+    """Una pertenencia con una foto por color de `colores`."""
+    if not isinstance(colores, list):
+        colores = [colores]
+    item = ResidentBelonging(resident_id=resident.id, description=descripcion)
+    for i, color in enumerate(colores):
+        item.photos.append(_foto(color, f'{descripcion}-{i}', version))
     db.session.add(item)
     db.session.commit()
     return item
@@ -243,6 +250,37 @@ def test_se_ignoran_los_descriptores_de_otra_version(
                         content_type='multipart/form-data').get_json()
 
     assert datos['comparadas'] == 0
+
+
+def test_un_objeto_con_varias_fotos_sale_una_sola_vez(
+        client, db, worker_headers, con_modelo, antonia):
+    """Cinco angulos del mismo jersey no pueden ocupar cinco puestos."""
+    _pertenencia(db, antonia, [ROJO, ROJO, ROJO], 'jersey rojo')
+
+    datos = client.post('/api/worker/belongings/identify', headers=worker_headers,
+                        data={'photo': (_jpeg(ROJO), 'perdido.jpg')},
+                        content_type='multipart/form-data').get_json()
+
+    assert datos['comparadas'] == 3
+    assert len(datos['matches']) == 1
+    assert datos['matches'][0]['resident_name'] == 'Antonia Vidal'
+
+
+def test_gana_la_mejor_foto_del_objeto(
+        client, db, worker_headers, con_modelo, antonia, josep):
+    """Anadir angulos tiene que ayudar: basta con que uno se parezca."""
+    # De Antonia solo hay una foto mala (verde); de Josep, una mala y una buena.
+    _pertenencia(db, antonia, VERDE, 'jersey verde')
+    _pertenencia(db, josep, [VERDE, ROJO], 'jersey de dos caras')
+
+    datos = client.post('/api/worker/belongings/identify', headers=worker_headers,
+                        data={'photo': (_jpeg(ROJO), 'perdido.jpg')},
+                        content_type='multipart/form-data').get_json()
+
+    assert [m['resident_name'] for m in datos['matches']] == ['Josep Roca']
+    # Y la foto que se devuelve es la que ha dado el parecido, no la portada.
+    assert datos['matches'][0]['photo_url'].endswith('-1.jpg')
+    assert len(datos['matches'][0]['photos']) == 2
 
 
 def test_la_foto_de_consulta_no_se_guarda(

@@ -245,15 +245,15 @@ def purge_messages(dry_run: bool) -> None:
 
 @app.cli.command('backfill-descriptores')
 @click.option('--todos', is_flag=True,
-              help='Recalcula tambien los que ya tienen descriptor de otra version.')
+              help='Recalcula tambien las que ya tienen descriptor de otra version.')
 def backfill_descriptores(todos: bool) -> None:
-    """Calcula los descriptores de imagen de las pertenencias que no los tengan.
+    """Calcula los descriptores de imagen de las fotos que no los tengan.
 
     Hace falta despues del primer despliegue (las fotos ya registradas no los
     tienen) y cada vez que cambie DESCRIPTOR_VERSION en `image_match.py`.
     """
     import os
-    from .models import ResidentBelonging
+    from .models import BelongingPhoto
     from .image_match import DESCRIPTOR_VERSION, describe, model_available, to_bytes
     from .utils import _open_image_oriented
 
@@ -261,32 +261,90 @@ def backfill_descriptores(todos: bool) -> None:
         click.echo('No esta el modelo de imagen. Nada que hacer.')
         return
 
-    q = ResidentBelonging.query.filter(ResidentBelonging.photo_path.isnot(None))
+    q = BelongingPhoto.query
     if not todos:
         q = q.filter(db.or_(
-            ResidentBelonging.descriptor_version.is_(None),
-            ResidentBelonging.descriptor_version != DESCRIPTOR_VERSION))
+            BelongingPhoto.descriptor_version.is_(None),
+            BelongingPhoto.descriptor_version != DESCRIPTOR_VERSION))
     pendientes = q.all()
-    click.echo(f'Pertenencias con foto por describir: {len(pendientes)}')
+    click.echo(f'Fotos por describir: {len(pendientes)}')
 
     hechas = fallos = 0
-    for item in pendientes:
-        ruta = os.path.join(app.config['UPLOAD_FOLDER'], item.photo_path)
+    for foto in pendientes:
+        ruta = os.path.join(app.config['UPLOAD_FOLDER'], foto.photo_path)
         try:
             with _open_image_oriented(ruta) as img:
                 emb, hist = describe(img)
             if emb is None:
                 raise ValueError('el modelo no devolvio vector')
-            item.embedding = to_bytes(emb)
-            item.color_hist = to_bytes(hist)
-            item.descriptor_version = DESCRIPTOR_VERSION
+            foto.embedding = to_bytes(emb)
+            foto.color_hist = to_bytes(hist)
+            foto.descriptor_version = DESCRIPTOR_VERSION
             hechas += 1
         except Exception as e:                   # noqa: BLE001
             fallos += 1
-            click.echo(f'  [!] {item.photo_path}: {e}')
+            click.echo(f'  [!] {foto.photo_path}: {e}')
         if hechas and hechas % 50 == 0:
             db.session.commit()
             click.echo(f'  ...{hechas}')
 
     db.session.commit()
     click.echo(f'Listo. Descritas {hechas}, fallidas {fallos}.')
+
+
+@app.cli.command('migrar-fotos-inventario')
+def migrar_fotos_inventario() -> None:
+    """Pasa las fotos de pertenencias de la tabla vieja a `belonging_photo`.
+
+    Cuando una pertenencia solo podia tener una foto, esta vivia en columnas de
+    `resident_belonging`. En el NAS `db.create_all()` crea la tabla nueva pero no
+    mueve nada, asi que este comando hace la copia. Es idempotente: se puede
+    ejecutar las veces que haga falta sin duplicar.
+
+    Las columnas viejas no se borran aqui. Cuando todo este comprobado se
+    quitan a mano; ver .claude/rules/06-deploy-nas.md.
+    """
+    from sqlalchemy import inspect, text
+    from .models import BelongingPhoto
+
+    columnas = {c['name'] for c in inspect(db.engine).get_columns('resident_belonging')}
+    if 'photo_path' not in columnas:
+        click.echo('No hay columnas viejas de foto: no hay nada que migrar.')
+        return
+
+    filas = db.session.execute(text(
+        'SELECT id, photo_path, embedding, color_hist, descriptor_version, created_at '
+        'FROM resident_belonging WHERE photo_path IS NOT NULL'
+    )).fetchall()
+
+    def _fecha(valor):
+        """SQLite devuelve texto con SQL crudo; PostgreSQL, un datetime."""
+        if isinstance(valor, datetime):
+            return valor
+        if isinstance(valor, str):
+            try:
+                return datetime.fromisoformat(valor)
+            except ValueError:
+                pass
+        return datetime.now()
+
+    ya_tienen = {p.belonging_id for p in BelongingPhoto.query.all()}
+    movidas = 0
+    for fila in filas:
+        if fila.id in ya_tienen:
+            continue                              # ya migrada en una pasada anterior
+        db.session.add(BelongingPhoto(
+            belonging_id=fila.id,
+            photo_path=fila.photo_path,
+            embedding=fila.embedding,
+            color_hist=fila.color_hist,
+            descriptor_version=fila.descriptor_version,
+            created_at=_fecha(fila.created_at),
+        ))
+        movidas += 1
+
+    db.session.commit()
+    click.echo(f'Fotos movidas: {movidas} (de {len(filas)} filas con foto).')
+    if movidas:
+        click.echo('Comprueba el inventario en el panel antes de borrar las '
+                   'columnas viejas de resident_belonging.')

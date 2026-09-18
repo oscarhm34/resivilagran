@@ -16,7 +16,7 @@ import pytest
 from flask_jwt_extended import create_access_token
 from PIL import Image
 
-from app.models import Cleaner, Resident, ResidentBelonging
+from app.models import BelongingPhoto, Cleaner, Resident, ResidentBelonging
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -108,7 +108,7 @@ def test_crear_solo_con_texto(client, db, residente, cleaner_user, worker_header
     item = ResidentBelonging.query.one()
     assert item.description == 'Peine de madera'
     assert item.category == 'higiene'
-    assert item.photo_path is None
+    assert item.photos == []
     assert item.created_by == cleaner_user.id
 
 
@@ -135,13 +135,15 @@ def test_crear_con_foto_la_guarda_reprocesada(
 
     assert res.status_code == 201
     item = ResidentBelonging.query.one()
-    assert item.photo_path.startswith(f'belongings/res_{residente.id}/')
-    destino = os.path.join(str(uploads), item.photo_path)
+    assert len(item.photos) == 1
+    ruta = item.photos[0].photo_path
+    assert ruta.startswith(f'belongings/res_{residente.id}/')
+    destino = os.path.join(str(uploads), ruta)
     assert os.path.exists(destino)
     with Image.open(destino) as img:
         assert img.format == 'JPEG'          # ha pasado por el reprocesado
         assert max(img.size) <= 1000         # y por el redimensionado
-    assert res.get_json()['belonging']['photo_url'] == f'/api/uploads/{item.photo_path}'
+    assert res.get_json()['belonging']['photo_url'] == f'/api/uploads/{ruta}'
 
 
 def test_sin_foto_y_sin_texto_se_rechaza(client, db, residente, worker_headers):
@@ -187,6 +189,166 @@ def test_residente_de_baja_no_admite_pertenencias(
 def test_residente_inexistente_devuelve_404(client, db, worker_headers):
     assert client.get('/api/worker/resident/9999/belongings',
                       headers=worker_headers).status_code == 404
+
+
+# ── Varias fotos por objeto ───────────────────────────────────────────────────
+
+def test_crear_con_varias_fotos_de_una_vez(
+        client, db, residente, worker_headers, uploads):
+    """El conjunto, la etiqueta de la talla y el remiendo del puno, a la vez."""
+    res = client.post(
+        f'/api/worker/resident/{residente.id}/belongings',
+        headers=worker_headers,
+        data={'photos': [(_jpeg((200, 30, 30)), 'a.jpg'),
+                         (_jpeg((30, 30, 200)), 'b.jpg'),
+                         (_jpeg((30, 200, 30)), 'c.jpg')],
+              'description': 'Jersey de lana'},
+        content_type='multipart/form-data')
+
+    assert res.status_code == 201
+    datos = res.get_json()['belonging']
+    assert datos['photo_count'] == 3
+    assert len(datos['photos']) == 3
+    assert datos['photo_url'] == datos['photos'][0]['url']      # la primera, de portada
+    item = ResidentBelonging.query.one()
+    assert len(item.photos) == 3
+    rutas = {p.photo_path for p in item.photos}
+    assert len(rutas) == 3, 'cada foto necesita su propio fichero'
+    for ruta in rutas:
+        assert os.path.exists(os.path.join(str(uploads), ruta))
+
+
+def test_anadir_una_foto_a_un_objeto_ya_registrado(
+        client, db, residente, cleaner_user, worker_headers, uploads):
+    item = ResidentBelonging(resident_id=residente.id, description='Jersey',
+                             created_by=cleaner_user.id)
+    db.session.add(item)
+    db.session.commit()
+
+    res = client.post(f'/api/worker/belongings/{item.id}/photos',
+                      headers=worker_headers,
+                      data={'photos': (_jpeg(), 'etiqueta.jpg')},
+                      content_type='multipart/form-data')
+
+    assert res.status_code == 201
+    assert res.get_json()['belonging']['photo_count'] == 1
+    assert len(db.session.get(ResidentBelonging, item.id).photos) == 1
+    assert item.updated_at is not None
+
+
+def test_anadir_fotos_sin_ninguna_se_rechaza(
+        client, db, residente, cleaner_user, worker_headers):
+    item = ResidentBelonging(resident_id=residente.id, description='Jersey',
+                             created_by=cleaner_user.id)
+    db.session.add(item)
+    db.session.commit()
+
+    res = client.post(f'/api/worker/belongings/{item.id}/photos',
+                      headers=worker_headers, data={})
+
+    assert res.status_code == 400
+
+
+def test_no_se_pasa_del_tope_de_fotos(
+        client, db, residente, worker_headers, uploads):
+    from app.blueprints.residents import MAX_FOTOS_POR_OBJETO
+
+    res = client.post(
+        f'/api/worker/resident/{residente.id}/belongings',
+        headers=worker_headers,
+        data={'photos': [(_jpeg(), f'{i}.jpg') for i in range(MAX_FOTOS_POR_OBJETO + 1)]},
+        content_type='multipart/form-data')
+
+    assert res.status_code == 400
+    assert ResidentBelonging.query.count() == 0
+    escritos = [f for _, _, fs in os.walk(str(uploads)) for f in fs]
+    assert escritos == [], 'un lote rechazado no puede dejar ficheros sueltos'
+
+
+def test_una_foto_invalida_no_deja_a_medias_el_lote(
+        client, db, residente, worker_headers, uploads):
+    """Si la segunda no vale, la primera tampoco se queda en el disco."""
+    res = client.post(
+        f'/api/worker/resident/{residente.id}/belongings',
+        headers=worker_headers,
+        data={'photos': [(_jpeg(), 'buena.jpg'),
+                         (io.BytesIO(b'MZ\x90\x00'), 'virus.exe')]},
+        content_type='multipart/form-data')
+
+    assert res.status_code == 400
+    assert ResidentBelonging.query.count() == 0
+    escritos = [f for _, _, fs in os.walk(str(uploads)) for f in fs]
+    assert escritos == []
+
+
+def test_administracion_elimina_una_foto_suelta(
+        client, db, residente, worker_headers, admin_headers, uploads):
+    creada = client.post(
+        f'/api/worker/resident/{residente.id}/belongings',
+        headers=worker_headers,
+        data={'photos': [(_jpeg(), 'a.jpg'), (_jpeg(), 'b.jpg')],
+              'description': 'Jersey'},
+        content_type='multipart/form-data').get_json()['belonging']
+    foto_id = creada['photos'][0]['id']
+    ruta = os.path.join(str(uploads),
+                        db.session.get(BelongingPhoto, foto_id).photo_path)
+
+    res = client.post(f'/api/worker/belongings/photos/{foto_id}/delete',
+                      headers=admin_headers)
+
+    assert res.status_code == 200
+    assert res.get_json()['belonging']['photo_count'] == 1
+    assert db.session.get(BelongingPhoto, foto_id) is None
+    assert not os.path.exists(ruta)
+
+
+def test_una_trabajadora_no_puede_eliminar_una_foto(
+        client, db, residente, worker_headers, uploads):
+    creada = client.post(
+        f'/api/worker/resident/{residente.id}/belongings',
+        headers=worker_headers,
+        data={'photos': [(_jpeg(), 'a.jpg'), (_jpeg(), 'b.jpg')]},
+        content_type='multipart/form-data').get_json()['belonging']
+
+    res = client.post(f"/api/worker/belongings/photos/{creada['photos'][0]['id']}/delete",
+                      headers=worker_headers)
+
+    assert res.status_code == 403
+    assert db.session.get(BelongingPhoto, creada['photos'][0]['id']) is not None
+
+
+def test_no_se_borra_la_ultima_foto_de_un_objeto_sin_descripcion(
+        client, db, residente, worker_headers, admin_headers, uploads):
+    """Quedaria una fila que no dice nada: o describe el objeto, o se borra entero."""
+    creada = client.post(
+        f'/api/worker/resident/{residente.id}/belongings',
+        headers=worker_headers,
+        data={'photos': (_jpeg(), 'a.jpg')},
+        content_type='multipart/form-data').get_json()['belonging']
+
+    res = client.post(f"/api/worker/belongings/photos/{creada['photos'][0]['id']}/delete",
+                      headers=admin_headers)
+
+    assert res.status_code == 400
+    assert db.session.get(ResidentBelonging, creada['id']).photos
+
+
+def test_eliminar_el_objeto_se_lleva_todas_sus_fotos(
+        client, db, residente, worker_headers, admin_headers, uploads):
+    creada = client.post(
+        f'/api/worker/resident/{residente.id}/belongings',
+        headers=worker_headers,
+        data={'photos': [(_jpeg(), 'a.jpg'), (_jpeg(), 'b.jpg')]},
+        content_type='multipart/form-data').get_json()['belonging']
+    rutas = [os.path.join(str(uploads), p.photo_path)
+             for p in db.session.get(ResidentBelonging, creada['id']).photos]
+
+    res = client.post(f"/api/worker/belongings/{creada['id']}/delete",
+                      headers=admin_headers)
+
+    assert res.status_code == 200
+    assert BelongingPhoto.query.count() == 0
+    assert not any(os.path.exists(r) for r in rutas)
 
 
 # ── Listar ────────────────────────────────────────────────────────────────────
@@ -253,7 +415,7 @@ def test_eliminar_borra_la_fila_y_la_foto(
         content_type='multipart/form-data').get_json()
     item_id = creada['belonging']['id']
     ruta = os.path.join(str(uploads),
-                        db.session.get(ResidentBelonging, item_id).photo_path)
+                        db.session.get(ResidentBelonging, item_id).photos[0].photo_path)
     assert os.path.exists(ruta)
 
     res = client.post(f'/api/worker/belongings/{item_id}/delete', headers=admin_headers)
@@ -286,10 +448,11 @@ def test_eliminar_una_pertenencia_inexistente_devuelve_404(client, db, admin_hea
 
 def test_la_ficha_del_residente_muestra_su_inventario(
         auth_client, db, residente, cleaner_user):
-    db.session.add(ResidentBelonging(
+    item = ResidentBelonging(
         resident_id=residente.id, description='Cinturon marron de piel',
-        category='complementos', created_by=cleaner_user.id,
-        photo_path=f'belongings/res_{residente.id}/x.jpg'))
+        category='complementos', created_by=cleaner_user.id)
+    item.photos.append(BelongingPhoto(photo_path=f'belongings/res_{residente.id}/x.jpg'))
+    db.session.add(item)
     db.session.commit()
 
     html = auth_client.get(f'/admin/resident/{residente.id}').get_data(as_text=True)

@@ -868,12 +868,30 @@
                         {% for item in belongings %}
                         <div class="col-6 col-md-4 col-lg-3">
                             <div class="card h-100" style="border:1px solid var(--color-border)">
-                                {% if item.photo_path %}
-                                <img src="{{ url_for('nfc.serve_upload', filename=item.photo_path) }}"
-                                     alt="{{ item.description or 'Pertenencia' }}"
-                                     class="card-img-top inventario-foto"
-                                     data-desc="{{ item.description or '' }}"
-                                     style="aspect-ratio:1;object-fit:cover;cursor:zoom-in;border-radius:var(--radius-md) var(--radius-md) 0 0">
+                                {% if item.photos %}
+                                <div class="position-relative">
+                                    <img src="{{ url_for('nfc.serve_upload', filename=item.cover.photo_path) }}"
+                                         alt="{{ item.description or 'Pertenencia' }}"
+                                         class="card-img-top inventario-foto"
+                                         data-desc="{{ item.description or '' }}"
+                                         style="aspect-ratio:1;object-fit:cover;cursor:zoom-in;border-radius:var(--radius-md) var(--radius-md) 0 0">
+                                    {% if item.photos|length > 1 %}
+                                    <span class="badge bg-dark position-absolute" style="top:6px;right:6px">
+                                        <i class="bi bi-images me-1"></i>{{ item.photos|length }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                {% if item.photos|length > 1 %}
+                                <div class="d-flex gap-1 p-2 pb-0" style="overflow-x:auto">
+                                    {% for foto in item.photos[1:] %}
+                                    <img src="{{ url_for('nfc.serve_upload', filename=foto.photo_path) }}"
+                                         alt="{{ item.description or 'Pertenencia' }}"
+                                         class="inventario-foto"
+                                         data-desc="{{ item.description or '' }}"
+                                         style="width:44px;height:44px;flex-shrink:0;object-fit:cover;cursor:zoom-in;border-radius:var(--radius-sm)">
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
                                 {% else %}
                                 <div class="d-flex align-items-center justify-content-center"
                                      style="aspect-ratio:1;background:var(--color-bg);font-size:2rem">📝</div>
