@@ -1,0 +1,115 @@
+{# Modales y estilos que acompanan a las tarjetas de pertenencias.
+
+   Van una sola vez por pagina: las tarjetas solo llevan los datos en atributos
+   y el formulario se reapunta al pulsar, que es el patron de #deleteModal que
+   ya usa el resto del panel. #}
+
+{% macro estilos() %}
+<style>
+    /* Punto de color de la etiqueta. Los tonos son fijos a proposito: son el
+       color del objeto, no del tema, y tienen que leerse igual en claro y en
+       oscuro. La etiqueta usa los tokens; solo el punto lleva color propio. */
+    .color-badge {
+        background: var(--color-bg);
+        color: var(--color-text);
+        border: 1px solid var(--color-border);
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+    .color-dot {
+        width: 9px; height: 9px; border-radius: 50%;
+        border: 1px solid rgba(128, 128, 128, .45);
+        display: inline-block; flex-shrink: 0;
+    }
+    .color-badge[data-color="rojo"]     .color-dot { background: #d32f2f; }
+    .color-badge[data-color="naranja"]  .color-dot { background: #ef6c00; }
+    .color-badge[data-color="amarillo"] .color-dot { background: #f5c518; }
+    .color-badge[data-color="verde"]    .color-dot { background: #2e7d32; }
+    .color-badge[data-color="azul"]     .color-dot { background: #1565c0; }
+    .color-badge[data-color="morado"]   .color-dot { background: #6a1b9a; }
+    .color-badge[data-color="rosa"]     .color-dot { background: #ec5f9e; }
+    .color-badge[data-color="marron"]   .color-dot { background: #795548; }
+    .color-badge[data-color="gris"]     .color-dot { background: #9e9e9e; }
+    .color-badge[data-color="blanco"]   .color-dot { background: #ffffff; }
+    .color-badge[data-color="negro"]    .color-dot { background: #212121; }
+</style>
+{% endmacro %}
+
+{% macro modales(categorias) %}
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Eliminar</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body"><p id="delete-texto" class="mb-0"></p></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form id="delete-form" method="POST" action="" class="m-0">
+                    <button type="submit" class="btn btn-danger">Eliminar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="editBelongingModal" tabindex="-1" aria-labelledby="editBelongingLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form id="edit-belonging-form" method="POST" action="">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editBelongingLabel">Editar pertenencia</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit-desc" class="form-label">Descripcion</label>
+                        <textarea id="edit-desc" name="description" rows="3" class="form-control"
+                                  placeholder="Jersey de lana azul con cremallera"></textarea>
+                    </div>
+                    <div>
+                        <label for="edit-cat" class="form-label">Categoria</label>
+                        <select id="edit-cat" name="category" class="form-select">
+                            <option value="">Sin categoria</option>
+                            {% for id, etiqueta in categorias.items() %}
+                            <option value="{{ id }}">{{ etiqueta }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endmacro %}
+
+{% macro scripts() %}
+<script>
+(function () {
+    'use strict';
+    document.querySelectorAll('.borrar-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.getElementById('deleteModalLabel').textContent = this.dataset.titulo;
+            document.getElementById('delete-texto').textContent = this.dataset.texto;
+            document.getElementById('delete-form').action = this.dataset.action;
+            new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        });
+    });
+    document.querySelectorAll('.editar-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.getElementById('edit-belonging-form').action = this.dataset.action;
+            document.getElementById('edit-desc').value = this.dataset.desc;
+            document.getElementById('edit-cat').value = this.dataset.cat;
+            new bootstrap.Modal(document.getElementById('editBelongingModal')).show();
+        });
+    });
+})();
+</script>
+{% endmacro %}

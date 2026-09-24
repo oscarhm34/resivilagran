@@ -425,6 +425,11 @@
         .inv-note-icon { width:36px; height:36px; border-radius:10px; background:var(--tint-warn-bg); display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
         .inv-chip { padding:9px 14px; min-height:40px; border-radius:20px; border:1.5px solid var(--border); background:var(--surface); color:var(--text); font-size:12px; font-family:inherit; cursor:pointer; transition:all .15s; }
         .inv-chip.active { background:var(--blue); color:#fff; border-color:var(--blue); }
+        .inv-chips-fila { display:flex; gap:6px; overflow-x:auto; padding-bottom:4px; -webkit-overflow-scrolling:touch; }
+        .inv-chips-fila .inv-chip { flex-shrink:0; }
+        /* Punto del color: es el color del objeto, no del tema, asi que va fijo */
+        .inv-punto { width:10px; height:10px; border-radius:50%; display:inline-block; border:1px solid rgba(128,128,128,.45); flex-shrink:0; }
+        .inv-duenno { font-size:11px; color:var(--text-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .inv-textarea { width:100%; border:1px solid var(--border); border-radius:12px; padding:12px; font-size:15px; resize:none; font-family:inherit; background:var(--surface); color:var(--text); }
         .inv-band { display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
         .inv-band.alta  { background:var(--tint-ok-bg);   color:var(--tint-ok-fg); }
@@ -1454,12 +1459,38 @@
             </div>
             <div style="font-size:18px;color:var(--text-2)">→</div>
         </button>
+        <button class="mode-card" id="inv-search-card" style="flex-direction:row;padding:14px 18px;border-radius:14px;gap:12px;background:var(--bg);color:var(--text);margin-top:10px">
+            <div class="mode-icon" style="font-size:22px">🔍</div>
+            <div style="text-align:left;flex:1">
+                <div class="mode-label" style="font-size:14px">Buscar en todo el inventario</div>
+                <div style="font-size:12px;color:var(--text-2);font-family:'Inter',system-ui,sans-serif;font-weight:400;margin-top:2px">Por tipo, color o descripción, de todos los residentes</div>
+            </div>
+            <div style="font-size:18px;color:var(--text-2)">→</div>
+        </button>
         <div class="section-label" style="margin-top:18px">O elige un residente</div>
         <div style="margin:0 0 8px">
             <input class="fallback-input" type="text" id="inv-search"
                    placeholder="Buscar residente..." autocomplete="off" style="width:100%">
         </div>
         <div id="inv-select-list" style="flex:1;overflow-y:auto"></div>
+    </div>
+
+    <!-- ══ INVENTARIO · buscar en todo el inventario ══ -->
+    <div id="screen-inv-find" class="screen">
+        <div class="scan-header">
+            <button class="btn-back" id="inv-find-back" aria-label="Volver">←</button>
+            <span class="mode-badge mode-badge-inv">🔍 Buscar</span>
+        </div>
+        <div style="margin:14px 0 4px">
+            <input class="fallback-input" type="search" id="inv-find-q"
+                   placeholder="jersey, gafas, maquinilla..." autocomplete="off" style="width:100%">
+        </div>
+        <div class="section-label" style="margin-top:10px">Tipo</div>
+        <div id="inv-find-cats" class="inv-chips-fila" data-sel=""></div>
+        <div class="section-label" style="margin-top:10px">Color</div>
+        <div id="inv-find-colors" class="inv-chips-fila" data-sel=""></div>
+        <p id="inv-find-count" style="font-size:12px;color:var(--text-2);margin:12px 0 6px"></p>
+        <div id="inv-find-body" style="flex:1;overflow-y:auto"></div>
     </div>
 
     <!-- ══ INVENTARIO · identificar un objeto perdido ══ -->
@@ -1568,7 +1599,7 @@
             <button class="btn-back" id="inv-list-back" aria-label="Volver">←</button>
             <span class="mode-badge mode-badge-inv">🧳 <span id="inv-list-name"></span></span>
         </div>
-        <div id="inv-filters" style="display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 12px"></div>
+        <div id="inv-filters" style="display:flex;flex-direction:column;gap:6px;margin:14px 0 12px"></div>
         <div id="inv-list-body" style="flex:1;overflow-y:auto"></div>
         <button id="inv-list-add" class="fab-group-start">➕ Añadir un objeto</button>
     </div>
@@ -5174,8 +5205,10 @@ $('route-back').addEventListener('click', function() { show('screen-home'); });
 var INV = {
     items: [],
     categories: [],
+    colors: [],
     rows: [],          // residentes tal y como los pinta el selector
     filter: '',
+    filterColor: '',
     current: null,     // objeto abierto en la ficha
     addCategory: '',
     photos: [],        // Blobs ya comprimidos, pendientes de subir
@@ -5307,6 +5340,11 @@ async function loadInvItems() {
     if (!ok) { toast(data.error || 'No se pudo cargar el inventario'); INV.items = []; return false; }
     INV.items = data.belongings || [];
     INV.categories = data.categories || [];
+    INV.colors = data.colors || [];
+    // Los filtros son de este residente: si se arrastran del anterior, la lista
+    // sale vacia y no se entiende por que.
+    INV.filter = '';
+    INV.filterColor = '';
     if (data.max_photos) INV.maxPhotos = data.max_photos;
     return true;
 }
@@ -5340,16 +5378,41 @@ function renderInvFilters() {
     const usadas = INV.categories.filter(function (c) {
         return INV.items.some(function (i) { return i.category === c.id; });
     });
+    const colores = INV.colors.filter(function (c) {
+        return INV.items.some(function (i) { return i.color === c.id; });
+    });
     const cont = $('inv-filters');
-    if (!usadas.length) { cont.innerHTML = ''; return; }
-    cont.innerHTML = '<button type="button" class="inv-chip' + (INV.filter ? '' : ' active') + '" data-cat="">Todo</button>'
-        + usadas.map(function (c) {
-            return '<button type="button" class="inv-chip' + (INV.filter === c.id ? ' active' : '')
-                 + '" data-cat="' + esc(c.id) + '">' + esc(c.label) + '</button>';
-        }).join('');
-    cont.querySelectorAll('.inv-chip').forEach(function (btn) {
+    // Con un solo color no hay nada que filtrar: la fila solo estorbaria.
+    const hayColores = colores.length > 1;
+    if (!usadas.length && !hayColores) { cont.innerHTML = ''; return; }
+
+    function fila(opciones, seleccionada, attr, conPunto) {
+        return '<div class="inv-chips-fila">'
+            + '<button type="button" class="inv-chip' + (seleccionada ? '' : ' active')
+            + '" ' + attr + '="">Todo</button>'
+            + opciones.map(function (c) {
+                const punto = conPunto
+                    ? '<span class="inv-punto" style="background:' + (COLOR_HEX[c.id] || 'transparent') + '"></span> '
+                    : '';
+                return '<button type="button" class="inv-chip' + (seleccionada === c.id ? ' active' : '')
+                     + '" ' + attr + '="' + esc(c.id) + '">' + punto + esc(c.label) + '</button>';
+            }).join('')
+            + '</div>';
+    }
+
+    cont.innerHTML = (usadas.length ? fila(usadas, INV.filter, 'data-cat', false) : '')
+                   + (hayColores ? fila(colores, INV.filterColor, 'data-color', true) : '');
+
+    cont.querySelectorAll('[data-cat]').forEach(function (btn) {
         btn.addEventListener('click', function () {
             INV.filter = btn.dataset.cat;
+            renderInvFilters();
+            renderInvList();
+        });
+    });
+    cont.querySelectorAll('[data-color]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            INV.filterColor = btn.dataset.color;
             renderInvFilters();
             renderInvList();
         });
@@ -5359,7 +5422,10 @@ function renderInvFilters() {
 function renderInvList() {
     invLiberarUrls();
     const body = $('inv-list-body');
-    const items = INV.filter ? INV.items.filter(function (i) { return i.category === INV.filter; }) : INV.items;
+    const items = INV.items.filter(function (i) {
+        return (!INV.filter || i.category === INV.filter)
+            && (!INV.filterColor || i.color === INV.filterColor);
+    });
     if (!items.length) {
         body.innerHTML = '<p class="sel-empty">Todavía no hay objetos registrados</p>';
         return;
@@ -5688,6 +5754,138 @@ $('ri-belongings').addEventListener('click', function () {
     $('resident-info-dialog').style.display = 'none';
     if (S.riResidentId) openInvActions(S.riResidentId, S.riResidentName, S.riResidentPhoto);
 });
+
+// ── Buscar en el inventario de toda la casa ────────────────────────────────
+// El filtrado lo hace el servidor: aqui hay pertenencias de todos los
+// residentes, no la lista corta de uno solo. Los colores los deduce el servidor
+// de la propia foto.
+
+const FIND = { cat: '', color: '', q: '', urls: [], timer: null };
+
+// Color del objeto, no del tema: estos tonos son fijos a proposito.
+const COLOR_HEX = {
+    rojo: '#d32f2f', naranja: '#ef6c00', amarillo: '#f5c518', verde: '#2e7d32',
+    azul: '#1565c0', morado: '#6a1b9a', rosa: '#ec5f9e', marron: '#795548',
+    gris: '#9e9e9e', blanco: '#ffffff', negro: '#212121',
+};
+
+function findLiberarUrls() {
+    FIND.urls.forEach(function (u) { URL.revokeObjectURL(u); });
+    FIND.urls = [];
+}
+
+function openInvFind() {
+    // Siempre se vuelve a buscar: al salir se sueltan las object URL de las
+    // fotos, asi que reusar el HTML de antes dejaria imagenes rotas. Ademas
+    // puede haberse registrado algo nuevo mientras tanto.
+    show('screen-inv-find');
+    buscarInventario();
+}
+
+function renderFindChips(cont, opciones, seleccionada, alElegir) {
+    cont.innerHTML = '<button type="button" class="inv-chip'
+        + (seleccionada ? '' : ' active') + '" data-v="">Todo</button>'
+        + opciones.map(function (o) {
+            const punto = COLOR_HEX[o.id]
+                ? '<span class="inv-punto" style="background:' + COLOR_HEX[o.id] + '"></span> '
+                : '';
+            return '<button type="button" class="inv-chip' + (seleccionada === o.id ? ' active' : '')
+                 + '" data-v="' + esc(o.id) + '">' + punto + esc(o.label) + '</button>';
+        }).join('');
+    cont.querySelectorAll('.inv-chip').forEach(function (btn) {
+        btn.addEventListener('click', function () { alElegir(btn.dataset.v); });
+    });
+    // La fila se repinta entera en cada busqueda y vuelve al principio: si el
+    // chip elegido estaba mas a la derecha, dejaba de verse y parecia que no se
+    // habia aplicado nada.
+    const activo = cont.querySelector('.inv-chip.active');
+    if (activo && seleccionada) {
+        // scrollLeft a mano y no scrollIntoView: el chip cuelga de la pantalla,
+        // no de la fila, asi que scrollIntoView movia la pagina entera y dejaba
+        // la fila igual. Restar cont.offsetLeft salva esa diferencia.
+        const centrar = function () {
+            if (!cont.clientWidth) return;   // todavia sin layout: nada que medir
+            cont.scrollLeft = activo.offsetLeft - cont.offsetLeft
+                            - (cont.clientWidth - activo.offsetWidth) / 2;
+        };
+        centrar();                       // casi siempre ya hay medidas
+        requestAnimationFrame(centrar);  // y si no, en el frame siguiente
+    }
+}
+
+async function buscarInventario() {
+    const body = $('inv-find-body');
+    body.innerHTML = '<p class="sel-empty"><span class="spinner"></span></p>';
+
+    const p = new URLSearchParams();
+    if (FIND.q) p.set('q', FIND.q);
+    if (FIND.cat) p.set('category', FIND.cat);
+    if (FIND.color) p.set('color', FIND.color);
+    const { ok, data } = await api('/api/worker/belongings/search?' + p.toString());
+    if (!ok) { body.innerHTML = '<p class="sel-empty">No se pudo buscar</p>'; return; }
+
+    renderFindChips($('inv-find-cats'), data.categories, FIND.cat, function (v) {
+        FIND.cat = v; buscarInventario();
+    });
+    renderFindChips($('inv-find-colors'), data.colors, FIND.color, function (v) {
+        FIND.color = v; buscarInventario();
+    });
+
+    const items = data.belongings || [];
+    $('inv-find-count').textContent = !items.length ? ''
+        : (data.total > data.mostrados
+            ? 'Se muestran ' + data.mostrados + ' de ' + data.total + '. Afina la búsqueda para ver el resto.'
+            : data.total + (data.total === 1 ? ' objeto' : ' objetos'));
+
+    if (!items.length) {
+        body.innerHTML = '<p class="sel-empty">No hay objetos que coincidan. Prueba a quitar algún filtro.</p>';
+        return;
+    }
+
+    findLiberarUrls();
+    body.innerHTML = items.map(function (i) {
+        const foto = i.photo_url
+            ? '<img alt="" data-find-src="' + i.photo_url + '">'
+            : '<div class="inv-note-icon" style="width:64px;height:64px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:var(--surface-2);flex-shrink:0">📝</div>';
+        const donde = i.room ? i.resident_name + ' · hab. ' + i.room : i.resident_name;
+        return '<button class="inv-cand" data-res="' + i.resident_id + '" data-nombre="' + esc(i.resident_name) + '">'
+             + foto
+             + '<div style="flex:1;min-width:0">'
+             + '<div style="font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
+             + esc(i.description || 'Sin descripción') + '</div>'
+             + '<div class="inv-duenno">' + esc(donde) + '</div>'
+             + '<div style="font-size:11px;color:var(--text-2)">' + esc(i.category_label) + '</div>'
+             + '</div><div style="font-size:16px;color:var(--text-2)">→</div></button>';
+    }).join('');
+
+    // Al tocar un objeto se abre el inventario de su duenno: desde ahi ya se
+    // puede corregir o anadir fotos, sin repetir aqui esa pantalla.
+    body.querySelectorAll('[data-res]').forEach(function (el) {
+        el.addEventListener('click', function () {
+            openInvActions(parseInt(el.dataset.res), el.dataset.nombre, null);
+        });
+    });
+    body.querySelectorAll('img[data-find-src]').forEach(async function (img) {
+        try {
+            const url = await blobAutenticado(img.dataset.findSrc);
+            FIND.urls.push(url);
+            img.src = url;
+        } catch (e) { /* si falta una foto, el resto de la lista sigue sirviendo */ }
+    });
+}
+
+$('inv-search-card').addEventListener('click', openInvFind);
+$('inv-find-back').addEventListener('click', function () {
+    findLiberarUrls();
+    show('screen-inv-select');
+});
+// Rebote: no se lanza una busqueda por cada tecla.
+$('inv-find-q').addEventListener('input', function () {
+    FIND.q = this.value.trim();
+    clearTimeout(FIND.timer);
+    FIND.timer = setTimeout(buscarInventario, 300);
+});
+
 
 // ── Identificar un objeto perdido ──────────────────────────────────────────
 // La foto se compara contra el inventario de toda la casa y no se sube a

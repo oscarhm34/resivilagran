@@ -1367,6 +1367,10 @@ class BelongingPhoto(db.Model):
     embedding = db.Column(db.LargeBinary, nullable=True)
     color_hist = db.Column(db.LargeBinary, nullable=True)
     descriptor_version = db.Column(db.String(40), nullable=True, index=True)
+    # Nombre del color dominante ('azul', 'marron'...), para filtrar el
+    # inventario. Va en la foto y no en el objeto: asi un jersey retratado a
+    # contraluz sigue encontrandose por el color de sus otras tomas.
+    color = db.Column(db.String(12), nullable=True, index=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
 
     belonging = db.relationship('ResidentBelonging', back_populates='photos')

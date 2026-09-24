@@ -292,6 +292,45 @@ def backfill_descriptores(todos: bool) -> None:
     click.echo(f'Listo. Descritas {hechas}, fallidas {fallos}.')
 
 
+@app.cli.command('backfill-colores')
+@click.option('--todos', is_flag=True,
+              help='Recalcula tambien las fotos que ya tengan color.')
+def backfill_colores(todos: bool) -> None:
+    """Deduce el color dominante de las fotos de pertenencias que no lo tengan.
+
+    Hace falta despues del despliegue que estrena la columna: las fotos ya
+    registradas no traen color y sin el no saldrian en el filtro. A diferencia
+    de `backfill-descriptores`, esto no necesita el modelo de imagen.
+    """
+    import os
+    from .models import BelongingPhoto
+    from .image_match import color_dominante
+    from .utils import _open_image_oriented
+
+    q = BelongingPhoto.query
+    if not todos:
+        q = q.filter(BelongingPhoto.color.is_(None))
+    pendientes = q.all()
+    click.echo(f'Fotos sin color: {len(pendientes)}')
+
+    hechas = fallos = 0
+    for foto in pendientes:
+        ruta = os.path.join(app.config['UPLOAD_FOLDER'], foto.photo_path)
+        try:
+            with _open_image_oriented(ruta) as img:
+                foto.color = color_dominante(img)
+            hechas += 1
+        except Exception as e:                   # noqa: BLE001
+            fallos += 1
+            click.echo(f'  [!] {foto.photo_path}: {e}')
+        if hechas and hechas % 50 == 0:
+            db.session.commit()
+            click.echo(f'  ...{hechas}')
+
+    db.session.commit()
+    click.echo(f'Listo. Con color {hechas}, fallidas {fallos}.')
+
+
 @app.cli.command('migrar-fotos-inventario')
 def migrar_fotos_inventario() -> None:
     """Pasa las fotos de pertenencias de la tabla vieja a `belonging_photo`.

@@ -1,0 +1,112 @@
+{# Tarjeta de una pertenencia del inventario.
+
+   La comparten la pestana Inventario de la ficha del residente y el listado
+   general del panel: si el boton de borrar o la ficha cambian, cambian en los
+   dos sitios a la vez.
+
+   Los modales #deleteModal y #editBelongingModal los pone _pertenencia_modales,
+   una sola vez por pagina. #}
+
+{% macro tarjeta(item, categorias, colores, mostrar_residente=false) %}
+<div class="col-6 col-md-4 col-lg-3">
+    <div class="card h-100" style="border:1px solid var(--color-border)">
+        {% if item.photos %}
+        <div class="position-relative">
+            <img src="{{ url_for('nfc.serve_upload', filename=item.cover.photo_path) }}"
+                 alt="{{ item.description or 'Pertenencia' }}"
+                 class="card-img-top inventario-foto"
+                 data-desc="{{ item.description or '' }}"
+                 style="aspect-ratio:1;object-fit:cover;cursor:zoom-in;border-radius:var(--radius-md) var(--radius-md) 0 0">
+            {% if item.photos|length > 1 %}
+            <span class="badge bg-dark position-absolute" style="top:6px;left:6px">
+                <i class="bi bi-images me-1" aria-hidden="true"></i>{{ item.photos|length }}
+            </span>
+            {% endif %}
+            <button type="button" class="btn btn-sm btn-danger position-absolute borrar-btn"
+                    style="top:6px;right:6px;padding:2px 7px;line-height:1"
+                    data-titulo="Eliminar foto"
+                    data-texto="Se borrara esta foto del objeto. No se puede deshacer."
+                    data-action="{{ url_for('residents.admin_delete_belonging_photo', photo_id=item.cover.id) }}"
+                    aria-label="Eliminar esta foto">&times;</button>
+        </div>
+        {% if item.photos|length > 1 %}
+        <div class="d-flex gap-1 p-2 pb-0" style="overflow-x:auto">
+            {% for foto in item.photos[1:] %}
+            <div class="position-relative" style="flex-shrink:0">
+                <img src="{{ url_for('nfc.serve_upload', filename=foto.photo_path) }}"
+                     alt="{{ item.description or 'Pertenencia' }}"
+                     class="inventario-foto"
+                     data-desc="{{ item.description or '' }}"
+                     style="width:44px;height:44px;object-fit:cover;cursor:zoom-in;border-radius:var(--radius-sm)">
+                <button type="button" class="btn btn-danger position-absolute borrar-btn"
+                        style="top:-4px;right:-4px;padding:0 5px;font-size:.7rem;line-height:1.4;border-radius:50%"
+                        data-titulo="Eliminar foto"
+                        data-texto="Se borrara esta foto del objeto. No se puede deshacer."
+                        data-action="{{ url_for('residents.admin_delete_belonging_photo', photo_id=foto.id) }}"
+                        aria-label="Eliminar esta foto">&times;</button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="d-flex align-items-center justify-content-center"
+             style="aspect-ratio:1;background:var(--color-bg);font-size:2rem">&#128221;</div>
+        {% endif %}
+
+        <div class="card-body p-2">
+            {% if mostrar_residente and item.resident %}
+            <a href="{{ url_for('residents.resident_detail', resident_id=item.resident_id) }}"
+               class="d-block text-decoration-none" style="font-size:.8rem;font-weight:600">
+                {{ item.resident.name }}{% if item.resident.room_number %}
+                <span style="color:var(--color-text-secondary)">&middot; hab. {{ item.resident.room_number }}</span>{% endif %}
+            </a>
+            {% endif %}
+            <div style="font-size:.85rem;font-weight:600">
+                {{ item.description or 'Sin descripcion' }}
+            </div>
+            <div class="d-flex flex-wrap align-items-center gap-1 mt-1">
+                {% if item.category %}
+                <span class="badge bg-secondary">{{ categorias.get(item.category, item.category) }}</span>
+                {% endif %}
+                {% if item.cover and item.cover.color %}
+                <span class="badge color-badge" data-color="{{ item.cover.color }}">
+                    <span class="color-dot" aria-hidden="true"></span>{{ colores.get(item.cover.color, item.cover.color) }}
+                </span>
+                {% endif %}
+            </div>
+            <div style="color:var(--color-text-secondary);font-size:.75rem" class="mt-1">
+                {{ item.created_at.strftime('%d/%m/%Y') }}
+                {% if item.creator %} &middot; {{ item.creator.name }}{% endif %}
+            </div>
+
+            <div class="d-flex gap-1 mt-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary flex-fill editar-btn"
+                        data-action="{{ url_for('residents.admin_update_belonging', item_id=item.id) }}"
+                        data-desc="{{ item.description or '' }}"
+                        data-cat="{{ item.category or '' }}"
+                        title="Editar descripcion y categoria">
+                    <i class="bi bi-pencil" aria-hidden="true"></i><span class="visually-hidden">Editar</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary flex-fill"
+                        onclick="document.getElementById('fotos-{{ item.id }}').click()"
+                        title="Anadir fotos">
+                    <i class="bi bi-camera" aria-hidden="true"></i><span class="visually-hidden">Anadir fotos</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger flex-fill borrar-btn"
+                        data-titulo="Eliminar objeto"
+                        data-texto="Se borrara del inventario junto con todas sus fotos. No se puede deshacer."
+                        data-action="{{ url_for('residents.admin_delete_belonging', item_id=item.id) }}"
+                        title="Eliminar objeto">
+                    <i class="bi bi-trash" aria-hidden="true"></i><span class="visually-hidden">Eliminar</span>
+                </button>
+            </div>
+            {# Subir fotos desde el ordenador: se envia solo al elegir ficheros. #}
+            <form method="POST" enctype="multipart/form-data" class="d-none"
+                  action="{{ url_for('residents.admin_add_belonging_photos', item_id=item.id) }}">
+                <input type="file" id="fotos-{{ item.id }}" name="photos" accept="image/*"
+                       multiple onchange="this.form.submit()">
+            </form>
+        </div>
+    </div>
+</div>
+{% endmacro %}

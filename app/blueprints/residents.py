@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash, send_file, abort
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename as _secure_filename
-from sqlalchemy.orm import joinedload, subqueryload
+from sqlalchemy.orm import joinedload, subqueryload, selectinload
 from sqlalchemy.exc import IntegrityError
 import pandas as pd
 from io import BytesIO
@@ -28,7 +28,7 @@ from ..utils import (
     admin_required, _format_duration, _allowed_file, _safe_commit,
     ALLOWED_IMAGE_EXTENSIONS, ALLOWED_DOC_EXTENSIONS,
     _open_image_oriented, _save_image_stream, log_audit, _safe_flush,
-    formato_constante,
+    formato_constante, _filtro_fecha_hora,
 )
 
 bp = Blueprint('residents', __name__)
@@ -777,6 +777,8 @@ def registros_atencion():
     care_type_id = request.args.get('care_type_id', '')
     start_date = request.args.get('start_date', '')
     end_date = request.args.get('end_date', '')
+    start_time = request.args.get('start_time', '')
+    end_time = request.args.get('end_time', '')
     estado = request.args.get('estado', '')
 
     query = CareRecord.query.options(
@@ -797,11 +799,8 @@ def registros_atencion():
         query = query.filter(CareRecord.resident_id == resident_id)
     if care_type_id:
         query = query.filter(_filtro_tipo_atencion(care_type_id))
-    if start_date:
-        query = query.filter(CareRecord.start_time >= datetime.strptime(start_date, '%Y-%m-%d'))
-    if end_date:
-        end_dt = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)
-        query = query.filter(CareRecord.start_time < end_dt)
+    query = _filtro_fecha_hora(query, CareRecord.start_time,
+                               start_date, end_date, start_time, end_time)
 
     query = query.order_by(CareRecord.start_time.desc())
     page = request.args.get('page', 1, type=int)
@@ -816,6 +815,8 @@ def registros_atencion():
         'care_type_id': care_type_id,
         'start_date': start_date,
         'end_date': end_date,
+        'start_time': start_time,
+        'end_time': end_time,
         'estado': estado,
     }
 
@@ -848,6 +849,8 @@ def exportar_atenciones_excel():
     care_type_id = request.args.get('care_type_id', '')
     start_date = request.args.get('start_date', '')
     end_date = request.args.get('end_date', '')
+    start_time = request.args.get('start_time', '')
+    end_time = request.args.get('end_time', '')
     estado = request.args.get('estado', '')
 
     query = CareRecord.query.options(
@@ -867,11 +870,8 @@ def exportar_atenciones_excel():
         query = query.filter(CareRecord.resident_id == resident_id)
     if care_type_id:
         query = query.filter(_filtro_tipo_atencion(care_type_id))
-    if start_date:
-        query = query.filter(CareRecord.start_time >= datetime.strptime(start_date, '%Y-%m-%d'))
-    if end_date:
-        end_dt = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)
-        query = query.filter(CareRecord.start_time < end_dt)
+    query = _filtro_fecha_hora(query, CareRecord.start_time,
+                               start_date, end_date, start_time, end_time)
 
     records = query.order_by(CareRecord.start_time.desc()).all()
 
@@ -1000,6 +1000,7 @@ def resident_detail(resident_id: int):
         resident=resident,
         belongings=belongings,
         belonging_categories=BELONGING_CATEGORIES,
+        belonging_colors=_colores_pertenencias(),
         records=pagination.items,
         pagination=pagination,
         vital_charts=vital_charts,
@@ -1367,6 +1368,16 @@ def worker_create_wound(resident_id: int):
 # marca) ya se identifica bien; mas es llenar el disco sin ganar acierto.
 MAX_FOTOS_POR_OBJETO = 6
 
+# Tope de resultados de la busqueda de la webapp. Mas de esto no se recorre en
+# un movil: quien no encuentre lo suyo aqui, que afine el filtro.
+TOPE_BUSQUEDA = 60
+
+
+def _colores_pertenencias() -> dict:
+    """Catalogo de colores. Import perezoso, como el resto de `image_match`."""
+    from ..image_match import BELONGING_COLORS
+    return BELONGING_COLORS
+
 
 def _photo_data(p: BelongingPhoto) -> dict:
     return {'id': p.id, 'url': f'/api/uploads/{p.photo_path}'}
@@ -1374,6 +1385,8 @@ def _photo_data(p: BelongingPhoto) -> dict:
 
 def _belonging_data(b: ResidentBelonging) -> dict:
     fotos = [_photo_data(p) for p in b.photos]
+    # El color del objeto es el de su portada: es la foto que lo representa.
+    color = b.cover.color if b.cover else None
     return {
         'id': b.id,
         'photos': fotos,
@@ -1382,6 +1395,8 @@ def _belonging_data(b: ResidentBelonging) -> dict:
         'photo_count': len(fotos),
         'category': b.category,
         'category_label': BELONGING_CATEGORIES.get(b.category, ''),
+        'color': color,
+        'color_label': _colores_pertenencias().get(color, ''),
         'description': b.description or '',
         'created_by_name': b.creator.name if b.creator else '',
         'created_at': b.created_at.strftime('%d/%m/%Y'),
@@ -1402,11 +1417,15 @@ def _describir_foto(foto: BelongingPhoto) -> None:
     Nunca levanta: si el modelo falla o falta, la foto se guarda igual y queda
     sin describir. Registrar el objeto es lo importante; poder buscarlo despues
     por parecido es un extra que recupera `flask backfill-descriptores`.
+
+    El color se saca aqui tambien, pero no depende del modelo: se calcula
+    siempre, y lo que quede sin el lo recupera `flask backfill-colores`.
     """
-    from ..image_match import DESCRIPTOR_VERSION, describe, to_bytes
+    from ..image_match import DESCRIPTOR_VERSION, color_dominante, describe, to_bytes
     try:
         ruta = os.path.join(app.config['UPLOAD_FOLDER'], foto.photo_path)
         with _open_image_oriented(ruta) as img:
+            foto.color = color_dominante(img)
             emb, hist = describe(img)
         foto.color_hist = to_bytes(hist)
         foto.embedding = to_bytes(emb)
@@ -1454,6 +1473,95 @@ def _anadir_fotos(item: ResidentBelonging, ficheros, resident_id: int):
     return nuevas, None
 
 
+# ── Reglas del inventario, compartidas por la webapp y el panel ─────────────
+# Las dos superficies tienen que borrar y corregir con las mismas reglas y en el
+# mismo orden. Viven aqui y no en la ruta para que no se separen: el panel
+# autentica por cookie y la webapp por JWT, pero lo que pasa con los datos es lo
+# mismo. `actor_id` es quien lo hace, para la auditoria.
+
+def _eliminar_foto_pertenencia(foto: BelongingPhoto, actor_id: int | None):
+    """Borra una foto suelta. Devuelve (ok, error, codigo)."""
+    item = foto.belonging
+    # Un objeto sin foto y sin descripcion no dice nada: no se deja llegar ahi.
+    if len(item.photos) == 1 and not item.description:
+        return False, ('Es la unica foto y el objeto no tiene descripcion. '
+                       'Escribe una descripcion o elimina el objeto entero.'), 400
+
+    ruta = foto.photo_path
+    log_audit('delete', 'belonging_photo', foto.id,
+              {'belonging_id': item.id, 'cleaner_id': actor_id})
+    db.session.delete(foto)
+    item.updated_at = datetime.now()
+    ok, error = _safe_commit('Error al eliminar la foto')
+    if not ok:
+        return False, error, 500
+
+    # Solo despues del commit: si falla, la fila sigue y el fichero tambien.
+    _borrar_fichero(ruta)
+    return True, None, 200
+
+
+def _eliminar_pertenencia(item: ResidentBelonging, actor_id: int | None):
+    """Borra un objeto y sus ficheros. Devuelve (ok, error, codigo)."""
+    rutas = [p.photo_path for p in item.photos]
+    log_audit('delete', 'resident_belonging', item.id,
+              {'resident_id': item.resident_id, 'fotos': len(rutas),
+               'cleaner_id': actor_id})
+    db.session.delete(item)
+    ok, error = _safe_commit('Error al eliminar la pertenencia')
+    if not ok:
+        return False, error, 500
+
+    for ruta in rutas:
+        _borrar_fichero(ruta)
+    return True, None, 200
+
+
+def _actualizar_pertenencia(item: ResidentBelonging, datos: dict,
+                            actor_id: int | None):
+    """Corrige descripcion y categoria. Devuelve (ok, error, codigo)."""
+    if 'description' in datos:
+        item.description = (datos.get('description') or '').strip() or None
+    if 'category' in datos:
+        cat = datos.get('category') or None
+        item.category = cat if cat in BELONGING_CATEGORIES else None
+    if not item.photos and not item.description:
+        db.session.rollback()
+        return False, 'La pertenencia necesita una foto o una descripcion.', 400
+
+    item.updated_at = datetime.now()
+    log_audit('update', 'resident_belonging', item.id,
+              {'resident_id': item.resident_id, 'cleaner_id': actor_id})
+    ok, error = _safe_commit('Error al actualizar la pertenencia')
+    if not ok:
+        return False, error, 500
+    return True, None, 200
+
+
+def _guardar_fotos_en(item: ResidentBelonging, ficheros, actor_id: int | None):
+    """Anade fotos a un objeto ya registrado. Devuelve (ok, error, codigo)."""
+    if not ficheros:
+        return False, 'Haz una foto del objeto.', 400
+
+    _fotos, error = _anadir_fotos(item, ficheros, item.resident_id)
+    if error:
+        db.session.rollback()
+        return False, error, 400
+
+    item.updated_at = datetime.now()
+    ok, error = _safe_flush('Error al guardar la foto')
+    if not ok:
+        return False, error, 500
+
+    log_audit('update', 'resident_belonging', item.id,
+              {'resident_id': item.resident_id, 'fotos_anadidas': len(ficheros),
+               'cleaner_id': actor_id})
+    ok, error = _safe_commit('Error al guardar la foto')
+    if not ok:
+        return False, error, 500
+    return True, None, 201
+
+
 @bp.route('/api/worker/resident/<int:resident_id>/belongings')
 @jwt_required()
 def worker_get_belongings(resident_id: int):
@@ -1469,6 +1577,8 @@ def worker_get_belongings(resident_id: int):
     ).all()
     return jsonify({
         'categories': [{'id': k, 'label': v} for k, v in BELONGING_CATEGORIES.items()],
+        'colors': [{'id': k, 'label': v}
+                   for k, v in _colores_pertenencias().items()],
         'max_photos': MAX_FOTOS_POR_OBJETO,
         'belongings': [_belonging_data(b) for b in items],
     })
@@ -1538,27 +1648,10 @@ def worker_add_belonging_photos(item_id: int):
     if not item:
         return jsonify({'error': 'Pertenencia no encontrada'}), 404
 
-    ficheros = _fotos_del_formulario()
-    if not ficheros:
-        return jsonify({'error': 'Haz una foto del objeto.'}), 400
-
-    _fotos, error = _anadir_fotos(item, ficheros, item.resident_id)
-    if error:
-        db.session.rollback()
-        return jsonify({'error': error}), 400
-
-    item.updated_at = datetime.now()
-    ok, error = _safe_flush('Error al guardar la foto')
+    ok, error, codigo = _guardar_fotos_en(item, _fotos_del_formulario(), worker.id)
     if not ok:
-        return jsonify({'error': error}), 500
-
-    log_audit('update', 'resident_belonging', item.id,
-              {'resident_id': item.resident_id, 'fotos_anadidas': len(ficheros),
-               'cleaner_id': worker.id})
-    ok, error = _safe_commit('Error al guardar la foto')
-    if not ok:
-        return jsonify({'error': error}), 500
-    return jsonify({'ok': True, 'belonging': _belonging_data(item)}), 201
+        return jsonify({'error': error}), codigo
+    return jsonify({'ok': True, 'belonging': _belonging_data(item)}), codigo
 
 
 @bp.route('/api/worker/belongings/photos/<int:photo_id>/delete', methods=['POST'])
@@ -1576,21 +1669,9 @@ def worker_delete_belonging_photo(photo_id: int):
         return jsonify({'error': 'Foto no encontrada'}), 404
 
     item = foto.belonging
-    # Un objeto sin foto y sin descripcion no dice nada: no se deja llegar ahi.
-    if len(item.photos) == 1 and not item.description:
-        return jsonify({'error': 'Es la unica foto y el objeto no tiene descripcion. '
-                                 'Escribe una descripcion o elimina el objeto entero.'}), 400
-
-    ruta = foto.photo_path
-    log_audit('delete', 'belonging_photo', foto.id,
-              {'belonging_id': item.id, 'cleaner_id': worker.id})
-    db.session.delete(foto)
-    item.updated_at = datetime.now()
-    ok, error = _safe_commit('Error al eliminar la foto')
+    ok, error, codigo = _eliminar_foto_pertenencia(foto, worker.id)
     if not ok:
-        return jsonify({'error': error}), 500
-
-    _borrar_fichero(ruta)
+        return jsonify({'error': error}), codigo
     return jsonify({'ok': True, 'belonging': _belonging_data(item)})
 
 
@@ -1607,21 +1688,9 @@ def worker_update_belonging(item_id: int):
         return jsonify({'error': 'Pertenencia no encontrada'}), 404
 
     data = request.get_json(silent=True) or {}
-    if 'description' in data:
-        item.description = (data.get('description') or '').strip() or None
-    if 'category' in data:
-        cat = data.get('category') or None
-        item.category = cat if cat in BELONGING_CATEGORIES else None
-    if not item.photos and not item.description:
-        db.session.rollback()
-        return jsonify({'error': 'La pertenencia necesita una foto o una descripcion.'}), 400
-
-    item.updated_at = datetime.now()
-    log_audit('update', 'resident_belonging', item.id,
-              {'resident_id': item.resident_id, 'cleaner_id': worker.id})
-    ok, error = _safe_commit('Error al actualizar la pertenencia')
+    ok, error, codigo = _actualizar_pertenencia(item, data, worker.id)
     if not ok:
-        return jsonify({'error': error}), 500
+        return jsonify({'error': error}), codigo
     return jsonify({'ok': True, 'belonging': _belonging_data(item)})
 
 
@@ -1644,17 +1713,9 @@ def worker_delete_belonging(item_id: int):
     if not item:
         return jsonify({'error': 'Pertenencia no encontrada'}), 404
 
-    rutas = [p.photo_path for p in item.photos]
-    log_audit('delete', 'resident_belonging', item.id,
-              {'resident_id': item.resident_id, 'fotos': len(rutas),
-               'cleaner_id': worker.id})
-    db.session.delete(item)
-    ok, error = _safe_commit('Error al eliminar la pertenencia')
+    ok, error, codigo = _eliminar_pertenencia(item, worker.id)
     if not ok:
-        return jsonify({'error': error}), 500
-
-    for ruta in rutas:
-        _borrar_fichero(ruta)
+        return jsonify({'error': error}), codigo
     return jsonify({'ok': True})
 
 
@@ -1743,3 +1804,175 @@ def worker_identify_belonging():
         })
 
     return jsonify({'comparadas': len(filas), 'matches': salida})
+
+
+# ── PERTENENCIAS – CONSULTA Y GESTION DESDE EL PANEL ────────────────────────
+
+def _consulta_pertenencias(resident_id='', category='', color='', q=''):
+    """Consulta de pertenencias ya filtrada. La comparten el panel y la webapp.
+
+    Solo residentes de alta: un inventario de alguien que ya no esta no ayuda a
+    devolver una prenda perdida hoy, y es el mismo criterio que usa identificar.
+    """
+    consulta = ResidentBelonging.query.join(Resident).filter(
+        Resident.active.is_(True)
+    ).options(
+        joinedload(ResidentBelonging.resident),
+        joinedload(ResidentBelonging.creator),
+        # selectinload y no subqueryload: este listado va paginado, y con
+        # LIMIT/OFFSET subqueryload tiene que repetir la consulta entera dentro
+        # de una subconsulta. selectinload hace un IN con los ids de la pagina.
+        selectinload(ResidentBelonging.photos),
+    )
+    if resident_id:
+        consulta = consulta.filter(ResidentBelonging.resident_id == resident_id)
+    if category in BELONGING_CATEGORIES:
+        consulta = consulta.filter(ResidentBelonging.category == category)
+    if color in _colores_pertenencias():
+        # Basta con que una de las fotos sea de ese color: una prenda azul
+        # retratada a contraluz tiene tomas que no lo parecen.
+        consulta = consulta.filter(
+            ResidentBelonging.photos.any(BelongingPhoto.color == color))
+    if q:
+        # ilike lo compila SQLAlchemy a lower() LIKE lower(): sirve en los dos
+        # motores. Nunca montar el LIKE concatenando texto a mano.
+        consulta = consulta.filter(ResidentBelonging.description.ilike(f'%{q}%'))
+    return consulta.order_by(ResidentBelonging.created_at.desc())
+
+
+@bp.route('/admin/pertenencias')
+@admin_required
+def admin_belongings():
+    """Inventario de toda la casa, con filtros. Complementa la ficha de cada uno."""
+    resident_id = request.args.get('resident_id', '')
+    category = request.args.get('category', '')
+    color = request.args.get('color', '')
+    q = (request.args.get('q', '') or '').strip()
+
+    consulta = _consulta_pertenencias(resident_id, category, color, q)
+    page = request.args.get('page', 1, type=int)
+    pagination = consulta.paginate(page=page, per_page=24, error_out=False)
+
+    return render_template(
+        'admin_belongings.html',
+        belongings=pagination.items,
+        pagination=pagination,
+        residents=Resident.query.filter_by(active=True).order_by(Resident.name).all(),
+        belonging_categories=BELONGING_CATEGORIES,
+        belonging_colors=_colores_pertenencias(),
+        filters={'resident_id': resident_id, 'category': category,
+                 'color': color, 'q': q},
+    )
+
+
+def _vuelta_pertenencias(item_resident_id: int) -> str:
+    """De vuelta a donde estaba: la ficha del residente o el listado general."""
+    destino = volver_atras(
+        url_for('residents.resident_detail', resident_id=item_resident_id))
+    # El navegador no manda el fragmento en el Referer, asi que hay que volver a
+    # ponerlo o al guardar se cae siempre en la primera pestana de la ficha.
+    if '/admin/resident/' in destino and '#' not in destino:
+        destino += '#tab-inventario'
+    return destino
+
+
+@bp.route('/admin/pertenencias/<int:item_id>/eliminar', methods=['POST'])
+@admin_required
+def admin_delete_belonging(item_id: int):
+    """Elimina una pertenencia y sus fotos. No se deshace."""
+    item = db.session.get(ResidentBelonging, item_id)
+    if not item:
+        abort(404)
+
+    resident_id = item.resident_id
+    ok, error, _codigo = _eliminar_pertenencia(item, current_user.id)
+    flash(error if not ok else 'Pertenencia eliminada.',
+          'danger' if not ok else 'success')
+    return redirect(_vuelta_pertenencias(resident_id))
+
+
+@bp.route('/admin/pertenencias/fotos/<int:photo_id>/eliminar', methods=['POST'])
+@admin_required
+def admin_delete_belonging_photo(photo_id: int):
+    """Elimina una foto suelta de un objeto."""
+    foto = db.session.get(BelongingPhoto, photo_id)
+    if not foto:
+        abort(404)
+
+    resident_id = foto.belonging.resident_id
+    ok, error, _codigo = _eliminar_foto_pertenencia(foto, current_user.id)
+    flash(error if not ok else 'Foto eliminada.',
+          'danger' if not ok else 'success')
+    return redirect(_vuelta_pertenencias(resident_id))
+
+
+@bp.route('/admin/pertenencias/<int:item_id>/editar', methods=['POST'])
+@admin_required
+def admin_update_belonging(item_id: int):
+    """Corrige la descripcion y la categoria de una pertenencia."""
+    item = db.session.get(ResidentBelonging, item_id)
+    if not item:
+        abort(404)
+
+    datos = {'description': request.form.get('description', ''),
+             'category': request.form.get('category', '')}
+    ok, error, _codigo = _actualizar_pertenencia(item, datos, current_user.id)
+    flash(error if not ok else 'Pertenencia actualizada.',
+          'danger' if not ok else 'success')
+    return redirect(_vuelta_pertenencias(item.resident_id))
+
+
+@bp.route('/admin/pertenencias/<int:item_id>/fotos', methods=['POST'])
+@admin_required
+def admin_add_belonging_photos(item_id: int):
+    """Sube fotos a un objeto ya registrado, desde el ordenador."""
+    item = db.session.get(ResidentBelonging, item_id)
+    if not item:
+        abort(404)
+
+    resident_id = item.resident_id
+    ok, error, _codigo = _guardar_fotos_en(item, _fotos_del_formulario(),
+                                           current_user.id)
+    flash(error if not ok else 'Fotos anadidas.',
+          'danger' if not ok else 'success')
+    return redirect(_vuelta_pertenencias(resident_id))
+
+
+@bp.route('/api/worker/belongings/search')
+@jwt_required()
+def worker_search_belongings():
+    """Busca en el inventario de toda la casa por tipo, color y descripcion.
+
+    El filtrado va en el servidor y no en el movil: son las pertenencias de
+    todos los residentes, no la lista corta de uno solo. No ensena nada que la
+    trabajadora no pudiera ver ya entrando al inventario de cada residente.
+    """
+    worker = Cleaner.query.filter_by(username=get_jwt_identity()).first()
+    if not worker:
+        return jsonify({'error': 'No autorizado'}), 403
+
+    consulta = _consulta_pertenencias(
+        request.args.get('resident_id', ''),
+        request.args.get('category', ''),
+        request.args.get('color', ''),
+        (request.args.get('q', '') or '').strip(),
+    )
+    total = consulta.count()
+    items = consulta.limit(TOPE_BUSQUEDA).all()
+
+    salida = []
+    for b in items:
+        fila = _belonging_data(b)
+        fila['resident_id'] = b.resident_id
+        fila['resident_name'] = b.resident.name if b.resident else ''
+        fila['room'] = b.resident.room_number if b.resident else ''
+        salida.append(fila)
+
+    return jsonify({
+        'total': total,
+        'mostrados': len(salida),
+        'belongings': salida,
+        'categories': [{'id': k, 'label': v} for k, v in BELONGING_CATEGORIES.items()],
+        'colors': [{'id': k, 'label': v}
+                   for k, v in _colores_pertenencias().items()],
+    })

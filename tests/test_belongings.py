@@ -371,6 +371,32 @@ def test_listar_solo_devuelve_las_del_residente_pedido(
     assert datos['belongings'][0]['created_by_name'] == cleaner_user.name
 
 
+def test_el_listado_trae_el_catalogo_de_colores(
+        client, db, residente, cleaner_user, worker_headers):
+    """La webapp pinta los chips de color con esto: sin el catalogo no salen."""
+    db.session.add(ResidentBelonging(resident_id=residente.id, description='Bufanda',
+                                     created_by=cleaner_user.id))
+    db.session.commit()
+
+    datos = client.get(f'/api/worker/resident/{residente.id}/belongings',
+                       headers=worker_headers).get_json()
+
+    assert {'id': 'azul', 'label': 'Azul'} in datos['colors']
+    assert {'id': 'marron', 'label': 'Marrón'} in datos['colors']
+
+
+def test_cada_objeto_dice_su_color(client, db, residente, worker_headers, uploads):
+    """El color de la portada viaja al cliente para filtrar y para la ficha."""
+    res = client.post(f'/api/worker/resident/{residente.id}/belongings',
+                      headers=worker_headers,
+                      data={'description': 'Jersey', 'photo': (_jpeg((30, 70, 200)), 'a.jpg')},
+                      content_type='multipart/form-data')
+
+    assert res.status_code == 201
+    assert res.get_json()['belonging']['color'] == 'azul'
+    assert res.get_json()['belonging']['color_label'] == 'Azul'
+
+
 # ── Editar ────────────────────────────────────────────────────────────────────
 
 def test_editar_la_descripcion(client, db, residente, cleaner_user, worker_headers):

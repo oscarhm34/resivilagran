@@ -27,13 +27,28 @@
                             <option value="cerradas" {{ 'selected' if filters.estado == 'cerradas' }}>Finalizados</option>
                         </select>
                     </div>
-                    <div class="col-sm-6 col-md-3">
+                    <div class="col-sm-6 col-md-2">
                         <label for="start_date" class="form-label">Fecha inicio</label>
                         <input type="date" id="start_date" name="start_date" class="form-control" value="{{ filters.start_date }}" max="{{ filters.end_date if filters.end_date else '' }}">
                     </div>
-                    <div class="col-sm-6 col-md-3">
+                    <div class="col-sm-6 col-md-2">
                         <label for="end_date" class="form-label">Fecha fin</label>
                         <input type="date" id="end_date" name="end_date" class="form-control" value="{{ filters.end_date }}" min="{{ filters.start_date if filters.start_date else '' }}">
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label for="start_time" class="form-label">Desde hora</label>
+                        <input type="time" id="start_time" name="start_time" class="form-control" value="{{ filters.start_time }}">
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label for="end_time" class="form-label">Hasta hora</label>
+                        <input type="time" id="end_time" name="end_time" class="form-control" value="{{ filters.end_time }}">
+                    </div>
+                    <div class="col-12">
+                        <p class="text-body-secondary mb-0" style="font-size:.82rem">
+                            <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+                            La franja horaria se aplica <strong>a cada dia</strong> del rango de fechas:
+                            de 22:00 a 06:00 salen las atenciones del turno de noche de todos los dias elegidos.
+                        </p>
                     </div>
                     <div class="col-sm-6 col-md-2">
                         <label for="worker_id" class="form-label">Trabajador/a</label>
@@ -72,6 +87,8 @@
                                        care_type_id=filters.care_type_id,
                                        start_date=filters.start_date,
                                        end_date=filters.end_date,
+                                       start_time=filters.start_time,
+                                       end_time=filters.end_time,
                                        estado=filters.estado) }}"
                        class="btn btn-outline-success ms-auto">
                         ↓ Exportar Excel
@@ -179,14 +196,16 @@
                 <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
                     <a class="page-link" href="{{ url_for('residents.registros_atencion', page=pagination.prev_num,
                         worker_id=filters.worker_id, resident_id=filters.resident_id,
-                        care_type_id=filters.care_type_id, start_date=filters.start_date, end_date=filters.end_date) }}">&laquo;</a>
+                        care_type_id=filters.care_type_id, start_date=filters.start_date, end_date=filters.end_date,
+                        start_time=filters.start_time, end_time=filters.end_time, estado=filters.estado) }}">&laquo;</a>
                 </li>
                 {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
                 {% if page_num %}
                 <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
                     <a class="page-link" href="{{ url_for('residents.registros_atencion', page=page_num,
                         worker_id=filters.worker_id, resident_id=filters.resident_id,
-                        care_type_id=filters.care_type_id, start_date=filters.start_date, end_date=filters.end_date) }}">{{ page_num }}</a>
+                        care_type_id=filters.care_type_id, start_date=filters.start_date, end_date=filters.end_date,
+                        start_time=filters.start_time, end_time=filters.end_time, estado=filters.estado) }}">{{ page_num }}</a>
                 </li>
                 {% else %}
                 <li class="page-item disabled"><a class="page-link">&hellip;</a></li>
@@ -195,7 +214,8 @@
                 <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
                     <a class="page-link" href="{{ url_for('residents.registros_atencion', page=pagination.next_num,
                         worker_id=filters.worker_id, resident_id=filters.resident_id,
-                        care_type_id=filters.care_type_id, start_date=filters.start_date, end_date=filters.end_date) }}">&raquo;</a>
+                        care_type_id=filters.care_type_id, start_date=filters.start_date, end_date=filters.end_date,
+                        start_time=filters.start_time, end_time=filters.end_time, estado=filters.estado) }}">&raquo;</a>
                 </li>
             </ul>
         </nav>

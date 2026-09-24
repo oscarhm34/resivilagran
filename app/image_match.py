@@ -128,6 +128,86 @@ def color_histogram(img: Image.Image) -> np.ndarray:
     return out / total if total else out
 
 
+# ── Color dominante ──────────────────────────────────────────────────────────
+# Una etiqueta legible por persona, para poder filtrar el inventario por color.
+# No sale del histograma de arriba: ese tira el brillo a proposito, y sin brillo
+# no hay forma de separar un marron de un naranja ni un blanco de un negro. Aqui
+# el brillo si se mira, asi que se calcula aparte y sobre la imagen.
+
+BELONGING_COLORS = {
+    'rojo': 'Rojo', 'naranja': 'Naranja', 'amarillo': 'Amarillo',
+    'verde': 'Verde', 'azul': 'Azul', 'morado': 'Morado', 'rosa': 'Rosa',
+    'marron': 'Marrón', 'gris': 'Gris', 'blanco': 'Blanco', 'negro': 'Negro',
+}
+
+# Por debajo de esta proporcion de pixeles con color, el objeto es acromatico
+# (blanco, gris o negro) y el tono que salga es ruido.
+COLOR_CHROMA_FRAC = 0.25
+TONO_BINS = 36            # casillas de 10 grados para buscar el tono dominante
+
+# Limite superior de tono (en grados) -> nombre. El rojo envuelve el 0, asi que
+# aparece en los dos extremos. El cian cae dentro de 'azul': separarlo daria una
+# etiqueta que nadie usa al describir ropa.
+_RANGOS_TONO = ((15, 'rojo'), (45, 'naranja'), (68, 'amarillo'), (160, 'verde'),
+                (255, 'azul'), (290, 'morado'), (345, 'rosa'), (360, 'rojo'))
+
+# Cuando un tono calido esta apagado u oscuro deja de ser naranja y es marron:
+# (v_max, s_max) por nombre; None es "no mirar la saturacion".
+_A_MARRON = {'rojo': (0.35, None), 'naranja': (0.60, 0.55), 'amarillo': (0.50, None)}
+
+
+def _nombre_de_tono(grados: float) -> str:
+    for limite, nombre in _RANGOS_TONO:
+        if grados < limite:
+            return nombre
+    return 'rojo'
+
+
+def color_dominante(img: Image.Image) -> str | None:
+    """El color del objeto en una palabra, o None si la imagen no sirve.
+
+    No depende del modelo ONNX: es PIL y numpy, asi que funciona aunque no haya
+    modelo instalado y se puede recalcular sobre el historico.
+    """
+    im = _center_crop(img.convert('RGB')).resize((128, 128), Image.BICUBIC).convert('HSV')
+    a = np.asarray(im, dtype=np.float32) / 255.0
+    h, s, v = a[..., 0].ravel(), a[..., 1].ravel(), a[..., 2].ravel()
+    if h.size == 0:
+        return None
+
+    croma = s > CHROMA_MIN
+    if float(np.count_nonzero(croma)) / h.size < COLOR_CHROMA_FRAC:
+        medio = float(np.median(v))
+        if medio >= 0.72:
+            return 'blanco'
+        if medio <= 0.28:
+            return 'negro'
+        return 'gris'
+
+    hc, sc, vc = h[croma], s[croma], v[croma]
+    # Tono dominante ponderado por saturacion: un azul intenso pesa mas que el
+    # reflejo palido de la sabana que se haya colado en el recorte.
+    idx = np.minimum((hc * TONO_BINS).astype(np.int32), TONO_BINS - 1)
+    pesos = np.zeros(TONO_BINS, dtype=np.float32)
+    np.add.at(pesos, idx, sc)
+    # Suavizado circular: un tono repartido entre dos casillas vecinas no puede
+    # perder contra otro que caiga entero dentro de una.
+    pesos = pesos + 0.5 * (np.roll(pesos, 1) + np.roll(pesos, -1))
+    dominante = int(np.argmax(pesos))
+
+    cerca = np.isin(idx, [(dominante - 1) % TONO_BINS, dominante,
+                          (dominante + 1) % TONO_BINS])
+    nombre = _nombre_de_tono((dominante + 0.5) * (360.0 / TONO_BINS))
+
+    v_max, s_max = _A_MARRON.get(nombre, (None, None))
+    if v_max is not None:
+        v_med = float(np.median(vc[cerca]))
+        s_med = float(np.median(sc[cerca]))
+        if v_med < v_max or (s_max is not None and s_med < s_max and v_med < 0.80):
+            return 'marron'
+    return nombre
+
+
 def embed(img: Image.Image) -> np.ndarray | None:
     """Vector L2-normalizado de la imagen, o None si no hay modelo."""
     sess = _load_session()

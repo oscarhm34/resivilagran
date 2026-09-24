@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, date, time as dt_time
 from flask import abort, request, jsonify, redirect, url_for, flash, g
 from flask_login import login_required, current_user
 from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
+from sqlalchemy import extract
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
@@ -953,6 +954,51 @@ def _parse_iso_date(value, default: date | None = None) -> date | None:
         return date.fromisoformat(str(value).strip()[:10])
     except (TypeError, ValueError):
         return default
+
+
+# ── Filtros de listado ───────────────────────────────────────────────────────
+
+def _filtro_fecha_hora(query, columna, start_date='', end_date='',
+                       start_time='', end_time=''):
+    """Acota una consulta por rango de dias y por franja horaria de cada dia.
+
+    Las horas **no** delimitan un intervalo continuo: se aplican dentro de cada
+    dia del rango. Pedir del 1 al 7 entre las 22:00 y las 06:00 devuelve los
+    turnos de noche de los siete dias, no el tramo seguido del dia 1 al 7.
+
+    Nada especifico de un motor: `extract` lo compila SQLAlchemy a STRFTIME en
+    SQLite y a EXTRACT en PostgreSQL. Eso si, impide usar el indice de la
+    columna; con el volumen de una residencia no se nota.
+    """
+    desde = _parse_iso_date(start_date)
+    hasta = _parse_iso_date(end_date)
+    if desde:
+        query = query.filter(columna >= datetime.combine(desde, datetime.min.time()))
+    if hasta:
+        query = query.filter(columna < datetime.combine(hasta + timedelta(days=1),
+                                                        datetime.min.time()))
+
+    h_ini = _parse_hhmm(start_time)
+    h_fin = _parse_hhmm(end_time)
+    if not h_ini and not h_fin:
+        return query
+
+    minutos = extract('hour', columna) * 60 + extract('minute', columna)
+    ini = h_ini.hour * 60 + h_ini.minute if h_ini else None
+    fin = h_fin.hour * 60 + h_fin.minute if h_fin else None
+
+    if ini is not None and fin is not None:
+        # El turno de noche cruza la medianoche: ahi la franja es la union de
+        # los dos extremos del dia, no un intervalo. Con un between saldria vacio.
+        if ini <= fin:
+            query = query.filter(minutos >= ini, minutos <= fin)
+        else:
+            query = query.filter(db.or_(minutos >= ini, minutos <= fin))
+    elif ini is not None:
+        query = query.filter(minutos >= ini)
+    else:
+        query = query.filter(minutos <= fin)
+    return query
 
 
 # ── NFC helpers ──────────────────────────────────────────────────────────────
