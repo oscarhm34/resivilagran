@@ -169,6 +169,39 @@
                 <li><strong>Pertenencias de toda la casa:</strong> en <strong>Personas &rarr; Pertenencias</strong> esta el inventario completo, con filtros por residente, tipo, color y texto de la descripcion. Sirve para responder a "de quien es este jersey azul" sin abrir una por una las fichas. Ver <a href="#webapp">1. Webapp del trabajador</a>.</li>
             </ul>
 
+            <h6 class="mt-3">Corregir el inventario: mover objetos y fotos</h6>
+            <p>Dos cosas se apuntan mal a menudo: un objeto que se le asigna al residente
+               equivocado, y varias fotos que se hacen creyendo que son del mismo objeto y
+               resultan ser cosas distintas. Las dos se arreglan sin volver a fotografiar nada,
+               desde <strong>Personas &rarr; Pertenencias</strong>.</p>
+            <ul>
+                <li><strong>Mover un objeto a otro residente:</strong> el boton de las dos flechas
+                    (&harr;) de la tarjeta. Se elige a la persona correcta y el objeto se lleva
+                    todas sus fotos. Aparece arriba del todo en el inventario de quien lo recibe.</li>
+                <li><strong>Gestionar las fotos de un objeto:</strong> el boton de las fotos abre una
+                    ventana con todas las imagenes de ese objeto en grande. Ahi se anaden fotos
+                    nuevas, se borran las que sobren y se hacen las dos operaciones siguientes.</li>
+                <li><strong>Mover fotos a otra pertenencia:</strong> dentro de esa ventana se marcan
+                    las fotos que no eran de ese objeto y se pulsa <strong>Mover a otra
+                    pertenencia</strong>. Se puede elegir una pertenencia del mismo residente o de
+                    otro. Los objetos que ya tienen sus seis fotos salen marcados como sin hueco.</li>
+                <li><strong>Separar fotos en una pertenencia nueva:</strong> misma ventana, boton
+                    <strong>Separar en pertenencia nueva</strong>. Se le pone tipo y descripcion y se
+                    crea un objeto nuevo con esas fotos. Si el objeto de origen se queda sin ninguna
+                    foto y sin descripcion, se elimina solo: no dice nada de nadie.</li>
+                <li><strong>Orden de las fotos:</strong> dentro de la ventana de fotos se arrastran
+                    para cambiarlas de sitio. <strong>La primera es la portada</strong>: es la que se
+                    ve en la tarjeta, en la ficha del residente y en la webapp, y es de la que se
+                    saca el color del objeto. Cambiar la portada es arrastrar otra foto al primer
+                    puesto.</li>
+                <li><strong>Orden de los objetos:</strong> filtrando por un residente, cada tarjeta
+                    lleva una manija arriba a la derecha para arrastrarla y colocar su inventario en
+                    el orden que convenga (lo que mas se pierde, primero). Sin filtrar por residente
+                    no se puede ordenar: la rejilla mezcla objetos de varias personas.</li>
+            </ul>
+            <p class="mb-0">Todos estos cambios quedan en el <a href="#auditoria">registro de
+               auditoria</a>: quien movio que y cuando.</p>
+
             <h6 class="mt-3">Perfil medico</h6>
             <ul>
                 <li>Al editar un residente, aparece la seccion <strong>"Perfil medico"</strong> con campos para:</li>
@@ -1890,6 +1923,9 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>29/09</td><td><strong>Cambiar una pertenencia de residente:</strong> si un objeto se apunto a la persona equivocada ya no hay que borrarlo y volver a fotografiarlo. En <strong>Personas &rarr; Pertenencias</strong>, el boton de las dos flechas de cada tarjeta lo pasa a otro residente con todas sus fotos, y aparece el primero en el inventario de quien lo recibe.</td></tr>
+                    <tr><td>29/09</td><td><strong>Separar fotos que no eran del mismo objeto:</strong> el boton de las fotos de cada tarjeta abre una ventana con todas las imagenes en grande. Ahi se marcan las que no correspondan y se <strong>mueven a otra pertenencia</strong> (del mismo residente o de otro) o se <strong>separan en una pertenencia nueva</strong> poniendole tipo y descripcion. Si el objeto de origen se queda sin fotos y sin descripcion, se elimina solo.</td></tr>
+                    <tr><td>29/09</td><td><strong>Elegir la portada y ordenar el inventario:</strong> dentro de la ventana de fotos se arrastran las imagenes para cambiarlas de orden, y <strong>la primera es la portada</strong>: la que se ve en la tarjeta y de la que sale el color del objeto. Filtrando la pagina por un residente, las tarjetas tambien se arrastran por la manija de arriba a la derecha para dejar su inventario en el orden que convenga.</td></tr>
                     <tr><td>24/09</td><td><strong>Las pertenencias se gestionan desde el panel:</strong> hasta ahora, para quitar una foto mal hecha o repetida habia que coger el movil. En la pestana <strong>Inventario</strong> de la ficha del residente hay ahora, para administracion, el aspa de <strong>quitar una foto suelta</strong>, el boton de <strong>eliminar el objeto entero</strong>, el de <strong>corregir</strong> descripcion y categoria, y el de <strong>anadir fotos desde el ordenador</strong>. Borrar pide confirmacion y no se deshace: esas fotos son tambien las que sirven para identificar objetos perdidos.</td></tr>
                     <tr><td>24/09</td><td><strong>Consulta de pertenencias de toda la casa:</strong> nueva pagina en <strong>Personas &rarr; Pertenencias</strong> con el inventario completo y filtros por <strong>residente, tipo, color y texto de la descripcion</strong>. Antes habia que abrir las fichas una por una para saber de quien podia ser algo. Cada objeto sale con su foto, de quien es y en que habitacion esta.</td></tr>
                     <tr><td>24/09</td><td><strong>Buscar en el inventario desde el movil:</strong> en <strong>Pertenencias</strong>, antes de elegir residente, hay un boton nuevo <strong>Buscar en todo el inventario</strong>: busca entre las pertenencias de todos los residentes por tipo, color o descripcion, y cada resultado dice de quien es y en que habitacion. Es la version de mano de la pagina del panel, para cuando se sabe que se busca pero no de quien es.</td></tr>

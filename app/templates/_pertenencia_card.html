@@ -4,11 +4,22 @@
    general del panel: si el boton de borrar o la ficha cambian, cambian en los
    dos sitios a la vez.
 
-   Los modales #deleteModal y #editBelongingModal los pone _pertenencia_modales,
-   una sola vez por pagina. #}
+   `gestionar` distingue las dos superficies. En la ficha del residente (false)
+   la tarjeta es la de siempre: mirar, editar el texto, anadir fotos y borrar.
+   En el panel de inventario (true) ademas se mueve de residente y se abre el
+   gestor de fotos, que es donde se reordenan, se separan y se borran las fotos;
+   por eso ahi las miniaturas no llevan su propia cruz: cinco acciones y una
+   cruz por foto no caben en una tarjeta de cuarto de fila.
 
-{% macro tarjeta(item, categorias, colores, mostrar_residente=false) %}
-<div class="col-6 col-md-4 col-lg-3">
+   `arrastrable` solo lo pone el panel cuando esta filtrado por un residente:
+   ordenar una rejilla con objetos de varias personas no significa nada.
+
+   Los modales #deleteModal, #editBelongingModal, #gestionFotosModal y
+   #moveBelongingModal los pone _pertenencia_modales, una sola vez por pagina. #}
+
+{% macro tarjeta(item, categorias, colores, mostrar_residente=false, gestionar=false, arrastrable=false) %}
+<div class="col-6 col-md-4 col-lg-3{% if gestionar %} pertenencia-col{% endif %}"
+     {% if gestionar %}data-item-id="{{ item.id }}"{% endif %}>
     <div class="card h-100" style="border:1px solid var(--color-border)">
         {% if item.photos %}
         <div class="position-relative">
@@ -22,12 +33,21 @@
                 <i class="bi bi-images me-1" aria-hidden="true"></i>{{ item.photos|length }}
             </span>
             {% endif %}
+            {% if gestionar %}
+            {% if arrastrable %}
+            <span class="manija-arrastre position-absolute" title="Arrastra para cambiar el orden">
+                <i class="bi bi-grip-vertical" aria-hidden="true"></i>
+                <span class="visually-hidden">Arrastra para cambiar el orden</span>
+            </span>
+            {% endif %}
+            {% else %}
             <button type="button" class="btn btn-sm btn-danger position-absolute borrar-btn"
                     style="top:6px;right:6px;padding:2px 7px;line-height:1"
                     data-titulo="Eliminar foto"
                     data-texto="Se borrara esta foto del objeto. No se puede deshacer."
                     data-action="{{ url_for('residents.admin_delete_belonging_photo', photo_id=item.cover.id) }}"
                     aria-label="Eliminar esta foto">&times;</button>
+            {% endif %}
         </div>
         {% if item.photos|length > 1 %}
         <div class="d-flex gap-1 p-2 pb-0" style="overflow-x:auto">
@@ -38,19 +58,28 @@
                      class="inventario-foto"
                      data-desc="{{ item.description or '' }}"
                      style="width:44px;height:44px;object-fit:cover;cursor:zoom-in;border-radius:var(--radius-sm)">
+                {% if not gestionar %}
                 <button type="button" class="btn btn-danger position-absolute borrar-btn"
                         style="top:-4px;right:-4px;padding:0 5px;font-size:.7rem;line-height:1.4;border-radius:50%"
                         data-titulo="Eliminar foto"
                         data-texto="Se borrara esta foto del objeto. No se puede deshacer."
                         data-action="{{ url_for('residents.admin_delete_belonging_photo', photo_id=foto.id) }}"
                         aria-label="Eliminar esta foto">&times;</button>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
         {% endif %}
         {% else %}
-        <div class="d-flex align-items-center justify-content-center"
-             style="aspect-ratio:1;background:var(--color-bg);font-size:2rem">&#128221;</div>
+        <div class="position-relative d-flex align-items-center justify-content-center"
+             style="aspect-ratio:1;background:var(--color-bg);font-size:2rem">&#128221;
+            {% if gestionar and arrastrable %}
+            <span class="manija-arrastre position-absolute" title="Arrastra para cambiar el orden">
+                <i class="bi bi-grip-vertical" aria-hidden="true"></i>
+                <span class="visually-hidden">Arrastra para cambiar el orden</span>
+            </span>
+            {% endif %}
+        </div>
         {% endif %}
 
         <div class="card-body p-2">
@@ -87,11 +116,28 @@
                         title="Editar descripcion y categoria">
                     <i class="bi bi-pencil" aria-hidden="true"></i><span class="visually-hidden">Editar</span>
                 </button>
+                {% if gestionar %}
+                <button type="button" class="btn btn-sm btn-outline-secondary flex-fill fotos-btn"
+                        data-item-id="{{ item.id }}"
+                        data-subir="fotos-{{ item.id }}"
+                        title="Gestionar fotos: ordenar, separar, anadir y borrar">
+                    <i class="bi bi-images" aria-hidden="true"></i><span class="visually-hidden">Gestionar fotos</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary flex-fill mover-btn"
+                        data-action="{{ url_for('residents.admin_move_belonging', item_id=item.id) }}"
+                        data-resident-id="{{ item.resident_id }}"
+                        data-desc="{{ item.description or 'Sin descripcion' }}"
+                        data-fotos="{{ item.photos|length }}"
+                        title="Mover a otro residente">
+                    <i class="bi bi-arrow-left-right" aria-hidden="true"></i><span class="visually-hidden">Mover a otro residente</span>
+                </button>
+                {% else %}
                 <button type="button" class="btn btn-sm btn-outline-secondary flex-fill"
                         onclick="document.getElementById('fotos-{{ item.id }}').click()"
                         title="Anadir fotos">
                     <i class="bi bi-camera" aria-hidden="true"></i><span class="visually-hidden">Anadir fotos</span>
                 </button>
+                {% endif %}
                 <button type="button" class="btn btn-sm btn-outline-danger flex-fill borrar-btn"
                         data-titulo="Eliminar objeto"
                         data-texto="Se borrara del inventario junto con todas sus fotos. No se puede deshacer."

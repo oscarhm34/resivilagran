@@ -991,9 +991,7 @@ def resident_detail(resident_id: int):
     belongings = ResidentBelonging.query.options(
         joinedload(ResidentBelonging.creator),
         subqueryload(ResidentBelonging.photos),
-    ).filter_by(resident_id=resident_id).order_by(
-        ResidentBelonging.created_at.desc(), ResidentBelonging.id.desc()
-    ).all()
+    ).filter_by(resident_id=resident_id).order_by(*_orden_inventario()).all()
 
     return render_template(
         'resident_detail.html',
@@ -1403,6 +1401,18 @@ def _belonging_data(b: ResidentBelonging) -> dict:
     }
 
 
+def _orden_inventario():
+    """Criterio de orden del inventario de un residente.
+
+    Manda el orden manual (`sort_order`, que fija la gestora arrastrando) y, a
+    igualdad, la fecha: lo ultimo registrado arriba. Los objetos que nadie ha
+    ordenado se quedan a cero y se comportan como siempre.
+    """
+    return (ResidentBelonging.sort_order.asc(),
+            ResidentBelonging.created_at.desc(),
+            ResidentBelonging.id.desc())
+
+
 def _resident_activo(resident_id: int):
     """El residente si existe y esta de alta; None si no."""
     resident = db.session.get(Resident, resident_id)
@@ -1447,6 +1457,15 @@ def _fotos_del_formulario():
     return [f for f in ficheros if f and f.filename]
 
 
+def _siguiente_orden_foto(item: ResidentBelonging) -> int:
+    """La posicion que le toca a la siguiente foto del objeto: al final.
+
+    Nunca cero: una foto nueva no puede adelantar a la portada que alguien haya
+    elegido a mano.
+    """
+    return max((p.sort_order or 0) for p in item.photos) + 1 if item.photos else 1
+
+
 def _anadir_fotos(item: ResidentBelonging, ficheros, resident_id: int):
     """Guarda las fotos y las cuelga del objeto. Devuelve (fotos, error)."""
     hueco = MAX_FOTOS_POR_OBJETO - len(item.photos)
@@ -1455,6 +1474,7 @@ def _anadir_fotos(item: ResidentBelonging, ficheros, resident_id: int):
                       if hueco <= 0 else
                       f'Solo caben {hueco} fotos mas en este objeto.')
     nuevas = []
+    orden = _siguiente_orden_foto(item)
     for fichero in ficheros:
         if not _allowed_file(fichero.filename, ALLOWED_IMAGE_EXTENSIONS):
             for f in nuevas:                      # no dejar ficheros sueltos
@@ -1466,7 +1486,8 @@ def _anadir_fotos(item: ResidentBelonging, ficheros, resident_id: int):
             for f in nuevas:
                 _borrar_fichero(f.photo_path)
             return None, str(e)
-        foto = BelongingPhoto(photo_path=ruta)
+        foto = BelongingPhoto(photo_path=ruta, sort_order=orden)
+        orden += 1
         _describir_foto(foto)
         item.photos.append(foto)
         nuevas.append(foto)
@@ -1515,6 +1536,25 @@ def _eliminar_pertenencia(item: ResidentBelonging, actor_id: int | None):
     for ruta in rutas:
         _borrar_fichero(ruta)
     return True, None, 200
+
+
+def _limpiar_objeto_vacio(item: ResidentBelonging, actor_id: int | None) -> bool:
+    """Borra el objeto si se ha quedado sin fotos y sin descripcion.
+
+    Misma regla que impide borrar la ultima foto de un objeto sin texto: sin
+    foto y sin descripcion no queda nada que identifique a la prenda, asi que
+    la fila solo estorbaria en el inventario. No hace commit: lo deja preparado
+    para el de quien lo llama, que es quien esta moviendo las fotos.
+
+    Devuelve True si lo ha borrado.
+    """
+    if item.photos or item.description:
+        return False
+    log_audit('delete', 'resident_belonging', item.id,
+              {'resident_id': item.resident_id, 'motivo': 'sin fotos ni descripcion',
+               'cleaner_id': actor_id})
+    db.session.delete(item)
+    return True
 
 
 def _actualizar_pertenencia(item: ResidentBelonging, datos: dict,
@@ -1572,9 +1612,7 @@ def worker_get_belongings(resident_id: int):
     items = ResidentBelonging.query.options(
         joinedload(ResidentBelonging.creator),
         subqueryload(ResidentBelonging.photos),
-    ).filter_by(resident_id=resident_id).order_by(
-        ResidentBelonging.created_at.desc(), ResidentBelonging.id.desc()
-    ).all()
+    ).filter_by(resident_id=resident_id).order_by(*_orden_inventario()).all()
     return jsonify({
         'categories': [{'id': k, 'label': v} for k, v in BELONGING_CATEGORIES.items()],
         'colors': [{'id': k, 'label': v}
@@ -1837,7 +1875,7 @@ def _consulta_pertenencias(resident_id='', category='', color='', q=''):
         # ilike lo compila SQLAlchemy a lower() LIKE lower(): sirve en los dos
         # motores. Nunca montar el LIKE concatenando texto a mano.
         consulta = consulta.filter(ResidentBelonging.description.ilike(f'%{q}%'))
-    return consulta.order_by(ResidentBelonging.created_at.desc())
+    return consulta.order_by(*_orden_inventario())
 
 
 @bp.route('/admin/pertenencias')
@@ -1851,7 +1889,11 @@ def admin_belongings():
 
     consulta = _consulta_pertenencias(resident_id, category, color, q)
     page = request.args.get('page', 1, type=int)
-    pagination = consulta.paginate(page=page, per_page=24, error_out=False)
+    # Filtrando por residente caben muchos mas por pagina: el inventario de una
+    # persona tiene que salir entero para poder ordenarlo arrastrando, y partido
+    # en paginas el orden no significaria nada.
+    pagination = consulta.paginate(page=page, per_page=96 if resident_id else 24,
+                                   error_out=False)
 
     return render_template(
         'admin_belongings.html',
@@ -1862,6 +1904,9 @@ def admin_belongings():
         belonging_colors=_colores_pertenencias(),
         filters={'resident_id': resident_id, 'category': category,
                  'color': color, 'q': q},
+        # Ordenar solo tiene sentido dentro de un residente y con todo a la
+        # vista: mezclando personas o con el inventario partido, no.
+        ordenable=bool(resident_id) and pagination.pages <= 1,
     )
 
 
@@ -1936,6 +1981,307 @@ def admin_add_belonging_photos(item_id: int):
     flash(error if not ok else 'Fotos anadidas.',
           'danger' if not ok else 'success')
     return redirect(_vuelta_pertenencias(resident_id))
+
+
+# ── PERTENENCIAS – REASIGNAR Y REORDENAR (panel) ────────────────────────────
+# Corregir lo que se registro mal: un objeto apuntado al residente equivocado, o
+# varias fotos metidas en el mismo objeto cuando eran cosas distintas. Todo va
+# por JSON porque son acciones sueltas dentro de la pagina, sin recargarla.
+
+def _belonging_panel_data(item: ResidentBelonging) -> dict:
+    """Un objeto, tal y como lo necesitan los selectores del panel.
+
+    No sirve `_belonging_data`: aquel emite URLs `/api/uploads/...`, que es la
+    ruta con JWT de la webapp, y el panel autentica por cookie.
+    """
+    portada = item.cover
+    return {
+        'id': item.id,
+        'description': item.description or '',
+        'category_label': BELONGING_CATEGORIES.get(item.category, ''),
+        'photo_count': len(item.photos),
+        'hueco': MAX_FOTOS_POR_OBJETO - len(item.photos),
+        'photo_url': (url_for('nfc.serve_upload', filename=portada.photo_path)
+                      if portada else None),
+    }
+
+
+def _photo_panel_data(foto: BelongingPhoto) -> dict:
+    return {
+        'id': foto.id,
+        'url': url_for('nfc.serve_upload', filename=foto.photo_path),
+        'color': foto.color or '',
+        'color_label': _colores_pertenencias().get(foto.color, ''),
+    }
+
+
+def _ids_del_json(datos: dict, clave: str) -> list[int] | None:
+    """La lista de ids enteros de una clave del cuerpo. None si viene mal."""
+    bruto = datos.get(clave)
+    if not isinstance(bruto, list) or not bruto:
+        return None
+    try:
+        ids = [int(x) for x in bruto]
+    except (TypeError, ValueError):
+        return None
+    # Repetidos significaria escribir dos veces la misma posicion: no vale.
+    return None if len(set(ids)) != len(ids) else ids
+
+
+def _aplicar_orden(filas: list, ids: list[int]) -> str | None:
+    """Escribe `sort_order` 1..N siguiendo `ids`. Devuelve el error, si lo hay.
+
+    Exige que los ids recibidos sean exactamente los de las filas: si el
+    navegador manda una lista a medias (por una pagina vieja, o por un objeto
+    que otra persona acaba de borrar) es mejor no tocar nada que dejar el orden
+    a medio escribir.
+    """
+    por_id = {f.id: f for f in filas}
+    if set(ids) != set(por_id):
+        return 'El orden recibido no coincide con lo que hay ahora. Recarga la pagina.'
+    for posicion, fila_id in enumerate(ids, start=1):
+        por_id[fila_id].sort_order = posicion
+    return None
+
+
+@bp.route('/admin/pertenencias/<int:item_id>/mover', methods=['POST'])
+@admin_required
+def admin_move_belonging(item_id: int):
+    """Reasigna una pertenencia entera, con sus fotos, a otro residente."""
+    item = db.session.get(ResidentBelonging, item_id)
+    if not item:
+        abort(404)
+
+    datos = request.get_json(silent=True) or {}
+    try:
+        destino_id = int(datos.get('resident_id'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Elige un residente.'}), 400
+
+    destino = _resident_activo(destino_id)
+    if not destino:
+        return jsonify({'error': 'Ese residente no existe o esta de baja.'}), 404
+    if destino.id == item.resident_id:
+        return jsonify({'error': 'La pertenencia ya es de ese residente.'}), 400
+
+    # Los ficheros no se mueven de carpeta. `_save_belonging_photo` los guarda
+    # bajo `belongings/res_<id>/`, pero quien los sirve es `nfc.serve_upload` a
+    # partir de `photo_path`, no de la carpeta. Moverlos obligaria a un
+    # `shutil.move` por foto que, si falla a medias, deja filas apuntando a
+    # ficheros que ya no estan. Quien es el dueno lo dice la clave ajena, no el
+    # nombre del directorio.
+    origen_id = item.resident_id
+    item.resident_id = destino.id
+    # A cero para que aparezca arriba en el inventario de quien lo recibe: si se
+    # esta corrigiendo un error, es justo lo que esa persona va a mirar.
+    item.sort_order = 0
+    item.updated_at = datetime.now()
+    log_audit('update', 'resident_belonging', item.id,
+              {'resident_id': destino.id, 'resident_anterior': origen_id,
+               'fotos': len(item.photos), 'cleaner_id': current_user.id})
+    ok, error = _safe_commit('Error al mover la pertenencia')
+    if not ok:
+        return jsonify({'error': error}), 500
+    return jsonify({'ok': True, 'resident_name': destino.name})
+
+
+@bp.route('/admin/pertenencias/fotos/mover', methods=['POST'])
+@admin_required
+def admin_move_belonging_photos():
+    """Mueve fotos a otra pertenencia, existente o nueva.
+
+    Es el arreglo de haber fotografiado dos objetos creyendo que era uno: se
+    marcan las fotos que no eran y se separan, sin perder ni las imagenes ni los
+    descriptores (van en la propia foto, asi que la busqueda por parecido sigue
+    funcionando sin recalcular nada).
+    """
+    datos = request.get_json(silent=True) or {}
+    photo_ids = _ids_del_json(datos, 'photo_ids')
+    if not photo_ids:
+        return jsonify({'error': 'Selecciona al menos una foto.'}), 400
+
+    fotos = [db.session.get(BelongingPhoto, pid) for pid in photo_ids]
+    if any(f is None for f in fotos):
+        return jsonify({'error': 'Alguna de las fotos ya no existe. Recarga la pagina.'}), 404
+
+    if datos.get('destino') == 'nueva':
+        try:
+            resident_id = int(datos.get('resident_id'))
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Elige un residente.'}), 400
+        residente = _resident_activo(resident_id)
+        if not residente:
+            return jsonify({'error': 'Ese residente no existe o esta de baja.'}), 404
+        if len(fotos) > MAX_FOTOS_POR_OBJETO:
+            return jsonify({'error': f'Como mucho {MAX_FOTOS_POR_OBJETO} '
+                                     'fotos por objeto.'}), 400
+
+        categoria = datos.get('category') or None
+        destino = ResidentBelonging(
+            resident_id=residente.id,
+            category=categoria if categoria in BELONGING_CATEGORIES else None,
+            description=(datos.get('description') or '').strip() or None,
+            created_by=current_user.id,
+        )
+        db.session.add(destino)
+        # Flush ya: sin id, la auditoria de cada foto guardaria un destino nulo
+        # y la comprobacion de "ya estaban ahi" no podria comparar. Si algo
+        # falla despues, el rollback de las validaciones lo deshace igual.
+        ok, error = _safe_flush('Error al crear la pertenencia')
+        if not ok:
+            return jsonify({'error': error}), 500
+        creado = True
+    else:
+        try:
+            destino_id = int(datos.get('item_id'))
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Elige la pertenencia de destino.'}), 400
+        destino = db.session.get(ResidentBelonging, destino_id)
+        if not destino:
+            return jsonify({'error': 'Esa pertenencia ya no existe. Recarga la pagina.'}), 404
+        if not _resident_activo(destino.resident_id):
+            return jsonify({'error': 'Esa pertenencia es de un residente de baja.'}), 400
+        creado = False
+
+    # Las que ya estaban en el destino no se mueven; asi elegir "todas" no falla
+    # por incluir alguna que ya estaba donde toca.
+    a_mover = [f for f in fotos if f.belonging_id != destino.id]
+    if not a_mover:
+        db.session.rollback()
+        return jsonify({'error': 'Las fotos ya estan en esa pertenencia.'}), 400
+    hueco = MAX_FOTOS_POR_OBJETO - len(destino.photos)
+    if len(a_mover) > hueco:
+        db.session.rollback()
+        return jsonify({'error': (f'Como mucho {MAX_FOTOS_POR_OBJETO} fotos por objeto.'
+                                  if hueco <= 0 else
+                                  f'Solo caben {hueco} fotos mas en esa pertenencia.')}), 400
+
+    origenes = {f.belonging.id: f.belonging for f in a_mover}
+    orden = _siguiente_orden_foto(destino)
+    for foto in a_mover:
+        origen = foto.belonging
+        # Asignar la relacion y no la clave ajena a pelo: `photos` tiene
+        # delete-orphan, y sacar la foto de la coleccion de origen a mano la
+        # marcaria para borrar en vez de moverla.
+        foto.belonging = destino
+        foto.sort_order = orden
+        orden += 1
+        log_audit('update', 'belonging_photo', foto.id,
+                  {'belonging_anterior': origen.id, 'belonging_id': destino.id,
+                   'cleaner_id': current_user.id})
+
+    ok, error = _safe_flush('Error al mover las fotos')
+    if not ok:
+        return jsonify({'error': error}), 500
+
+    vaciados = 0
+    for origen in origenes.values():
+        if origen.id == destino.id:
+            continue
+        origen.updated_at = datetime.now()
+        if _limpiar_objeto_vacio(origen, current_user.id):
+            vaciados += 1
+    destino.updated_at = datetime.now()
+    if creado:
+        log_audit('create', 'resident_belonging', destino.id,
+                  {'resident_id': destino.resident_id, 'fotos': len(a_mover),
+                   'origen': 'separar fotos', 'cleaner_id': current_user.id})
+
+    ok, error = _safe_commit('Error al mover las fotos')
+    if not ok:
+        return jsonify({'error': error}), 500
+
+    plural = 's' if len(a_mover) != 1 else ''
+    mensaje = f'{len(a_mover)} foto{plural} movida{plural}.'
+    if vaciados:
+        mensaje += ' El objeto de origen se ha eliminado al quedarse sin fotos.'
+    return jsonify({'ok': True, 'movidas': len(a_mover), 'mensaje': mensaje}), 200
+
+
+@bp.route('/admin/pertenencias/<int:item_id>/fotos/orden', methods=['POST'])
+@admin_required
+def admin_order_belonging_photos(item_id: int):
+    """Fija el orden de las fotos de un objeto. La primera es la portada."""
+    item = db.session.get(ResidentBelonging, item_id)
+    if not item:
+        abort(404)
+
+    ids = _ids_del_json(request.get_json(silent=True) or {}, 'photo_ids')
+    if not ids:
+        return jsonify({'error': 'No se ha recibido el orden de las fotos.'}), 400
+
+    error = _aplicar_orden(item.photos, ids)
+    if error:
+        db.session.rollback()
+        return jsonify({'error': error}), 400
+
+    item.updated_at = datetime.now()
+    log_audit('update', 'resident_belonging', item.id,
+              {'resident_id': item.resident_id, 'orden_fotos': ids,
+               'cleaner_id': current_user.id})
+    ok, error = _safe_commit('Error al guardar el orden de las fotos')
+    if not ok:
+        return jsonify({'error': error}), 500
+    return jsonify({'ok': True})
+
+
+@bp.route('/admin/pertenencias/orden', methods=['POST'])
+@admin_required
+def admin_order_belongings():
+    """Fija el orden de las pertenencias de un residente."""
+    datos = request.get_json(silent=True) or {}
+    try:
+        resident_id = int(datos.get('resident_id'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Falta el residente.'}), 400
+
+    ids = _ids_del_json(datos, 'item_ids')
+    if not ids:
+        return jsonify({'error': 'No se ha recibido el orden.'}), 400
+
+    items = ResidentBelonging.query.filter_by(resident_id=resident_id).all()
+    error = _aplicar_orden(items, ids)
+    if error:
+        db.session.rollback()
+        return jsonify({'error': error}), 400
+
+    log_audit('update', 'resident_belonging', resident_id,
+              {'resident_id': resident_id, 'orden_objetos': ids,
+               'cleaner_id': current_user.id})
+    ok, error = _safe_commit('Error al guardar el orden del inventario')
+    if not ok:
+        return jsonify({'error': error}), 500
+    return jsonify({'ok': True})
+
+
+@bp.route('/admin/pertenencias/<int:item_id>/fotos/json')
+@admin_required
+def admin_belonging_photos_json(item_id: int):
+    """Las fotos de un objeto, para el gestor de fotos del panel."""
+    item = db.session.get(ResidentBelonging, item_id)
+    if not item:
+        abort(404)
+    return jsonify({
+        'id': item.id,
+        'description': item.description or '',
+        'resident_id': item.resident_id,
+        'resident_name': item.resident.name if item.resident else '',
+        'max_photos': MAX_FOTOS_POR_OBJETO,
+        'photos': [_photo_panel_data(f) for f in item.photos],
+    })
+
+
+@bp.route('/admin/pertenencias/residente/<int:resident_id>/json')
+@admin_required
+def admin_resident_belongings_json(resident_id: int):
+    """Las pertenencias de un residente, para elegir destino al mover fotos."""
+    if not _resident_activo(resident_id):
+        return jsonify({'error': 'Ese residente no existe o esta de baja.'}), 404
+
+    items = ResidentBelonging.query.options(
+        selectinload(ResidentBelonging.photos)
+    ).filter_by(resident_id=resident_id).order_by(*_orden_inventario()).all()
+    return jsonify({'belongings': [_belonging_panel_data(i) for i in items]})
 
 
 @bp.route('/api/worker/belongings/search')

@@ -2,7 +2,11 @@
 
    Van una sola vez por pagina: las tarjetas solo llevan los datos en atributos
    y el formulario se reapunta al pulsar, que es el patron de #deleteModal que
-   ya usa el resto del panel. #}
+   ya usa el resto del panel.
+
+   Los dos ultimos modales (#gestionFotosModal y #moveBelongingModal) solo se
+   pintan si se pasa la lista de residentes, es decir, solo en el panel de
+   inventario: la ficha del residente no reasigna nada. #}
 
 {% macro estilos() %}
 <style>
@@ -34,10 +38,84 @@
     .color-badge[data-color="gris"]     .color-dot { background: #9e9e9e; }
     .color-badge[data-color="blanco"]   .color-dot { background: #ffffff; }
     .color-badge[data-color="negro"]    .color-dot { background: #212121; }
+
+    /* Manija de arrastre de la tarjeta. Solo aparece cuando el listado esta
+       filtrado por un residente, que es cuando ordenar significa algo. */
+    .manija-arrastre {
+        top: 6px; right: 6px;
+        width: 26px; height: 26px;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--color-surface);
+        color: var(--color-text-secondary);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        cursor: grab;
+    }
+    .manija-arrastre:active { cursor: grabbing; }
+    .pertenencia-col.arrastrando { opacity: .45; }
+    .pertenencia-col.hueco > .card { outline: 2px dashed var(--color-primary); }
+
+    /* Gestor de fotos */
+    .gf-foto {
+        position: relative;
+        width: 120px; height: 120px;
+        border: 2px solid var(--color-border);
+        border-radius: var(--radius-md);
+        overflow: hidden;
+        background: var(--color-bg);
+    }
+    .gf-foto img {
+        width: 100%; height: 100%; object-fit: cover;
+        cursor: grab; display: block;
+    }
+    .gf-foto.elegida { border-color: var(--color-primary); }
+    .gf-check {
+        position: absolute; top: 4px; left: 4px; margin: 0;
+        background: var(--color-surface);
+        border-radius: var(--radius-sm);
+        padding: 2px 4px 0; line-height: 1;
+        border: 1px solid var(--color-border);
+    }
+    .gf-borrar {
+        position: absolute; top: 4px; right: 4px;
+        border: 0; border-radius: 50%;
+        width: 22px; height: 22px; line-height: 1;
+        padding: 0; font-size: .85rem;
+        background: var(--color-danger); color: #fff;
+        /* El anillo separa el boton de la foto: sobre una prenda roja, un
+           circulo rojo sin borde no se ve. */
+        box-shadow: 0 0 0 2px var(--color-surface);
+    }
+    /* Numero de orden: la 1 es la portada, y se dice con texto ademas del
+       sitio que ocupa, no solo con la posicion. */
+    .gf-orden {
+        position: absolute; bottom: 0; left: 0; right: 0;
+        background: rgba(0, 0, 0, .58); color: #fff;
+        font-size: .72rem; text-align: center; padding: 1px 0;
+    }
+    .gf-destino {
+        display: flex; align-items: center; gap: 10px;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: 8px; margin-bottom: 6px; cursor: pointer;
+    }
+    .gf-destino img {
+        width: 44px; height: 44px; object-fit: cover;
+        border-radius: var(--radius-sm); flex-shrink: 0;
+    }
+    .gf-destino.lleno { opacity: .5; cursor: not-allowed; }
+    .gf-destino:has(input:checked) {
+        border-color: var(--color-primary);
+        background: var(--color-primary-lt);
+    }
+
+    [data-theme="dark"] .gf-destino:has(input:checked) {
+        background: rgba(0, 105, 217, .18);
+    }
 </style>
 {% endmacro %}
 
-{% macro modales(categorias) %}
+{% macro modales(categorias, residentes=none) %}
 <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -88,9 +166,118 @@
         </form>
     </div>
 </div>
+
+{% if residentes is not none %}
+{# Gestor de fotos. Dos paneles dentro del mismo modal en vez de un modal
+   encima de otro: apilar modales de Bootstrap rompe el foco y el scroll. #}
+<div class="modal fade" id="gestionFotosModal" tabindex="-1" aria-labelledby="gestionFotosLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="gestionFotosLabel">Fotos del objeto</h5>
+                    <div class="small" id="gf-sub" style="color:var(--color-text-secondary)"></div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div id="gf-pane-fotos">
+                    <p class="small mb-2" style="color:var(--color-text-secondary)">
+                        Arrastra las fotos para cambiar el orden. <strong>La primera es la portada</strong>,
+                        y es la que da el color del objeto. Marca las que no sean de este objeto para
+                        moverlas a otra pertenencia.
+                    </p>
+                    <div id="gf-grid" class="d-flex flex-wrap gap-2"></div>
+                    <p id="gf-cargando" class="text-center py-4 mb-0"
+                       style="color:var(--color-text-secondary)">Cargando fotos...</p>
+                </div>
+
+                <div id="gf-pane-mover" class="d-none">
+                    <div class="mb-3">
+                        <label for="gf-residente" class="form-label">Residente</label>
+                        <select id="gf-residente" class="form-select">
+                            {% for r in residentes %}
+                            <option value="{{ r.id }}">{{ r.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div id="gf-bloque-existente">
+                        <p class="small mb-2" style="color:var(--color-text-secondary)">
+                            Elige a que pertenencia pasan las fotos marcadas.
+                        </p>
+                        <div id="gf-lista-destinos"></div>
+                    </div>
+                    <div id="gf-bloque-nueva" class="d-none">
+                        <p class="small mb-2" style="color:var(--color-text-secondary)">
+                            Se creara una pertenencia nueva con las fotos marcadas.
+                        </p>
+                        <div class="mb-3">
+                            <label for="gf-nueva-cat" class="form-label">Tipo</label>
+                            <select id="gf-nueva-cat" class="form-select">
+                                <option value="">Sin categoria</option>
+                                {% for id, etiqueta in categorias.items() %}
+                                <option value="{{ id }}">{{ etiqueta }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="gf-nueva-desc" class="form-label">Descripcion</label>
+                            <textarea id="gf-nueva-desc" rows="2" class="form-control"
+                                      placeholder="Gafas de pasta marrones"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <div id="gf-acciones" class="d-flex flex-wrap gap-2 align-items-center w-100">
+                    <span id="gf-sel-texto" class="small me-auto"
+                          style="color:var(--color-text-secondary)">Ninguna foto marcada</span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="gf-anadir">
+                        <i class="bi bi-camera me-1" aria-hidden="true"></i>Anadir fotos
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="gf-ir-existente" disabled>
+                        <i class="bi bi-box-arrow-right me-1" aria-hidden="true"></i>Mover a otra pertenencia
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary" id="gf-ir-nueva" disabled>
+                        <i class="bi bi-scissors me-1" aria-hidden="true"></i>Separar en pertenencia nueva
+                    </button>
+                </div>
+                <div id="gf-acciones-mover" class="d-none w-100 d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-outline-secondary" id="gf-volver">Volver</button>
+                    <button type="button" class="btn btn-primary" id="gf-confirmar">Mover fotos</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="moveBelongingModal" tabindex="-1" aria-labelledby="moveBelongingLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="moveBelongingLabel">Mover a otro residente</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <p id="mb-info" class="small" style="color:var(--color-text-secondary)"></p>
+                <label for="mb-residente" class="form-label">Nuevo residente</label>
+                <select id="mb-residente" class="form-select">
+                    {% for r in residentes %}
+                    <option value="{{ r.id }}">{{ r.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="mb-confirmar">Mover</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endmacro %}
 
-{% macro scripts() %}
+{% macro scripts(gestionar=false) %}
 <script>
 (function () {
     'use strict';
@@ -112,4 +299,346 @@
     });
 })();
 </script>
+
+{% if gestionar %}
+<script>
+(function () {
+    'use strict';
+
+    // Las rutas llevan el id dentro, asi que se piden a Jinja con un numero
+    // reconocible y se sustituye al vuelo. Asi no se arma ninguna URL a mano.
+    var HUECO = '987654321';
+    var URL = {
+        fotos:    {{ url_for('residents.admin_belonging_photos_json', item_id=987654321)|tojson }},
+        orden:    {{ url_for('residents.admin_order_belonging_photos', item_id=987654321)|tojson }},
+        destinos: {{ url_for('residents.admin_resident_belongings_json', resident_id=987654321)|tojson }},
+        borrar:   {{ url_for('residents.admin_delete_belonging_photo', photo_id=987654321)|tojson }},
+        mover:    {{ url_for('residents.admin_move_belonging_photos')|tojson }},
+        ordenar:  {{ url_for('residents.admin_order_belongings')|tojson }}
+    };
+    function ruta(plantilla, id) { return plantilla.replace(HUECO, id); }
+
+    function aviso(mensaje, tipo) {
+        if (window.showToast) window.showToast(mensaje, tipo || 'info');
+    }
+
+    async function pedir(url, cuerpo) {
+        var opciones = {method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(cuerpo)};
+        var res = await fetch(url, opciones);
+        var datos = {};
+        try { datos = await res.json(); } catch (e) { datos = {}; }
+        if (!res.ok) throw new Error(datos.error || 'No se ha podido completar la operacion.');
+        return datos;
+    }
+
+    // ── Gestor de fotos ────────────────────────────────────────────────────
+    var GF = {itemId: null, residentId: null, fotos: [], sel: [], subir: null, sortable: null};
+    var modalFotos = document.getElementById('gestionFotosModal');
+    var rejilla = document.getElementById('gf-grid');
+
+    function pintarFotos() {
+        rejilla.innerHTML = '';
+        GF.fotos.forEach(function (foto, i) {
+            var caja = document.createElement('div');
+            caja.className = 'gf-foto' + (GF.sel.indexOf(foto.id) >= 0 ? ' elegida' : '');
+            caja.dataset.id = foto.id;
+
+            var img = document.createElement('img');
+            img.src = foto.url;
+            img.alt = foto.color_label ? ('Foto ' + (i + 1) + ', color ' + foto.color_label)
+                                       : ('Foto ' + (i + 1));
+            caja.appendChild(img);
+
+            var etiqueta = document.createElement('label');
+            etiqueta.className = 'gf-check';
+            var check = document.createElement('input');
+            check.type = 'checkbox';
+            check.className = 'form-check-input';
+            check.checked = GF.sel.indexOf(foto.id) >= 0;
+            check.setAttribute('aria-label', 'Marcar la foto ' + (i + 1));
+            check.addEventListener('change', function () {
+                var pos = GF.sel.indexOf(foto.id);
+                if (this.checked && pos < 0) GF.sel.push(foto.id);
+                if (!this.checked && pos >= 0) GF.sel.splice(pos, 1);
+                caja.classList.toggle('elegida', this.checked);
+                refrescarSeleccion();
+            });
+            etiqueta.appendChild(check);
+            caja.appendChild(etiqueta);
+
+            var borrar = document.createElement('button');
+            borrar.type = 'button';
+            borrar.className = 'gf-borrar';
+            borrar.innerHTML = '&times;';
+            borrar.setAttribute('aria-label', 'Eliminar la foto ' + (i + 1));
+            borrar.addEventListener('click', function () {
+                window.showConfirm('Se borrara esta foto del objeto. No se puede deshacer.',
+                    function () { borrarFoto(foto.id); });
+            });
+            caja.appendChild(borrar);
+
+            var orden = document.createElement('span');
+            orden.className = 'gf-orden';
+            orden.textContent = i === 0 ? 'Portada' : (i + 1);
+            caja.appendChild(orden);
+
+            rejilla.appendChild(caja);
+        });
+        refrescarSeleccion();
+    }
+
+    function refrescarSeleccion() {
+        var n = GF.sel.length;
+        document.getElementById('gf-sel-texto').textContent =
+            n === 0 ? 'Ninguna foto marcada'
+                    : (n + (n === 1 ? ' foto marcada' : ' fotos marcadas'));
+        document.getElementById('gf-ir-existente').disabled = n === 0;
+        document.getElementById('gf-ir-nueva').disabled = n === 0;
+    }
+
+    // El borrado pasa por la ruta de formulario de siempre, que es la que sabe
+    // negarse cuando es la ultima foto de un objeto sin descripcion. Recarga la
+    // pagina y el aviso llega por el flash de arriba.
+    function borrarFoto(fotoId) {
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = ruta(URL.borrar, fotoId);
+        var meta = document.querySelector('meta[name="csrf-token"]');
+        if (meta) {
+            var campo = document.createElement('input');
+            campo.type = 'hidden';
+            campo.name = 'csrf_token';
+            campo.value = meta.getAttribute('content');
+            form.appendChild(campo);
+        }
+        document.body.appendChild(form);
+        form.submit();
+    }
+
+    async function guardarOrdenFotos() {
+        var ids = Array.prototype.map.call(rejilla.children, function (n) {
+            return parseInt(n.dataset.id, 10);
+        });
+        try {
+            await pedir(ruta(URL.orden, GF.itemId), {photo_ids: ids});
+            GF.fotos.sort(function (a, b) { return ids.indexOf(a.id) - ids.indexOf(b.id); });
+            pintarFotos();
+            aviso('Orden guardado.', 'success');
+        } catch (e) {
+            aviso(e.message, 'error');
+        }
+    }
+
+    async function abrirGestor(itemId, subirId) {
+        GF = {itemId: itemId, residentId: null, fotos: [], sel: [], subir: subirId,
+              sortable: GF.sortable};
+        rejilla.innerHTML = '';
+        document.getElementById('gf-cargando').classList.remove('d-none');
+        mostrarPanel('fotos');
+        new bootstrap.Modal(modalFotos).show();
+
+        var res = await fetch(ruta(URL.fotos, itemId));
+        if (!res.ok) { aviso('No se han podido cargar las fotos.', 'error'); return; }
+        var datos = await res.json();
+        GF.residentId = datos.resident_id;
+        GF.fotos = datos.photos;
+        document.getElementById('gf-sub').textContent =
+            (datos.description || 'Sin descripcion') + ' · ' + datos.resident_name;
+        document.getElementById('gf-cargando').classList.add('d-none');
+        pintarFotos();
+
+        if (!GF.sortable) {
+            GF.sortable = new Sortable(rejilla, {
+                animation: 150,
+                draggable: '.gf-foto',
+                // La cruz y la casilla no arrastran: son pulsaciones.
+                filter: '.gf-borrar, .gf-check',
+                preventOnFilter: false,
+                // Sin el arrastre nativo de HTML5: dentro de un modal con
+                // scroll no desplaza el contenido al llegar al borde, y en la
+                // tablet no funciona. Asi raton y dedo hacen lo mismo.
+                forceFallback: true,
+                scroll: true,
+                onEnd: guardarOrdenFotos
+            });
+        }
+    }
+
+    function mostrarPanel(cual) {
+        var fotos = cual === 'fotos';
+        document.getElementById('gf-pane-fotos').classList.toggle('d-none', !fotos);
+        document.getElementById('gf-pane-mover').classList.toggle('d-none', fotos);
+        document.getElementById('gf-acciones').classList.toggle('d-none', !fotos);
+        document.getElementById('gf-acciones-mover').classList.toggle('d-none', fotos);
+    }
+
+    var modoDestino = 'existente';
+
+    async function cargarDestinos() {
+        var lista = document.getElementById('gf-lista-destinos');
+        lista.innerHTML = '<p class="small mb-0" style="color:var(--color-text-secondary)">Cargando...</p>';
+        var residenteId = document.getElementById('gf-residente').value;
+        var res = await fetch(ruta(URL.destinos, residenteId));
+        if (!res.ok) {
+            lista.innerHTML = '<p class="small mb-0">No se ha podido cargar el inventario.</p>';
+            return;
+        }
+        var datos = await res.json();
+        var candidatos = datos.belongings.filter(function (b) { return b.id !== GF.itemId; });
+        if (!candidatos.length) {
+            lista.innerHTML = '<p class="small mb-0" style="color:var(--color-text-secondary)">' +
+                'Este residente no tiene otras pertenencias. Usa "Separar en pertenencia nueva".</p>';
+            return;
+        }
+        lista.innerHTML = '';
+        candidatos.forEach(function (b) {
+            var cabe = b.hueco >= GF.sel.length;
+            var fila = document.createElement('label');
+            fila.className = 'gf-destino' + (cabe ? '' : ' lleno');
+
+            var radio = document.createElement('input');
+            radio.type = 'radio';
+            radio.name = 'gf-destino';
+            radio.className = 'form-check-input flex-shrink-0';
+            radio.value = b.id;
+            radio.disabled = !cabe;
+            fila.appendChild(radio);
+
+            if (b.photo_url) {
+                var img = document.createElement('img');
+                img.src = b.photo_url;
+                img.alt = '';
+                fila.appendChild(img);
+            }
+
+            var texto = document.createElement('span');
+            texto.className = 'small';
+            texto.innerHTML = '<strong></strong><br><span class="text-secondary"></span>';
+            texto.querySelector('strong').textContent = b.description || 'Sin descripcion';
+            texto.querySelector('span').textContent =
+                (b.category_label ? b.category_label + ' · ' : '') +
+                b.photo_count + ' de ' + (b.photo_count + b.hueco) + ' fotos' +
+                (cabe ? '' : ' (sin hueco)');
+            fila.appendChild(texto);
+
+            lista.appendChild(fila);
+        });
+    }
+
+    function abrirPanelMover(modo) {
+        modoDestino = modo;
+        document.getElementById('gf-bloque-existente').classList.toggle('d-none', modo !== 'existente');
+        document.getElementById('gf-bloque-nueva').classList.toggle('d-none', modo === 'existente');
+        document.getElementById('gf-residente').value = GF.residentId;
+        mostrarPanel('mover');
+        if (modo === 'existente') cargarDestinos();
+    }
+
+    async function confirmarMover() {
+        var cuerpo = {photo_ids: GF.sel};
+        if (modoDestino === 'existente') {
+            var elegido = document.querySelector('input[name="gf-destino"]:checked');
+            if (!elegido) { aviso('Elige la pertenencia de destino.', 'warning'); return; }
+            cuerpo.destino = 'existente';
+            cuerpo.item_id = parseInt(elegido.value, 10);
+        } else {
+            cuerpo.destino = 'nueva';
+            cuerpo.resident_id = parseInt(document.getElementById('gf-residente').value, 10);
+            cuerpo.category = document.getElementById('gf-nueva-cat').value;
+            cuerpo.description = document.getElementById('gf-nueva-desc').value;
+        }
+        var boton = document.getElementById('gf-confirmar');
+        boton.disabled = true;
+        try {
+            var datos = await pedir(URL.mover, cuerpo);
+            aviso(datos.mensaje || 'Fotos movidas.', 'success');
+            window.location.reload();
+        } catch (e) {
+            boton.disabled = false;
+            aviso(e.message, 'error');
+        }
+    }
+
+    document.querySelectorAll('.fotos-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            abrirGestor(parseInt(this.dataset.itemId, 10), this.dataset.subir);
+        });
+    });
+    document.getElementById('gf-anadir').addEventListener('click', function () {
+        var input = GF.subir && document.getElementById(GF.subir);
+        if (input) input.click();
+    });
+    document.getElementById('gf-ir-existente').addEventListener('click', function () {
+        abrirPanelMover('existente');
+    });
+    document.getElementById('gf-ir-nueva').addEventListener('click', function () {
+        abrirPanelMover('nueva');
+    });
+    document.getElementById('gf-volver').addEventListener('click', function () {
+        mostrarPanel('fotos');
+    });
+    document.getElementById('gf-residente').addEventListener('change', function () {
+        if (modoDestino === 'existente') cargarDestinos();
+    });
+    document.getElementById('gf-confirmar').addEventListener('click', confirmarMover);
+
+    // ── Mover el objeto entero a otro residente ────────────────────────────
+    var MB = {action: null};
+    document.querySelectorAll('.mover-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            MB.action = this.dataset.action;
+            var fotos = parseInt(this.dataset.fotos, 10) || 0;
+            document.getElementById('mb-info').textContent =
+                '"' + this.dataset.desc + '" se llevara ' +
+                (fotos === 1 ? 'su foto' : 'sus ' + fotos + ' fotos') +
+                ' al residente que elijas.';
+            document.getElementById('mb-residente').value = this.dataset.residentId;
+            document.getElementById('mb-confirmar').disabled = false;
+            new bootstrap.Modal(document.getElementById('moveBelongingModal')).show();
+        });
+    });
+    document.getElementById('mb-confirmar').addEventListener('click', async function () {
+        this.disabled = true;
+        try {
+            await pedir(MB.action, {
+                resident_id: parseInt(document.getElementById('mb-residente').value, 10)
+            });
+            window.location.reload();
+        } catch (e) {
+            this.disabled = false;
+            aviso(e.message, 'error');
+        }
+    });
+
+    // ── Orden de los objetos del residente ─────────────────────────────────
+    var parrilla = document.getElementById('parrilla-pertenencias');
+    if (parrilla && parrilla.dataset.residentId) {
+        new Sortable(parrilla, {
+            animation: 150,
+            draggable: '.pertenencia-col',
+            handle: '.manija-arrastre',
+            ghostClass: 'hueco',
+            chosenClass: 'arrastrando',
+            forceFallback: true,
+            scroll: true,
+            onEnd: async function () {
+                var ids = Array.prototype.map.call(
+                    parrilla.querySelectorAll('.pertenencia-col'),
+                    function (n) { return parseInt(n.dataset.itemId, 10); });
+                try {
+                    await pedir(URL.ordenar, {
+                        resident_id: parseInt(parrilla.dataset.residentId, 10),
+                        item_ids: ids
+                    });
+                    aviso('Orden guardado.', 'success');
+                } catch (e) {
+                    aviso(e.message, 'error');
+                }
+            }
+        });
+    }
+})();
+</script>
+{% endif %}
 {% endmacro %}

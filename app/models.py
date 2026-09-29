@@ -1331,6 +1331,11 @@ class ResidentBelonging(db.Model):
                            nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.now, index=True)
     updated_at = db.Column(db.DateTime, nullable=True)
+    # Orden manual dentro del inventario de su residente. Cero es "sin ordenar
+    # a mano", y entonces manda la fecha: lo ultimo registrado, arriba. Al
+    # reordenar desde el panel se reescriben todos los objetos del residente
+    # con 1..N, asi que no conviven los dos criterios en la misma persona.
+    sort_order = db.Column(db.Integer, nullable=False, default=0, index=True)
 
     # Dar de baja a un residente no puede dejar filas huerfanas. Los ficheros
     # del disco se borran en la ruta de delete, que es donde se sabe la ruta.
@@ -1339,11 +1344,15 @@ class ResidentBelonging(db.Model):
     creator = db.relationship('Cleaner', foreign_keys=[created_by])
     photos = db.relationship('BelongingPhoto', back_populates='belonging', lazy=True,
                              cascade='all, delete-orphan',
-                             order_by='BelongingPhoto.id')
+                             order_by='BelongingPhoto.sort_order, BelongingPhoto.id')
 
     @property
     def cover(self):
-        """La primera foto, la que representa al objeto en las cuadriculas."""
+        """La primera foto, la que representa al objeto en las cuadriculas.
+
+        La primera segun `sort_order`, que la gestora fija arrastrando: la
+        portada es una decision, no la casualidad de que foto se hizo antes.
+        """
         return self.photos[0] if self.photos else None
 
 
@@ -1372,5 +1381,9 @@ class BelongingPhoto(db.Model):
     # contraluz sigue encontrandose por el color de sus otras tomas.
     color = db.Column(db.String(12), nullable=True, index=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    # Posicion dentro del objeto, empezando en 1. La primera es la portada.
+    # Las fotos nuevas entran al final (max+1), nunca con un 0 que las colaria
+    # delante de las que ya habia.
+    sort_order = db.Column(db.Integer, nullable=False, default=0, index=True)
 
     belonging = db.relationship('ResidentBelonging', back_populates='photos')

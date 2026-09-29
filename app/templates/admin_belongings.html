@@ -68,9 +68,22 @@
     </div>
 
     {% if belongings %}
-    <div class="row g-3">
+    {% if ordenable %}
+    <p class="small mb-2" style="color:var(--color-text-secondary)">
+        <i class="bi bi-grip-vertical me-1" aria-hidden="true"></i>Arrastra los objetos por
+        la manija para cambiar su orden en el inventario de este residente.
+    </p>
+    {% elif not filters.resident_id %}
+    <p class="small mb-2" style="color:var(--color-text-secondary)">
+        <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Filtra por residente para
+        poder ordenar sus objetos arrastrandolos.
+    </p>
+    {% endif %}
+    <div class="row g-3" id="parrilla-pertenencias"
+         {% if ordenable %}data-resident-id="{{ filters.resident_id }}"{% endif %}>
         {% for item in belongings %}
-        {{ tarjeta(item, belonging_categories, belonging_colors, mostrar_residente=true) }}
+        {{ tarjeta(item, belonging_categories, belonging_colors,
+                   mostrar_residente=true, gestionar=true, arrastrable=ordenable) }}
         {% endfor %}
     </div>
 
@@ -129,11 +142,14 @@
     </div>
 </div>
 
-{{ modales(belonging_categories) }}
+{{ modales(belonging_categories, residentes=residents) }}
 {% endblock %}
 
 {% block scripts %}
-{{ scripts() }}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"
+        integrity="sha384-HZZ/fukV+9G8gwTNjN7zQDG0Sp7MsZy5DDN6VfY3Be7V9dvQpEpR2jF2HlyFUUjU"
+        crossorigin="anonymous"></script>
+{{ scripts(gestionar=true) }}
 <script>
 (function () {
     'use strict';
