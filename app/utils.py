@@ -748,6 +748,22 @@ def _traducciones_webapp() -> dict:
 
 # ── Formatting helpers ───────────────────────────────────────────────────────
 
+def _iso_con_zona(momento: datetime | None) -> str | None:
+    """Un instante en ISO 8601 con la zona puesta: `2026-09-30T10:05:33+02:00`.
+
+    En la base de datos las fechas son naive en hora local, y asi se quedan. El
+    problema es solo al mandarlas al movil: `new Date('2026-09-30T10:05:33')`
+    las interpreta en la zona del telefono, no en la del servidor, y un movil
+    con la zona mal deja el cronometro con horas de diferencia. Con el desfase
+    explicito no hay nada que adivinar.
+
+    `astimezone()` sobre una fecha naive la entiende como hora local y le pone
+    el desfase que tocaba *ese dia*, asi que un registro de julio leido en
+    octubre sigue saliendo con su +02:00.
+    """
+    return momento.astimezone().isoformat() if momento else None
+
+
 def _format_duration(start_time: datetime | None, end_time: datetime | None) -> str:
     if start_time and end_time:
         seconds = int((end_time - start_time).total_seconds())

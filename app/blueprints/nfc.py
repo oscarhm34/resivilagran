@@ -35,7 +35,7 @@ from ..utils import (
     APP_LANGUAGES, APP_LOCALES, _idioma_valido, _traducciones_webapp,
     _idioma_peticion, _traducciones_de, _aplicar_traduccion,
     _texto_traducido, TONOS_AVISO, _tono_valido,
-    _registrar_dispositivo, _dispositivo_actual,
+    _registrar_dispositivo, _dispositivo_actual, _iso_con_zona,
 )
 
 bp = Blueprint('nfc', __name__)
@@ -432,16 +432,29 @@ def worker_active_sessions():
         return jsonify([]), 200
 
     sessions: list[dict] = []
+    # Se marca cada sesion segun se construye, con la fecha del modelo. Antes se
+    # volvia a parsear el ISO ya serializado, que ahora lleva zona y no se puede
+    # restar de un `datetime.now()` sin ella.
+    max_minutes = int(AppSetting.get('session_max_minutes', '120'))
+    ahora = datetime.now()
+
+    def _marcar_vieja(sess: dict, inicio) -> dict:
+        if inicio:
+            minutos = (ahora - inicio).total_seconds() / 60
+            if minutos >= max_minutes:
+                sess['stale'] = True
+                sess['elapsed_minutes'] = round(minutos)
+        return sess
 
     for c in CleaningRecord.query.options(joinedload(CleaningRecord.room)).filter_by(cleaner_id=worker_id, end_time=None).all():
         room = c.room
-        sessions.append({
+        sessions.append(_marcar_vieja({
             'type': 'cleaning',
             'record_id': c.id,
-            'start_time': c.start_time.isoformat(),
+            'start_time': _iso_con_zona(c.start_time),
             'subject': f'Hab. {room.number}' if room else 'Habitación',
             'subject_sub': room.description or '' if room else '',
-        })
+        }, c.start_time))
 
     care_records = CareRecord.query.options(
         joinedload(CareRecord.resident), joinedload(CareRecord.care_types),
@@ -459,25 +472,16 @@ def worker_active_sessions():
         for c in records:
             sub = ', '.join(ct.name for ct in c.care_types) if c.care_types else (c.care_type.name if c.care_type else '')
             r = c.resident
-            sessions.append({
+            sessions.append(_marcar_vieja({
                 'type': 'care',
                 'record_id': c.id,
-                'start_time': c.start_time.isoformat(),
+                'start_time': _iso_con_zona(c.start_time),
                 'subject': r.name if r else 'Residente',
                 'subject_sub': sub,
                 'photo_url': f'/api/uploads/{r.photo_path}' if r and r.photo_path else None,
                 'group_key': group_key,
                 'resident_id': r.id if r else None,
-            })
-
-    # Flag stale sessions that exceed the configured threshold
-    max_minutes = int(AppSetting.get('session_max_minutes', '120'))
-    now = datetime.now()
-    for sess in sessions:
-        elapsed_min = (now - datetime.fromisoformat(sess['start_time'])).total_seconds() / 60
-        if elapsed_min >= max_minutes:
-            sess['stale'] = True
-            sess['elapsed_minutes'] = round(elapsed_min)
+            }, c.start_time))
 
     return jsonify(sessions), 200
 
@@ -687,7 +691,7 @@ def worker_active_session():
             'active': True,
             'type': 'cleaning',
             'record_id': cleaning.id,
-            'start_time': cleaning.start_time.isoformat(),
+            'start_time': _iso_con_zona(cleaning.start_time),
             'subject': f'Hab. {room.number}' if room else 'Habitación',
             'subject_sub': room.description or '' if room else '',
         }), 200
@@ -698,7 +702,7 @@ def worker_active_session():
             'active': True,
             'type': 'care',
             'record_id': care.id,
-            'start_time': care.start_time.isoformat(),
+            'start_time': _iso_con_zona(care.start_time),
             'subject': care.resident.name if care.resident else 'Residente',
             'subject_sub': care.care_type.name if care.care_type else '',
         }), 200
@@ -961,7 +965,7 @@ def nfc_scan():
             'record_id': record.id,
             'subject': f'Hab. {room.number}',
             'subject_sub': room.description or '',
-            'start_time': now.isoformat(),
+            'start_time': _iso_con_zona(now),
         }), 200
 
     if mode == 'care':
@@ -986,7 +990,7 @@ def nfc_scan():
                 'record_id': active_this.id,
                 'resident_id': resident.id,
                 'resident_name': resident.name,
-                'start_time': active_this.start_time.isoformat(),
+                'start_time': _iso_con_zona(active_this.start_time),
                 'suggested_care_type_ids': [
                     ct.id for ct in _tipos_de_atencion_a_esta_hora(active_this.start_time)],
                 'photo_url': f'/api/uploads/{resident.photo_path}' if resident.photo_path else None,
@@ -1021,7 +1025,7 @@ def nfc_scan():
             if not ok:
                 return jsonify({'error': err}), 500
             salida['record_id'] = record.id
-            salida['start_time'] = now.isoformat()
+            salida['start_time'] = _iso_con_zona(now)
         # Lo que hay que saber de esta persona antes de empezar, no despues.
         lang = _idioma_peticion()
         info = _texto_traducido('resident', resident.id, 'relevant_info',
@@ -1116,7 +1120,7 @@ def end_session():
             'record_id': record.id,
             'resident_id': record.resident_id,
             'resident_name': r.name if r else 'Residente',
-            'start_time': record.start_time.isoformat(),
+            'start_time': _iso_con_zona(record.start_time),
             'suggested_care_type_ids': [
                 ct.id for ct in _tipos_de_atencion_a_esta_hora(record.start_time)],
             'photo_url': f'/api/uploads/{r.photo_path}' if r and r.photo_path else None,
@@ -1167,7 +1171,7 @@ def start_group_care():
             'resident_id': rid,
             'resident_name': resident.name,
             'photo_url': f'/api/uploads/{resident.photo_path}' if resident.photo_path else None,
-            'start_time': now.isoformat(),
+            'start_time': _iso_con_zona(now),
         })
 
     if not records_out:

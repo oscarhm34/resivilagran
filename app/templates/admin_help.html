@@ -276,9 +276,28 @@
                     trabajo. Hasta ahora solo se veia si la trabajadora abria la ficha a mano, y ese boton
                     solo aparecia <strong>al terminar</strong>, cuando ya no servia de nada.</li>
                 <li>La <strong>atencion que toca</strong> a esa hora, si hay alguna configurada con horario.</li>
-                <li>Las <strong>instrucciones</strong> de esa atencion. Si a esa hora tocan dos, cada una
-                    sale en su propio recuadro.</li>
+                <li>Las <strong>instrucciones</strong> de esa atencion.</li>
             </ul>
+
+            <p><strong>Antes de eso, el movil pregunta.</strong> Que el horario diga que a esa hora toca
+               ENCAMAR no significa que sea lo que esa trabajadora ha ido a hacer:</p>
+            <ul>
+                <li>Si a esa hora toca <strong>una</strong> atencion, sale
+                    <em>"¿Es una atencion de ENCAMAR?"</em> con <strong>Si</strong> y
+                    <strong>No, es otra cosa</strong>.</li>
+                <li>Si tocan <strong>varias</strong>, sale <em>"¿Que vas a hacer?"</em> con un boton por
+                    atencion y <strong>Ninguna de estas</strong>. Asi solo se leen las instrucciones de la
+                    que se va a hacer, en vez de todas seguidas.</li>
+                <li>Diciendo que <strong>no</strong>, la atencion se abre con normalidad: sin instrucciones,
+                    pero con la informacion del residente, que se ensena siempre.</li>
+                <li>Un <strong>Cambiar</strong> junto al titulo vuelve a la pregunta, por si se toca el
+                    boton equivocado.</li>
+                <li>Si a esa hora <strong>no toca nada</strong>, no hay pregunta: la pantalla es la de
+                    siempre.</li>
+            </ul>
+            <p>La respuesta <strong>no se guarda</strong>: sirve para ensenar lo que toca leer. El tipo de
+               atencion se sigue eligiendo al terminar, donde los que estaban en horario ya salen
+               marcados.</p>
             <p>Cada uno de esos textos lleva un boton <strong>Escuchar</strong>: la trabajadora puede oirlo
                en voz alta en lugar de leerlo, que es util para quien lee con dificultad o va con las manos
                ocupadas. Escuchar es opcional, no bloquea nada, y se puede pausar.</p>
@@ -1923,6 +1942,8 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>30/09</td><td><strong>El cronometro empezaba con tiempo ya contado:</strong> al abrir una atencion el movil podia mostrar casi una hora transcurrida. Pasaba cuando el reloj del servidor y el del movil no coincidian, porque el tiempo se calculaba restando uno del otro. Ahora la webapp mide esa diferencia sola en cada peticion y la descuenta, asi que el cronometro arranca en cero aunque algun reloj vaya desajustado.</td></tr>
+                    <tr><td>30/09</td><td><strong>El movil pregunta que atencion vas a hacer:</strong> al escanear a un residente dentro del horario de una atencion, antes de nada sale <strong>"¿Es una atencion de ...?"</strong> con Si y No. Diciendo que si se ensenan sus instrucciones, para leerlas o escucharlas, y el tiempo no empieza hasta pulsar Iniciar. Diciendo que no, la atencion se abre con normalidad. Si a esa hora tocan varias, se elige cual de una lista. Antes la pantalla afirmaba lo que tocaba y la unica alternativa era cancelar el escaneo.</td></tr>
                     <tr><td>29/09</td><td><strong>Cambiar una pertenencia de residente:</strong> si un objeto se apunto a la persona equivocada ya no hay que borrarlo y volver a fotografiarlo. En <strong>Personas &rarr; Pertenencias</strong>, el boton de las dos flechas de cada tarjeta lo pasa a otro residente con todas sus fotos, y aparece el primero en el inventario de quien lo recibe.</td></tr>
                     <tr><td>29/09</td><td><strong>Separar fotos que no eran del mismo objeto:</strong> el boton de las fotos de cada tarjeta abre una ventana con todas las imagenes en grande. Ahi se marcan las que no correspondan y se <strong>mueven a otra pertenencia</strong> (del mismo residente o de otro) o se <strong>separan en una pertenencia nueva</strong> poniendole tipo y descripcion. Si el objeto de origen se queda sin fotos y sin descripcion, se elimina solo.</td></tr>
                     <tr><td>29/09</td><td><strong>Elegir la portada y ordenar el inventario:</strong> dentro de la ventana de fotos se arrastran las imagenes para cambiarlas de orden, y <strong>la primera es la portada</strong>: la que se ve en la tarjeta y de la que sale el color del objeto. Filtrando la pagina por un residente, las tarjetas tambien se arrastran por la manija de arriba a la derecha para dejar su inventario en el orden que convenga.</td></tr>
