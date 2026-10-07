@@ -1151,6 +1151,10 @@ ETIQUETAS_FILA = {'manana': 'Mañana', 'tarde': 'Tarde',
                   'noche': 'Noche', 'lateral': 'Otros puestos'}
 
 DIAS_SEMANA = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo']
+# A mano y no con strftime('%B'): eso sale en el idioma del sistema, que en el
+# contenedor es ingles. El resto del modulo ya lleva los dias asi.
+MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio',
+         'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
 
 def _color_trabajadora(trabajadora) -> str:
@@ -1381,15 +1385,38 @@ def _asignaciones_por_puesto(desde: date, hasta: date) -> dict:
     return {(a.date, a.position_id): a for a in filas}
 
 
+def _tablero_de_rango(desde: date, hasta: date) -> list:
+    """Un recuadro por dia, de golpe.
+
+    Se consulta todo el rango de una vez: un mes son hasta cuarenta y dos dias y
+    hacerlo dia a dia serian cuarenta y dos viajes a la base de datos para
+    pintar una sola pantalla.
+    """
+    puestos = _puestos_activos()
+    # Un dia antes, por las casillas que ensenan la noche de la vispera.
+    vispera = desde - timedelta(days=1)
+    asignaciones = _asignaciones_por_puesto(vispera, hasta)
+    ausencias = _ausencias_de(vispera, hasta)
+    return [_tablero_de_dia(desde + timedelta(days=i), puestos, asignaciones, ausencias)
+            for i in range((hasta - desde).days + 1)]
+
+
 def _tablero_de_semana(lunes: date) -> list:
     """Los siete recuadros de una semana."""
-    puestos = _puestos_activos()
-    domingo = lunes + timedelta(days=6)
-    # Un dia antes por las casillas que ensenan la noche de la vispera.
-    asignaciones = _asignaciones_por_puesto(lunes - timedelta(days=1), domingo)
-    ausencias = _ausencias_de(lunes - timedelta(days=1), domingo)
-    return [_tablero_de_dia(lunes + timedelta(days=i), puestos, asignaciones, ausencias)
-            for i in range(7)]
+    return _tablero_de_rango(lunes, lunes + timedelta(days=6))
+
+
+def _leyenda_de(dias: list) -> list:
+    """Quien sale en estos dias, para la leyenda de colores."""
+    vistos = {}
+    for d in dias:
+        for nombre, fila in d['filas'].items():
+            if nombre == 'reflejos':
+                continue
+            for casilla in fila:
+                if casilla['ocupa']:
+                    vistos[casilla['ocupa']['cleaner_id']] = casilla['ocupa']
+    return sorted(vistos.values(), key=lambda f: f['name'])
 
 
 def _estado_semana(lunes: date):
@@ -1414,21 +1441,13 @@ def shift_board_week():
     dias = _tablero_de_semana(lunes)
     pub, modificada = _estado_semana(lunes)
 
-    # La leyenda: solo quien sale en la semana, que es lo que ayuda a leerla.
-    vistos = {}
-    for d in dias:
-        for nombre, fila in d['filas'].items():
-            if nombre == 'reflejos':
-                continue
-            for casilla in fila:
-                if casilla['ocupa']:
-                    vistos[casilla['ocupa']['cleaner_id']] = casilla['ocupa']
-
     return render_template(
         'shift_board_week.html',
         lunes=lunes, domingo=lunes + timedelta(days=6), dias=dias,
         filas=FILAS_TABLERO, etiquetas_fila=ETIQUETAS_FILA,
-        leyenda=sorted(vistos.values(), key=lambda f: f['name']),
+        # Solo quien sale esa semana: una leyenda con toda la plantilla no
+        # ayuda a leer nada.
+        leyenda=_leyenda_de(dias),
         publicacion=pub, modificada=modificada,
         semana_anterior=(lunes - timedelta(days=7)).isoformat(),
         semana_siguiente=(lunes + timedelta(days=7)).isoformat(),
@@ -2023,3 +2042,52 @@ def shift_board_add_position(iso: str):
     flash(error if not ok else f'Puesto {codigo} anadido a {st.name}.',
           'danger' if not ok else 'success')
     return volver
+
+
+@bp.route('/cuadrantes/tablero/mes')
+@admin_required
+def shift_board_month():
+    """El mes entero, un recuadro por dia.
+
+    Es el mismo dibujo que la semana a otra escala. Publicar y los envios se
+    siguen haciendo por semana —es la unidad en la que se reparte el trabajo—,
+    asi que cada fila lleva su estado y su boton y no hace falta salir de aqui.
+    """
+    mes = request.args.get('mes', '')
+    try:
+        anyo, numero = (int(x) for x in mes.split('-'))
+        primero = date(anyo, numero, 1)
+    except (ValueError, TypeError):
+        hoy = date.today()
+        primero, anyo, numero = hoy.replace(day=1), hoy.year, hoy.month
+
+    import calendar as _cal
+    ultimo = date(anyo, numero, _cal.monthrange(anyo, numero)[1])
+    # El calendario empieza en lunes y acaba en domingo aunque el mes no: una
+    # semana partida por la mitad no se puede publicar ni leer.
+    desde = _lunes_de(primero)
+    hasta = _lunes_de(ultimo) + timedelta(days=6)
+
+    dias = _tablero_de_rango(desde, hasta)
+    semanas = []
+    for i in range(0, len(dias), 7):
+        tramo = dias[i:i + 7]
+        lunes = tramo[0]['fecha']
+        pub, modificada = _estado_semana(lunes)
+        semanas.append({'lunes': lunes, 'dias': tramo,
+                        'publicacion': pub, 'modificada': modificada})
+
+    # La leyenda, solo con quien trabaja dentro del mes.
+    del_mes = [d for d in dias if primero <= d['fecha'] <= ultimo]
+    anterior = (primero - timedelta(days=1)).replace(day=1)
+    siguiente = (ultimo + timedelta(days=1))
+
+    return render_template(
+        'shift_board_month.html',
+        primero=primero, ultimo=ultimo, semanas=semanas, hoy=date.today(),
+        titulo=f'{MESES[numero - 1]} {anyo}',
+        leyenda=_leyenda_de(del_mes),
+        mes_anterior=f'{anterior.year}-{anterior.month:02d}',
+        mes_siguiente=f'{siguiente.year}-{siguiente.month:02d}',
+        hay_puestos=bool(_puestos_activos()),
+    )

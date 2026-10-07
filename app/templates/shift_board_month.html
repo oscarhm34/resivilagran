@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% from "_tablero_mini.html" import mini, estilos_mini %}
+
+{% block title %}Tablero del mes{% endblock %}
+
+{% block content %}
+{{ estilos_mini() }}
+<style>
+    /* Cada semana es una fila con su estado a la izquierda: publicar se hace
+       por semana, que es como se reparte el trabajo, y desde aqui no hace
+       falta salir a la vista de semana para hacerlo. */
+    .sm-cabecera {
+        display: grid; grid-template-columns: 130px repeat(7, minmax(0, 1fr));
+        gap: 8px; margin-bottom: 4px;
+    }
+    .sm-dow {
+        font-size: .72rem; font-weight: 700; text-transform: uppercase;
+        color: var(--color-text-secondary); text-align: center;
+    }
+    .sm-semana {
+        display: grid; grid-template-columns: 130px repeat(7, minmax(0, 1fr));
+        gap: 8px; margin-bottom: 8px; align-items: start;
+    }
+    .sm-estado {
+        font-size: .76rem; padding: 6px 8px;
+        border: 1px solid var(--color-border); border-radius: var(--radius-md);
+        background: var(--color-surface);
+    }
+    .sm-dia {
+        background: var(--sb-papel); border: 2px solid var(--sb-linea);
+        border-radius: var(--radius-md); padding: 5px; color: var(--color-text);
+        display: block; text-decoration: none;
+    }
+    .sm-dia:hover { border-color: var(--color-primary); }
+    /* Los dias de fuera del mes se ensenan igual pero apagados: la semana se
+       publica entera, asi que esconderlos dejaria agujeros sin explicar. */
+    .sm-fuera { opacity: .42; }
+    .sm-cab {
+        display: flex; justify-content: space-between; align-items: baseline;
+        font-size: .7rem; border-bottom: 1px solid var(--color-border);
+        padding-bottom: 2px; margin-bottom: 4px;
+    }
+    .sm-num { font-weight: 700; }
+    .sm-hoy { outline: 2px solid var(--color-primary); }
+
+    .sb-leyenda { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .85rem; }
+    .sb-leyenda-item { display: inline-flex; align-items: center; gap: 6px; }
+    .sb-punto {
+        width: 14px; height: 14px; border-radius: 3px; display: inline-block;
+        border: 1px solid var(--sb-linea); flex-shrink: 0;
+    }
+
+    @media (max-width: 1100px) {
+        .sm-cabecera, .sm-semana { grid-template-columns: 1fr; }
+        .sm-cabecera { display: none; }
+        .sm-dia { margin-bottom: 0; }
+    }
+</style>
+<div class="py-4">
+
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h1 class="h3 mb-0">{{ titulo }}</h1>
+        <div class="d-flex gap-2 flex-wrap">
+            <a class="btn btn-sm btn-outline-secondary"
+               href="{{ url_for('shifts.shift_board_month', mes=mes_anterior) }}">&laquo; Anterior</a>
+            <a class="btn btn-sm btn-outline-secondary"
+               href="{{ url_for('shifts.shift_board_month', mes=mes_siguiente) }}">Siguiente &raquo;</a>
+            <a class="btn btn-sm btn-primary"
+               href="{{ url_for('shifts.shift_board_week', semana=primero.isoformat()) }}">
+                <i class="bi bi-calendar-week me-1" aria-hidden="true"></i>Ver por semanas
+            </a>
+            <a class="btn btn-sm btn-outline-secondary"
+               href="{{ url_for('shifts.manage_shift_positions') }}">Puestos</a>
+            <a class="btn btn-sm btn-outline-secondary"
+               href="{{ url_for('shifts.cuadrantes', year=primero.year, month=primero.month) }}">Rejilla mensual</a>
+        </div>
+    </div>
+
+    {% if not hay_puestos %}
+    <div class="card">
+        <div class="card-body text-center py-5" style="color:var(--color-text-secondary)">
+            <div style="font-size:2.5rem">&#128197;</div>
+            <p class="mt-2 mb-3">Todavia no hay puestos definidos.</p>
+            <a class="btn btn-primary" href="{{ url_for('shifts.manage_shift_positions') }}">Crear los puestos</a>
+        </div>
+    </div>
+    {% else %}
+
+    <div class="sm-cabecera">
+        <div></div>
+        {% for d in ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'] %}
+        <div class="sm-dow">{{ d }}</div>
+        {% endfor %}
+    </div>
+
+    {% for sem in semanas %}
+    <div class="sm-semana">
+        <div class="sm-estado">
+            <div style="font-weight:600">
+                {{ sem.lunes.strftime('%d/%m') }} – {{ (sem.dias[6].fecha).strftime('%d/%m') }}
+            </div>
+            {% if not sem.publicacion %}
+            <span class="badge" style="background:var(--badge-muted-bg);color:var(--color-text)">Borrador</span>
+            {% elif sem.modificada %}
+            <span class="badge" style="background:var(--badge-warning-bg);color:var(--color-warning-text)">Modificada</span>
+            {% else %}
+            <span class="badge" style="background:var(--badge-success-bg);color:var(--color-success)">Publicada</span>
+            {% endif %}
+            <a class="d-block mt-1" style="font-size:.74rem"
+               href="{{ url_for('shifts.shift_board_week', semana=sem.lunes.isoformat()) }}">
+                Abrir la semana
+            </a>
+        </div>
+
+        {% for d in sem.dias %}
+        <a class="sm-dia{% if d.fecha < primero or d.fecha > ultimo %} sm-fuera{% endif %}{% if d.fecha == hoy %} sm-hoy{% endif %}"
+           href="{{ url_for('shifts.shift_board_day', iso=d.iso) }}">
+            <div class="sm-cab">
+                <span class="sm-num">{{ d.fecha.day }}</span>
+                <span style="color:var(--color-text-secondary)">{{ d.fecha.strftime('%m') }}</span>
+            </div>
+            {{ mini(d, alto=92) }}
+        </a>
+        {% endfor %}
+    </div>
+    {% endfor %}
+
+    {% if leyenda %}
+    <div class="card mt-3">
+        <div class="card-header py-2">Quien trabaja este mes</div>
+        <div class="card-body py-2">
+            <div class="sb-leyenda">
+                {% for p in leyenda %}
+                <span class="sb-leyenda-item">
+                    <span class="sb-punto" style="background:{{ p.color }}" aria-hidden="true"></span>{{ p.name }}
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+{% endblock %}

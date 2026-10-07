@@ -58,6 +58,10 @@
                href="{{ url_for('shifts.shift_board_week', semana=semana_anterior) }}">&laquo; Anterior</a>
             <a class="btn btn-sm btn-outline-secondary"
                href="{{ url_for('shifts.shift_board_week', semana=semana_siguiente) }}">Siguiente &raquo;</a>
+            <a class="btn btn-sm btn-primary"
+               href="{{ url_for('shifts.shift_board_month', mes='%04d-%02d'|format(lunes.year, lunes.month)) }}">
+                <i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Ver el mes
+            </a>
             <a class="btn btn-sm btn-outline-secondary"
                href="{{ url_for('shifts.manage_shift_positions') }}">
                 <i class="bi bi-grid-3x3-gap me-1" aria-hidden="true"></i>Puestos

@@ -754,3 +754,54 @@ def test_anadir_un_puesto_sin_admin_no_puede(client, db, cleaner_user):
     res = client.post(f'/cuadrantes/tablero/dia/{LUNES}/puesto', data={'code': 'M9'})
     assert res.status_code in (302, 403)
     assert ShiftPosition.query.count() == 0
+
+
+# ── La vista de mes ───────────────────────────────────────────────────────────
+
+def test_el_mes_sin_sesion_redirige_al_login(client, db):
+    res = client.get('/cuadrantes/tablero/mes')
+    assert res.status_code in (301, 302)
+    assert '/admin/login' in res.headers['Location']
+
+
+def test_el_mes_ensena_todos_sus_dias(auth_client, db, manana):
+    _puesto(db, manana, 'M1')
+
+    texto = auth_client.get('/cuadrantes/tablero/mes?mes=2026-10').get_data(as_text=True)
+
+    assert 'Octubre 2026' in texto
+    # Octubre de 2026 empieza en jueves y acaba en sabado: el calendario se
+    # estira hasta el lunes anterior y el domingo siguiente.
+    assert '/cuadrantes/tablero/dia/2026-09-28' in texto   # lunes de la primera
+    assert '/cuadrantes/tablero/dia/2026-10-31' in texto
+    assert '/cuadrantes/tablero/dia/2026-11-01' in texto   # domingo de la ultima
+
+
+def test_el_mes_agrupa_en_semanas_completas(auth_client, db, manana):
+    _puesto(db, manana, 'M1')
+
+    texto = auth_client.get('/cuadrantes/tablero/mes?mes=2026-10').get_data(as_text=True)
+
+    # Una fila por semana, y cada una con su enlace a la vista de semana.
+    assert texto.count('Abrir la semana') == 5
+
+
+def test_el_mes_dice_el_estado_de_cada_semana(auth_client, db, manana, ana):
+    m1 = _puesto(db, manana, 'M1')
+    _asignar(auth_client, LUNES, m1, ana)
+    auth_client.post('/cuadrantes/tablero/publicar', json={'week_start': LUNES.isoformat()})
+
+    texto = auth_client.get('/cuadrantes/tablero/mes?mes=2026-10').get_data(as_text=True)
+
+    assert 'Publicada' in texto
+    assert 'Borrador' in texto          # las demas semanas del mes
+
+
+def test_un_mes_mal_escrito_cae_en_el_de_hoy(auth_client, db, manana):
+    _puesto(db, manana, 'M1')
+    assert auth_client.get('/cuadrantes/tablero/mes?mes=pasado').status_code == 200
+
+
+def test_el_mes_sin_puestos_lo_dice(auth_client, db):
+    texto = auth_client.get('/cuadrantes/tablero/mes').get_data(as_text=True)
+    assert 'no hay puestos definidos' in texto
