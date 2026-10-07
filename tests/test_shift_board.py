@@ -49,6 +49,16 @@ def noche_c(db):
     return st
 
 
+@pytest.fixture
+def tarde(db):
+    st = ShiftType(name='Tarde', short_name='T', color='#8fe3b0',
+                   start_time=time(14, 0), end_time=time(20, 30),
+                   sort_order=2, active=True, board_row='tarde')
+    db.session.add(st)
+    db.session.commit()
+    return st
+
+
 def _puesto(db, shift_type, code, orden=0, echo=None, echo_ayer=False):
     p = ShiftPosition(shift_type_id=shift_type.id, code=code, sort_order=orden,
                       echo_row=echo, echo_previous_day=echo_ayer)
@@ -76,10 +86,13 @@ def berta(db):
     return _trabajadora(db, 'Berta Lluch', 'berta')
 
 
-def _asignar(client, dia, puesto, trabajadora):
-    return client.post('/cuadrantes/tablero/asignar', json={
-        'date': dia.isoformat(), 'position_id': puesto.id,
-        'cleaner_id': trabajadora.id})
+def _asignar(client, dia, puesto, trabajadora, desde=None):
+    """Soltar una ficha. `desde` es la casilla de la que viene, si venia de una."""
+    cuerpo = {'date': dia.isoformat(), 'position_id': puesto.id,
+              'cleaner_id': trabajadora.id}
+    if desde is not None:
+        cuerpo['from_position_id'] = desde.id
+    return client.post('/cuadrantes/tablero/asignar', json=cuerpo)
 
 
 # ── Autorizacion ──────────────────────────────────────────────────────────────
@@ -146,17 +159,56 @@ def test_lo_colocado_a_mano_es_siempre_override(auth_client, db, manana, ana):
     assert ShiftAssignment.query.filter_by(cleaner_id=ana.id).one().is_override is True
 
 
-def test_mover_a_otra_casilla_no_duplica_la_fila(auth_client, db, manana, ana):
+def test_arrastrar_de_una_casilla_a_otra_mueve(auth_client, db, manana, ana):
+    """Viene de M1, asi que es la misma fila cambiando de puesto."""
     m1 = _puesto(db, manana, 'M1', 1)
     m2 = _puesto(db, manana, 'M2', 2)
     _asignar(auth_client, LUNES, m1, ana)
 
-    res = _asignar(auth_client, LUNES, m2, ana)
+    res = _asignar(auth_client, LUNES, m2, ana, desde=m1)
 
     assert res.status_code == 200
     filas = ShiftAssignment.query.filter_by(cleaner_id=ana.id, date=LUNES).all()
     assert len(filas) == 1
     assert filas[0].position_id == m2.id
+
+
+def test_arrastrar_de_la_lista_anade_un_segundo_puesto(auth_client, db, manana, tarde, ana):
+    """Doblar un M1 con un T1 pasa cuando falta alguien, y hay que apuntarlo."""
+    m1 = _puesto(db, manana, 'M1')
+    t1 = _puesto(db, tarde, 'T1')
+    _asignar(auth_client, LUNES, m1, ana)
+
+    res = _asignar(auth_client, LUNES, t1, ana)      # sin `desde`: viene de la lista
+
+    assert res.status_code == 200
+    puestos = {a.position.code for a in
+               ShiftAssignment.query.filter_by(cleaner_id=ana.id, date=LUNES).all()}
+    assert puestos == {'M1', 'T1'}
+
+
+def test_quitar_un_puesto_deja_el_otro(auth_client, db, manana, tarde, ana):
+    m1 = _puesto(db, manana, 'M1')
+    t1 = _puesto(db, tarde, 'T1')
+    _asignar(auth_client, LUNES, m1, ana)
+    _asignar(auth_client, LUNES, t1, ana)
+
+    auth_client.post('/cuadrantes/tablero/quitar', json={
+        'date': LUNES.isoformat(), 'cleaner_id': ana.id, 'position_id': m1.id})
+
+    filas = ShiftAssignment.query.filter_by(cleaner_id=ana.id, date=LUNES).all()
+    assert len(filas) == 1
+    assert filas[0].position_id == t1.id
+
+
+def test_la_respuesta_dice_que_lleva_puesto_cada_una(auth_client, db, manana, tarde, ana):
+    m1 = _puesto(db, manana, 'M1')
+    t1 = _puesto(db, tarde, 'T1')
+    _asignar(auth_client, LUNES, m1, ana)
+
+    res = _asignar(auth_client, LUNES, t1, ana)
+
+    assert sorted(res.get_json()['puestos'][str(ana.id)]) == ['M1', 'T1']
 
 
 def test_soltar_sobre_una_casilla_ocupada_desplaza_a_quien_estaba(
@@ -251,14 +303,26 @@ def test_el_recuadro_del_dia_ensena_a_quien_lo_ocupa(auth_client, db, manana, an
     assert 'Ana Pons' in texto
 
 
-def test_quien_no_tiene_puesto_sale_en_el_banquillo(auth_client, db, manana, ana, berta):
+def test_la_lista_lleva_a_todo_el_personal(auth_client, db, manana, ana, berta):
+    """Tambien a quien ya tiene puesto: es la unica forma de poder doblarla."""
     m1 = _puesto(db, manana, 'M1')
     _asignar(auth_client, LUNES, m1, ana)
 
-    texto = auth_client.get(f'/cuadrantes/tablero/dia/{LUNES}').get_data(as_text=True)
+    lista = auth_client.get(
+        f'/cuadrantes/tablero/dia/{LUNES}').get_data(as_text=True).split('id="tb-banquillo"')[1]
 
-    assert 'Berta Lluch' in texto
-    assert 'Sin puesto hoy' in texto
+    assert 'Berta Lluch' in lista
+    assert 'Ana Pons' in lista
+
+
+def test_la_lista_dice_que_puesto_lleva_ya_cada_una(auth_client, db, manana, ana):
+    m1 = _puesto(db, manana, 'M1')
+    _asignar(auth_client, LUNES, m1, ana)
+
+    lista = auth_client.get(
+        f'/cuadrantes/tablero/dia/{LUNES}').get_data(as_text=True).split('id="tb-banquillo"')[1]
+
+    assert 'tb-tag">M1<' in lista
 
 
 def test_la_noche_se_refleja_en_la_manana_del_dia_siguiente(
@@ -273,7 +337,7 @@ def test_la_noche_se_refleja_en_la_manana_del_dia_siguiente(
 
     # El reflejo del martes la ensena, y lleva la marca del dia anterior.
     assert 'NIT C dia-1' in martes
-    assert 'Ana Pons' in martes.split('Sin puesto hoy')[0]
+    assert 'Ana Pons' in martes.split('id="tb-banquillo"')[0]
 
 
 def test_el_reflejo_del_mismo_dia_no_mira_a_la_vispera(
@@ -286,8 +350,38 @@ def test_el_reflejo_del_mismo_dia_no_mira_a_la_vispera(
     martes = auth_client.get(
         f'/cuadrantes/tablero/dia/{LUNES + timedelta(days=1)}').get_data(as_text=True)
 
-    assert 'Ana Pons' in lunes.split('Sin puesto hoy')[0]
-    assert 'Ana Pons' not in martes.split('Sin puesto hoy')[0]
+    assert 'Ana Pons' in lunes.split('id="tb-banquillo"')[0]
+    assert 'Ana Pons' not in martes.split('id="tb-banquillo"')[0]
+
+
+def test_quien_ocupa_un_puesto_sale_tambien_en_su_reflejo(
+        auth_client, db, noche_c, ana):
+    """El reflejo es la misma asignacion, asi que la ficha sale en los dos.
+
+    Contar las veces y no solo mirar si aparece: con un `in` a secas, un reflejo
+    vacio pasa desapercibido porque la casilla de noche ya la ensena.
+    """
+    na = _puesto(db, noche_c, 'NIT A', echo='tarde')
+    _asignar(auth_client, LUNES, na, ana)
+
+    recuadro = auth_client.get(
+        f'/cuadrantes/tablero/dia/{LUNES}').get_data(as_text=True).split('id="tb-banquillo"')[0]
+
+    # Dos cajas, y el nombre va en el aria-label y en el texto de cada una.
+    assert recuadro.count('Ana Pons') == 4
+
+
+def test_sin_reflejo_la_ficha_sale_una_sola_vez(auth_client, db, noche_c, ana):
+    nb = _puesto(db, noche_c, 'NIT B')
+
+    recuadro_antes = auth_client.get(
+        f'/cuadrantes/tablero/dia/{LUNES}').get_data(as_text=True)
+    _asignar(auth_client, LUNES, nb, ana)
+    recuadro = auth_client.get(
+        f'/cuadrantes/tablero/dia/{LUNES}').get_data(as_text=True).split('id="tb-banquillo"')[0]
+
+    assert 'NIT B' in recuadro_antes
+    assert recuadro.count('Ana Pons') == 2
 
 
 def test_el_puesto_de_noche_se_sigue_editando_en_su_casilla(
@@ -301,15 +395,16 @@ def test_el_puesto_de_noche_se_sigue_editando_en_su_casilla(
     assert ShiftAssignment.query.filter_by(position_id=nc.id).count() == 1
 
 
-def test_quien_esta_reflejado_no_sale_en_el_banquillo_de_su_dia(
+def test_el_reflejo_no_cuenta_como_un_puesto_mas_en_la_lista(
         auth_client, db, noche_c, ana):
+    """NIT A sale dos veces en el recuadro, pero es un solo puesto."""
     nc = _puesto(db, noche_c, 'NIT A', echo='tarde')
     _asignar(auth_client, LUNES, nc, ana)
 
-    banquillo = auth_client.get(
-        f'/cuadrantes/tablero/dia/{LUNES}').get_data(as_text=True).split('Sin puesto hoy')[1]
+    lista = auth_client.get(
+        f'/cuadrantes/tablero/dia/{LUNES}').get_data(as_text=True).split('id="tb-banquillo"')[1]
 
-    assert 'Ana Pons' not in banquillo
+    assert lista.count('tb-tag">NIT A<') == 1
 
 
 def test_un_turno_sin_fila_no_sale_en_el_tablero(auth_client, db, ana):
@@ -593,5 +688,69 @@ def test_crear_el_cuadrante_base_sin_admin_no_puede(client, db, cleaner_user):
                 data={'username': 'limpiadora1', 'password': 'limpia123'},
                 follow_redirects=True)
     res = client.post('/cuadrantes/puestos/crear-base')
+    assert res.status_code in (302, 403)
+    assert ShiftPosition.query.count() == 0
+
+
+# ── Anadir un puesto desde el propio recuadro ─────────────────────────────────
+
+def test_anadir_un_m4_desde_el_tablero(auth_client, db, manana):
+    auth_client.post(f'/cuadrantes/tablero/dia/{LUNES}/puesto', data={
+        'shift_type_id': manana.id, 'code': 'm4', 'name': 'Cuarta de manana'},
+        follow_redirects=True)
+
+    p = ShiftPosition.query.filter_by(code='M4').one()
+    assert p.shift_type_id == manana.id
+    assert p.name == 'Cuarta de manana'
+
+
+def test_el_puesto_nuevo_va_al_final_de_su_turno(auth_client, db, manana):
+    _puesto(db, manana, 'M1', 0)
+    _puesto(db, manana, 'M2', 1)
+
+    auth_client.post(f'/cuadrantes/tablero/dia/{LUNES}/puesto', data={
+        'shift_type_id': manana.id, 'code': 'M3'}, follow_redirects=True)
+
+    assert ShiftPosition.query.filter_by(code='M3').one().sort_order == 2
+
+
+def test_se_puede_crear_el_turno_de_paso(auth_client, db):
+    """Una recepcion de tarde no tiene las horas de la de manana."""
+    auth_client.post(f'/cuadrantes/tablero/dia/{LUNES}/puesto', data={
+        'shift_type_id': 'nuevo', 'nuevo_nombre': 'Recepcion de tarde',
+        'nuevo_desde': '16:00', 'nuevo_hasta': '20:00',
+        'nuevo_board_row': 'lateral', 'nuevo_color': '#c4e7f0',
+        'code': 'RECEP T'}, follow_redirects=True)
+
+    st = ShiftType.query.filter_by(name='Recepcion de tarde').one()
+    assert st.board_row == 'lateral'
+    assert st.start_time == time(16, 0)
+    assert ShiftPosition.query.filter_by(code='RECEP T').one().shift_type_id == st.id
+
+
+def test_el_turno_nuevo_sin_horas_no_se_crea(auth_client, db):
+    res = auth_client.post(f'/cuadrantes/tablero/dia/{LUNES}/puesto', data={
+        'shift_type_id': 'nuevo', 'nuevo_nombre': 'Lo que sea',
+        'nuevo_board_row': 'tarde', 'code': 'XX'}, follow_redirects=True)
+
+    assert 'falta el nombre o las horas' in res.get_data(as_text=True)
+    assert ShiftPosition.query.count() == 0
+
+
+def test_no_se_repite_el_codigo_desde_el_tablero(auth_client, db, manana):
+    _puesto(db, manana, 'M1')
+
+    res = auth_client.post(f'/cuadrantes/tablero/dia/{LUNES}/puesto', data={
+        'shift_type_id': manana.id, 'code': 'M1'}, follow_redirects=True)
+
+    assert 'Ya hay un puesto M1' in res.get_data(as_text=True)
+    assert ShiftPosition.query.count() == 1
+
+
+def test_anadir_un_puesto_sin_admin_no_puede(client, db, cleaner_user):
+    client.post('/admin/login',
+                data={'username': 'limpiadora1', 'password': 'limpia123'},
+                follow_redirects=True)
+    res = client.post(f'/cuadrantes/tablero/dia/{LUNES}/puesto', data={'code': 'M9'})
     assert res.status_code in (302, 403)
     assert ShiftPosition.query.count() == 0

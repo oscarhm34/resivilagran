@@ -11,6 +11,7 @@
     <div class="tb-code">{{ c.code }}</div>
     <div class="tb-slot" data-position-id="{{ c.position_id }}"
          {% if c.solo_lectura %}data-solo-lectura="1"{% endif %}
+         {% if c.reflejo and not c.reflejo_de_ayer %}data-reflejo-hoy="1"{% endif %}
          style="{% if c.reflejo %}background:{{ c.shift_color }}2e{% endif %}">
         {% if c.ocupa %}
         <div class="tb-ficha" data-cleaner-id="{{ c.ocupa.cleaner_id }}"
@@ -98,6 +99,8 @@
     .tb-ficha:active { cursor: grabbing; }
     .tb-ficha.tb-arrastrando { opacity: .45; }
     .tb-ausente { cursor: not-allowed; filter: grayscale(.85); opacity: .6; }
+    /* La copia del reflejo no se arrastra: la de verdad es la otra. */
+    .tb-copia { cursor: default; }
 
     .tb-noche {
         margin-top: 10px; background: var(--tb-papel);
@@ -115,7 +118,16 @@
         display: flex; flex-direction: column; gap: 6px;
         min-height: 120px; max-height: 70vh; overflow-y: auto;
     }
-    .tb-banquillo .tb-ficha { min-height: 46px; height: auto; }
+    .tb-banquillo .tb-ficha {
+        min-height: 46px; height: auto; flex-wrap: wrap; gap: 4px;
+    }
+    /* Lo que ya lleva puesto ese dia, para saber a quien estas doblando. */
+    .tb-puestos { display: inline-flex; gap: 3px; flex-wrap: wrap; }
+    .tb-tag {
+        font-size: .64rem; font-weight: 700; letter-spacing: .02em;
+        background: rgba(255, 255, 255, .78); color: #10131a;
+        border-radius: 3px; padding: 0 4px;
+    }
 
     @media (max-width: 768px) {
         .tb-lienzo { height: 460px; }
@@ -133,6 +145,12 @@
             </a>
         </div>
         <div class="d-flex gap-2">
+            {% if hay_puestos %}
+            <button type="button" class="btn btn-sm btn-outline-primary"
+                    data-bs-toggle="modal" data-bs-target="#nuevoPuestoModal">
+                <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Anadir puesto
+            </button>
+            {% endif %}
             <a class="btn btn-sm btn-outline-secondary"
                href="{{ url_for('shifts.shift_board_day', iso=dia_anterior) }}">&laquo; Dia anterior</a>
             <a class="btn btn-sm btn-outline-secondary"
@@ -191,12 +209,14 @@
         <div class="col-lg-3">
             <div class="card h-100">
                 <div class="card-header py-2">
-                    Sin puesto hoy
-                    <span class="badge bg-secondary ms-1" id="tb-banquillo-n">{{ banquillo|length }}</span>
+                    Personal
+                    <span class="badge bg-secondary ms-1" id="tb-banquillo-n">{{ sin_puesto }}</span>
+                    <span class="small ms-1" style="color:var(--color-text-secondary)">sin puesto</span>
                 </div>
                 <div class="card-body p-2">
                     <p class="small mb-2" style="color:var(--color-text-secondary)">
                         Arrastra a una casilla. Si ya esta ocupada, quien estuviera vuelve aqui.
+                        Para que alguien doble, arrastrala otra vez desde esta lista.
                     </p>
                     <div id="tb-banquillo" class="tb-banquillo">
                         {% for b in banquillo %}
@@ -206,7 +226,9 @@
                              style="background:{{ b.color }}"
                              {% if b.ausente %}title="{{ b.ausente }}"{% endif %}
                              aria-label="{{ b.name }}{% if b.ausente %}, {{ b.ausente }}{% endif %}">
-                            {{ b.name }}{% if b.ausente %} <small>({{ b.ausente }})</small>{% endif %}
+                            <span class="tb-nombre">{{ b.name }}</span>
+                            {% if b.ausente %}<small>({{ b.ausente }})</small>{% endif %}
+                            <span class="tb-puestos">{% for c in b.puestos %}<span class="tb-tag">{{ c }}</span>{% endfor %}</span>
                         </div>
                         {% endfor %}
                     </div>
@@ -215,6 +237,96 @@
         </div>
     </div>
     {% endif %}
+</div>
+
+<div class="modal fade" id="nuevoPuestoModal" tabindex="-1"
+     aria-labelledby="nuevoPuestoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="POST"
+              action="{{ url_for('shifts.shift_board_add_position', iso=dia.isoformat()) }}">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="nuevoPuestoLabel">Anadir un puesto</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small" style="color:var(--color-text-secondary)">
+                        Una casilla mas en el recuadro, como un <strong>M4</strong>. Sale en
+                        todos los dias, no solo en este.
+                    </p>
+
+                    <div class="mb-3">
+                        <label for="np-turno" class="form-label">
+                            Turno <span class="text-danger" aria-hidden="true">*</span>
+                        </label>
+                        <select id="np-turno" name="shift_type_id" class="form-select" required>
+                            {% for st in tipos_del_tablero %}
+                            <option value="{{ st.id }}">
+                                {{ st.name }} ({{ st.start_time.strftime('%H:%M') }}-{{ st.end_time.strftime('%H:%M') }})
+                            </option>
+                            {% endfor %}
+                            <option value="nuevo">➕ Crear un turno nuevo...</option>
+                        </select>
+                        <div class="form-text">De aqui saca el horario y la fila del recuadro.</div>
+                    </div>
+
+                    <div id="np-nuevo-turno" class="d-none">
+                        <div class="row g-2 mb-3">
+                            <div class="col-7">
+                                <label for="np-nombre" class="form-label">Nombre del turno</label>
+                                <input type="text" id="np-nombre" name="nuevo_nombre"
+                                       class="form-control" maxlength="50"
+                                       placeholder="ej. Recepcion de tarde">
+                            </div>
+                            <div class="col-5">
+                                <label for="np-color" class="form-label">Color</label>
+                                <input type="color" id="np-color" name="nuevo_color"
+                                       class="form-control form-control-color" value="#c4e7f0">
+                            </div>
+                            <div class="col-4">
+                                <label for="np-desde" class="form-label">Desde</label>
+                                <input type="time" id="np-desde" name="nuevo_desde"
+                                       class="form-control" value="14:00">
+                            </div>
+                            <div class="col-4">
+                                <label for="np-hasta" class="form-label">Hasta</label>
+                                <input type="time" id="np-hasta" name="nuevo_hasta"
+                                       class="form-control" value="20:30">
+                            </div>
+                            <div class="col-4">
+                                <label for="np-fila" class="form-label">Fila</label>
+                                <select id="np-fila" name="nuevo_board_row" class="form-select">
+                                    {% for id, etiqueta in etiquetas_fila.items() %}
+                                    <option value="{{ id }}" {{ 'selected' if id == 'tarde' }}>{{ etiqueta }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="np-code" class="form-label">
+                            Codigo <span class="text-danger" aria-hidden="true">*</span>
+                        </label>
+                        <input type="text" id="np-code" name="code" class="form-control"
+                               required maxlength="8" autocomplete="off" placeholder="ej. M4">
+                        <div class="form-text">Lo que se lee en la casilla.</div>
+                    </div>
+                    <div>
+                        <label for="np-name" class="form-label">Descripcion</label>
+                        <input type="text" id="np-name" name="name" class="form-control"
+                               maxlength="50" autocomplete="off" placeholder="ej. Cuarta de manana">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <a class="btn btn-link btn-sm me-auto"
+                       href="{{ url_for('shifts.manage_shift_positions') }}">Gestionar todos los puestos</a>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Anadir</button>
+                </div>
+            </div>
+        </form>
+    </div>
 </div>
 {% endblock %}
 
@@ -225,6 +337,15 @@
 <script>
 (function () {
     'use strict';
+    var turno = document.getElementById('np-turno');
+    if (turno) {
+        turno.addEventListener('change', function () {
+            var nuevo = this.value === 'nuevo';
+            document.getElementById('np-nuevo-turno').classList.toggle('d-none', !nuevo);
+            document.getElementById('np-nombre').required = nuevo;
+        });
+    }
+
     var banquillo = document.getElementById('tb-banquillo');
     if (!banquillo) return;
 
@@ -253,18 +374,57 @@
         return conBlanco >= conOscuro ? '#fff' : '#10131a';
     }
 
+    // El reflejo es la misma asignacion ensenada dos veces, y lo pinta el
+    // servidor al cargar. Al arrastrar, el navegador solo toca la casilla donde
+    // se suelta: sin esto, poner a alguien en NIT A dejaba su reflejo de la
+    // tarde vacio hasta recargar.
+    //
+    // Solo los del mismo dia: el reflejo «dia-1» ensena la asignacion de la
+    // vispera, que en esta pagina no esta y no se puede deducir de aqui.
+    function sincronizarReflejos() {
+        document.querySelectorAll('.tb-slot[data-reflejo-hoy]').forEach(function (reflejo) {
+            var real = document.querySelector(
+                '.tb-slot[data-position-id="' + reflejo.dataset.positionId +
+                '"]:not([data-solo-lectura])');
+            reflejo.innerHTML = '';
+            var ficha = real && real.querySelector('.tb-ficha');
+            if (!ficha) return;
+            var copia = ficha.cloneNode(true);
+            copia.classList.add('tb-copia');
+            copia.removeAttribute('data-cleaner-id');   // que Sortable no la vea
+            reflejo.appendChild(copia);
+        });
+    }
+
     function pintarTextoFichas() {
         document.querySelectorAll('.tb-ficha[data-color]').forEach(function (f) {
             f.style.color = textoLegibleSobre(f.dataset.color);
         });
     }
 
-    function contarBanquillo() {
-        document.getElementById('tb-banquillo-n').textContent =
-            banquillo.querySelectorAll('.tb-ficha').length;
+    // La lista lleva a todo el mundo, asi que lo que se cuenta es quien no
+    // tiene nada todavia, que es lo que de verdad se mira al repartir.
+    function pintarPuestos(puestos) {
+        var sin = 0;
+        banquillo.querySelectorAll('.tb-ficha').forEach(function (ficha) {
+            var codigos = (puestos || {})[ficha.dataset.cleanerId] || [];
+            var caja = ficha.querySelector('.tb-puestos');
+            if (caja) {
+                caja.innerHTML = '';
+                codigos.forEach(function (c) {
+                    var tag = document.createElement('span');
+                    tag.className = 'tb-tag';
+                    tag.textContent = c;
+                    caja.appendChild(tag);
+                });
+            }
+            if (!codigos.length && !ficha.classList.contains('tb-ausente')) sin += 1;
+        });
+        document.getElementById('tb-banquillo-n').textContent = sin;
     }
 
     pintarTextoFichas();
+    sincronizarReflejos();
 
     async function pedir(url, cuerpo) {
         var res = await fetch(url, {
@@ -277,49 +437,53 @@
         return datos;
     }
 
-    // Deshacer el movimiento tal cual estaba: la ficha vuelve a su sitio y, si
-    // habia desplazado a alguien, esa persona vuelve a su casilla. Sin esto la
-    // pantalla diria una cosa y la base de datos otra.
-    function deshacer(evt, desplazada, destino) {
-        var ref = evt.from.children[evt.oldIndex] || null;
-        evt.from.insertBefore(evt.item, ref);
-        if (desplazada) destino.appendChild(desplazada);
-        contarBanquillo();
-    }
-
     async function alSoltarEnCasilla(evt) {
         var destino = evt.to;
         var ficha = evt.item;
-        // Una casilla es para una persona: la que estuviera sale al banquillo.
+        // El gesto dice que hacer: si viene de otra casilla, se mueve; si viene
+        // de la lista de personal, se anade un puesto mas.
+        var desde = evt.from.dataset.positionId || null;
+        // Una casilla es para una persona: la que estuviera sale de ella.
         var desplazada = null;
         Array.prototype.forEach.call(destino.querySelectorAll('.tb-ficha'), function (f) {
             if (f !== ficha) desplazada = f;
         });
-        if (desplazada) banquillo.appendChild(desplazada);
-        contarBanquillo();
+        if (desplazada) desplazada.remove();
 
         try {
-            await pedir(URL_ASIGNAR, {
+            var r = await pedir(URL_ASIGNAR, {
                 date: DIA,
                 position_id: parseInt(destino.dataset.positionId, 10),
-                cleaner_id: parseInt(ficha.dataset.cleanerId, 10)
+                cleaner_id: parseInt(ficha.dataset.cleanerId, 10),
+                from_position_id: desde ? parseInt(desde, 10) : null
             });
+            pintarPuestos(r.puestos);
         } catch (e) {
-            deshacer(evt, desplazada, destino);
+            evt.from.insertBefore(evt.item, evt.from.children[evt.oldIndex] || null);
+            if (desplazada) destino.appendChild(desplazada);
             aviso(e.message, 'error');
         }
+        pintarTextoFichas();
+        sincronizarReflejos();
     }
 
     async function alSoltarEnBanquillo(evt) {
-        contarBanquillo();
+        var desde = evt.from.dataset.positionId || null;
+        // La lista ya tiene a todo el mundo: la ficha que llega sobra.
+        evt.item.remove();
         try {
-            await pedir(URL_QUITAR, {
-                date: DIA, cleaner_id: parseInt(evt.item.dataset.cleanerId, 10)
+            var r = await pedir(URL_QUITAR, {
+                date: DIA,
+                cleaner_id: parseInt(evt.item.dataset.cleanerId, 10),
+                position_id: desde ? parseInt(desde, 10) : null
             });
+            pintarPuestos(r.puestos);
         } catch (e) {
-            deshacer(evt, null, null);
+            evt.from.insertBefore(evt.item, evt.from.children[evt.oldIndex] || null);
             aviso(e.message, 'error');
         }
+        pintarTextoFichas();
+        sincronizarReflejos();
     }
 
     // forceFallback por lo mismo que en el inventario: el arrastre nativo de
@@ -348,8 +512,11 @@
         if (slot.dataset.soloLectura) return;   // el reflejo no es un puesto aparte
         new Sortable(slot, Object.assign({}, comun, {onAdd: alSoltarEnCasilla}));
     });
+    // `pull: clone`: arrastrar de la lista deja a la persona ahi, que es lo que
+    // permite volver a cogerla para darle un segundo puesto.
     new Sortable(banquillo, Object.assign({}, comun, {
         sort: false,
+        group: {name: 'personal', pull: 'clone', put: true},
         onAdd: alSoltarEnBanquillo
     }));
 })();

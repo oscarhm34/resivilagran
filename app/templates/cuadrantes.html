@@ -110,6 +110,8 @@
     .shift-cell:hover {
         transform: scale(1.15);
     }
+    /* Dos turnos el mismo dia: caben los dos en la celda, mas estrechos. */
+    .shift-cell.doble { width: 13px; min-width: 13px; font-size: .55rem; }
     .shift-cell.empty {
         background: transparent;
         color: var(--color-text-secondary);
@@ -420,7 +422,7 @@
                         </td>
                         {% for d in range(1, num_days + 1) %}
                         {% set iso = '%04d-%02d-%02d' | format(year, month, d) %}
-                        {% set assignment = assign_map.get((w.id, iso)) %}
+                        {% set asignaciones = assign_map.get((w.id, iso), []) %}
                         {% set abs_type = absence_map.get((w.id, iso)) %}
                         <td class="grid-cell{% if abs_type %} has-absence{% endif %}" data-worker="{{ w.id }}" data-date="{{ iso }}" data-day="{{ d }}">
                             {% if abs_type %}
@@ -428,12 +430,18 @@
                                   title="{{ abs_type.name }}">
                                 {{ abs_type.short_name }}
                             </span>
-                            {% elif assignment and assignment.shift_type %}
-                            <span class="shift-cell" style="background:{{ assignment.shift_type.color }}"
-                                  title="{{ assignment.shift_type.name }}"
-                                  data-shift-id="{{ assignment.shift_type.id }}">
-                                {{ assignment.shift_type.short_name }}
+                            {% elif asignaciones %}
+                            {# Quien dobla lleva las dos abreviaturas, cada una de su
+                               color: esta pantalla cuenta horas, y esconder una
+                               falsearia el recuento justo el dia que mas importa. #}
+                            {% for a in asignaciones if a.shift_type %}
+                            <span class="shift-cell{% if asignaciones|length > 1 %} doble{% endif %}"
+                                  style="background:{{ a.shift_type.color }}"
+                                  title="{{ a.shift_type.name }}{% if a.position %} · {{ a.position.code }}{% endif %}"
+                                  data-shift-id="{{ a.shift_type.id }}">
+                                {{ a.shift_type.short_name }}
                             </span>
+                            {% endfor %}
                             {% else %}
                             <span class="shift-cell empty" title="Sin turno">&middot;</span>
                             {% endif %}

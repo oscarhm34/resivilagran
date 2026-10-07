@@ -733,7 +733,14 @@
                     duplica: una persona ocupa un puesto al dia.</li>
                 <li><strong>Soltar sobre una casilla ocupada:</strong> quien estuviera vuelve a la
                     lista de la derecha. Es la forma rapida de sustituir a alguien.</li>
-                <li><strong>Quitar a alguien del dia:</strong> arrastrarla de vuelta a la lista.</li>
+                <li><strong>Quitar a alguien de una casilla:</strong> arrastrarla de vuelta a la
+                    lista. Si tenia dos puestos, se le quita solo ese.</li>
+                <li><strong>Doblar:</strong> una persona puede hacer <strong>M1 y T1</strong> el
+                    mismo dia, que es lo que toca cuando falta alguien. La lista de la derecha lleva
+                    a <strong>todo el personal</strong>, tenga puesto o no, con una etiqueta de lo
+                    que ya lleva: para doblar a alguien, se arrastra otra vez desde ahi. En la
+                    rejilla mensual ese dia sale con las <strong>dos abreviaturas</strong>, para que
+                    el recuento de horas no mienta.</li>
                 <li><strong>De baja o de vacaciones:</strong> salen en gris y no se pueden colocar.
                     La aplicacion lo impide y lo dice.</li>
                 <li><strong>Los cuadros van a escala.</strong> El recuadro lleva una regla de horas
@@ -750,6 +757,10 @@
             <p>Un <strong>puesto</strong> es cada casilla del recuadro. Se crean en
                <strong>Turnos &rarr; Puestos</strong>, y cada uno pertenece a un tipo de turno, de
                donde saca su horario.</p>
+            <p>Los puestos tambien se anaden <strong>desde el propio tablero</strong>, con el boton
+               <strong>Anadir puesto</strong>: se ve el hueco y se rellena sin cambiar de pantalla.
+               Si el turno al que pertenece todavia no existe —una recepcion de tarde no tiene las
+               horas de la de manana— se crea de paso, desde la misma ventana.</p>
             <p>La primera vez no hay que darlos de alta uno a uno: el boton
                <strong>Crear el cuadrante de siempre</strong> deja montado el reparto de toda la
                vida —M1, M2, M3, CRM, RFM, T1, T2, T3, CRT, RFT, las tres noches, cocina y
@@ -2037,6 +2048,9 @@
                 </thead>
                 <tbody>
                     <tr><td>07/10</td><td><strong>Tablero de turnos:</strong> nueva pantalla en <strong>Turnos &rarr; Tablero</strong> con el recuadro de siempre, una casilla por puesto, que se rellena <strong>arrastrando</strong> a cada persona. La semana se ve de un vistazo con los siete dias y los colores de cada una, y al pulsar un dia se abre su recuadro. La rejilla mensual se queda para el control de horas, cobertura y descansos.</td></tr>
+                    <tr><td>07/10</td><td><strong>Una misma persona puede doblar:</strong> ya se puede apuntar que alguien hace <strong>M1 y T1</strong> el mismo dia, que es lo que pasa cuando falta gente; antes el sistema solo dejaba un turno por persona y dia. La lista del tablero lleva ahora a todo el personal con una etiqueta de lo que ya tiene puesto, y para doblar a alguien se arrastra otra vez desde ahi. En la rejilla mensual ese dia sale con las dos abreviaturas.</td></tr>
+                    <tr><td>07/10</td><td><strong>Anadir puestos desde el tablero:</strong> boton <strong>Anadir puesto</strong> en el recuadro del dia, para crear un M4 o una recepcion de tarde sin cambiar de pantalla. Si el turno al que pertenece no existe, se crea desde la misma ventana.</td></tr>
+                    <tr><td>07/10</td><td><strong>El reflejo se actualizaba tarde:</strong> al poner a alguien en NIT A, su reflejo de la tarde se quedaba vacio hasta recargar la pagina. Ahora se rellena solo.</td></tr>
                     <tr><td>07/10</td><td><strong>El cuadrante de siempre, de un boton:</strong> en <strong>Turnos &rarr; Puestos</strong>, cuando no hay ninguno, hay un boton que deja montado el reparto de toda la vida con sus filas y sus reflejos, listo para empezar a colocar gente. No toca nada de lo que ya exista y se puede pulsar dos veces sin miedo.</td></tr>
                     <tr><td>07/10</td><td><strong>Puestos dentro del turno:</strong> ya se puede decir quien hace <strong>M1</strong>, quien coordina y quien es el refuerzo, y no solo quien trabaja de manana. Los puestos se crean en <strong>Turnos &rarr; Puestos</strong>: anadir un M4 es rellenar un formulario y aparece solo en todos los dias. Cada trabajadora tiene ademas su color para la leyenda.</td></tr>
                     <tr><td>07/10</td><td><strong>Los cuadros van a escala:</strong> el recuadro del dia lleva una regla de horas y cada caja empieza y acaba donde dice su horario. El refuerzo de manana se ve corto porque pliega a las 9:30, y quien viene de la noche anterior entra por arriba con la caja cortada. La manana y la tarde comparten columna, como en el cuadrante de papel.</td></tr>

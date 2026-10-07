@@ -621,11 +621,13 @@ class ShiftAssignment(db.Model):
     position = db.relationship('ShiftPosition', back_populates='assignments')
     creator = db.relationship('Cleaner', foreign_keys=[created_by])
 
-    # Una persona, un puesto al dia (uq_worker_date), y un puesto, una persona
-    # al dia (uq_date_position). Los NULL de position_id no chocan entre si en
-    # ninguno de los dos motores, asi que lo que no tiene puesto convive.
+    # Un puesto, una persona al dia. Los NULL de position_id no chocan entre si
+    # en ninguno de los dos motores, asi que lo que no tiene puesto convive.
+    #
+    # Al reves no: una persona puede tener dos puestos el mismo dia, porque
+    # doblar un M1 con un T1 pasa cuando falta alguien. Hasta aqui lo impedia
+    # un uq_worker_date, y la unica salida era no apuntarlo.
     __table_args__ = (
-        db.UniqueConstraint('cleaner_id', 'date', name='uq_worker_date'),
         db.UniqueConstraint('date', 'position_id', name='uq_date_position'),
     )
 
