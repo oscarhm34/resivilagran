@@ -10,13 +10,15 @@
    de los puestos, que son los mismos todos los dias, asi que los siete dias de
    una semana salen a la misma escala y se pueden comparar. #}
 
+{% from "_patron_personal.html" import pinta %}
+
 {% macro mini(d, alto=150) %}
 <div class="tbm" style="height:{{ alto }}px">
     {% for col in d.columnas %}
     <div class="tbm-col">
         {% for c in col %}
-        <div class="tbm-caja{% if c.reflejo %} tbm-reflejo{% endif %}{% if not c.ocupa %} tbm-vacia{% endif %}"
-             style="top:{{ c.top }}%;height:{{ c.alto }}%{% if c.ocupa %};background:{{ c.ocupa.color }}{% endif %}"
+        <div class="tbm-caja{% if c.reflejo %} tbm-reflejo{% endif %}{% if not c.ocupa %} tbm-vacia{% endif %}{% if c.ocupa %} pat-{{ c.ocupa.patron }}{% endif %}"
+             style="top:{{ c.top }}%;height:{{ c.alto }}%{% if c.ocupa %};{{ pinta(c.ocupa) }}{% endif %}"
              title="{{ c.code }} · {{ c.ocupa.name if c.ocupa else 'sin cubrir' }}">
             <span class="visually-hidden">{{ c.code }}: {{ c.ocupa.name if c.ocupa else 'sin cubrir' }}</span>
         </div>
@@ -27,8 +29,8 @@
 {% if d.noche %}
 <div class="tbm-noche">
     {% for c in d.noche %}
-    <div class="tbm-caja{% if not c.ocupa %} tbm-vacia{% endif %}"
-         style="{% if c.ocupa %}background:{{ c.ocupa.color }}{% endif %}"
+    <div class="tbm-caja{% if not c.ocupa %} tbm-vacia{% endif %}{% if c.ocupa %} pat-{{ c.ocupa.patron }}{% endif %}"
+         style="{% if c.ocupa %}{{ pinta(c.ocupa) }}{% endif %}"
          title="{{ c.code }} · {{ c.ocupa.name if c.ocupa else 'sin cubrir' }}">
         <span class="visually-hidden">{{ c.code }}: {{ c.ocupa.name if c.ocupa else 'sin cubrir' }}</span>
     </div>
@@ -61,6 +63,9 @@
             var(--sb-hueco), var(--sb-hueco) 3px,
             var(--color-border) 3px, var(--color-border) 6px);
     }
+    /* El relleno, a escala de la miniatura: con el paso de tamano natural no
+       se repetiria ni una vez en una caja de dos milimetros. */
+    .tbm-caja { --pat-paso: 5px; --pat-trazo: 1.5px; }
     .tbm-noche { display: flex; gap: 1px; margin-top: 3px; height: 12px; }
     .tbm-noche .tbm-caja { position: static; flex: 1; }
 </style>

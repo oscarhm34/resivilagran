@@ -1,10 +1,12 @@
 {% extends "base.html" %}
 {% from "_tablero_mini.html" import mini, estilos_mini %}
+{% from "_patron_personal.html" import pinta, estilos_patron %}
 
 {% block title %}Tablero del mes{% endblock %}
 
 {% block content %}
 {{ estilos_mini() }}
+{{ estilos_patron() }}
 <style>
     /* Cada semana es una fila con su estado a la izquierda: publicar se hace
        por semana, que es como se reparte el trabajo, y desde aqui no hace
@@ -137,7 +139,7 @@
             <div class="sb-leyenda">
                 {% for p in leyenda %}
                 <span class="sb-leyenda-item">
-                    <span class="sb-punto" style="background:{{ p.color }}" aria-hidden="true"></span>{{ p.name }}
+                    <span class="sb-punto pat-{{ p.patron }}" style="{{ pinta(p) }}" aria-hidden="true"></span>{{ p.name }}
                 </span>
                 {% endfor %}
             </div>

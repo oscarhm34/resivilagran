@@ -1,0 +1,44 @@
+{# Como se pinta cada persona: su color y su relleno.
+
+   El color solo no llega. Quince colores para una plantilla de treinta repiten
+   por fuerza, y dos naranjas iguales en la vista del mes no se distinguen, que
+   es justo para lo que sirve esa vista. El relleno es el segundo eje: sesenta
+   combinaciones en vez de quince, y ademas se lee en una impresion en blanco y
+   negro y por alguien que no distingue el rojo del verde.
+
+   La tinta del relleno la decide el servidor segun lo claro que sea el color:
+   rayas blancas sobre un amarillo claro no se ven. #}
+
+{# El trozo de `style` que va en cualquier recuadro de una persona. #}
+{% macro pinta(f) -%}
+background-color:{{ f.color }};--pat-tinta:{{ f.tinta }}
+{%- endmacro %}
+
+{% macro estilos_patron() %}
+<style>
+    /* El periodo y el grosor son variables para que la miniatura pueda
+       encogerlos: a dos milimetros, unas rayas de diez pixeles no se repiten
+       ni una vez y el recuadro parece liso. */
+    .pat-rayas, .pat-puntos, .pat-malla {
+        --pat-tinta: rgba(255, 255, 255, .6);
+        --pat-paso: 10px;
+        --pat-trazo: 3px;
+    }
+    .pat-rayas {
+        background-image: repeating-linear-gradient(45deg,
+            var(--pat-tinta) 0 var(--pat-trazo),
+            transparent var(--pat-trazo) var(--pat-paso));
+    }
+    .pat-puntos {
+        background-image: radial-gradient(var(--pat-tinta) 32%, transparent 34%);
+        background-size: var(--pat-paso) var(--pat-paso);
+    }
+    .pat-malla {
+        background-image:
+            repeating-linear-gradient(45deg, var(--pat-tinta) 0 1.5px,
+                transparent 1.5px var(--pat-paso)),
+            repeating-linear-gradient(-45deg, var(--pat-tinta) 0 1.5px,
+                transparent 1.5px var(--pat-paso));
+    }
+</style>
+{% endmacro %}

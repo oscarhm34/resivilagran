@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_patron_personal.html" import pinta, estilos_patron %}
 
 {% block title %}Tablero del {{ dia.strftime('%d/%m/%Y') }}{% endblock %}
 
@@ -14,8 +15,8 @@
          {% if c.reflejo and not c.reflejo_de_ayer %}data-reflejo-hoy="1"{% endif %}
          style="{% if c.reflejo %}background:{{ c.shift_color }}2e{% endif %}">
         {% if c.ocupa %}
-        <div class="tb-ficha" data-cleaner-id="{{ c.ocupa.cleaner_id }}"
-             data-color="{{ c.ocupa.color }}" style="background:{{ c.ocupa.color }}"
+        <div class="tb-ficha pat-{{ c.ocupa.patron }}" data-cleaner-id="{{ c.ocupa.cleaner_id }}"
+             data-color="{{ c.ocupa.color }}" style="{{ pinta(c.ocupa) }}"
              aria-label="{{ c.ocupa.name }} en {{ c.code }}">{{ c.ocupa.name }}</div>
         {% endif %}
     </div>
@@ -24,6 +25,7 @@
 {% endmacro %}
 
 {% block content %}
+{{ estilos_patron() }}
 <style>
     /* Tokens locales con su pareja en oscuro, como hace cuadrantes.html: el
        recuadro necesita un papel propio que no se confunda con el fondo. */
@@ -220,10 +222,10 @@
                     </p>
                     <div id="tb-banquillo" class="tb-banquillo">
                         {% for b in banquillo %}
-                        <div class="tb-ficha{% if b.ausente %} tb-ausente{% endif %}"
+                        <div class="tb-ficha pat-{{ b.patron }}{% if b.ausente %} tb-ausente{% endif %}"
                              data-cleaner-id="{{ b.cleaner_id }}"
                              data-color="{{ b.color }}"
-                             style="background:{{ b.color }}"
+                             style="{{ pinta(b) }}"
                              {% if b.ausente %}title="{{ b.ausente }}"{% endif %}
                              aria-label="{{ b.name }}{% if b.ausente %}, {{ b.ausente }}{% endif %}">
                             <span class="tb-nombre">{{ b.name }}</span>

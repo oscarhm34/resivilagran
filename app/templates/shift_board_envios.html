@@ -1,8 +1,10 @@
 {% extends "base.html" %}
+{% from "_patron_personal.html" import pinta, estilos_patron %}
 
 {% block title %}Enviar los horarios{% endblock %}
 
 {% block content %}
+{{ estilos_patron() }}
 <style>
     /* Una fila por persona. El telefono se ensena tal y como se va a mandar:
        un numero mal escrito tiene que verse antes de gastar un mensaje. */
@@ -98,7 +100,7 @@
             <div class="en-fila" data-cleaner="{{ f.cleaner_id }}">
                 <div>
                     <span class="en-nombre">
-                        <span class="en-punto" style="background:{{ f.color }}" aria-hidden="true"></span>{{ f.name }}
+                        <span class="en-punto pat-{{ f.patron }}" style="{{ pinta(f) }}" aria-hidden="true"></span>{{ f.name }}
                     </span>
                 </div>
 

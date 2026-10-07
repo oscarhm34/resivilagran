@@ -273,10 +273,17 @@ def manage_workers():
     # Desde que movil trabaja cada una. Sin esto, saber que telefono hay que
     # mirar cuando a alguien no le va el NFC pasa por preguntarselo.
     ultimo_movil = _ultimo_movil_por_trabajadora()
+    # Con que se pinta cada una en el tablero, y quien se pinta igual que otra.
+    # Dos personas con el mismo color y el mismo relleno son indistinguibles en
+    # la vista del mes, que es donde mas falta hace reconocerlas.
+    from .shifts import ETIQUETAS_PATRON, _choques_de_pintura, _pinta
     return render_template('manage_workers.html', cleaners=cleaners, groups=groups,
                            estado_filtro=estado, con_avisos=con_avisos,
                            ultimo_movil=ultimo_movil,
-                           languages=APP_LANGUAGES)
+                           languages=APP_LANGUAGES,
+                           pinta_de={c.id: _pinta(c) for c in cleaners},
+                           patrones=ETIQUETAS_PATRON,
+                           choques=_choques_de_pintura())
 
 
 @bp.route('/cleaners/add_edit', methods=['POST'])
@@ -301,6 +308,11 @@ def add_edit_cleaner():
     color = (request.form.get('color') or '').strip() or None
     if color and not re.match(r'^#[0-9A-Fa-f]{6}$', color):
         color = None
+    # El relleno es el segundo eje, para que dos personas no se pinten igual.
+    from .shifts import PATRONES_PERSONAL
+    pattern = (request.form.get('pattern') or '').strip() or None
+    if pattern not in PATRONES_PERSONAL:
+        pattern = None
     phone = (request.form.get('phone') or '').strip()[:20] or None
 
     group_ids = request.form.getlist('group_ids')
@@ -316,6 +328,7 @@ def add_edit_cleaner():
             cleaner.role = role
             cleaner.lang = lang
             cleaner.color = color
+            cleaner.pattern = pattern
             cleaner.phone = phone
             cleaner.groups = selected_groups
             if password:
@@ -334,7 +347,7 @@ def add_edit_cleaner():
     else:
         new_cleaner = Cleaner(username=username, name=name, is_admin=is_admin,
                               active=active, role=role, lang=lang,
-                              color=color, phone=phone)
+                              color=color, pattern=pattern, phone=phone)
         new_cleaner.set_password(password)
         new_cleaner.groups = selected_groups
         db.session.add(new_cleaner)
@@ -351,6 +364,35 @@ def add_edit_cleaner():
             return redirect(url_for('admin_bp.manage_workers'))
         flash('Trabajador añadido correctamente.', 'success')
 
+    return redirect(url_for('admin_bp.manage_workers'))
+
+
+@bp.route('/cleaners/repartir-pintura', methods=['POST'])
+@admin_required
+def repartir_pintura():
+    """Le da una combinacion libre a cada persona que se pinte como otra.
+
+    Solo toca a las que chocan, y dentro de un choque respeta a la primera: el
+    color se aprende con el tiempo y cambiarselo a todo el mundo para arreglar
+    dos repetidos seria peor que el problema.
+    """
+    from .shifts import _repartir_pintura
+
+    cambiadas = _repartir_pintura()
+    if not cambiadas:
+        flash('No habia dos personas pintadas igual: no se ha cambiado nada.', 'info')
+        return redirect(url_for('admin_bp.manage_workers'))
+
+    log_audit('update', 'cleaner', 0,
+              {'accion': 'repartir pintura del tablero',
+               'cambiadas': len(cambiadas)})
+    ok, error = _safe_commit('No se pudieron repartir los colores')
+    if not ok:
+        flash(error, 'danger')
+        return redirect(url_for('admin_bp.manage_workers'))
+
+    flash('Colores repartidos. Han cambiado: ' + ', '.join(cambiadas) + '.',
+          'success')
     return redirect(url_for('admin_bp.manage_workers'))
 
 

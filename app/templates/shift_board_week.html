@@ -1,10 +1,12 @@
 {% extends "base.html" %}
 {% from "_tablero_mini.html" import mini, estilos_mini %}
+{% from "_patron_personal.html" import pinta, estilos_patron %}
 
 {% block title %}Tablero de turnos{% endblock %}
 
 {% block content %}
 {{ estilos_mini() }}
+{{ estilos_patron() }}
 <style>
     :root { --sb-papel: #ffffff; --sb-linea: #9aa4ae; --sb-hueco: #f0f3f7; }
     [data-theme="dark"] { --sb-papel: #161b22; --sb-linea: #46525e; --sb-hueco: #0d1117; }
@@ -140,7 +142,7 @@
             <div class="sb-leyenda">
                 {% for p in leyenda %}
                 <span class="sb-leyenda-item">
-                    <span class="sb-punto" style="background:{{ p.color }}" aria-hidden="true"></span>{{ p.name }}
+                    <span class="sb-punto pat-{{ p.patron }}" style="{{ pinta(p) }}" aria-hidden="true"></span>{{ p.name }}
                 </span>
                 {% endfor %}
             </div>

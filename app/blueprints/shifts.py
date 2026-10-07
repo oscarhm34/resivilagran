@@ -1146,6 +1146,12 @@ PALETA_PERSONAL = [
     '#e03131', '#1565c0', '#5c6670', '#6a1b9a', '#f3a6a6',
 ]
 
+# El segundo eje, para que dos personas nunca se pinten igual. Quince colores
+# por cuatro rellenos son sesenta combinaciones distintas.
+PATRONES_PERSONAL = ['liso', 'rayas', 'puntos', 'malla']
+ETIQUETAS_PATRON = {'liso': 'Liso', 'rayas': 'Rayas',
+                    'puntos': 'Puntos', 'malla': 'Cuadricula'}
+
 FILAS_TABLERO = ['manana', 'tarde', 'noche', 'lateral']
 ETIQUETAS_FILA = {'manana': 'Mañana', 'tarde': 'Tarde',
                   'noche': 'Noche', 'lateral': 'Otros puestos'}
@@ -1162,6 +1168,115 @@ def _color_trabajadora(trabajadora) -> str:
     if trabajadora.color and _HEX_COLOR_RE.match(trabajadora.color):
         return trabajadora.color
     return PALETA_PERSONAL[(trabajadora.id or 0) % len(PALETA_PERSONAL)]
+
+
+def _patron_trabajadora(trabajadora) -> str:
+    """Como se rellena su recuadro.
+
+    El color solo no llega: quince colores para treinta personas repiten por
+    fuerza, y dos naranjas iguales en la vista del mes no se distinguen, que es
+    justo para lo que sirve esa vista. El relleno multiplica por cuatro las
+    combinaciones, y ademas sobrevive a una impresion en blanco y negro y a una
+    persona que no distingue el rojo del verde.
+
+    Derivado del id, no del puesto en una lista: asi el de cada una no cambia
+    cuando entra o se va alguien. Aprenderselo es el objetivo.
+    """
+    if trabajadora.pattern in PATRONES_PERSONAL:
+        return trabajadora.pattern
+    vuelta = (trabajadora.id or 0) // len(PALETA_PERSONAL)
+    return PATRONES_PERSONAL[vuelta % len(PATRONES_PERSONAL)]
+
+
+TINTA_CLARA = 'rgba(255,255,255,.62)'
+TINTA_OSCURA = 'rgba(0,0,0,.34)'
+
+
+def _luminancia(r: float, g: float, b: float) -> float:
+    def lineal(c):
+        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+    return 0.2126 * lineal(r) + 0.7152 * lineal(g) + 0.0722 * lineal(b)
+
+
+def _tinta_sobre(hex_color: str) -> str:
+    """De que color van las rayas encima de ese fondo.
+
+    Rayas blancas sobre un amarillo claro no se ven, y negras sobre un azul
+    oscuro tampoco. En vez de un umbral a ojo, se prueban las dos y se queda la
+    que mas se separa del fondo: la tinta es translucida, asi que el resultado
+    depende tanto del color como de la opacidad, y con los azules medios de la
+    paleta un umbral fijo se equivoca.
+    """
+    try:
+        r, g, b = (int(hex_color[i:i + 2], 16) / 255 for i in (1, 3, 5))
+    except (ValueError, IndexError, TypeError):
+        return TINTA_CLARA
+
+    fondo = _luminancia(r, g, b)
+    # La tinta se mezcla con el fondo segun su opacidad.
+    clara = _luminancia(*(c * (1 - .62) + .62 for c in (r, g, b)))
+    oscura = _luminancia(*(c * (1 - .34) for c in (r, g, b)))
+    return (TINTA_CLARA if abs(clara - fondo) >= abs(oscura - fondo)
+            else TINTA_OSCURA)
+
+
+def _pinta(trabajadora) -> dict:
+    """Con que se pinta a esta persona, en todas partes igual."""
+    color = _color_trabajadora(trabajadora)
+    return {'color': color,
+            'patron': _patron_trabajadora(trabajadora),
+            'tinta': _tinta_sobre(color)}
+
+
+def _pares_de_pintura():
+    """Todas las combinaciones, color primero.
+
+    Primero los quince colores lisos, que son los mas faciles de reconocer;
+    los rellenos entran cuando los colores se acaban.
+    """
+    for patron in PATRONES_PERSONAL:
+        for color in PALETA_PERSONAL:
+            yield color, patron
+
+
+def _choques_de_pintura() -> list:
+    """Grupos de personas en activo que se pintan exactamente igual.
+
+    Devuelve [[Cleaner, Cleaner], ...]. Dos naranjas lisos son dos nombres que
+    no se pueden distinguir mirando el mes, que es lo que se mira para repartir
+    el trabajo.
+    """
+    por_par: dict = {}
+    for c in Cleaner.query.filter_by(active=True).order_by(Cleaner.id).all():
+        por_par.setdefault(
+            (_color_trabajadora(c), _patron_trabajadora(c)), []).append(c)
+    return [gente for gente in por_par.values() if len(gente) > 1]
+
+
+def _repartir_pintura() -> list:
+    """Da una combinacion libre a quien se pinte como otra. Devuelve los nombres.
+
+    No hace commit: lo hace quien llama, para que entre en la misma transaccion
+    que su registro de auditoria.
+    """
+    usados = set()
+    cambiadas = []
+    for c in Cleaner.query.filter_by(active=True).order_by(Cleaner.id).all():
+        par = (_color_trabajadora(c), _patron_trabajadora(c))
+        if par not in usados:
+            usados.add(par)
+            continue
+        # Dentro de un choque, la primera se queda como estaba: el color se
+        # aprende y moverselo a todo el mundo seria peor que el problema.
+        libre = next((p for p in _pares_de_pintura() if p not in usados), None)
+        if not libre:
+            # Sesenta combinaciones agotadas. No pasa hoy, pero callarlo seria
+            # dejar a alguien repetido sin decirlo.
+            break
+        c.color, c.pattern = libre
+        usados.add(libre)
+        cambiadas.append(c.name)
+    return cambiadas
 
 
 def _lunes_de(dia: date) -> date:
@@ -1224,7 +1339,7 @@ def _ficha(asignacion, ausencias) -> dict | None:
         return None
     c = asignacion.cleaner
     return {'assignment_id': asignacion.id, 'cleaner_id': c.id, 'name': c.name,
-            'color': _color_trabajadora(c)}
+            **_pinta(c)}
 
 
 def _minutos(t) -> int:
@@ -1482,8 +1597,7 @@ def shift_board_day(iso: str):
     banquillo = []
     for c in _personal_del_tablero():
         tipo = ausencias.get(c.id, {}).get(dia)
-        banquillo.append({'cleaner_id': c.id, 'name': c.name,
-                          'color': _color_trabajadora(c),
+        banquillo.append({'cleaner_id': c.id, 'name': c.name, **_pinta(c),
                           'ausente': tipo.name if tipo else None,
                           'puestos': puestos_de.get(c.id, [])})
     sin_puesto = sum(1 for b in banquillo if not b['puestos'] and not b['ausente'])
@@ -1553,7 +1667,8 @@ def shift_board_assign():
     if ocupante:
         desplazada = {'cleaner_id': ocupante.cleaner_id,
                       'name': ocupante.cleaner.name if ocupante.cleaner else '',
-                      'color': _color_trabajadora(ocupante.cleaner) if ocupante.cleaner else ''}
+                      **(_pinta(ocupante.cleaner) if ocupante.cleaner
+                         else {'color': '', 'patron': 'liso'})}
         db.session.delete(ocupante)
         ok, error = _safe_flush('No se pudo liberar la casilla')
         if not ok:
@@ -1954,8 +2069,7 @@ def shift_board_envios():
         estado = recibo.estado if recibo else 'pendiente'
         etiqueta, tono = ESTADOS_ACUSE[estado]
         filas.append({
-            'cleaner_id': c.id, 'name': c.name,
-            'color': _color_trabajadora(c),
+            'cleaner_id': c.id, 'name': c.name, **_pinta(c),
             'phone': c.phone or '', 'telefono': telefono,
             'estado': estado, 'etiqueta': etiqueta, 'tono': tono,
             'recibo': recibo, 'enlace': _enlace_horario(c.id, lunes),

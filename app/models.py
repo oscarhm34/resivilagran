@@ -58,6 +58,11 @@ class Cleaner(UserMixin, db.Model):
     # Solo para mandarle su horario por WhatsApp desde el panel. No sale por
     # ninguna ruta de la webapp: es dato de personal.
     phone = db.Column(db.String(20), nullable=True)
+    # Como se pinta en el tablero: 'liso', 'rayas', 'puntos' o 'malla'. Quince
+    # colores no llegan para una plantilla de treinta, y dos naranjas iguales en
+    # la vista del mes no se distinguen. El relleno multiplica por cuatro las
+    # combinaciones y ademas se ve en blanco y negro y con daltonismo.
+    pattern = db.Column(db.String(10), nullable=True)
 
     groups = db.relationship('ResidentGroup', secondary=cleaner_groups, back_populates='workers', lazy=True)
 
