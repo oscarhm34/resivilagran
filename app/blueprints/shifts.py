@@ -1765,3 +1765,120 @@ def delete_shift_position(position_id: int):
     ok, error = _safe_commit('No se pudo borrar el puesto')
     flash(error if not ok else 'Puesto eliminado.', 'danger' if not ok else 'success')
     return redirect(url_for('shifts.manage_shift_positions'))
+
+
+# ── EL CUADRANTE DE SIEMPRE, MONTADO DE UNA VEZ ─────────────────────────────
+# Dar de alta a mano nueve turnos y quince puestos antes de poder planificar
+# nada es una barrera tonta: el reparto de la residencia es el del cuadrante de
+# papel y lleva anos siendo el mismo. Esto lo deja puesto y luego se retoca.
+#
+# Los horarios de la manana, la tarde y el refuerzo son los de la leyenda del
+# cuadrante; los de las noches y los puestos de fuera son una propuesta, y se
+# ajustan en Tipos de turno. Lo que no se adivina son las horas; la forma del
+# recuadro si.
+
+CUADRANTE_BASE = [
+    # nombre, abrev, color, desde, hasta, fila,
+    #   [(codigo, descripcion, se_refleja_en, el_reflejo_es_de_ayer)]
+    ('Mañana', 'M', '#cfe2ff', dt_time(7, 30), dt_time(14, 0), 'manana', [
+        ('M1', 'Primera de mañana', None, False),
+        ('M2', 'Segunda de mañana', None, False),
+        ('M3', 'Tercera de mañana', None, False),
+        ('CRM', 'Coordinadora de mañana', None, False),
+    ]),
+    ('Refuerzo de mañana', 'RFM', '#ffe8a3', dt_time(7, 30), dt_time(9, 30), 'manana', [
+        ('RFM', 'Refuerzo de mañana', None, False),
+    ]),
+    ('Tarde', 'T', '#d8f5d0', dt_time(14, 0), dt_time(20, 30), 'tarde', [
+        ('T1', 'Primera de tarde', None, False),
+        ('T2', 'Segunda de tarde', None, False),
+        ('T3', 'Tercera de tarde', None, False),
+        ('CRT', 'Coordinadora de tarde', None, False),
+    ]),
+    ('Refuerzo de tarde', 'RFT', '#ffd9c4', dt_time(14, 0), dt_time(16, 0), 'tarde', [
+        ('RFT', 'Refuerzo de tarde', None, False),
+    ]),
+    # Entra por la tarde y acaba de noche, asi que esta toda la tarde en la casa.
+    ('Noche A', 'NA', '#1f6fb5', dt_time(15, 0), dt_time(22, 0), 'noche', [
+        ('NIT A', 'Primera de noche', 'tarde', False),
+    ]),
+    ('Noche B', 'NB', '#b6b1d8', dt_time(21, 0), dt_time(8, 0), 'noche', [
+        ('NIT B', 'Segunda de noche', None, False),
+    ]),
+    # Sale por la manana, asi que el dia siguiente la ensena media manana mas.
+    ('Noche C', 'NC', '#e2721f', dt_time(21, 0), dt_time(8, 0), 'noche', [
+        ('NIT C', 'Tercera de noche', 'manana', True),
+    ]),
+    ('Cocina', 'CO', '#f7c9d9', dt_time(8, 0), dt_time(16, 0), 'lateral', [
+        ('COCINA', 'Cocina', None, False),
+    ]),
+    ('Recepción', 'RE', '#c4e7f0', dt_time(9, 0), dt_time(14, 0), 'lateral', [
+        ('RECEP', 'Recepción', None, False),
+    ]),
+]
+
+
+def _sin_tildes(texto: str) -> str:
+    """Para comparar nombres de turno escritos de cualquier manera.
+
+    Una residencia que ya tenga su turno de «Manana» no puede acabar con otro
+    de «Mañana» al lado por una tilde.
+    """
+    import unicodedata
+    return ''.join(c for c in unicodedata.normalize('NFD', (texto or '').strip().lower())
+                   if unicodedata.category(c) != 'Mn')
+
+
+@bp.route('/cuadrantes/puestos/crear-base', methods=['POST'])
+@admin_required
+def crear_cuadrante_base():
+    """Deja montado el reparto del cuadrante de papel: turnos y puestos.
+
+    No pisa nada de lo que ya haya. Un turno que ya existe con ese nombre se
+    reutiliza tal cual —sus horas son las que haya puesto alguien, no las de
+    aqui— y solo se le rellena la fila del tablero si estaba vacia. Un puesto
+    que ya existe se deja como esta. Asi se puede pulsar dos veces sin miedo.
+    """
+    turnos_nuevos = puestos_nuevos = 0
+
+    for orden_turno, (nombre, abrev, color, desde, hasta, fila, puestos) in enumerate(CUADRANTE_BASE):
+        st = next((x for x in ShiftType.query.all()
+                   if _sin_tildes(x.name) == _sin_tildes(nombre)), None)
+        if not st:
+            st = ShiftType(name=nombre, short_name=abrev, color=color,
+                           start_time=desde, end_time=hasta, breaks_minutes=0,
+                           sort_order=orden_turno, active=True)
+            db.session.add(st)
+            turnos_nuevos += 1
+        if not st.board_row:
+            st.board_row = fila
+        ok, error = _safe_flush('No se pudo crear el tipo de turno')
+        if not ok:
+            flash(error, 'danger')
+            return redirect(url_for('shifts.manage_shift_positions'))
+
+        for orden, (codigo, descripcion, reflejo, de_ayer) in enumerate(puestos):
+            existe = ShiftPosition.query.filter(
+                ShiftPosition.shift_type_id == st.id,
+                func.lower(ShiftPosition.code) == codigo.lower()).first()
+            if existe:
+                continue
+            db.session.add(ShiftPosition(
+                shift_type_id=st.id, code=codigo, name=descripcion,
+                sort_order=orden, active=True,
+                echo_row=reflejo, echo_previous_day=de_ayer))
+            puestos_nuevos += 1
+
+    log_audit('create', 'shift_position', 0,
+              {'origen': 'cuadrante base', 'turnos': turnos_nuevos,
+               'puestos': puestos_nuevos})
+    ok, error = _safe_commit('No se pudo crear el cuadrante base')
+    if not ok:
+        flash(error, 'danger')
+    elif not puestos_nuevos and not turnos_nuevos:
+        flash('Ya estaba todo creado: no se ha anadido nada.', 'info')
+    else:
+        flash(f'Creados {puestos_nuevos} puestos y {turnos_nuevos} tipos de turno. '
+              'Revisa los horarios en Tipos de turno: los de las noches y los puestos '
+              'de fuera son una propuesta.', 'success')
+    return redirect(url_for('shifts.manage_shift_positions'))

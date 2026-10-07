@@ -194,12 +194,24 @@
     </div>
     {% else %}
     <div class="card">
-        <div class="card-body text-center py-5" style="color:var(--color-text-secondary)">
+        <div class="card-body text-center py-5">
             <div style="font-size:2.5rem">&#129517;</div>
-            <p class="mt-2 mb-0">Todavia no hay ningun puesto.</p>
-            <p class="mb-0" style="font-size:.85rem">
-                Empieza por los de la manana: M1, M2, M3 y la coordinadora.
+            <p class="mt-2 mb-1" style="color:var(--color-text-secondary)">
+                Todavia no hay ningun puesto.
             </p>
+            <p class="mb-3" style="font-size:.9rem;color:var(--color-text-secondary)">
+                Puedo dejarte montado el reparto de siempre —M1, M2, M3, CRM, RFM, T1, T2,
+                T3, CRT, RFT, las tres noches, cocina y recepcion— y lo retocas desde aqui.
+            </p>
+            <form method="POST" action="{{ url_for('shifts.crear_cuadrante_base') }}" class="d-inline">
+                <button type="submit" class="btn btn-primary"
+                        data-confirm="Se crearan los turnos y los puestos del cuadrante de siempre. No se toca nada de lo que ya exista.">
+                    <i class="bi bi-magic me-1" aria-hidden="true"></i>Crear el cuadrante de siempre
+                </button>
+            </form>
+            <div class="mt-2" style="font-size:.85rem;color:var(--color-text-secondary)">
+                o <a href="#" onclick="openPositionForm();return false">crear los puestos uno a uno</a>
+            </div>
         </div>
     </div>
     {% endif %}

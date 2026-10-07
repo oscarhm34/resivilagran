@@ -526,3 +526,72 @@ def test_lo_asignado_desde_la_rejilla_tambien_es_override(auth_client, db, manan
 
 def test_la_rejilla_mensual_sigue_abriendo(auth_client, db, manana):
     assert auth_client.get('/cuadrantes').status_code == 200
+
+
+# ── El cuadrante de siempre, de una vez ───────────────────────────────────────
+
+def test_crear_el_cuadrante_base_deja_turnos_y_puestos(auth_client, db):
+    auth_client.post('/cuadrantes/puestos/crear-base', follow_redirects=True)
+
+    codigos = {p.code for p in ShiftPosition.query.all()}
+    assert {'M1', 'M2', 'M3', 'CRM', 'RFM'} <= codigos
+    assert {'T1', 'T2', 'T3', 'CRT', 'RFT'} <= codigos
+    assert {'NIT A', 'NIT B', 'NIT C'} <= codigos
+    assert {'COCINA', 'RECEP'} <= codigos
+
+
+def test_el_cuadrante_base_deja_los_reflejos_puestos(auth_client, db):
+    auth_client.post('/cuadrantes/puestos/crear-base', follow_redirects=True)
+
+    nit_c = ShiftPosition.query.filter_by(code='NIT C').one()
+    nit_a = ShiftPosition.query.filter_by(code='NIT A').one()
+    assert (nit_c.echo_row, nit_c.echo_previous_day) == ('manana', True)
+    assert (nit_a.echo_row, nit_a.echo_previous_day) == ('tarde', False)
+
+
+def test_el_cuadrante_base_coloca_cada_turno_en_su_fila(auth_client, db):
+    auth_client.post('/cuadrantes/puestos/crear-base', follow_redirects=True)
+
+    filas = {st.name: st.board_row for st in ShiftType.query.all()}
+    assert filas['Mañana'] == 'manana'
+    assert filas['Tarde'] == 'tarde'
+    assert filas['Noche C'] == 'noche'
+    assert filas['Cocina'] == 'lateral'
+
+
+def test_pulsarlo_dos_veces_no_duplica_nada(auth_client, db):
+    auth_client.post('/cuadrantes/puestos/crear-base', follow_redirects=True)
+    cuantos = ShiftPosition.query.count()
+
+    res = auth_client.post('/cuadrantes/puestos/crear-base', follow_redirects=True)
+
+    assert ShiftPosition.query.count() == cuantos
+    assert 'no se ha anadido nada' in res.get_data(as_text=True)
+
+
+def test_no_pisa_el_horario_de_un_turno_que_ya_existe(auth_client, db, manana):
+    """Las horas las pone quien las sabe; esto solo monta la forma del recuadro.
+
+    La fixture se llama «Manana» sin tilde, que es justo el caso que no puede
+    acabar con un «Mañana» duplicado al lado.
+    """
+    manana.start_time = time(8, 0)
+    manana.board_row = None
+    db.session.commit()
+
+    auth_client.post('/cuadrantes/puestos/crear-base', follow_redirects=True)
+
+    db.session.expire_all()
+    st = ShiftType.query.filter_by(name='Manana').one()
+    assert st.start_time == time(8, 0)      # intacto
+    assert st.board_row == 'manana'         # lo que faltaba, si
+    assert ShiftType.query.filter_by(name='Mañana').first() is None
+
+
+def test_crear_el_cuadrante_base_sin_admin_no_puede(client, db, cleaner_user):
+    client.post('/admin/login',
+                data={'username': 'limpiadora1', 'password': 'limpia123'},
+                follow_redirects=True)
+    res = client.post('/cuadrantes/puestos/crear-base')
+    assert res.status_code in (302, 403)
+    assert ShiftPosition.query.count() == 0
