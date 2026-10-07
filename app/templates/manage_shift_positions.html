@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+{% block title %}Puestos del tablero{% endblock %}
+
+{% block content %}
+<div class="py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <a href="{{ url_for('shifts.shift_board_week') }}" class="btn btn-outline-secondary btn-sm"
+               title="Volver al tablero">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+            <h1 class="h3 mb-0">Puestos del tablero</h1>
+            <span class="badge bg-secondary">{{ puestos|length }}</span>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" onclick="openPositionForm()">
+            <i class="bi bi-plus-lg me-1"></i>Anadir puesto
+        </button>
+    </div>
+
+    <p style="color:var(--color-text-secondary);font-size:.9rem">
+        Un puesto es cada casilla del recuadro de un dia: <strong>M1</strong>,
+        <strong>M2</strong>, la coordinadora de manana (<strong>CRM</strong>), el refuerzo
+        (<strong>RFM</strong>), las noches, la cocina. Anadir un <strong>M4</strong> es crear
+        un puesto mas en el turno de manana: aparece solo en todos los dias.
+        El horario sale del <a href="{{ url_for('shifts.manage_shift_types') }}">tipo de turno</a>
+        al que pertenece, y ahi tambien se dice en que fila del recuadro se dibuja.
+    </p>
+
+    <!-- Offcanvas formulario anadir / editar -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="positionFormPanel"
+         aria-labelledby="positionFormTitle" style="width:min(480px,90vw)">
+        <div class="offcanvas-header" id="pos-header-bar"
+             style="border-bottom:1px solid var(--color-border);border-top:3px solid var(--color-primary)">
+            <h5 class="offcanvas-title" id="positionFormTitle">Nuevo puesto</h5>
+            <span id="pos-edit-badge" class="badge bg-warning text-dark d-none ms-2">Editando</span>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+        </div>
+        <div class="offcanvas-body">
+            <form id="position-form" method="POST"
+                  action="{{ url_for('shifts.add_edit_shift_position') }}">
+                <input type="hidden" name="position_id" value="">
+
+                <div class="mb-3">
+                    <label for="pos-shift-type" class="form-label">
+                        Turno <span class="text-danger" aria-hidden="true">*</span>
+                    </label>
+                    <select id="pos-shift-type" name="shift_type_id" class="form-select" required>
+                        {% for st in shift_types %}
+                        <option value="{{ st.id }}">
+                            {{ st.name }} ({{ st.start_time.strftime('%H:%M') }}-{{ st.end_time.strftime('%H:%M') }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="pos-code" class="form-label">
+                        Codigo <span class="text-danger" aria-hidden="true">*</span>
+                    </label>
+                    <input type="text" id="pos-code" name="code" class="form-control"
+                           required maxlength="8" autocomplete="off" placeholder="ej. M1">
+                    <div class="form-text">Lo que se lee en la casilla. Maximo 8 caracteres.</div>
+                </div>
+                <div class="mb-3">
+                    <label for="pos-name" class="form-label">Descripcion</label>
+                    <input type="text" id="pos-name" name="name" class="form-control"
+                           maxlength="50" autocomplete="off" placeholder="ej. Coordinadora de manana">
+                    <div class="form-text">Solo sale al pasar el raton por encima.</div>
+                </div>
+                <div class="mb-3">
+                    <label for="pos-sort" class="form-label">Orden</label>
+                    <input type="number" id="pos-sort" name="sort_order" class="form-control"
+                           min="0" value="0">
+                    <div class="form-text">De izquierda a derecha dentro de su fila.</div>
+                </div>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="pos-active" name="active" checked>
+                    <label class="form-check-label" for="pos-active">Activo</label>
+                </div>
+
+                <hr>
+                <p class="small mb-2" style="color:var(--color-text-secondary)">
+                    Hay puestos de noche cuya persona esta ademas dentro de otra franja: quien
+                    entra por la tarde esta toda la tarde, y quien hace la noche sigue aqui media
+                    manana del dia siguiente. Su casilla se <strong>refleja</strong> al principio
+                    de esa fila, en solo lectura.
+                </p>
+                <div class="mb-3">
+                    <label for="pos-echo-row" class="form-label">Se refleja en</label>
+                    <select id="pos-echo-row" name="echo_row" class="form-select">
+                        <option value="">En ninguna otra fila</option>
+                        {% for id, etiqueta in etiquetas_fila.items() if id != 'lateral' %}
+                        <option value="{{ id }}">{{ etiqueta }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="pos-echo-prev"
+                           name="echo_previous_day">
+                    <label class="form-check-label" for="pos-echo-prev">
+                        El reflejo es el del dia anterior
+                    </label>
+                    <div class="form-text">
+                        Para la noche que acaba por la manana: en el recuadro del martes, su
+                        reflejo ensena a quien entro el lunes por la noche.
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary" id="pos-submit-btn">Anadir puesto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if puestos %}
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col">Codigo</th>
+                        <th scope="col">Turno</th>
+                        <th scope="col" class="hide-mobile">Fila</th>
+                        <th scope="col" class="hide-mobile">Reflejo</th>
+                        <th scope="col" class="hide-mobile">Descripcion</th>
+                        <th scope="col" class="hide-mobile">Orden</th>
+                        <th scope="col">Activo</th>
+                        <th scope="col" class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in puestos %}
+                    <tr>
+                        <td>
+                            <code style="color:var(--color-primary);background:var(--color-primary-lt);padding:1px 6px;border-radius:4px">{{ p.code }}</code>
+                        </td>
+                        <td>
+                            <span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:{{ p.shift_type.color }};border:1px solid var(--color-border)"
+                                  aria-hidden="true"></span>
+                            {{ p.shift_type.name }}
+                        </td>
+                        <td class="hide-mobile">
+                            {% if p.shift_type.board_row %}
+                            {{ etiquetas_fila.get(p.shift_type.board_row, p.shift_type.board_row) }}
+                            {% else %}
+                            <span class="badge" style="background:var(--badge-warning-bg);color:var(--color-warning-text)">
+                                sin fila: no sale
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="hide-mobile">
+                            {% if p.echo_row %}
+                            {{ etiquetas_fila.get(p.echo_row, p.echo_row) }}
+                            {% if p.echo_previous_day %}
+                            <span class="badge" style="background:var(--badge-info-bg);color:var(--color-info)">dia-1</span>
+                            {% endif %}
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="hide-mobile">{{ p.name or '—' }}</td>
+                        <td class="hide-mobile">{{ p.sort_order }}</td>
+                        <td>
+                            {% if p.active %}
+                            <span class="badge" style="background:var(--badge-success-bg);color:var(--color-success)">Si</span>
+                            {% else %}
+                            <span class="badge" style="background:var(--badge-muted-bg);color:var(--color-text-secondary)">No</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-outline-secondary edit-position"
+                                    data-id="{{ p.id }}"
+                                    data-code="{{ p.code }}"
+                                    data-name="{{ p.name or '' }}"
+                                    data-shift-type-id="{{ p.shift_type_id }}"
+                                    data-sort-order="{{ p.sort_order }}"
+                                    data-echo-row="{{ p.echo_row or '' }}"
+                                    data-echo-prev="{{ '1' if p.echo_previous_day else '' }}"
+                                    data-active="{{ '1' if p.active else '' }}"
+                                    aria-label="Editar {{ p.code }}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger borrar-puesto"
+                                    data-action="{{ url_for('shifts.delete_shift_position', position_id=p.id) }}"
+                                    data-code="{{ p.code }}"
+                                    aria-label="Eliminar {{ p.code }}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="card">
+        <div class="card-body text-center py-5" style="color:var(--color-text-secondary)">
+            <div style="font-size:2.5rem">&#129517;</div>
+            <p class="mt-2 mb-0">Todavia no hay ningun puesto.</p>
+            <p class="mb-0" style="font-size:.85rem">
+                Empieza por los de la manana: M1, M2, M3 y la coordinadora.
+            </p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="modal fade" id="deletePositionModal" tabindex="-1"
+     aria-labelledby="deletePositionLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deletePositionLabel">Eliminar puesto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body"><p id="del-pos-texto" class="mb-0"></p></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form id="del-pos-form" method="POST" action="" class="m-0">
+                    <button type="submit" class="btn btn-danger">Eliminar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    'use strict';
+    var panel = document.getElementById('positionFormPanel');
+    var offcanvas = new bootstrap.Offcanvas(panel);
+    var barra = document.getElementById('pos-header-bar');
+    var form = document.getElementById('position-form');
+
+    function resetForm() {
+        form.reset();
+        form.querySelector('[name="position_id"]').value = '';
+        form.querySelector('[name="sort_order"]').value = '0';
+        form.querySelector('[name="active"]').checked = true;
+        form.querySelector('[name="echo_row"]').value = '';
+        form.querySelector('[name="echo_previous_day"]').checked = false;
+        document.getElementById('pos-submit-btn').textContent = 'Anadir puesto';
+        document.getElementById('positionFormTitle').textContent = 'Nuevo puesto';
+        document.getElementById('pos-edit-badge').classList.add('d-none');
+        barra.style.borderTopColor = 'var(--color-primary)';
+    }
+
+    window.openPositionForm = function () { resetForm(); offcanvas.show(); };
+
+    document.querySelectorAll('.edit-position').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            form.querySelector('[name="position_id"]').value = this.dataset.id;
+            form.querySelector('[name="code"]').value = this.dataset.code;
+            form.querySelector('[name="name"]').value = this.dataset.name;
+            form.querySelector('[name="shift_type_id"]').value = this.dataset.shiftTypeId;
+            form.querySelector('[name="sort_order"]').value = this.dataset.sortOrder;
+            form.querySelector('[name="active"]').checked = this.dataset.active === '1';
+            form.querySelector('[name="echo_row"]').value = this.dataset.echoRow || '';
+            form.querySelector('[name="echo_previous_day"]').checked = this.dataset.echoPrev === '1';
+            document.getElementById('pos-submit-btn').textContent = 'Guardar cambios';
+            document.getElementById('positionFormTitle').textContent = 'Editando: ' + this.dataset.code;
+            document.getElementById('pos-edit-badge').classList.remove('d-none');
+            barra.style.borderTopColor = 'var(--color-warning)';
+            offcanvas.show();
+        });
+    });
+
+    panel.addEventListener('hidden.bs.offcanvas', resetForm);
+
+    document.querySelectorAll('.borrar-puesto').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.getElementById('del-pos-texto').textContent =
+                'Se eliminara el puesto ' + this.dataset.code +
+                '. Si ya se ha usado en algun cuadrante no se podra borrar: desactivalo.';
+            document.getElementById('del-pos-form').action = this.dataset.action;
+            new bootstrap.Modal(document.getElementById('deletePositionModal')).show();
+        });
+    });
+})();
+</script>
+{% endblock %}

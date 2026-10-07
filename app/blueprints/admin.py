@@ -1,5 +1,6 @@
 """Admin routes: auth, dashboard, workers, rooms, floors, zones, cleaning records, analytics, help."""
 from __future__ import annotations
+import re
 
 from flask import (Blueprint, request, jsonify, render_template, redirect,
                    url_for, flash, send_file, abort, current_app)
@@ -295,6 +296,13 @@ def add_edit_cleaner():
     lang = request.form.get('lang', '').strip() or None
     if lang and lang not in APP_LANGUAGES:
         lang = None
+    # Color del tablero de turnos y telefono para mandarle su horario. Los dos
+    # opcionales: sin color se le deriva uno estable del id.
+    color = (request.form.get('color') or '').strip() or None
+    if color and not re.match(r'^#[0-9A-Fa-f]{6}$', color):
+        color = None
+    phone = (request.form.get('phone') or '').strip()[:20] or None
+
     group_ids = request.form.getlist('group_ids')
     selected_groups = ResidentGroup.query.filter(ResidentGroup.id.in_(group_ids)).all() if group_ids else []
 
@@ -307,6 +315,8 @@ def add_edit_cleaner():
             cleaner.active = active
             cleaner.role = role
             cleaner.lang = lang
+            cleaner.color = color
+            cleaner.phone = phone
             cleaner.groups = selected_groups
             if password:
                 cleaner.set_password(password)
@@ -323,7 +333,8 @@ def add_edit_cleaner():
             flash('Trabajador no encontrado.', 'error')
     else:
         new_cleaner = Cleaner(username=username, name=name, is_admin=is_admin,
-                              active=active, role=role, lang=lang)
+                              active=active, role=role, lang=lang,
+                              color=color, phone=phone)
         new_cleaner.set_password(password)
         new_cleaner.groups = selected_groups
         db.session.add(new_cleaner)

@@ -711,6 +711,92 @@
         <div class="card-body">
             <p>El modulo de <strong>Turnos</strong> (<i class="bi bi-calendar3"></i>) permite planificar los cuadrantes de trabajo de los empleados, con control de horas y cumplimiento laboral.</p>
 
+            <p><strong>Hay dos pantallas y sirven para cosas distintas:</strong></p>
+            <ul>
+                <li><strong>Tablero</strong>: para <em>planificar</em>. Es el recuadro de siempre,
+                    con una casilla por puesto, y se rellena arrastrando personas.</li>
+                <li><strong>Rejilla mensual</strong>: para <em>controlar</em>. Horas de cada una,
+                    cobertura, descansos de 12 horas, ausencias y la exportacion a Excel.</li>
+            </ul>
+            <p>Las dos trabajan sobre los mismos datos: lo que se coloca en el tablero sale en la
+               rejilla y al reves.</p>
+
+            <h6 class="mt-3">El tablero <span class="badge bg-success">NUEVO</span></h6>
+            <p>Se abre en <strong>Turnos &rarr; Tablero</strong>. Primero la <strong>semana</strong>,
+               con los siete dias de un vistazo y cada persona de su color; al pulsar un dia se abre
+               su <strong>recuadro</strong>, que es donde se trabaja.</p>
+            <ul>
+                <li><strong>Arrastrar:</strong> a la derecha salen las personas que ese dia no
+                    tienen puesto. Se arrastra una a su casilla. Funciona con el raton y con el dedo
+                    en la tablet.</li>
+                <li><strong>Cambiar a alguien de sitio:</strong> arrastrarla a otra casilla. No se
+                    duplica: una persona ocupa un puesto al dia.</li>
+                <li><strong>Soltar sobre una casilla ocupada:</strong> quien estuviera vuelve a la
+                    lista de la derecha. Es la forma rapida de sustituir a alguien.</li>
+                <li><strong>Quitar a alguien del dia:</strong> arrastrarla de vuelta a la lista.</li>
+                <li><strong>De baja o de vacaciones:</strong> salen en gris y no se pueden colocar.
+                    La aplicacion lo impide y lo dice.</li>
+                <li><strong>Los cuadros van a escala.</strong> El recuadro lleva una regla de horas
+                    a la izquierda, y cada caja empieza y acaba donde dice su horario: quien entra
+                    antes esta mas arriba y quien hace menos horas ocupa menos. Asi se ve de un
+                    vistazo que el refuerzo de manana pliega a las 9:30 mientras las demas siguen
+                    hasta las 14:00. La manana y la tarde comparten columna porque son la misma
+                    plaza a dos ratos del dia.</li>
+                <li>Los <strong>huecos sin cubrir</strong> se ven rayados en la vista de semana, para
+                    que un turno vacio cante.</li>
+            </ul>
+
+            <h6 class="mt-3">Los puestos: M1, M2, la coordinadora, el refuerzo</h6>
+            <p>Un <strong>puesto</strong> es cada casilla del recuadro. Se crean en
+               <strong>Turnos &rarr; Puestos</strong>, y cada uno pertenece a un tipo de turno, de
+               donde saca su horario.</p>
+            <ul>
+                <li>Anadir un <strong>M4</strong> es crear un puesto mas en el turno de manana:
+                    aparece solo en todos los dias, sin tocar nada mas.</li>
+                <li>En el tipo de turno se dice <strong>en que fila</strong> del recuadro se dibuja:
+                    manana, tarde, noche u otros puestos (cocina, recepcion, lo que haga falta). Un
+                    turno sin fila sigue existiendo pero no sale en el tablero.</li>
+                <li><strong>Reflejos:</strong> hay gente de noche que ademas esta dentro de otra
+                    franja. Quien entra por la tarde (<strong>NIT A</strong>) esta toda la tarde, y
+                    quien hace la noche (<strong>NIT C</strong>) sigue aqui media manana del dia
+                    siguiente. Su casilla se <em>refleja</em> al principio de esa fila, con el borde
+                    discontinuo, para verlo de un vistazo igual que en el cuadrante de papel. El
+                    reflejo marcado <strong>dia-1</strong> es el de la vispera, y su caja se corta
+                    por arriba con una raya ambar: viene de antes de que empiece la jornada que se
+                    esta mirando.</li>
+                <li>El reflejo <strong>no es un puesto mas</strong>: es la misma persona ensenada
+                    donde tambien esta, asi que no se arrastra. Se cambia en su casilla de la franja
+                    de noche. Donde se refleja cada puesto se elige al crearlo.</li>
+                <li>Un puesto que ya se haya usado no se puede borrar: se <strong>desactiva</strong>,
+                    para no dejar cuadrantes antiguos sin sentido.</li>
+            </ul>
+
+            <h6 class="mt-3">Colores del personal</h6>
+            <p>Cada trabajadora tiene su color, el de la leyenda de la semana. Se elige en su ficha
+               (<strong>Personas &rarr; Empleados</strong>). Quien no tenga uno elegido recibe un
+               color estable automatico, asi que no hay que pintar a nadie para empezar.</p>
+
+            <h6 class="mt-3">Publicar la semana y avisar</h6>
+            <ul>
+                <li><strong>Publicar y avisar</strong> da la semana por buena y manda un aviso a cada
+                    trabajadora con turno. El aviso <strong>no lleva el horario dentro</strong>: dice
+                    que hay horario nuevo y lleva a la aplicacion, porque viaja por un servicio
+                    externo.</li>
+                <li>Publicar <strong>no bloquea nada</strong>. Si alguien se pone enfermo, se arrastra
+                    y ya esta: la semana queda marcada como <em>modificada despues de publicar</em>.</li>
+                <li>Al volver a publicar se avisa <strong>solo a quien le haya cambiado algo</strong>,
+                    no a toda la plantilla otra vez.</li>
+                <li><strong>Enviar por WhatsApp</strong> abre una lista con el horario de cada una ya
+                    escrito. Cada boton abre WhatsApp con el mensaje preparado; <strong>enviarlo lo
+                    haces tu</strong>, la aplicacion no manda nada sola. Hace falta el telefono en la
+                    ficha de la trabajadora; quien no lo tenga sale sin boton, con la opcion de copiar
+                    el texto.</li>
+            </ul>
+
+            <h6 class="mt-3">Lo que ve la trabajadora</h6>
+            <p>En la webapp tiene <strong>Mi horario</strong>: el mes entero con su turno de cada dia,
+               el horario, el puesto y sus vacaciones o bajas. Hasta ahora solo veia el turno de hoy.</p>
+
             <h6 class="mt-3">Vista de cuadrantes</h6>
             <ul>
                 <li>Accesible desde el menu principal <strong>Turnos</strong>.</li>
@@ -1942,6 +2028,12 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>07/10</td><td><strong>Tablero de turnos:</strong> nueva pantalla en <strong>Turnos &rarr; Tablero</strong> con el recuadro de siempre, una casilla por puesto, que se rellena <strong>arrastrando</strong> a cada persona. La semana se ve de un vistazo con los siete dias y los colores de cada una, y al pulsar un dia se abre su recuadro. La rejilla mensual se queda para el control de horas, cobertura y descansos.</td></tr>
+                    <tr><td>07/10</td><td><strong>Puestos dentro del turno:</strong> ya se puede decir quien hace <strong>M1</strong>, quien coordina y quien es el refuerzo, y no solo quien trabaja de manana. Los puestos se crean en <strong>Turnos &rarr; Puestos</strong>: anadir un M4 es rellenar un formulario y aparece solo en todos los dias. Cada trabajadora tiene ademas su color para la leyenda.</td></tr>
+                    <tr><td>07/10</td><td><strong>Los cuadros van a escala:</strong> el recuadro del dia lleva una regla de horas y cada caja empieza y acaba donde dice su horario. El refuerzo de manana se ve corto porque pliega a las 9:30, y quien viene de la noche anterior entra por arriba con la caja cortada. La manana y la tarde comparten columna, como en el cuadrante de papel.</td></tr>
+                    <tr><td>07/10</td><td><strong>La noche, reflejada donde toca:</strong> en el recuadro del dia, quien entra por la tarde sale tambien al principio de la fila de tarde, y quien hizo la noche sale al principio de la manana del dia siguiente, marcado <strong>dia-1</strong>. Es la misma persona ensenada donde esta, con el borde discontinuo; se cambia en su casilla de noche. Donde se refleja cada puesto se elige al crearlo.</td></tr>
+                    <tr><td>07/10</td><td><strong>Publicar la semana y avisar:</strong> al dar una semana por buena se avisa a cada trabajadora de que tiene horario nuevo, y hay un boton que abre <strong>WhatsApp</strong> con el horario de cada una ya escrito (enviarlo lo haces tu). Si despues hay que cambiar algo por una baja, se arrastra y al volver a publicar se avisa solo a quien le afecte.</td></tr>
+                    <tr><td>07/10</td><td><strong>Mi horario en la webapp:</strong> la trabajadora ya puede ver su mes entero desde el movil, con el turno de cada dia, su horario, el puesto y sus vacaciones. Antes solo veia el turno de hoy y para el resto tenia que preguntar.</td></tr>
                     <tr><td>30/09</td><td><strong>El cronometro empezaba con tiempo ya contado:</strong> al abrir una atencion el movil podia mostrar casi una hora transcurrida. Pasaba cuando el reloj del servidor y el del movil no coincidian, porque el tiempo se calculaba restando uno del otro. Ahora la webapp mide esa diferencia sola en cada peticion y la descuenta, asi que el cronometro arranca en cero aunque algun reloj vaya desajustado.</td></tr>
                     <tr><td>30/09</td><td><strong>El movil pregunta que atencion vas a hacer:</strong> al escanear a un residente dentro del horario de una atencion, antes de nada sale <strong>"¿Es una atencion de ...?"</strong> con Si y No. Diciendo que si se ensenan sus instrucciones, para leerlas o escucharlas, y el tiempo no empieza hasta pulsar Iniciar. Diciendo que no, la atencion se abre con normalidad. Si a esa hora tocan varias, se elige cual de una lista. Antes la pantalla afirmaba lo que tocaba y la unica alternativa era cancelar el escaneo.</td></tr>
                     <tr><td>29/09</td><td><strong>Cambiar una pertenencia de residente:</strong> si un objeto se apunto a la persona equivocada ya no hay que borrarlo y volver a fotografiarlo. En <strong>Personas &rarr; Pertenencias</strong>, el boton de las dos flechas de cada tarjeta lo pasa a otro residente con todas sus fotos, y aparece el primero en el inventario de quien lo recibe.</td></tr>

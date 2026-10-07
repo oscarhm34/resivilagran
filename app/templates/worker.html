@@ -518,6 +518,21 @@
         .cs-opcion-icon { font-size:26px; }
         .cs-cambiar { background:none; border:none; font-family:inherit; font-size:13px;
                       color:var(--blue); cursor:pointer; padding:4px; text-decoration:underline; }
+
+        /* Mi horario */
+        .hor-nav { display:flex; gap:8px; margin-bottom:14px; }
+        .hor-nav .btn-cam { flex:1; min-height:44px; }
+        .hor-dia { display:flex; align-items:center; gap:10px; padding:8px 4px;
+                   border-bottom:1px solid var(--border); }
+        .hor-dia.hoy { background:var(--blue-lt); border-radius:12px; border-bottom-color:transparent; }
+        .hor-fecha { width:46px; text-align:center; flex-shrink:0; }
+        .hor-num { font-family:'Outfit',system-ui,sans-serif; font-size:19px; font-weight:700; line-height:1; }
+        .hor-dow { font-size:11px; color:var(--text-2); text-transform:uppercase; }
+        .hor-barra { width:6px; align-self:stretch; min-height:38px; border-radius:3px; flex-shrink:0; }
+        .hor-txt { flex:1; min-width:0; }
+        .hor-nombre { font-size:15px; font-weight:600; }
+        .hor-horas { font-size:13px; color:var(--text-2); }
+        .hor-libre .hor-nombre { font-weight:500; color:var(--text-2); }
         /* Boton grande: se pulsa de pie, con guantes y con prisa. */
         .cs-audio { display:flex; align-items:center; justify-content:center; gap:8px;
                     width:100%; min-height:50px; margin-top:10px; font-size:16px; font-weight:600;
@@ -725,6 +740,16 @@
             <span class="pending-badge" id="msg-home-badge" style="background:var(--blue);display:none">0</span>
         </button>
 
+        <!-- Su horario. Hasta ahora solo se veia el turno de hoy, y para saber
+             el de la semana que viene habia que preguntar. -->
+        <button class="pending-card" id="horario-home-card" style="margin-bottom:20px">
+            <div class="pending-icon" style="background:var(--green-lt)">📅</div>
+            <div class="pending-info">
+                <div class="pending-title">Mi horario</div>
+                <div class="pending-sub">Los turnos de este mes</div>
+            </div>
+        </button>
+
         <!-- Escaneo NFC unificado -->
         <div class="section-label">Escanear o seleccionar</div>
         <div class="mode-cards">
@@ -855,6 +880,22 @@
         <button class="btn-cam primary" id="msg-new" style="width:100%;min-height:48px;margin-bottom:16px">✏️ Nuevo mensaje</button>
         <div id="msg-list"></div>
         <div id="app-build" style="text-align:center;font-size:11px;color:var(--text-2);margin-top:24px"></div>
+    </div>
+
+    <!-- ══ MI HORARIO ══ -->
+    <div id="screen-horario" class="screen">
+        <div class="scan-header" style="margin-bottom:18px">
+            <button class="btn-back" id="horario-back" aria-label="Volver">←</button>
+            <div style="flex:1">
+                <div style="font-family:'Outfit',sans-serif;font-size:20px;font-weight:700">Mi horario</div>
+                <div id="horario-mes" style="font-size:13px;color:var(--text-2)"></div>
+            </div>
+        </div>
+        <div class="hor-nav">
+            <button class="btn-cam secondary" id="horario-antes">← Mes anterior</button>
+            <button class="btn-cam secondary" id="horario-despues">Mes siguiente →</button>
+        </div>
+        <div id="horario-lista"></div>
     </div>
 
     <!-- ══ MENSAJES: CONVERSACIÓN ══ -->
@@ -7962,6 +8003,114 @@ $('msg-info-leave').addEventListener('click', async function () {
 
 $('msg-list-back').addEventListener('click', function () { CHAT.open = null; chatSetDelay(CHAT_IDLE); show('screen-home'); });
 $('msg-home-card').addEventListener('click', showChats);
+
+// ── Mi horario ─────────────────────────────────────────────────────────────
+// El endpoint existia desde hace meses y no lo llamaba nadie: la trabajadora
+// solo veia el turno de hoy, y para saber el de la semana que viene tenia que
+// preguntar.
+var horarioMes = null;
+
+function mesDeHoy() {
+    var d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth() + 1 };
+}
+
+function isoDe(year, month, dia) {
+    return year + '-' + String(month).padStart(2, '0') + '-' + String(dia).padStart(2, '0');
+}
+
+async function abrirHorario(mes) {
+    horarioMes = mes || horarioMes || mesDeHoy();
+    show('screen-horario');
+    var lista = $('horario-lista');
+    lista.textContent = t('Cargando el horario...');
+    var res = await api('/api/worker/my-shifts?month=' +
+                        horarioMes.year + '-' + String(horarioMes.month).padStart(2, '0'));
+    if (!res.ok) { lista.textContent = t('No se ha podido cargar el horario'); return; }
+    pintarHorario(res.data);
+}
+
+function pintarHorario(data) {
+    var lista = $('horario-lista');
+    lista.innerHTML = '';
+    $('horario-mes').textContent = new Date(data.year, data.month - 1, 1)
+        .toLocaleDateString(I18N.locale(), { month: 'long', year: 'numeric' });
+
+    var turnos = {}, faltas = {};
+    (data.shifts || []).forEach(function (x) { turnos[x.date] = x; });
+    (data.absences || []).forEach(function (x) { faltas[x.date] = x; });
+
+    var hoy = new Date();
+    var hoyIso = isoDe(hoy.getFullYear(), hoy.getMonth() + 1, hoy.getDate());
+    var dias = new Date(data.year, data.month, 0).getDate();
+
+    for (var d = 1; d <= dias; d++) {
+        var iso = isoDe(data.year, data.month, d);
+        var fecha = new Date(data.year, data.month - 1, d);
+        var falta = faltas[iso];
+        var turno = turnos[iso];
+
+        var fila = document.createElement('div');
+        fila.className = 'hor-dia' + (iso === hoyIso ? ' hoy' : '');
+
+        var caja = document.createElement('div');
+        caja.className = 'hor-fecha';
+        var num = document.createElement('div');
+        num.className = 'hor-num';
+        num.textContent = d;
+        var dow = document.createElement('div');
+        dow.className = 'hor-dow';
+        dow.textContent = fecha.toLocaleDateString(I18N.locale(), { weekday: 'short' });
+        caja.appendChild(num); caja.appendChild(dow);
+        fila.appendChild(caja);
+
+        var barra = document.createElement('div');
+        barra.className = 'hor-barra';
+        var texto = document.createElement('div');
+        texto.className = 'hor-txt';
+        var nombre = document.createElement('div');
+        nombre.className = 'hor-nombre';
+        var horas = document.createElement('div');
+        horas.className = 'hor-horas';
+
+        if (falta) {
+            barra.style.background = falta.color || 'var(--border)';
+            nombre.textContent = falta.name;
+        } else if (turno && turno.shift) {
+            barra.style.background = turno.shift.color;
+            // El puesto va detras del turno: «Manana · M1» dice a la vez cuando
+            // entra y que le toca.
+            nombre.textContent = turno.position
+                ? turno.shift.name + ' · ' + turno.position
+                : turno.shift.name;
+            if (turno.shift.start_time) {
+                horas.textContent = turno.shift.start_time + ' - ' + turno.shift.end_time;
+            }
+        } else {
+            fila.classList.add('hor-libre');
+            barra.style.background = 'var(--border)';
+            nombre.textContent = t('Libre');
+        }
+
+        texto.appendChild(nombre);
+        if (horas.textContent) texto.appendChild(horas);
+        fila.appendChild(barra);
+        fila.appendChild(texto);
+        lista.appendChild(fila);
+    }
+}
+
+function moverMesHorario(salto) {
+    var m = horarioMes.month + salto, y = horarioMes.year;
+    if (m < 1) { m = 12; y -= 1; }
+    if (m > 12) { m = 1; y += 1; }
+    abrirHorario({ year: y, month: m });
+}
+
+$('horario-home-card').addEventListener('click', function () { abrirHorario(mesDeHoy()); });
+$('horario-back').addEventListener('click', function () { show('screen-home'); });
+$('horario-antes').addEventListener('click', function () { moverMesHorario(-1); });
+$('horario-despues').addEventListener('click', function () { moverMesHorario(1); });
 $('msg-new').addEventListener('click', showChatNew);
 $('msg-new-back').addEventListener('click', function () { show('screen-msgs'); });
 $('msg-back').addEventListener('click', function () {

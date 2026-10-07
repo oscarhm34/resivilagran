@@ -74,6 +74,21 @@
                     </div>
                 </div>
 
+                <hr>
+                <p class="small mb-2" style="color:var(--color-text-secondary)">
+                    Donde se dibuja este turno en el <strong>tablero</strong>. Si lo dejas sin
+                    fila, el turno sigue funcionando en la rejilla mensual pero no sale en el
+                    recuadro del dia.
+                </p>
+                <div class="mb-3">
+                    <label for="st-board-row" class="form-label">Fila del tablero</label>
+                    <select id="st-board-row" name="board_row" class="form-select">
+                        <option value="">No sale en el tablero</option>
+                        {% for id, etiqueta in etiquetas_fila.items() %}
+                        <option value="{{ id }}">{{ etiqueta }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
                 <div class="d-grid gap-2">
                     <button type="submit" class="btn btn-primary" id="submit-btn">Añadir tipo de turno</button>
                 </div>
@@ -141,6 +156,7 @@
                                     data-end-time="{{ st.end_time.strftime('%H:%M') if st.end_time else '' }}"
                                     data-breaks-minutes="{{ st.breaks_minutes or 0 }}"
                                     data-sort-order="{{ st.sort_order or 0 }}"
+                                    data-board-row="{{ st.board_row or '' }}"
                                     data-active="{{ '1' if st.active else '' }}"
                                     aria-label="Editar {{ st.name }}">
                                 <i class="bi bi-pencil"></i>
@@ -185,6 +201,7 @@
         form.querySelector('[name="end_time"]').value = '15:00';
         form.querySelector('[name="breaks_minutes"]').value = '0';
         form.querySelector('[name="sort_order"]').value = '0';
+        form.querySelector('[name="board_row"]').value = '';
         document.getElementById('submit-btn').textContent = 'Añadir tipo de turno';
         document.getElementById('shiftTypeFormTitle').textContent = 'Nuevo tipo de turno';
         document.getElementById('edit-badge').classList.add('d-none');
@@ -208,6 +225,7 @@
             form.querySelector('[name="end_time"]').value         = this.dataset.endTime;
             form.querySelector('[name="breaks_minutes"]').value   = this.dataset.breaksMinutes;
             form.querySelector('[name="sort_order"]').value       = this.dataset.sortOrder;
+            form.querySelector('[name="board_row"]').value        = this.dataset.boardRow || '';
             document.getElementById('submit-btn').textContent       = 'Guardar cambios';
             document.getElementById('shiftTypeFormTitle').textContent = 'Editando: ' + this.dataset.name;
             document.getElementById('edit-badge').classList.remove('d-none');

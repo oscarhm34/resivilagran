@@ -51,6 +51,13 @@ class Cleaner(UserMixin, db.Model):
     # en el aviso push: con la aplicacion cerrada, la vibracion es lo unico del
     # aviso que se puede elegir (el sonido lo pone Android).
     msg_tone = db.Column(db.String(20), nullable=True)
+    # Color con el que sale en el tablero de turnos. NULL = se le deriva uno
+    # estable de su id: nadie tiene que pintar treinta personas a mano antes de
+    # poder planificar nada.
+    color = db.Column(db.String(7), nullable=True)
+    # Solo para mandarle su horario por WhatsApp desde el panel. No sale por
+    # ninguna ruta de la webapp: es dato de personal.
+    phone = db.Column(db.String(20), nullable=True)
 
     groups = db.relationship('ResidentGroup', secondary=cleaner_groups, back_populates='workers', lazy=True)
 
@@ -521,8 +528,71 @@ class ShiftType(db.Model):
     breaks_minutes = db.Column(db.Integer, default=0)
     sort_order = db.Column(db.Integer, default=0)
     active = db.Column(db.Boolean, default=True)
+    # Fila del recuadro del dia en el tablero: 'manana', 'tarde', 'noche' o
+    # 'lateral' (cocina, recepcion...). NULL = no se dibuja, que es como se
+    # quedan los turnos que ya existian hasta que alguien los coloque.
+    board_row = db.Column(db.String(10), nullable=True)
 
     assignments = db.relationship('ShiftAssignment', back_populates='shift_type', lazy=True)
+    positions = db.relationship('ShiftPosition', back_populates='shift_type', lazy=True,
+                                cascade='all, delete-orphan',
+                                order_by='ShiftPosition.sort_order, ShiftPosition.id')
+
+
+class ShiftPosition(db.Model):
+    """Una casilla del recuadro del dia: M1, M2, CRM, RFM, NIT A, Cocina...
+
+    Hasta ahora el unico eje era el tipo de turno, que es un tramo horario, y
+    con eso se sabe que alguien trabaja de manana pero no si es la coordinadora
+    o el refuerzo. El puesto hereda el horario de su turno, asi que un refuerzo
+    que entra de 7:30 a 9:30 es un `ShiftType` propio con un puesto dentro, no
+    un puesto de la manana.
+    """
+    __tablename__ = 'shift_position'
+    id = db.Column(db.Integer, primary_key=True)
+    shift_type_id = db.Column(db.Integer,
+                              db.ForeignKey('shift_type.id', name='fk_position_shift_type'),
+                              nullable=False, index=True)
+    code = db.Column(db.String(8), nullable=False)        # 'M1', 'CRM', 'NIT A'
+    name = db.Column(db.String(50), nullable=True)        # 'Coordinadora de manana'
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+    active = db.Column(db.Boolean, nullable=False, default=True)
+    # Un puesto de noche ocupa su casilla en la franja de noche, pero esa
+    # persona esta ademas dentro de otra franja: quien entra por la tarde (NIT
+    # A) esta toda la tarde, y quien hizo la noche (NIT C) sigue aqui media
+    # manana del dia siguiente. El reflejo sale al principio de esa fila, en
+    # solo lectura, porque es la misma asignacion y se cambia en su sitio.
+    echo_row = db.Column(db.String(10), nullable=True)
+    echo_previous_day = db.Column(db.Boolean, nullable=False, default=False)
+
+    shift_type = db.relationship('ShiftType', back_populates='positions')
+    assignments = db.relationship('ShiftAssignment', back_populates='position', lazy=True)
+
+    __table_args__ = (db.UniqueConstraint('shift_type_id', 'code', name='uq_position_code'),)
+
+    @property
+    def etiqueta(self) -> str:
+        """Lo que se lee en la casilla."""
+        return self.code
+
+
+class ShiftWeekPublication(db.Model):
+    """Una semana dada por buena y enviada al personal.
+
+    Publicar no congela nada: se sigue pudiendo arrastrar, porque las bajas
+    salen cuando salen. Lo que marca es la foto, para poder decir si la semana
+    se ha tocado despues y avisar solo a quien le haya cambiado algo.
+    """
+    __tablename__ = 'shift_week_publication'
+    id = db.Column(db.Integer, primary_key=True)
+    week_start = db.Column(db.Date, nullable=False, unique=True, index=True)   # siempre lunes
+    published_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    published_by = db.Column(db.Integer,
+                             db.ForeignKey('cleaner.id', name='fk_week_pub_cleaner'),
+                             nullable=True)
+    notified_at = db.Column(db.DateTime, nullable=True)
+
+    publisher = db.relationship('Cleaner', foreign_keys=[published_by])
 
 
 class ShiftAssignment(db.Model):
@@ -536,13 +606,28 @@ class ShiftAssignment(db.Model):
     notes = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
     created_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
+    # Que casilla del recuadro ocupa. Nullable porque lo que genera el
+    # planificador automatico y todo lo que habia antes no tiene puesto.
+    position_id = db.Column(db.Integer,
+                            db.ForeignKey('shift_position.id', name='fk_assignment_position'),
+                            nullable=True, index=True)
+    # Sin esto no se puede saber si una semana se ha tocado despues de
+    # publicarla, que es justo el caso de la baja de ultima hora.
+    updated_at = db.Column(db.DateTime, nullable=True)
 
     cleaner = db.relationship('Cleaner', foreign_keys=[cleaner_id],
                               backref=db.backref('shift_assignments', lazy=True))
     shift_type = db.relationship('ShiftType', back_populates='assignments')
+    position = db.relationship('ShiftPosition', back_populates='assignments')
     creator = db.relationship('Cleaner', foreign_keys=[created_by])
 
-    __table_args__ = (db.UniqueConstraint('cleaner_id', 'date', name='uq_worker_date'),)
+    # Una persona, un puesto al dia (uq_worker_date), y un puesto, una persona
+    # al dia (uq_date_position). Los NULL de position_id no chocan entre si en
+    # ninguno de los dos motores, asi que lo que no tiene puesto convive.
+    __table_args__ = (
+        db.UniqueConstraint('cleaner_id', 'date', name='uq_worker_date'),
+        db.UniqueConstraint('date', 'position_id', name='uq_date_position'),
+    )
 
     @property
     def net_hours(self):

@@ -104,6 +104,20 @@
                     <div class="form-text">Cada trabajadora tambien puede cambiarlo desde su movil.</div>
                 </div>
                 <div class="row g-3 mb-3">
+                    <div class="col-5">
+                        <label for="w-color" class="form-label">Color en el tablero</label>
+                        <input type="color" id="w-color" name="color"
+                               class="form-control form-control-color" value="#8ab4e8">
+                        <div class="form-text">Con el que sale en los turnos.</div>
+                    </div>
+                    <div class="col-7">
+                        <label for="w-phone" class="form-label">Telefono</label>
+                        <input type="tel" id="w-phone" name="phone" class="form-control"
+                               maxlength="20" autocomplete="off" placeholder="+34 600 00 00 00">
+                        <div class="form-text">Solo para mandarle su horario por WhatsApp.</div>
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
                     <div class="col-6">
                         <div class="form-check">
                             <input type="checkbox" id="is_admin" name="is_admin"
@@ -230,6 +244,8 @@
                         data-name="{{ cleaner.name }}"
                         data-role="{{ cleaner.role or 'atenciones' }}"
                         data-lang="{{ cleaner.lang or '' }}"
+                        data-color="{{ cleaner.color or '' }}"
+                        data-phone="{{ cleaner.phone or '' }}"
                         data-admin="{{ '1' if cleaner.is_admin else '' }}"
                         data-active="{{ '1' if cleaner.active else '' }}"
                         data-groups="{{ cleaner.groups|map(attribute='id')|list|join(',') }}"
@@ -319,6 +335,8 @@
                                     data-active="{{ '1' if cleaner.active else '' }}"
                                     data-role="{{ cleaner.role or 'atenciones' }}"
                                     data-lang="{{ cleaner.lang or '' }}"
+                                    data-color="{{ cleaner.color or '' }}"
+                                    data-phone="{{ cleaner.phone or '' }}"
                                     data-groups="{{ cleaner.groups|map(attribute='id')|list|join(',') }}"
                                     aria-label="Editar a {{ cleaner.name }}">Editar</button>
                             <button type="button"
@@ -424,6 +442,8 @@
             form.querySelector('[name="active"]').checked   = this.dataset.active === '1';
             form.querySelector('[name="role"]').value       = this.dataset.role || 'atenciones';
             form.querySelector('[name="lang"]').value       = this.dataset.lang || '';
+            form.querySelector('[name="color"]').value      = this.dataset.color || '#8ab4e8';
+            form.querySelector('[name="phone"]').value      = this.dataset.phone || '';
             var groupIds = this.dataset.groups ? this.dataset.groups.split(',') : [];
             form.querySelectorAll('[name="group_ids"]').forEach(function(cb) {
                 cb.checked = groupIds.indexOf(cb.value) !== -1;

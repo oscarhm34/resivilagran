@@ -537,9 +537,16 @@
                             <li><a class="dropdown-item" href="{{ url_for('incidents.admin_incident_types') }}"><i class="bi bi-tags me-1" aria-hidden="true"></i>Tipos de incidencia</a></li>
                         </ul>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint in ('shifts.cuadrantes','shifts.manage_shift_types') %}active{% endif %}"
-                           href="{{ url_for('shifts.cuadrantes') }}"><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Turnos</a>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if request.endpoint in ('shifts.cuadrantes','shifts.manage_shift_types','shifts.shift_board_week','shifts.shift_board_day','shifts.manage_shift_positions') %}active{% endif %}"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Turnos</a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('shifts.shift_board_week') }}"><i class="bi bi-grid-1x2 me-1" aria-hidden="true"></i>Tablero</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('shifts.cuadrantes') }}"><i class="bi bi-table me-1" aria-hidden="true"></i>Rejilla mensual</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('shifts.manage_shift_positions') }}"><i class="bi bi-grid-3x3-gap me-1" aria-hidden="true"></i>Puestos</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('shifts.manage_shift_types') }}"><i class="bi bi-clock me-1" aria-hidden="true"></i>Tipos de turno</a></li>
+                        </ul>
                     </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {% if request.endpoint in ('admin_bp.admin_analytics','admin_bp.admin_performance') %}active{% endif %}"

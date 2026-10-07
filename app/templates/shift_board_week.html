@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+
+{% block title %}Tablero de turnos{% endblock %}
+
+{% block content %}
+<style>
+    :root { --sb-papel: #ffffff; --sb-linea: #9aa4ae; --sb-hueco: #f0f3f7; }
+    [data-theme="dark"] { --sb-papel: #161b22; --sb-linea: #46525e; --sb-hueco: #0d1117; }
+
+    /* Siete recuadros en fila, como el Excel. En pantalla estrecha se parten
+       en dos filas en vez de encogerse hasta no verse. */
+    .sb-semana {
+        display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px;
+    }
+    .sb-dia {
+        background: var(--sb-papel); border: 2px solid var(--sb-linea);
+        border-radius: var(--radius-md); padding: 6px; color: var(--color-text);
+        display: flex; flex-direction: column; gap: 4px;
+    }
+    .sb-dia:hover { border-color: var(--color-primary); }
+    .sb-cab {
+        display: flex; justify-content: space-between; align-items: baseline;
+        font-size: .72rem; border-bottom: 1px solid var(--color-border); padding-bottom: 3px;
+    }
+    .sb-dow { font-weight: 700; text-transform: uppercase; }
+    .sb-fecha { color: var(--color-text-secondary); }
+    .sb-fila { display: flex; gap: 2px; }
+    .sb-celda {
+        flex: 1; height: 18px; border-radius: 2px;
+        background: var(--color-border); border: 1px solid var(--sb-linea);
+    }
+    /* Sin cubrir se ve como un hueco rayado, no como un color mas: un turno
+       vacio tiene que cantar. */
+    .sb-vacia {
+        background: repeating-linear-gradient(45deg,
+            var(--sb-hueco), var(--sb-hueco) 3px,
+            var(--color-border) 3px, var(--color-border) 6px);
+    }
+
+    .sb-leyenda { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .85rem; }
+    .sb-leyenda-item { display: inline-flex; align-items: center; gap: 6px; }
+    .sb-punto {
+        width: 14px; height: 14px; border-radius: 3px; display: inline-block;
+        border: 1px solid var(--sb-linea); flex-shrink: 0;
+    }
+
+    .wa-fila {
+        display: flex; align-items: center; gap: 10px;
+        border: 1px solid var(--color-border); border-radius: var(--radius-md);
+        padding: 8px 10px; margin-bottom: 6px;
+    }
+    .wa-nombre { font-weight: 600; flex: 1; }
+
+    @media (max-width: 900px) {
+        .sb-semana { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    }
+    @media (max-width: 520px) {
+        .sb-semana { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+</style>
+<div class="py-4">
+
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+        <h1 class="h3 mb-0">
+            Semana del {{ lunes.strftime('%d/%m') }} al {{ domingo.strftime('%d/%m/%Y') }}
+        </h1>
+        <div class="d-flex gap-2 flex-wrap">
+            <a class="btn btn-sm btn-outline-secondary"
+               href="{{ url_for('shifts.shift_board_week', semana=semana_anterior) }}">&laquo; Anterior</a>
+            <a class="btn btn-sm btn-outline-secondary"
+               href="{{ url_for('shifts.shift_board_week', semana=semana_siguiente) }}">Siguiente &raquo;</a>
+            <a class="btn btn-sm btn-outline-secondary"
+               href="{{ url_for('shifts.manage_shift_positions') }}">
+                <i class="bi bi-grid-3x3-gap me-1" aria-hidden="true"></i>Puestos
+            </a>
+            <a class="btn btn-sm btn-outline-secondary"
+               href="{{ url_for('shifts.cuadrantes') }}">Rejilla mensual</a>
+        </div>
+    </div>
+
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <div>
+            {% if not publicacion %}
+            <span class="badge" style="background:var(--badge-muted-bg);color:var(--color-text)">Borrador</span>
+            <span class="small ms-1" style="color:var(--color-text-secondary)">
+                Todavia no se ha avisado a nadie.
+            </span>
+            {% elif modificada %}
+            <span class="badge" style="background:var(--badge-warning-bg);color:var(--color-warning-text)">
+                Modificada despues de publicar
+            </span>
+            <span class="small ms-1" style="color:var(--color-text-secondary)">
+                Se publico el {{ publicacion.published_at.strftime('%d/%m/%Y a las %H:%M') }}.
+                Al volver a publicar se avisa solo a quien le haya cambiado algo.
+            </span>
+            {% else %}
+            <span class="badge" style="background:var(--badge-success-bg);color:var(--color-success)">Publicada</span>
+            <span class="small ms-1" style="color:var(--color-text-secondary)">
+                El {{ publicacion.published_at.strftime('%d/%m/%Y a las %H:%M') }}.
+            </span>
+            {% endif %}
+        </div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-outline-primary" id="btn-whatsapp">
+                <i class="bi bi-whatsapp me-1" aria-hidden="true"></i>Enviar por WhatsApp
+            </button>
+            <button type="button" class="btn btn-sm btn-primary" id="btn-publicar">
+                <i class="bi bi-send me-1" aria-hidden="true"></i>Publicar y avisar
+            </button>
+        </div>
+    </div>
+
+    {% if not hay_puestos %}
+    <div class="card">
+        <div class="card-body text-center py-5" style="color:var(--color-text-secondary)">
+            <div style="font-size:2.5rem">&#128197;</div>
+            <p class="mt-2 mb-1">Todavia no hay puestos definidos.</p>
+            <p class="mb-3" style="font-size:.9rem">
+                Un puesto es cada casilla del recuadro de un dia: M1, M2, la coordinadora,
+                el refuerzo, las noches, la cocina.
+            </p>
+            <a class="btn btn-primary" href="{{ url_for('shifts.manage_shift_positions') }}">Crear los puestos</a>
+        </div>
+    </div>
+    {% else %}
+
+    <div class="sb-semana">
+        {% for d in dias %}
+        <a class="sb-dia text-decoration-none" href="{{ url_for('shifts.shift_board_day', iso=d.iso) }}">
+            <div class="sb-cab">
+                <span class="sb-dow">{{ d.dow[:3] }}</span>
+                <span class="sb-fecha">{{ d.fecha.strftime('%d/%m') }}</span>
+            </div>
+            {% for fila in filas %}
+            {% if d.filas[fila] %}
+            <div class="sb-fila" title="{{ etiquetas_fila[fila] }}">
+                {% for c in d.filas[fila] %}
+                <span class="sb-celda{% if not c.ocupa %} sb-vacia{% endif %}"
+                      title="{{ c.code }}{% if c.ocupa %} · {{ c.ocupa.name }}{% else %} · sin cubrir{% endif %}"
+                      {% if c.ocupa %}style="background:{{ c.ocupa.color }}"{% endif %}>
+                    <span class="visually-hidden">{{ c.code }}: {{ c.ocupa.name if c.ocupa else 'sin cubrir' }}</span>
+                </span>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endfor %}
+        </a>
+        {% endfor %}
+    </div>
+
+    {% if leyenda %}
+    <div class="card mt-3">
+        <div class="card-header py-2">Quien trabaja esta semana</div>
+        <div class="card-body py-2">
+            <div class="sb-leyenda">
+                {% for p in leyenda %}
+                <span class="sb-leyenda-item">
+                    <span class="sb-punto" style="background:{{ p.color }}" aria-hidden="true"></span>{{ p.name }}
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+
+<div class="modal fade" id="waModal" tabindex="-1" aria-labelledby="waModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="waModalLabel">Enviar el horario por WhatsApp</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small" style="color:var(--color-text-secondary)">
+                    Cada boton abre WhatsApp con el mensaje ya escrito. Enviarlo lo haces tu:
+                    la aplicacion no manda nada sola. Quien no tenga telefono en su ficha sale
+                    sin boton.
+                </p>
+                <div id="wa-lista"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+(function () {
+    'use strict';
+    var SEMANA = {{ lunes.isoformat()|tojson }};
+    var URL_PUBLICAR = {{ url_for('shifts.shift_board_publish')|tojson }};
+    var URL_ENVIOS = {{ url_for('shifts.shift_board_envios')|tojson }};
+
+    var btnPub = document.getElementById('btn-publicar');
+    if (!btnPub) return;
+
+    btnPub.addEventListener('click', function () {
+        window.showConfirm(
+            'Se avisara a cada trabajadora de que tiene horario nuevo. ¿Publicamos la semana?',
+            async function () {
+                btnPub.disabled = true;
+                try {
+                    var res = await fetch(URL_PUBLICAR, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({week_start: SEMANA})
+                    });
+                    var datos = await res.json();
+                    if (!res.ok) throw new Error(datos.error || 'No se ha podido publicar.');
+                    window.showToast(datos.avisadas
+                        ? 'Semana publicada. Avisadas: ' + datos.avisadas + '.'
+                        : 'Semana publicada. No habia cambios que avisar.', 'success');
+                    setTimeout(function () { window.location.reload(); }, 900);
+                } catch (e) {
+                    btnPub.disabled = false;
+                    window.showToast(e.message, 'error');
+                }
+            });
+    });
+
+    document.getElementById('btn-whatsapp').addEventListener('click', async function () {
+        var lista = document.getElementById('wa-lista');
+        lista.textContent = 'Cargando...';
+        new bootstrap.Modal(document.getElementById('waModal')).show();
+        try {
+            var res = await fetch(URL_ENVIOS + '?semana=' + encodeURIComponent(SEMANA));
+            var datos = await res.json();
+            lista.innerHTML = '';
+            if (!datos.trabajadoras.length) {
+                lista.textContent = 'Esta semana no tiene a nadie asignado.';
+                return;
+            }
+            datos.trabajadoras.forEach(function (t) {
+                var fila = document.createElement('div');
+                fila.className = 'wa-fila';
+                var nombre = document.createElement('span');
+                nombre.className = 'wa-nombre';
+                nombre.textContent = t.name;
+                fila.appendChild(nombre);
+
+                if (t.wa_url) {
+                    var a = document.createElement('a');
+                    a.className = 'btn btn-sm btn-success';
+                    a.href = t.wa_url;
+                    a.target = '_blank';
+                    a.rel = 'noopener';
+                    a.textContent = 'Abrir WhatsApp';
+                    fila.appendChild(a);
+                } else {
+                    var falta = document.createElement('span');
+                    falta.className = 'small';
+                    falta.style.color = 'var(--color-text-secondary)';
+                    falta.textContent = 'Sin telefono en su ficha';
+                    fila.appendChild(falta);
+                }
+
+                var copiar = document.createElement('button');
+                copiar.type = 'button';
+                copiar.className = 'btn btn-sm btn-outline-secondary';
+                copiar.textContent = 'Copiar';
+                copiar.addEventListener('click', function () {
+                    navigator.clipboard.writeText(t.texto).then(function () {
+                        window.showToast('Horario copiado.', 'success');
+                    });
+                });
+                fila.appendChild(copiar);
+
+                lista.appendChild(fila);
+            });
+        } catch (e) {
+            lista.textContent = 'No se ha podido cargar la lista.';
+        }
+    });
+})();
+</script>
+{% endblock %}

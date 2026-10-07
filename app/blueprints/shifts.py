@@ -14,6 +14,7 @@ from ..models import (
     Cleaner, ResidentGroup, ShiftType, ShiftAssignment,
     RotationPattern, RotationPatternDay, WorkerShiftConfig,
     AbsenceType, Absence, ShiftCoverageRequirement,
+    ShiftPosition, ShiftWeekPublication, Notification,
 )
 from ..utils import (
     admin_required, _safe_commit, _safe_flush, _parse_hhmm, log_audit,
@@ -144,11 +145,15 @@ def cuadrantes_assign():
             existing.shift_type_id = st.id
             existing.is_override = True
             existing.source = 'manual'
+            existing.updated_at = datetime.now()
         else:
+            # is_override=True tambien al crear: sin esto, lo que se pone a
+            # mano en una celda vacia lo borra la siguiente generacion del mes
+            # (scheduler._persist solo respeta los overrides).
             existing = ShiftAssignment(
                 cleaner_id=cleaner_id, date=target_date,
                 shift_type_id=st.id, source='manual',
-                created_by=current_user.id,
+                is_override=True, created_by=current_user.id,
             )
             db.session.add(existing)
         ok, err = _safe_commit('No se pudo guardar la asignacion.')
@@ -284,7 +289,8 @@ def cuadrantes_export():
 @admin_required
 def manage_shift_types():
     shift_types = ShiftType.query.order_by(ShiftType.sort_order).all()
-    return render_template('manage_shift_types.html', shift_types=shift_types)
+    return render_template('manage_shift_types.html', shift_types=shift_types,
+                           etiquetas_fila=ETIQUETAS_FILA)
 
 
 @bp.route('/shift-types/add_edit', methods=['POST'])
@@ -343,6 +349,12 @@ def add_edit_shift_type():
         flash('Ya existe un tipo de turno con ese nombre.', 'danger')
         return redirect(url_for('shifts.manage_shift_types'))
 
+    # Donde se dibuja en el tablero. Vacio = no sale, que es como se quedan los
+    # turnos que ya existian.
+    board_row = request.form.get('board_row') or None
+    if board_row not in FILAS_TABLERO:
+        board_row = None
+
     is_new = st is None
     if is_new:
         st = ShiftType(name=name, short_name=short_name, color=color,
@@ -363,12 +375,14 @@ def add_edit_shift_type():
         st.breaks_minutes = breaks_min
         st.sort_order = sort_order
         # `active` no se toca aquí: lo gestiona toggle_shift_type_active.
+    st.board_row = board_row
 
     log_audit('create' if is_new else 'update', 'shift_type', st.id, {
         'name': name, 'short_name': short_name,
         'start_time': start_t.strftime('%H:%M'),
         'end_time': end_t.strftime('%H:%M'),
         'breaks_minutes': breaks_min, 'sort_order': sort_order,
+        'board_row': board_row,
     })
 
     ok, err = _safe_commit('No se pudo guardar el tipo de turno.')
@@ -474,17 +488,24 @@ def worker_my_shifts():
     first_day = date(year, mo, 1)
     last_day = date(year, mo, num_days)
 
-    assignments = ShiftAssignment.query.filter(
+    assignments = ShiftAssignment.query.options(
+        joinedload(ShiftAssignment.shift_type), joinedload(ShiftAssignment.position)
+    ).filter(
         ShiftAssignment.cleaner_id == worker_id,
         ShiftAssignment.date >= first_day,
         ShiftAssignment.date <= last_day,
     ).order_by(ShiftAssignment.date).all()
+
+    # Las ausencias importan tanto como los turnos: quien esta de vacaciones
+    # quiere verlo en su mes, no deducirlo de que no tiene nada puesto.
+    ausencias = _ausencias_de(first_day, last_day).get(worker_id, {})
 
     result = []
     for a in assignments:
         st = a.shift_type
         result.append({
             'date': a.date.isoformat(),
+            'position': a.position.code if a.position else None,
             'shift': {
                 'name': st.name if st else 'Libre',
                 'short_name': st.short_name if st else 'L',
@@ -493,7 +514,12 @@ def worker_my_shifts():
                 'end_time': st.end_time.strftime('%H:%M') if st else None,
             } if st else None,
         })
-    return jsonify({'year': year, 'month': mo, 'shifts': result})
+    return jsonify({
+        'year': year, 'month': mo, 'shifts': result,
+        'absences': [{'date': dia.isoformat(), 'name': tipo.name,
+                      'short_name': tipo.short_name, 'color': tipo.color}
+                     for dia, tipo in sorted(ausencias.items())],
+    })
 
 
 # ─── Phase 2 & 3: Rotation Patterns, Absences, Validation ─────────────────────
@@ -1099,3 +1125,643 @@ def ai_suggest_replacement():
             pass
 
     return jsonify(result)
+
+
+# ── TABLERO DE TURNOS ───────────────────────────────────────────────────────
+# La rejilla mensual contesta «cuantas horas lleva Maria y queda cubierto el
+# turno de noche». El tablero contesta otra pregunta, que es la que se hace al
+# planificar: «quien hace M1 el martes». Por eso conviven: cada una sirve para
+# una cosa y ninguna sustituye a la otra.
+
+# Colores de reserva para quien no tenga uno elegido. Son los de su Excel:
+# tienen que distinguirse de un vistazo en una casilla de dos centimetros, no
+# ser bonitos. Se reparten por id, asi que a nadie le cambia el suyo.
+PALETA_PERSONAL = [
+    '#8ab4e8', '#f2e14c', '#8fe3b0', '#3f7d3f', '#c9ccd1',
+    '#b07d12', '#b9a7e8', '#ef5aa8', '#5ec8d8', '#f0a01e',
+    '#e03131', '#1565c0', '#5c6670', '#6a1b9a', '#f3a6a6',
+]
+
+FILAS_TABLERO = ['manana', 'tarde', 'noche', 'lateral']
+ETIQUETAS_FILA = {'manana': 'Mañana', 'tarde': 'Tarde',
+                  'noche': 'Noche', 'lateral': 'Otros puestos'}
+
+DIAS_SEMANA = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo']
+
+
+def _color_trabajadora(trabajadora) -> str:
+    """Su color, o uno estable derivado del id si nadie se lo ha puesto."""
+    if trabajadora.color and _HEX_COLOR_RE.match(trabajadora.color):
+        return trabajadora.color
+    return PALETA_PERSONAL[(trabajadora.id or 0) % len(PALETA_PERSONAL)]
+
+
+def _lunes_de(dia: date) -> date:
+    return dia - timedelta(days=dia.weekday())
+
+
+def _dia_o_hoy(iso: str | None) -> date:
+    """La fecha del parametro, o hoy si no viene o viene mal."""
+    try:
+        return date.fromisoformat(iso) if iso else date.today()
+    except ValueError:
+        return date.today()
+
+
+def _ausencias_de(desde: date, hasta: date) -> dict:
+    """{cleaner_id: {dia: AbsenceType}} del rango, con las bajas desplegadas."""
+    filas = Absence.query.options(joinedload(Absence.absence_type)).filter(
+        Absence.start_date <= hasta, Absence.end_date >= desde
+    ).all()
+    mapa: dict = {}
+    for a in filas:
+        dia = max(a.start_date, desde)
+        fin = min(a.end_date, hasta)
+        while dia <= fin:
+            mapa.setdefault(a.cleaner_id, {})[dia] = a.absence_type
+            dia += timedelta(days=1)
+    return mapa
+
+
+def _esta_ausente(cleaner_id: int, dia: date) -> bool:
+    return db.session.query(Absence.id).filter(
+        Absence.cleaner_id == cleaner_id,
+        Absence.start_date <= dia,
+        Absence.end_date >= dia,
+    ).first() is not None
+
+
+def _puestos_activos():
+    """Los puestos que se dibujan, con su turno, ordenados como en el recuadro."""
+    return ShiftPosition.query.options(
+        joinedload(ShiftPosition.shift_type)
+    ).join(ShiftType).filter(
+        ShiftPosition.active.is_(True),
+        ShiftType.active.is_(True),
+        ShiftType.board_row.isnot(None),
+    ).order_by(ShiftType.sort_order, ShiftType.id,
+               ShiftPosition.sort_order, ShiftPosition.id).all()
+
+
+def _personal_del_tablero():
+    """Quien puede salir en el tablero. Gestion no hace turnos de planta."""
+    return Cleaner.query.filter(
+        Cleaner.active.is_(True), Cleaner.role != 'gestion'
+    ).order_by(Cleaner.name).all()
+
+
+def _ficha(asignacion, ausencias) -> dict | None:
+    """La persona que ocupa una casilla, tal y como la pinta el tablero."""
+    if not asignacion or not asignacion.cleaner:
+        return None
+    c = asignacion.cleaner
+    return {'assignment_id': asignacion.id, 'cleaner_id': c.id, 'name': c.name,
+            'color': _color_trabajadora(c)}
+
+
+def _minutos(t) -> int:
+    return t.hour * 60 + t.minute
+
+
+def _tramo(st, previo: bool = False) -> tuple[int, int]:
+    """El rato que ocupa un turno, en minutos desde las 00:00 del dia que se mira.
+
+    La noche cruza la medianoche, asi que el final se pasa al dia siguiente. Y
+    la que viene de la vispera se mide en negativo: una noche de 21:00 a 08:00
+    de ayer ocupa de -180 a 480, o sea entra tres horas antes de que empiece el
+    dia y sale a las ocho de la manana.
+    """
+    ini, fin = _minutos(st.start_time), _minutos(st.end_time)
+    if fin <= ini:
+        fin += 1440
+    return (ini - 1440, fin - 1440) if previo else (ini, fin)
+
+
+def _hhmm(minutos: int) -> str:
+    return f'{(minutos // 60) % 24:02d}:{minutos % 60:02d}'
+
+
+def _casilla(p, dia: date, asignaciones: dict, ausencias: dict,
+             reflejo: bool = False) -> dict:
+    st = p.shift_type
+    previo = reflejo and p.echo_previous_day
+    ini, fin = _tramo(st, previo)
+    etiqueta = p.code + (' dia-1' if previo else '')
+    return {
+        'position_id': p.id,
+        'code': etiqueta,
+        'name': p.name or '',
+        'shift_name': st.name,
+        'shift_color': st.color,
+        'horario': f'{_hhmm(ini)}-{_hhmm(fin)}',
+        'inicio': ini,
+        'fin': fin,
+        'solo_lectura': reflejo,
+        'reflejo': reflejo,
+        'ocupa': _ficha(asignaciones.get((dia - timedelta(days=1) if previo else dia, p.id)),
+                        ausencias),
+    }
+
+
+def _eje_del_dia(cajas: list) -> dict:
+    """El eje de horas del recuadro.
+
+    Va desde una hora antes de que entre el primer turno del dia hasta que sale
+    el ultimo. Lo que viene de la noche anterior entra por arriba recortado: a
+    escala de las 24 horas, una noche de once horas seria la caja mas alta del
+    recuadro y taparia lo que de verdad se esta mirando, que es la jornada.
+    """
+    # Un recuadro sin nada todavia tambien tiene que dibujarse: se le da una
+    # jornada de oficina y ya se ajustara cuando haya puestos.
+    if not cajas:
+        cajas = [{'inicio': 7 * 60, 'fin': 15 * 60}]
+    propias = [c for c in cajas if c['inicio'] >= 0] or cajas
+    ini = (min(c['inicio'] for c in propias) // 60) * 60 - 60
+    fin = -(-max(c['fin'] for c in cajas) // 60) * 60
+    if fin <= ini:
+        fin = ini + 60
+    rango = fin - ini
+    # Con muchas horas, una raya cada hora es ruido: se marca cada dos.
+    paso = 60 if rango <= 14 * 60 else 120
+    horas = [{'etiqueta': _hhmm(m), 'pct': (m - ini) * 100.0 / rango}
+             for m in range(ini, fin + 1, paso)]
+    return {'inicio': ini, 'fin': fin, 'rango': rango, 'horas': horas}
+
+
+def _situar(caja: dict, eje: dict) -> dict:
+    """Donde empieza y cuanto ocupa la caja dentro del eje, en porcentaje."""
+    ini = max(caja['inicio'], eje['inicio'])
+    fin = min(caja['fin'], eje['fin'])
+    caja['recortado'] = caja['inicio'] < eje['inicio']
+    caja['top'] = round((ini - eje['inicio']) * 100.0 / eje['rango'], 3)
+    caja['alto'] = round(max(fin - ini, 30) * 100.0 / eje['rango'], 3)
+    return caja
+
+
+def _columnas_del_dia(filas: dict) -> list:
+    """Reparte las cajas en columnas, como en el cuadrante de papel.
+
+    La manana va encima de la tarde en la misma columna porque no se solapan en
+    el tiempo: M1 y T1 son la misma plaza a dos ratos del dia. Lo que viene de
+    la noche va a su propia columna a la izquierda, y los puestos de fuera
+    (cocina, recepcion) se reparten a los dos lados.
+    """
+    columnas = []
+
+    # Los reflejos: normalmente uno encima del otro en una sola columna (la
+    # noche que acaba por la manana y la que entra por la tarde no coinciden).
+    for reflejo in sorted(filas['reflejos'], key=lambda c: c['inicio']):
+        for col in columnas:
+            if reflejo['inicio'] >= col[-1]['fin']:
+                col.append(reflejo)
+                break
+        else:
+            columnas.append([reflejo])
+
+    manana, tarde = filas['manana'], filas['tarde']
+    for i in range(max(len(manana), len(tarde))):
+        col = []
+        if i < len(manana):
+            col.append(manana[i])
+        if i < len(tarde):
+            col.append(tarde[i])
+        columnas.append(col)
+
+    laterales = filas['lateral']
+    mitad = (len(laterales) + 1) // 2
+    izquierda = [[c] for c in laterales[:mitad]]
+    derecha = [[c] for c in laterales[mitad:]]
+    return izquierda + columnas + derecha
+
+
+def _tablero_de_dia(dia: date, puestos, asignaciones: dict, ausencias: dict) -> dict:
+    """El recuadro de un dia: un eje de horas y las cajas colocadas en el.
+
+    Cada caja empieza y acaba donde dice su horario, asi que se ve de un vistazo
+    quien entra antes y quien pliega primero. Los reflejos son la misma persona
+    ensenada donde tambien esta —quien entra por la tarde esta toda la tarde, y
+    quien hizo la noche sigue aqui media manana del dia siguiente—, por eso son
+    de solo lectura: se cambian en su casilla de la franja de noche.
+    """
+    filas = {f: [] for f in FILAS_TABLERO}
+    filas['reflejos'] = []
+    for p in puestos:
+        filas[p.shift_type.board_row].append(_casilla(p, dia, asignaciones, ausencias))
+        if p.echo_row in FILAS_TABLERO:
+            filas['reflejos'].append(
+                _casilla(p, dia, asignaciones, ausencias, reflejo=True))
+
+    # La franja de noche va aparte, abajo: es quien entra esta noche, y a escala
+    # se saldria del eje de la jornada.
+    jornada = filas['manana'] + filas['tarde'] + filas['lateral'] + filas['reflejos']
+    eje = _eje_del_dia(jornada)
+    for caja in jornada:
+        _situar(caja, eje)
+
+    return {'fecha': dia, 'iso': dia.isoformat(), 'dow': DIAS_SEMANA[dia.weekday()],
+            'eje': eje, 'columnas': _columnas_del_dia(filas),
+            'noche': filas['noche'], 'filas': filas}
+
+
+def _asignaciones_por_puesto(desde: date, hasta: date) -> dict:
+    """{(fecha, position_id): ShiftAssignment} del rango, solo las que ocupan puesto."""
+    filas = ShiftAssignment.query.options(
+        joinedload(ShiftAssignment.cleaner)
+    ).filter(
+        ShiftAssignment.date >= desde, ShiftAssignment.date <= hasta,
+        ShiftAssignment.position_id.isnot(None),
+    ).all()
+    return {(a.date, a.position_id): a for a in filas}
+
+
+def _tablero_de_semana(lunes: date) -> list:
+    """Los siete recuadros de una semana."""
+    puestos = _puestos_activos()
+    domingo = lunes + timedelta(days=6)
+    # Un dia antes por las casillas que ensenan la noche de la vispera.
+    asignaciones = _asignaciones_por_puesto(lunes - timedelta(days=1), domingo)
+    ausencias = _ausencias_de(lunes - timedelta(days=1), domingo)
+    return [_tablero_de_dia(lunes + timedelta(days=i), puestos, asignaciones, ausencias)
+            for i in range(7)]
+
+
+def _estado_semana(lunes: date):
+    """(publicacion, modificada_despues) de una semana."""
+    pub = ShiftWeekPublication.query.filter_by(week_start=lunes).first()
+    if not pub:
+        return None, False
+    domingo = lunes + timedelta(days=6)
+    tocada = ShiftAssignment.query.filter(
+        ShiftAssignment.date >= lunes, ShiftAssignment.date <= domingo,
+        func.coalesce(ShiftAssignment.updated_at,
+                      ShiftAssignment.created_at) > pub.published_at,
+    ).first()
+    return pub, tocada is not None
+
+
+@bp.route('/cuadrantes/tablero')
+@admin_required
+def shift_board_week():
+    """La semana entera, como el Excel que usan hoy."""
+    lunes = _lunes_de(_dia_o_hoy(request.args.get('semana')))
+    dias = _tablero_de_semana(lunes)
+    pub, modificada = _estado_semana(lunes)
+
+    # La leyenda: solo quien sale en la semana, que es lo que ayuda a leerla.
+    vistos = {}
+    for d in dias:
+        for nombre, fila in d['filas'].items():
+            if nombre == 'reflejos':
+                continue
+            for casilla in fila:
+                if casilla['ocupa']:
+                    vistos[casilla['ocupa']['cleaner_id']] = casilla['ocupa']
+
+    return render_template(
+        'shift_board_week.html',
+        lunes=lunes, domingo=lunes + timedelta(days=6), dias=dias,
+        filas=FILAS_TABLERO, etiquetas_fila=ETIQUETAS_FILA,
+        leyenda=sorted(vistos.values(), key=lambda f: f['name']),
+        publicacion=pub, modificada=modificada,
+        semana_anterior=(lunes - timedelta(days=7)).isoformat(),
+        semana_siguiente=(lunes + timedelta(days=7)).isoformat(),
+        hay_puestos=bool(_puestos_activos()),
+    )
+
+
+@bp.route('/cuadrantes/tablero/dia/<iso>')
+@admin_required
+def shift_board_day(iso: str):
+    """El recuadro de un dia, que es donde se arrastra."""
+    dia = _dia_o_hoy(iso)
+    puestos = _puestos_activos()
+    asignaciones = _asignaciones_por_puesto(dia - timedelta(days=1), dia)
+    ausencias = _ausencias_de(dia, dia)
+    tablero = _tablero_de_dia(dia, puestos, asignaciones, ausencias)
+
+    ocupadas = {c['ocupa']['cleaner_id']
+                for nombre, fila in tablero['filas'].items() if nombre != 'reflejos'
+                for c in fila if c['ocupa']}
+    banquillo = []
+    for c in _personal_del_tablero():
+        if c.id in ocupadas:
+            continue
+        tipo = ausencias.get(c.id, {}).get(dia)
+        banquillo.append({'cleaner_id': c.id, 'name': c.name,
+                          'color': _color_trabajadora(c),
+                          'ausente': tipo.name if tipo else None})
+
+    return render_template(
+        'shift_board_day.html',
+        dia=dia, tablero=tablero, banquillo=banquillo,
+        filas=FILAS_TABLERO, etiquetas_fila=ETIQUETAS_FILA,
+        dia_anterior=(dia - timedelta(days=1)).isoformat(),
+        dia_siguiente=(dia + timedelta(days=1)).isoformat(),
+        semana=_lunes_de(dia).isoformat(),
+        hay_puestos=bool(puestos),
+    )
+
+
+@bp.route('/cuadrantes/tablero/asignar', methods=['POST'])
+@admin_required
+def shift_board_assign():
+    """Pone a una persona en una casilla. Es lo que hace soltar una ficha."""
+    datos = request.get_json(silent=True) or {}
+    try:
+        dia = date.fromisoformat(datos.get('date'))
+        puesto = db.session.get(ShiftPosition, int(datos.get('position_id')))
+        trabajadora = db.session.get(Cleaner, int(datos.get('cleaner_id')))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Faltan datos o no son validos.'}), 400
+
+    if not puesto or not puesto.active:
+        return jsonify({'error': 'Ese puesto ya no existe. Recarga la pagina.'}), 404
+    if not trabajadora or not trabajadora.active:
+        return jsonify({'error': 'Esa trabajadora ya no esta de alta.'}), 404
+    if _esta_ausente(trabajadora.id, dia):
+        return jsonify({'error': f'{trabajadora.name} esta de baja o de vacaciones ese dia.'}), 400
+
+    # Quien estuviera en la casilla sale al banquillo. Se borra y se vacia la
+    # sesion antes de volver a ocupar el puesto, que si no choca con
+    # uq_date_position dentro del mismo commit.
+    ocupante = ShiftAssignment.query.filter_by(date=dia, position_id=puesto.id).first()
+    desplazada = None
+    if ocupante and ocupante.cleaner_id != trabajadora.id:
+        desplazada = {'cleaner_id': ocupante.cleaner_id,
+                      'name': ocupante.cleaner.name if ocupante.cleaner else '',
+                      'color': _color_trabajadora(ocupante.cleaner) if ocupante.cleaner else ''}
+        db.session.delete(ocupante)
+        ok, error = _safe_flush('No se pudo liberar la casilla')
+        if not ok:
+            return jsonify({'error': error}), 500
+
+    # Si ya tenia turno ese dia se mueve esa misma fila: una persona ocupa un
+    # puesto al dia, y arrastrar significa moverla, no duplicarla.
+    propia = ShiftAssignment.query.filter_by(cleaner_id=trabajadora.id, date=dia).first()
+    anterior = propia.position.code if (propia and propia.position) else None
+    if propia:
+        propia.position_id = puesto.id
+        propia.shift_type_id = puesto.shift_type_id
+    else:
+        propia = ShiftAssignment(cleaner_id=trabajadora.id, date=dia,
+                                 shift_type_id=puesto.shift_type_id,
+                                 position_id=puesto.id, created_by=current_user.id)
+        db.session.add(propia)
+    # Siempre override: lo que se coloca a mano no puede borrarlo la siguiente
+    # generacion automatica del mes.
+    propia.is_override = True
+    propia.source = 'manual'
+    propia.updated_at = datetime.now()
+
+    log_audit('update', 'shift_assignment', propia.id or 0,
+              {'fecha': dia.isoformat(), 'cleaner_id': trabajadora.id,
+               'puesto': puesto.code, 'puesto_anterior': anterior,
+               'desplazada': desplazada['cleaner_id'] if desplazada else None})
+    ok, error = _safe_commit('No se pudo guardar la asignacion')
+    if not ok:
+        return jsonify({'error': error}), 500
+
+    return jsonify({'ok': True, 'assignment_id': propia.id, 'desplazada': desplazada})
+
+
+@bp.route('/cuadrantes/tablero/quitar', methods=['POST'])
+@admin_required
+def shift_board_remove():
+    """Saca a una persona del dia: vuelve al banquillo."""
+    datos = request.get_json(silent=True) or {}
+    try:
+        dia = date.fromisoformat(datos.get('date'))
+        cleaner_id = int(datos.get('cleaner_id'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Faltan datos o no son validos.'}), 400
+
+    propia = ShiftAssignment.query.filter_by(cleaner_id=cleaner_id, date=dia).first()
+    if not propia:
+        return jsonify({'ok': True})          # ya no estaba: nada que hacer
+
+    log_audit('delete', 'shift_assignment', propia.id,
+              {'fecha': dia.isoformat(), 'cleaner_id': cleaner_id,
+               'puesto': propia.position.code if propia.position else None})
+    db.session.delete(propia)
+    ok, error = _safe_commit('No se pudo quitar la asignacion')
+    if not ok:
+        return jsonify({'error': error}), 500
+    return jsonify({'ok': True})
+
+
+def _horario_de(cleaner_id: int, lunes: date) -> list:
+    """Los siete dias de una persona, en texto, para avisarla."""
+    domingo = lunes + timedelta(days=6)
+    filas = ShiftAssignment.query.options(
+        joinedload(ShiftAssignment.shift_type), joinedload(ShiftAssignment.position)
+    ).filter(
+        ShiftAssignment.cleaner_id == cleaner_id,
+        ShiftAssignment.date >= lunes, ShiftAssignment.date <= domingo,
+    ).all()
+    por_dia = {a.date: a for a in filas}
+    ausencias = _ausencias_de(lunes, domingo).get(cleaner_id, {})
+
+    lineas = []
+    for i in range(7):
+        dia = lunes + timedelta(days=i)
+        cabecera = f"{DIAS_SEMANA[dia.weekday()][:3]} {dia.strftime('%d/%m')}"
+        tipo = ausencias.get(dia)
+        a = por_dia.get(dia)
+        if tipo:
+            lineas.append(f'{cabecera}: {tipo.name}')
+        elif a and a.shift_type:
+            texto = (f"{a.shift_type.name} "
+                     f"({a.shift_type.start_time.strftime('%H:%M')}-"
+                     f"{a.shift_type.end_time.strftime('%H:%M')})")
+            if a.position:
+                texto += f' · {a.position.code}'
+            lineas.append(f'{cabecera}: {texto}')
+        else:
+            lineas.append(f'{cabecera}: Libre')
+    return lineas
+
+
+@bp.route('/cuadrantes/tablero/publicar', methods=['POST'])
+@admin_required
+def shift_board_publish():
+    """Da la semana por buena y avisa a quien le toca.
+
+    Publicar no congela nada: las bajas salen cuando salen y hay que poder
+    recolocar. Lo que hace es marcar la foto, y si la semana ya estaba
+    publicada avisa solo a quien le haya cambiado algo desde entonces.
+    """
+    datos = request.get_json(silent=True) or {}
+    try:
+        lunes = _lunes_de(date.fromisoformat(datos.get('week_start')))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Semana no valida.'}), 400
+
+    domingo = lunes + timedelta(days=6)
+    pub = ShiftWeekPublication.query.filter_by(week_start=lunes).first()
+    desde = pub.published_at if pub else None
+
+    consulta = ShiftAssignment.query.filter(
+        ShiftAssignment.date >= lunes, ShiftAssignment.date <= domingo)
+    if desde:
+        consulta = consulta.filter(
+            func.coalesce(ShiftAssignment.updated_at,
+                          ShiftAssignment.created_at) > desde)
+    destinatarias = sorted({a.cleaner_id for a in consulta.all()})
+
+    ahora = datetime.now()
+    if pub:
+        pub.published_at = ahora
+        pub.published_by = current_user.id
+        pub.notified_at = ahora
+    else:
+        pub = ShiftWeekPublication(week_start=lunes, published_at=ahora,
+                                   published_by=current_user.id, notified_at=ahora)
+        db.session.add(pub)
+
+    rotulo = f"{lunes.strftime('%d/%m')} al {domingo.strftime('%d/%m')}"
+    titulo = 'Horario actualizado' if desde else 'Nuevo horario'
+    for cleaner_id in destinatarias:
+        db.session.add(Notification(
+            type='shift_published', title=titulo,
+            message=f'Ya tienes el horario de la semana del {rotulo}.',
+            severity='info', link='/worker', worker_id=cleaner_id))
+
+    log_audit('update', 'shift_week_publication', pub.id or 0,
+              {'semana': lunes.isoformat(), 'avisadas': len(destinatarias)})
+    ok, error = _safe_commit('No se pudo publicar la semana')
+    if not ok:
+        return jsonify({'error': error}), 500
+
+    # El aviso va despues del commit y nunca lleva el horario dentro: viaja por
+    # un servicio externo, igual que el de la mensajeria.
+    from .notifications import send_push_to_worker
+    for cleaner_id in destinatarias:
+        send_push_to_worker(cleaner_id, titulo,
+                            f'Semana del {rotulo}. Abre la aplicacion para verlo.',
+                            url='/worker', tag=f'horario-{lunes.isoformat()}')
+
+    return jsonify({'ok': True, 'avisadas': len(destinatarias),
+                    'published_at': pub.published_at.strftime('%d/%m/%Y %H:%M')})
+
+
+@bp.route('/cuadrantes/tablero/envios')
+@admin_required
+def shift_board_envios():
+    """Por trabajadora: su horario en texto y el enlace que abre WhatsApp.
+
+    No manda nada: monta el mensaje y lo deja escrito. Enviar lo hace una
+    persona, con un toque, desde su propio WhatsApp.
+    """
+    from urllib.parse import quote
+
+    lunes = _lunes_de(_dia_o_hoy(request.args.get('semana')))
+    domingo = lunes + timedelta(days=6)
+    rotulo = f"{lunes.strftime('%d/%m')} al {domingo.strftime('%d/%m/%Y')}"
+
+    con_turno = {a.cleaner_id for a in ShiftAssignment.query.filter(
+        ShiftAssignment.date >= lunes, ShiftAssignment.date <= domingo).all()}
+
+    salida = []
+    for c in _personal_del_tablero():
+        if c.id not in con_turno:
+            continue
+        texto = (f'Hola {c.name}, tu horario del {rotulo}:\n\n'
+                 + '\n'.join(_horario_de(c.id, lunes)))
+        telefono = re.sub(r'[^0-9]', '', c.phone or '')
+        salida.append({
+            'cleaner_id': c.id, 'name': c.name,
+            'phone': c.phone or '', 'texto': texto,
+            'wa_url': f'https://wa.me/{telefono}?text={quote(texto)}' if telefono else None,
+        })
+    return jsonify({'semana': rotulo, 'trabajadoras': salida})
+
+
+# ── PUESTOS ──────────────────────────────────────────────────────────────────
+
+@bp.route('/cuadrantes/puestos')
+@admin_required
+def manage_shift_positions():
+    puestos = ShiftPosition.query.options(joinedload(ShiftPosition.shift_type)).join(
+        ShiftType).order_by(ShiftType.sort_order, ShiftType.id,
+                            ShiftPosition.sort_order, ShiftPosition.id).all()
+    return render_template(
+        'manage_shift_positions.html',
+        puestos=puestos,
+        shift_types=ShiftType.query.filter_by(active=True).order_by(
+            ShiftType.sort_order, ShiftType.name).all(),
+        filas=FILAS_TABLERO, etiquetas_fila=ETIQUETAS_FILA,
+    )
+
+
+@bp.route('/cuadrantes/puestos/add_edit', methods=['POST'])
+@admin_required
+def add_edit_shift_position():
+    position_id = request.form.get('position_id', type=int)
+    codigo = (request.form.get('code') or '').strip().upper()
+    shift_type_id = request.form.get('shift_type_id', type=int)
+
+    if not codigo or not shift_type_id:
+        flash('El codigo y el turno son obligatorios.', 'danger')
+        return redirect(url_for('shifts.manage_shift_positions'))
+    if len(codigo) > 8:
+        flash('El codigo no puede pasar de 8 caracteres.', 'danger')
+        return redirect(url_for('shifts.manage_shift_positions'))
+    if not db.session.get(ShiftType, shift_type_id):
+        flash('Ese tipo de turno no existe.', 'danger')
+        return redirect(url_for('shifts.manage_shift_positions'))
+
+    repetido = ShiftPosition.query.filter(
+        ShiftPosition.shift_type_id == shift_type_id,
+        func.lower(ShiftPosition.code) == codigo.lower(),
+        ShiftPosition.id != (position_id or 0),
+    ).first()
+    if repetido:
+        flash(f'Ya hay un puesto {codigo} en ese turno.', 'danger')
+        return redirect(url_for('shifts.manage_shift_positions'))
+
+    puesto = db.session.get(ShiftPosition, position_id) if position_id else None
+    accion = 'update' if puesto else 'create'
+    if not puesto:
+        puesto = ShiftPosition(shift_type_id=shift_type_id, code=codigo)
+        db.session.add(puesto)
+    puesto.shift_type_id = shift_type_id
+    puesto.code = codigo
+    puesto.name = (request.form.get('name') or '').strip() or None
+    puesto.sort_order = request.form.get('sort_order', type=int) or 0
+    puesto.active = request.form.get('active') == 'on'
+    # El reflejo solo tiene sentido en manana y tarde: es donde esta esa persona
+    # ademas de en su franja de noche.
+    echo = request.form.get('echo_row') or None
+    puesto.echo_row = echo if echo in ('manana', 'tarde') else None
+    puesto.echo_previous_day = (request.form.get('echo_previous_day') == 'on'
+                                and puesto.echo_row is not None)
+
+    log_audit(accion, 'shift_position', puesto.id or 0,
+              {'code': codigo, 'shift_type_id': shift_type_id,
+               'echo_row': puesto.echo_row})
+    ok, error = _safe_commit('No se pudo guardar el puesto')
+    flash(error if not ok else 'Puesto guardado.', 'danger' if not ok else 'success')
+    return redirect(url_for('shifts.manage_shift_positions'))
+
+
+@bp.route('/cuadrantes/puestos/delete/<int:position_id>', methods=['POST'])
+@admin_required
+def delete_shift_position(position_id: int):
+    puesto = db.session.get(ShiftPosition, position_id)
+    if not puesto:
+        flash('Ese puesto ya no existe.', 'warning')
+        return redirect(url_for('shifts.manage_shift_positions'))
+
+    # Misma guarda que los tipos de turno: borrar algo que ya se ha usado deja
+    # cuadrantes antiguos sin sentido. Para dejar de usarlo esta el desactivar.
+    usos = ShiftAssignment.query.filter_by(position_id=puesto.id).count()
+    if usos:
+        flash(f'No se puede borrar: hay {usos} asignaciones en ese puesto. '
+              'Desactivalo si ya no se usa.', 'danger')
+        return redirect(url_for('shifts.manage_shift_positions'))
+
+    log_audit('delete', 'shift_position', puesto.id, {'code': puesto.code})
+    db.session.delete(puesto)
+    ok, error = _safe_commit('No se pudo borrar el puesto')
+    flash(error if not ok else 'Puesto eliminado.', 'danger' if not ok else 'success')
+    return redirect(url_for('shifts.manage_shift_positions'))

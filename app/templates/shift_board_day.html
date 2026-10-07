@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+
+{% block title %}Tablero del {{ dia.strftime('%d/%m/%Y') }}{% endblock %}
+
+{# Una caja del recuadro. `top` y `alto` salen del horario, asi que quien entra
+   antes empieza mas arriba y quien hace menos horas ocupa menos. #}
+{% macro caja(c, con_horario=false) %}
+<div class="tb-caja{% if c.reflejo %} tb-reflejo{% endif %}{% if c.recortado %} tb-recortada{% endif %}"
+     {% if c.top is defined %}style="top:{{ c.top }}%;height:{{ c.alto }}%"{% endif %}
+     title="{{ c.name or c.shift_name }} · {{ c.horario }}{% if c.reflejo %} · tambien esta en esta franja; se cambia en su casilla de noche{% endif %}{% if c.recortado %} · entro el dia anterior{% endif %}">
+    <div class="tb-code">{{ c.code }}</div>
+    <div class="tb-slot" data-position-id="{{ c.position_id }}"
+         {% if c.solo_lectura %}data-solo-lectura="1"{% endif %}
+         style="{% if c.reflejo %}background:{{ c.shift_color }}2e{% endif %}">
+        {% if c.ocupa %}
+        <div class="tb-ficha" data-cleaner-id="{{ c.ocupa.cleaner_id }}"
+             data-color="{{ c.ocupa.color }}" style="background:{{ c.ocupa.color }}"
+             aria-label="{{ c.ocupa.name }} en {{ c.code }}">{{ c.ocupa.name }}</div>
+        {% endif %}
+    </div>
+    {% if con_horario %}<div class="tb-horario">{{ c.horario }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+{% block content %}
+<style>
+    /* Tokens locales con su pareja en oscuro, como hace cuadrantes.html: el
+       recuadro necesita un papel propio que no se confunda con el fondo. */
+    :root { --tb-papel: #ffffff; --tb-linea: #9aa4ae; --tb-hueco: #f0f3f7; --tb-raya: #e4e8ee; }
+    [data-theme="dark"] { --tb-papel: #161b22; --tb-linea: #46525e; --tb-hueco: #0d1117; --tb-raya: #222a33; }
+
+    .tb-recuadro {
+        display: flex; gap: 8px;
+        background: var(--tb-papel);
+        border: 2px solid var(--tb-linea);
+        border-radius: var(--radius-md);
+        padding: 10px;
+        overflow-x: auto;
+    }
+    /* La altura es la de la jornada; dentro, cada caja se coloca por su hora. */
+    .tb-lienzo { position: relative; height: 560px; display: flex; gap: 6px; flex: 1; min-width: 0; }
+
+    /* Regla de horas: las rayas cruzan el recuadro para poder seguir a que hora
+       entra cada una sin tener que contar cajas. */
+    .tb-horas { position: relative; width: 46px; flex-shrink: 0; }
+    .tb-hora {
+        position: absolute; left: 0; right: 0; transform: translateY(-50%);
+        font-size: .68rem; color: var(--color-text-secondary); text-align: right;
+        padding-right: 5px;
+    }
+    .tb-rayas { position: absolute; inset: 0; pointer-events: none; }
+    .tb-raya { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--tb-raya); }
+
+    .tb-col { position: relative; flex: 1 0 104px; min-width: 104px; }
+
+    .tb-caja {
+        position: absolute; left: 0; right: 0;
+        /* Un turno de dos horas en una jornada de diecisiete es una caja de
+           sesenta pixeles: lo justo para el codigo y el nombre. Por debajo de
+           esto no se lee, asi que se deja de respetar la escala. */
+        min-height: 52px;
+        display: flex; flex-direction: column;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        background: var(--tb-papel);
+        overflow: hidden;
+    }
+    .tb-code {
+        font-size: .76rem; font-weight: 700; text-align: center;
+        padding: 2px 4px; background: var(--color-bg); color: var(--color-text);
+        flex-shrink: 0;
+    }
+    .tb-horario {
+        font-size: .66rem; text-align: center; padding: 1px;
+        color: var(--color-text-secondary); background: var(--color-bg); flex-shrink: 0;
+    }
+    .tb-slot { flex: 1; min-height: 26px; background: var(--tb-hueco); padding: 3px; }
+    .tb-slot.tb-sobre { outline: 2px dashed var(--color-primary); outline-offset: -2px; }
+    .tb-slot[data-solo-lectura] { cursor: default; }
+
+    /* El reflejo es la misma persona ensenada donde tambien esta, no un puesto
+       mas: borde discontinuo para que no se confunda con una plaza libre. */
+    .tb-reflejo { border: 2px dashed var(--tb-linea); }
+    .tb-reflejo .tb-code { background: var(--tb-hueco); }
+    /* Viene de la noche anterior: la caja se corta por arriba y se dice. */
+    .tb-recortada {
+        border-top: 3px solid var(--color-warning);
+        border-top-left-radius: 0; border-top-right-radius: 0;
+    }
+
+    .tb-ficha {
+        height: 100%; min-height: 28px;
+        display: flex; align-items: center; justify-content: center;
+        text-align: center; padding: 2px 4px; border-radius: var(--radius-sm);
+        font-size: .8rem; font-weight: 600; line-height: 1.12;
+        cursor: grab; user-select: none; overflow-wrap: anywhere; overflow: hidden;
+    }
+    .tb-ficha:active { cursor: grabbing; }
+    .tb-ficha.tb-arrastrando { opacity: .45; }
+    .tb-ausente { cursor: not-allowed; filter: grayscale(.85); opacity: .6; }
+
+    .tb-noche {
+        margin-top: 10px; background: var(--tb-papel);
+        border: 2px solid var(--tb-linea); border-radius: var(--radius-md); padding: 10px;
+    }
+    .tb-fila-etiqueta {
+        font-size: .7rem; text-transform: uppercase; letter-spacing: .06em;
+        font-weight: 600; color: var(--color-text-secondary); margin-bottom: 4px;
+    }
+    .tb-noche-cajas { display: flex; gap: 6px; }
+    /* Abajo no hay eje: son las entradas de esta noche, una al lado de otra. */
+    .tb-noche .tb-caja { position: static; flex: 1; min-height: 76px; }
+
+    .tb-banquillo {
+        display: flex; flex-direction: column; gap: 6px;
+        min-height: 120px; max-height: 70vh; overflow-y: auto;
+    }
+    .tb-banquillo .tb-ficha { min-height: 46px; height: auto; }
+
+    @media (max-width: 768px) {
+        .tb-lienzo { height: 460px; }
+        .tb-col { flex: 1 0 94px; min-width: 94px; }
+    }
+</style>
+<div class="py-4">
+
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <div>
+            <h1 class="h3 mb-0">{{ tablero.dow }} {{ dia.strftime('%d/%m/%Y') }}</h1>
+            <a href="{{ url_for('shifts.shift_board_week', semana=semana) }}"
+               class="small text-decoration-none">
+                <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Ver la semana
+            </a>
+        </div>
+        <div class="d-flex gap-2">
+            <a class="btn btn-sm btn-outline-secondary"
+               href="{{ url_for('shifts.shift_board_day', iso=dia_anterior) }}">&laquo; Dia anterior</a>
+            <a class="btn btn-sm btn-outline-secondary"
+               href="{{ url_for('shifts.shift_board_day', iso=dia_siguiente) }}">Dia siguiente &raquo;</a>
+        </div>
+    </div>
+
+    {% if not hay_puestos %}
+    <div class="card">
+        <div class="card-body text-center py-5" style="color:var(--color-text-secondary)">
+            <div style="font-size:2.5rem">&#128197;</div>
+            <p class="mt-2 mb-1">Todavia no hay puestos definidos.</p>
+            <p class="mb-3" style="font-size:.9rem">
+                Un puesto es cada casilla del recuadro: M1, M2, la coordinadora, el refuerzo,
+                las noches. Hasta que no haya ninguno, no hay nada que dibujar.
+            </p>
+            <a class="btn btn-primary" href="{{ url_for('shifts.manage_shift_positions') }}">
+                Crear los puestos
+            </a>
+        </div>
+    </div>
+    {% else %}
+
+    <div class="row g-3">
+        <div class="col-lg-9">
+            <div class="tb-recuadro">
+                <div class="tb-horas">
+                    {% for h in tablero.eje.horas %}
+                    <div class="tb-hora" style="top:{{ h.pct }}%">{{ h.etiqueta }}</div>
+                    {% endfor %}
+                </div>
+                <div class="tb-lienzo">
+                    <div class="tb-rayas" aria-hidden="true">
+                        {% for h in tablero.eje.horas %}
+                        <div class="tb-raya" style="top:{{ h.pct }}%"></div>
+                        {% endfor %}
+                    </div>
+                    {% for col in tablero.columnas %}
+                    <div class="tb-col">
+                        {% for c in col %}{{ caja(c) }}{% endfor %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            {% if tablero.noche %}
+            <div class="tb-noche">
+                <div class="tb-fila-etiqueta">{{ etiquetas_fila.noche }} — entran esta noche</div>
+                <div class="tb-noche-cajas">
+                    {% for c in tablero.noche %}{{ caja(c, con_horario=true) }}{% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="col-lg-3">
+            <div class="card h-100">
+                <div class="card-header py-2">
+                    Sin puesto hoy
+                    <span class="badge bg-secondary ms-1" id="tb-banquillo-n">{{ banquillo|length }}</span>
+                </div>
+                <div class="card-body p-2">
+                    <p class="small mb-2" style="color:var(--color-text-secondary)">
+                        Arrastra a una casilla. Si ya esta ocupada, quien estuviera vuelve aqui.
+                    </p>
+                    <div id="tb-banquillo" class="tb-banquillo">
+                        {% for b in banquillo %}
+                        <div class="tb-ficha{% if b.ausente %} tb-ausente{% endif %}"
+                             data-cleaner-id="{{ b.cleaner_id }}"
+                             data-color="{{ b.color }}"
+                             style="background:{{ b.color }}"
+                             {% if b.ausente %}title="{{ b.ausente }}"{% endif %}
+                             aria-label="{{ b.name }}{% if b.ausente %}, {{ b.ausente }}{% endif %}">
+                            {{ b.name }}{% if b.ausente %} <small>({{ b.ausente }})</small>{% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"
+        integrity="sha384-HZZ/fukV+9G8gwTNjN7zQDG0Sp7MsZy5DDN6VfY3Be7V9dvQpEpR2jF2HlyFUUjU"
+        crossorigin="anonymous"></script>
+<script>
+(function () {
+    'use strict';
+    var banquillo = document.getElementById('tb-banquillo');
+    if (!banquillo) return;
+
+    var DIA = {{ dia.isoformat()|tojson }};
+    var URL_ASIGNAR = {{ url_for('shifts.shift_board_assign')|tojson }};
+    var URL_QUITAR = {{ url_for('shifts.shift_board_remove')|tojson }};
+
+    function aviso(mensaje, tipo) {
+        if (window.showToast) window.showToast(mensaje, tipo || 'info');
+    }
+
+    // Mismo calculo de contraste que la rejilla mensual: sobre una ficha clara
+    // el texto blanco del tema oscuro no se lee, y el color de la ficha lo
+    // elige una persona, no el tema.
+    function textoLegibleSobre(hex) {
+        var h = String(hex || '').replace('#', '');
+        if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+        if (h.length !== 6) return '#fff';
+        var canal = function (i) {
+            var v = parseInt(h.substr(i, 2), 16) / 255;
+            return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+        };
+        var L = 0.2126 * canal(0) + 0.7152 * canal(2) + 0.0722 * canal(4);
+        var conBlanco = 1.05 / (L + 0.05);
+        var conOscuro = (L + 0.05) / (0.0065 + 0.05);
+        return conBlanco >= conOscuro ? '#fff' : '#10131a';
+    }
+
+    function pintarTextoFichas() {
+        document.querySelectorAll('.tb-ficha[data-color]').forEach(function (f) {
+            f.style.color = textoLegibleSobre(f.dataset.color);
+        });
+    }
+
+    function contarBanquillo() {
+        document.getElementById('tb-banquillo-n').textContent =
+            banquillo.querySelectorAll('.tb-ficha').length;
+    }
+
+    pintarTextoFichas();
+
+    async function pedir(url, cuerpo) {
+        var res = await fetch(url, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(cuerpo)
+        });
+        var datos = {};
+        try { datos = await res.json(); } catch (e) { datos = {}; }
+        if (!res.ok) throw new Error(datos.error || 'No se ha podido guardar.');
+        return datos;
+    }
+
+    // Deshacer el movimiento tal cual estaba: la ficha vuelve a su sitio y, si
+    // habia desplazado a alguien, esa persona vuelve a su casilla. Sin esto la
+    // pantalla diria una cosa y la base de datos otra.
+    function deshacer(evt, desplazada, destino) {
+        var ref = evt.from.children[evt.oldIndex] || null;
+        evt.from.insertBefore(evt.item, ref);
+        if (desplazada) destino.appendChild(desplazada);
+        contarBanquillo();
+    }
+
+    async function alSoltarEnCasilla(evt) {
+        var destino = evt.to;
+        var ficha = evt.item;
+        // Una casilla es para una persona: la que estuviera sale al banquillo.
+        var desplazada = null;
+        Array.prototype.forEach.call(destino.querySelectorAll('.tb-ficha'), function (f) {
+            if (f !== ficha) desplazada = f;
+        });
+        if (desplazada) banquillo.appendChild(desplazada);
+        contarBanquillo();
+
+        try {
+            await pedir(URL_ASIGNAR, {
+                date: DIA,
+                position_id: parseInt(destino.dataset.positionId, 10),
+                cleaner_id: parseInt(ficha.dataset.cleanerId, 10)
+            });
+        } catch (e) {
+            deshacer(evt, desplazada, destino);
+            aviso(e.message, 'error');
+        }
+    }
+
+    async function alSoltarEnBanquillo(evt) {
+        contarBanquillo();
+        try {
+            await pedir(URL_QUITAR, {
+                date: DIA, cleaner_id: parseInt(evt.item.dataset.cleanerId, 10)
+            });
+        } catch (e) {
+            deshacer(evt, null, null);
+            aviso(e.message, 'error');
+        }
+    }
+
+    // forceFallback por lo mismo que en el inventario: el arrastre nativo de
+    // HTML5 no funciona con el dedo, y esto se usa en tablet.
+    var comun = {
+        group: 'personal',
+        animation: 150,
+        draggable: '.tb-ficha',
+        filter: '.tb-ausente',
+        forceFallback: true,
+        scroll: true,
+        chosenClass: 'tb-arrastrando',
+        onStart: function () {
+            document.querySelectorAll('.tb-slot:not([data-solo-lectura])').forEach(function (s) {
+                s.classList.add('tb-sobre');
+            });
+        },
+        onEnd: function () {
+            document.querySelectorAll('.tb-slot').forEach(function (s) {
+                s.classList.remove('tb-sobre');
+            });
+        }
+    };
+
+    document.querySelectorAll('.tb-slot').forEach(function (slot) {
+        if (slot.dataset.soloLectura) return;   // el reflejo no es un puesto aparte
+        new Sortable(slot, Object.assign({}, comun, {onAdd: alSoltarEnCasilla}));
+    });
+    new Sortable(banquillo, Object.assign({}, comun, {
+        sort: false,
+        onAdd: alSoltarEnBanquillo
+    }));
+})();
+</script>
+{% endblock %}
