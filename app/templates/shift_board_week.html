@@ -1,8 +1,10 @@
 {% extends "base.html" %}
+{% from "_tablero_mini.html" import mini, estilos_mini %}
 
 {% block title %}Tablero de turnos{% endblock %}
 
 {% block content %}
+{{ estilos_mini() }}
 <style>
     :root { --sb-papel: #ffffff; --sb-linea: #9aa4ae; --sb-hueco: #f0f3f7; }
     [data-theme="dark"] { --sb-papel: #161b22; --sb-linea: #46525e; --sb-hueco: #0d1117; }
@@ -24,19 +26,6 @@
     }
     .sb-dow { font-weight: 700; text-transform: uppercase; }
     .sb-fecha { color: var(--color-text-secondary); }
-    .sb-fila { display: flex; gap: 2px; }
-    .sb-celda {
-        flex: 1; height: 18px; border-radius: 2px;
-        background: var(--color-border); border: 1px solid var(--sb-linea);
-    }
-    /* Sin cubrir se ve como un hueco rayado, no como un color mas: un turno
-       vacio tiene que cantar. */
-    .sb-vacia {
-        background: repeating-linear-gradient(45deg,
-            var(--sb-hueco), var(--sb-hueco) 3px,
-            var(--color-border) 3px, var(--color-border) 6px);
-    }
-
     .sb-leyenda { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .85rem; }
     .sb-leyenda-item { display: inline-flex; align-items: center; gap: 6px; }
     .sb-punto {
@@ -51,10 +40,10 @@
     }
     .wa-nombre { font-weight: 600; flex: 1; }
 
-    @media (max-width: 900px) {
+    @media (max-width: 1200px) {
         .sb-semana { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     }
-    @media (max-width: 520px) {
+    @media (max-width: 640px) {
         .sb-semana { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
 </style>
@@ -131,19 +120,7 @@
                 <span class="sb-dow">{{ d.dow[:3] }}</span>
                 <span class="sb-fecha">{{ d.fecha.strftime('%d/%m') }}</span>
             </div>
-            {% for fila in filas %}
-            {% if d.filas[fila] %}
-            <div class="sb-fila" title="{{ etiquetas_fila[fila] }}">
-                {% for c in d.filas[fila] %}
-                <span class="sb-celda{% if not c.ocupa %} sb-vacia{% endif %}"
-                      title="{{ c.code }}{% if c.ocupa %} · {{ c.ocupa.name }}{% else %} · sin cubrir{% endif %}"
-                      {% if c.ocupa %}style="background:{{ c.ocupa.color }}"{% endif %}>
-                    <span class="visually-hidden">{{ c.code }}: {{ c.ocupa.name if c.ocupa else 'sin cubrir' }}</span>
-                </span>
-                {% endfor %}
-            </div>
-            {% endif %}
-            {% endfor %}
+            {{ mini(d) }}
         </a>
         {% endfor %}
     </div>

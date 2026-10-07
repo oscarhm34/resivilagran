@@ -1,0 +1,67 @@
+{# El recuadro de un dia en pequeno.
+
+   Es el mismo dibujo que la pantalla del dia —las mismas columnas, cada caja a
+   su hora— reducido. Que la miniatura se parezca al dia no es un capricho: es
+   lo que permite reconocer de un vistazo que el lunes falta un T3 sin tener que
+   abrirlo. A este tamano no caben los codigos, asi que el color es toda la
+   informacion y el detalle va en el titulo, igual que en el cuadrante de papel.
+
+   Se alimenta de lo que devuelve `_tablero_de_dia`. El eje sale de los horarios
+   de los puestos, que son los mismos todos los dias, asi que los siete dias de
+   una semana salen a la misma escala y se pueden comparar. #}
+
+{% macro mini(d, alto=150) %}
+<div class="tbm" style="height:{{ alto }}px">
+    {% for col in d.columnas %}
+    <div class="tbm-col">
+        {% for c in col %}
+        <div class="tbm-caja{% if c.reflejo %} tbm-reflejo{% endif %}{% if not c.ocupa %} tbm-vacia{% endif %}"
+             style="top:{{ c.top }}%;height:{{ c.alto }}%{% if c.ocupa %};background:{{ c.ocupa.color }}{% endif %}"
+             title="{{ c.code }} · {{ c.ocupa.name if c.ocupa else 'sin cubrir' }}">
+            <span class="visually-hidden">{{ c.code }}: {{ c.ocupa.name if c.ocupa else 'sin cubrir' }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</div>
+{% if d.noche %}
+<div class="tbm-noche">
+    {% for c in d.noche %}
+    <div class="tbm-caja{% if not c.ocupa %} tbm-vacia{% endif %}"
+         style="{% if c.ocupa %}background:{{ c.ocupa.color }}{% endif %}"
+         title="{{ c.code }} · {{ c.ocupa.name if c.ocupa else 'sin cubrir' }}">
+        <span class="visually-hidden">{{ c.code }}: {{ c.ocupa.name if c.ocupa else 'sin cubrir' }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endmacro %}
+
+{% macro estilos_mini() %}
+<style>
+    /* Los tokens van aqui y no solo en la pagina que la usa: la miniatura
+       tiene que poder ponerse en cualquier sitio y seguir viendose igual. */
+    :root { --sb-papel: #ffffff; --sb-linea: #9aa4ae; --sb-hueco: #f0f3f7; }
+    [data-theme="dark"] { --sb-papel: #161b22; --sb-linea: #46525e; --sb-hueco: #0d1117; }
+
+    .tbm { position: relative; display: flex; gap: 1px; }
+    .tbm-col { position: relative; flex: 1; min-width: 0; }
+    .tbm-caja {
+        position: absolute; left: 0; right: 0;
+        border: 1px solid var(--sb-linea); border-radius: 2px;
+        background: var(--sb-hueco);
+    }
+    /* El reflejo es la misma persona ensenada donde tambien esta: se marca
+       igual que en grande para no contarla dos veces de un vistazo. */
+    .tbm-reflejo { border-style: dashed; opacity: .78; }
+    /* Sin cubrir se raya, no se deja en blanco: un turno vacio tiene que
+       cantar aunque la miniatura sea de dos centimetros. */
+    .tbm-vacia {
+        background: repeating-linear-gradient(45deg,
+            var(--sb-hueco), var(--sb-hueco) 3px,
+            var(--color-border) 3px, var(--color-border) 6px);
+    }
+    .tbm-noche { display: flex; gap: 1px; margin-top: 3px; height: 12px; }
+    .tbm-noche .tbm-caja { position: static; flex: 1; }
+</style>
+{% endmacro %}
