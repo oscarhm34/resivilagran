@@ -33,12 +33,6 @@
         border: 1px solid var(--sb-linea); flex-shrink: 0;
     }
 
-    .wa-fila {
-        display: flex; align-items: center; gap: 10px;
-        border: 1px solid var(--color-border); border-radius: var(--radius-md);
-        padding: 8px 10px; margin-bottom: 6px;
-    }
-    .wa-nombre { font-weight: 600; flex: 1; }
 
     @media (max-width: 1200px) {
         .sb-semana { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -92,11 +86,21 @@
                 El {{ publicacion.published_at.strftime('%d/%m/%Y a las %H:%M') }}.
             </span>
             {% endif %}
+            {% if acuses.total %}
+            <div class="small mt-1" style="color:var(--color-text-secondary)">
+                <i class="bi bi-whatsapp me-1" aria-hidden="true"></i>
+                {{ acuses.aceptadas }} de {{ acuses.total }} han confirmado su horario
+                {% if acuses.enviadas < acuses.total %}
+                &middot; faltan {{ acuses.total - acuses.enviadas }} por enviar
+                {% endif %}
+            </div>
+            {% endif %}
         </div>
         <div class="d-flex gap-2">
-            <button type="button" class="btn btn-sm btn-outline-primary" id="btn-whatsapp">
+            <a class="btn btn-sm btn-outline-primary"
+               href="{{ url_for('shifts.shift_board_envios', semana=lunes.isoformat()) }}">
                 <i class="bi bi-whatsapp me-1" aria-hidden="true"></i>Enviar por WhatsApp
-            </button>
+            </a>
             <button type="button" class="btn btn-sm btn-primary" id="btn-publicar">
                 <i class="bi bi-send me-1" aria-hidden="true"></i>Publicar y avisar
             </button>
@@ -146,24 +150,6 @@
     {% endif %}
 </div>
 
-<div class="modal fade" id="waModal" tabindex="-1" aria-labelledby="waModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="waModalLabel">Enviar el horario por WhatsApp</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-            </div>
-            <div class="modal-body">
-                <p class="small" style="color:var(--color-text-secondary)">
-                    Cada boton abre WhatsApp con el mensaje ya escrito. Enviarlo lo haces tu:
-                    la aplicacion no manda nada sola. Quien no tenga telefono en su ficha sale
-                    sin boton.
-                </p>
-                <div id="wa-lista"></div>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 
@@ -173,7 +159,6 @@
     'use strict';
     var SEMANA = {{ lunes.isoformat()|tojson }};
     var URL_PUBLICAR = {{ url_for('shifts.shift_board_publish')|tojson }};
-    var URL_ENVIOS = {{ url_for('shifts.shift_board_envios')|tojson }};
 
     var btnPub = document.getElementById('btn-publicar');
     if (!btnPub) return;
@@ -201,59 +186,6 @@
             });
     });
 
-    document.getElementById('btn-whatsapp').addEventListener('click', async function () {
-        var lista = document.getElementById('wa-lista');
-        lista.textContent = 'Cargando...';
-        new bootstrap.Modal(document.getElementById('waModal')).show();
-        try {
-            var res = await fetch(URL_ENVIOS + '?semana=' + encodeURIComponent(SEMANA));
-            var datos = await res.json();
-            lista.innerHTML = '';
-            if (!datos.trabajadoras.length) {
-                lista.textContent = 'Esta semana no tiene a nadie asignado.';
-                return;
-            }
-            datos.trabajadoras.forEach(function (t) {
-                var fila = document.createElement('div');
-                fila.className = 'wa-fila';
-                var nombre = document.createElement('span');
-                nombre.className = 'wa-nombre';
-                nombre.textContent = t.name;
-                fila.appendChild(nombre);
-
-                if (t.wa_url) {
-                    var a = document.createElement('a');
-                    a.className = 'btn btn-sm btn-success';
-                    a.href = t.wa_url;
-                    a.target = '_blank';
-                    a.rel = 'noopener';
-                    a.textContent = 'Abrir WhatsApp';
-                    fila.appendChild(a);
-                } else {
-                    var falta = document.createElement('span');
-                    falta.className = 'small';
-                    falta.style.color = 'var(--color-text-secondary)';
-                    falta.textContent = 'Sin telefono en su ficha';
-                    fila.appendChild(falta);
-                }
-
-                var copiar = document.createElement('button');
-                copiar.type = 'button';
-                copiar.className = 'btn btn-sm btn-outline-secondary';
-                copiar.textContent = 'Copiar';
-                copiar.addEventListener('click', function () {
-                    navigator.clipboard.writeText(t.texto).then(function () {
-                        window.showToast('Horario copiado.', 'success');
-                    });
-                });
-                fila.appendChild(copiar);
-
-                lista.appendChild(fila);
-            });
-        } catch (e) {
-            lista.textContent = 'No se ha podido cargar la lista.';
-        }
-    });
 })();
 </script>
 {% endblock %}

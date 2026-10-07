@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}Enviar los horarios{% endblock %}
+
+{% block content %}
+<style>
+    /* Una fila por persona. El telefono se ensena tal y como se va a mandar:
+       un numero mal escrito tiene que verse antes de gastar un mensaje. */
+    .en-fila {
+        display: grid;
+        grid-template-columns: 1.6fr 1.1fr 1.2fr auto;
+        gap: 10px; align-items: center;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--color-border);
+    }
+    .en-fila:last-child { border-bottom: 0; }
+    .en-nombre { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+    .en-punto {
+        width: 14px; height: 14px; border-radius: 3px;
+        border: 1px solid var(--color-border); flex-shrink: 0;
+    }
+    .en-tel { font-variant-numeric: tabular-nums; font-size: .9rem; }
+    .en-sin-tel { color: var(--color-danger); font-size: .85rem; }
+    .en-cuando { display: block; font-size: .74rem; color: var(--color-text-secondary); }
+    .en-acciones { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+    @media (max-width: 820px) {
+        .en-fila { grid-template-columns: 1fr; }
+        .en-acciones { justify-content: flex-start; }
+    }
+</style>
+<div class="py-4">
+
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <div>
+            <h1 class="h3 mb-0">Enviar los horarios</h1>
+            <div class="small" style="color:var(--color-text-secondary)">
+                Semana del {{ rotulo }}
+            </div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a class="btn btn-sm btn-outline-secondary"
+               href="{{ url_for('shifts.shift_board_envios', semana=semana_anterior) }}">&laquo; Anterior</a>
+            <a class="btn btn-sm btn-outline-secondary"
+               href="{{ url_for('shifts.shift_board_envios', semana=semana_siguiente) }}">Siguiente &raquo;</a>
+            <a class="btn btn-sm btn-primary"
+               href="{{ url_for('shifts.shift_board_week', semana=lunes.isoformat()) }}">
+                <i class="bi bi-calendar-week me-1" aria-hidden="true"></i>Volver al tablero
+            </a>
+        </div>
+    </div>
+
+    {% if not configurado %}
+    <div class="alert alert-warning">
+        <strong>El envio automatico todavia no esta en marcha.</strong>
+        Falta dar de alta el numero en Meta y poner <code>WHATSAPP_TOKEN</code> y
+        <code>WHATSAPP_PHONE_ID</code> en el servidor. Hasta entonces se manda a mano:
+        cada boton <em>Abrir WhatsApp</em> deja el mensaje escrito y solo hay que darle
+        a enviar.
+    </div>
+    {% elif not tiene_base %}
+    <div class="alert alert-danger">
+        <strong>Falta la direccion publica.</strong>
+        Sin <code>PUBLIC_BASE_URL</code> el enlace del horario no abriria desde un movil,
+        asi que no se manda nada.
+    </div>
+    {% endif %}
+
+    {% if filas %}
+    <div class="card mb-3">
+        <div class="card-body py-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div>
+                <span class="fw-semibold">{{ resumen.enviadas }} de {{ resumen.total }}</span>
+                <span style="color:var(--color-text-secondary)">enviadas</span>
+                <span class="mx-2" style="color:var(--color-border)">&middot;</span>
+                <span class="fw-semibold">{{ resumen.aceptadas }}</span>
+                <span style="color:var(--color-text-secondary)">
+                    {{ 'aceptada' if resumen.aceptadas == 1 else 'aceptadas' }}
+                </span>
+                {% if resumen.sin_telefono %}
+                <span class="mx-2" style="color:var(--color-border)">&middot;</span>
+                <span style="color:var(--color-danger)">
+                    {{ resumen.sin_telefono }} sin telefono en su ficha
+                </span>
+                {% endif %}
+            </div>
+            {% if configurado and tiene_base %}
+            <button type="button" class="btn btn-sm btn-success" id="btn-faltan">
+                <i class="bi bi-whatsapp me-1" aria-hidden="true"></i>Enviar a las que faltan
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body p-0">
+            {% for f in filas %}
+            <div class="en-fila" data-cleaner="{{ f.cleaner_id }}">
+                <div>
+                    <span class="en-nombre">
+                        <span class="en-punto" style="background:{{ f.color }}" aria-hidden="true"></span>{{ f.name }}
+                    </span>
+                </div>
+
+                <div>
+                    {% if f.telefono %}
+                    <span class="en-tel">+{{ f.telefono }}</span>
+                    {% if f.phone|replace(' ', '') != '+' ~ f.telefono %}
+                    <span class="en-cuando">en su ficha: {{ f.phone }}</span>
+                    {% endif %}
+                    {% else %}
+                    <span class="en-sin-tel">
+                        <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
+                        {% if f.phone %}No se entiende el numero{% else %}Sin telefono{% endif %}
+                    </span>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <span class="status-badge status-{{ f.tono }}">{{ f.etiqueta }}</span>
+                    {% if f.estado == 'aceptado' %}
+                    <span class="en-cuando">el {{ f.recibo.accepted_at.strftime('%d/%m a las %H:%M') }}</span>
+                    {% elif f.estado == 'visto' %}
+                    <span class="en-cuando">abierto el {{ f.recibo.opened_at.strftime('%d/%m a las %H:%M') }}</span>
+                    {% elif f.estado == 'enviado' %}
+                    <span class="en-cuando">el {{ f.recibo.sent_at.strftime('%d/%m a las %H:%M') }}</span>
+                    {% elif f.estado == 'error' %}
+                    <span class="en-cuando">{{ f.recibo.error }}</span>
+                    {% endif %}
+                </div>
+
+                <div class="en-acciones">
+                    {% if configurado and tiene_base and f.telefono %}
+                    <button type="button" class="btn btn-sm btn-success btn-enviar"
+                            data-cleaner="{{ f.cleaner_id }}" data-nombre="{{ f.name }}">
+                        {{ 'Volver a enviar' if f.recibo and f.recibo.sent_at else 'Enviar' }}
+                    </button>
+                    {% endif %}
+                    {% if f.wa_url %}
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ f.wa_url }}"
+                       target="_blank" rel="noopener"
+                       title="Abre WhatsApp con el horario escrito, para mandarlo tu">
+                        <i class="bi bi-whatsapp" aria-hidden="true"></i>
+                        <span class="visually-hidden">Abrir WhatsApp con {{ f.name }}</span>
+                    </a>
+                    {% endif %}
+                    {% if f.enlace %}
+                    <button type="button" class="btn btn-sm btn-outline-secondary btn-copiar"
+                            data-enlace="{{ f.enlace }}" title="Copiar su enlace">
+                        <i class="bi bi-link-45deg" aria-hidden="true"></i>
+                        <span class="visually-hidden">Copiar el enlace de {{ f.name }}</span>
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <p class="small mt-3" style="color:var(--color-text-secondary)">
+        El mensaje lleva un enlace, no el horario: lo que sale por WhatsApp pasa por un
+        servicio de fuera. Al abrirlo cada persona ve sus dias y tiene un boton para
+        confirmar que lo acepta, y eso es lo que aparece aqui como <em>Aceptado</em>.
+    </p>
+
+    {% else %}
+    <div class="card">
+        <div class="card-body text-center py-5" style="color:var(--color-text-secondary)">
+            <div style="font-size:2.5rem">&#128237;</div>
+            <p class="mt-2 mb-3">Esta semana no tiene a nadie asignado, asi que no hay
+                nada que mandar.</p>
+            <a class="btn btn-primary"
+               href="{{ url_for('shifts.shift_board_week', semana=lunes.isoformat()) }}">
+                Ir al tablero
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+(function () {
+    'use strict';
+    var SEMANA = {{ lunes.isoformat()|tojson }};
+    var URL_ENVIAR = {{ url_for('shifts.shift_board_enviar')|tojson }};
+
+    async function enviar(ids, boton, etiqueta) {
+        var textoOriginal = boton.textContent;
+        boton.disabled = true;
+        boton.textContent = 'Enviando...';
+        try {
+            var res = await fetch(URL_ENVIAR, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({week_start: SEMANA, cleaner_ids: ids})
+            });
+            var datos = await res.json();
+            if (!res.ok) throw new Error(datos.error || 'No se ha podido enviar.');
+
+            // Se dice cual ha fallado, no solo cuantas: es lo que hace falta
+            // para poder repetir solo esa.
+            var fallos = (datos.detalle || []).filter(function (d) { return !d.ok; });
+            if (fallos.length) {
+                window.showToast(
+                    'Enviados: ' + datos.enviados + '. Sin enviar: ' +
+                    fallos.map(function (f) { return f.name; }).join(', ') + '.',
+                    'warning');
+            } else {
+                window.showToast('Enviados: ' + datos.enviados + '.', 'success');
+            }
+            setTimeout(function () { window.location.reload(); }, 1400);
+        } catch (e) {
+            boton.disabled = false;
+            boton.textContent = textoOriginal;
+            window.showToast(e.message, 'error');
+        }
+    }
+
+    document.querySelectorAll('.btn-enviar').forEach(function (b) {
+        b.addEventListener('click', function () {
+            var id = parseInt(b.dataset.cleaner, 10);
+            window.showConfirm(
+                'Se le mandara el horario por WhatsApp a ' + b.dataset.nombre + '. ¿Lo enviamos?',
+                function () { enviar([id], b); });
+        });
+    });
+
+    var btnFaltan = document.getElementById('btn-faltan');
+    if (btnFaltan) {
+        btnFaltan.addEventListener('click', function () {
+            window.showConfirm(
+                'Se mandara el horario a todas las que todavia no lo hayan recibido. ' +
+                'A quien ya se le envio no se le repite. ¿Seguimos?',
+                function () { enviar([], btnFaltan); });
+        });
+    }
+
+    document.querySelectorAll('.btn-copiar').forEach(function (b) {
+        b.addEventListener('click', function () {
+            navigator.clipboard.writeText(b.dataset.enlace).then(function () {
+                window.showToast('Enlace copiado.', 'success');
+            });
+        });
+    });
+})();
+</script>
+{% endblock %}

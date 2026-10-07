@@ -29,7 +29,8 @@ python run.py          # dev en :5001
 ## Recordatorios de alto nivel
 
 - Todo el texto visible de la app va **en castellano**.
-- Ninguna ruta sin `@admin_required` o `@jwt_required()`.
+- Ninguna ruta sin `@admin_required`, `@jwt_required()` o un **enlace firmado**
+  (hoy solo `/horario/<token>`; condiciones en `.claude/rules/04-seguridad.md`).
 - Commits a BD con `_safe_commit()`, no `db.session.commit()` directo.
 - Funcionalidad nueva ⇒ actualizar `app/templates/admin_help.html` (doc + changelog).
 - En el NAS: `flask db stamp`, **nunca** `flask db upgrade`.

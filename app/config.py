@@ -119,3 +119,15 @@ class Config:
     VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY') or _VAPID_PRIVATE
     VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY') or _VAPID_PUBLIC
     VAPID_CLAIMS_EMAIL = os.environ.get('VAPID_CLAIMS_EMAIL', 'mailto:admin@lavilagran.com')
+    # WhatsApp (Cloud API de Meta): para mandarle a cada trabajadora el enlace a
+    # su horario. Sin token, el panel sigue funcionando y deja abrir WhatsApp a
+    # mano, que es lo que se hacia antes.
+    WHATSAPP_TOKEN = os.environ.get('WHATSAPP_TOKEN')
+    WHATSAPP_PHONE_ID = os.environ.get('WHATSAPP_PHONE_ID')
+    WHATSAPP_TEMPLATE = os.environ.get('WHATSAPP_TEMPLATE', 'horario_semanal')
+    WHATSAPP_LANG = os.environ.get('WHATSAPP_LANG', 'es')
+    # La direccion por la que se entra desde fuera. Hace falta de verdad: la
+    # aplicacion corre detras del proxy inverso del NAS y sin ProxyFix un
+    # url_for(_external=True) saldria con http y el host del contenedor, asi que
+    # el enlace que reciba la trabajadora no abriria.
+    PUBLIC_BASE_URL = (os.environ.get('PUBLIC_BASE_URL') or '').rstrip('/')

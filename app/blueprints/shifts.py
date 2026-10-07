@@ -14,7 +14,7 @@ from ..models import (
     Cleaner, ResidentGroup, ShiftType, ShiftAssignment,
     RotationPattern, RotationPatternDay, WorkerShiftConfig,
     AbsenceType, Absence, ShiftCoverageRequirement,
-    ShiftPosition, ShiftWeekPublication, Notification,
+    ShiftPosition, ShiftWeekPublication, ShiftWeekReceipt, Notification,
 )
 from ..utils import (
     admin_required, _safe_commit, _safe_flush, _parse_hhmm, log_audit,
@@ -1449,6 +1449,9 @@ def shift_board_week():
         # ayuda a leer nada.
         leyenda=_leyenda_de(dias),
         publicacion=pub, modificada=modificada,
+        # Cuantas lo han confirmado: es la pregunta que se hace quien planifica
+        # en cuanto ha mandado los horarios.
+        acuses=_resumen_acuses(lunes),
         semana_anterior=(lunes - timedelta(days=7)).isoformat(),
         semana_siguiente=(lunes + timedelta(days=7)).isoformat(),
         hay_puestos=bool(_puestos_activos()),
@@ -1621,8 +1624,12 @@ def shift_board_remove():
     return jsonify({'ok': True, 'puestos': _puestos_del_dia(dia)})
 
 
-def _horario_de(cleaner_id: int, lunes: date) -> list:
-    """Los siete dias de una persona, en texto, para avisarla."""
+def _horario_detalle(cleaner_id: int, lunes: date) -> list:
+    """Los siete dias de una persona, listos para pintar o para escribir.
+
+    Devuelve la semana entera, dias libres incluidos: un hueco en la lista se
+    lee como un olvido, y un "Libre" escrito no.
+    """
     domingo = lunes + timedelta(days=6)
     filas = ShiftAssignment.query.options(
         joinedload(ShiftAssignment.shift_type), joinedload(ShiftAssignment.position)
@@ -1635,23 +1642,42 @@ def _horario_de(cleaner_id: int, lunes: date) -> list:
         por_dia.setdefault(a.date, []).append(a)
     ausencias = _ausencias_de(lunes, domingo).get(cleaner_id, {})
 
-    lineas = []
+    dias = []
     for i in range(7):
         dia = lunes + timedelta(days=i)
-        cabecera = f"{DIAS_SEMANA[dia.weekday()][:3]} {dia.strftime('%d/%m')}"
-        tipo = ausencias.get(dia)
         delDia = [a for a in por_dia.get(dia, []) if a.shift_type]
         delDia.sort(key=lambda a: a.shift_type.start_time)
-        if tipo:
-            lineas.append(f'{cabecera}: {tipo.name}')
-        elif delDia:
+        tipo = ausencias.get(dia)
+        dias.append({
+            'fecha': dia,
+            'dow': DIAS_SEMANA[dia.weekday()],
+            'ausencia': tipo.name if tipo else None,
+            # La ausencia manda: si esta de baja, lo que diga el cuadrante no
+            # es lo que va a hacer esa semana.
+            'turnos': [] if tipo else [{
+                'name': a.shift_type.name,
+                'desde': a.shift_type.start_time.strftime('%H:%M'),
+                'hasta': a.shift_type.end_time.strftime('%H:%M'),
+                'code': a.position.code if a.position else None,
+                'color': a.shift_type.color or DEFAULT_SHIFT_COLOR,
+            } for a in delDia],
+        })
+    return dias
+
+
+def _horario_de(cleaner_id: int, lunes: date) -> list:
+    """Los siete dias de una persona, en texto, para avisarla."""
+    lineas = []
+    for d in _horario_detalle(cleaner_id, lunes):
+        cabecera = f"{d['dow'][:3]} {d['fecha'].strftime('%d/%m')}"
+        if d['ausencia']:
+            lineas.append(f"{cabecera}: {d['ausencia']}")
+        elif d['turnos']:
             trozos = []
-            for a in delDia:
-                texto = (f"{a.shift_type.name} "
-                         f"({a.shift_type.start_time.strftime('%H:%M')}-"
-                         f"{a.shift_type.end_time.strftime('%H:%M')})")
-                if a.position:
-                    texto += f' · {a.position.code}'
+            for t in d['turnos']:
+                texto = f"{t['name']} ({t['desde']}-{t['hasta']})"
+                if t['code']:
+                    texto += f" · {t['code']}"
                 trozos.append(texto)
             # Quien dobla tiene que verlo escrito, no deducirlo.
             lineas.append(f'{cabecera}: ' + ' + '.join(trozos))
@@ -1723,13 +1749,190 @@ def shift_board_publish():
                     'published_at': pub.published_at.strftime('%d/%m/%Y %H:%M')})
 
 
+# ── EL HORARIO POR WHATSAPP ──
+
+WHATSAPP_API = 'https://graph.facebook.com/v21.0'
+WHATSAPP_TIMEOUT = 20      # Meta contesta en menos de un segundo; 20 ya es un fallo
+
+# El enlace que recibe cada trabajadora va firmado y lleva dentro de quien es y
+# de que semana, asi que no sirve para ver el horario de otra: cambiar un
+# caracter invalida la firma. Noventa dias es de sobra para una semana de
+# trabajo y evita que un enlace viejo siga abriendo para siempre.
+_FIRMA_HORARIO = 'horario-semanal'
+_VALIDEZ_ENLACE = 90 * 24 * 3600
+
+
+def _telefono_e164(texto: str | None, pais: str = '34') -> str | None:
+    """El numero como lo quiere WhatsApp: solo digitos y con prefijo de pais.
+
+    La ficha se rellena a mano y ahi aparece de todo: con espacios, con +34,
+    con 0034 o a secas. La API solo acepta E.164, y un numero sin prefijo
+    genera un wa.me que WhatsApp interpreta mal.
+    """
+    digitos = re.sub(r'[^0-9]', '', texto or '')
+    if not digitos:
+        return None
+    if digitos.startswith('00'):
+        digitos = digitos[2:]
+    # Nueve cifras es un movil espanol sin prefijo, que es como se escribe aqui.
+    if len(digitos) == 9:
+        digitos = pais + digitos
+    # Menos de once no es un numero internacional; mas de quince no existe.
+    if not 11 <= len(digitos) <= 15:
+        return None
+    return digitos
+
+
+def _firma_horario():
+    """El firmador de los enlaces.
+
+    Usa SECRET_KEY, que se guarda en instance/.secret_key. Si se pierde esa
+    carpeta la clave se regenera y los enlaces ya mandados dejan de valer: hay
+    que volver a enviarlos. Mismo aviso que para las claves VAPID.
+    """
+    from itsdangerous import URLSafeTimedSerializer
+    return URLSafeTimedSerializer(app.config['SECRET_KEY'], salt=_FIRMA_HORARIO)
+
+
+def _token_horario(cleaner_id: int, lunes: date) -> str:
+    return _firma_horario().dumps({'c': cleaner_id, 's': lunes.isoformat()})
+
+
+def _leer_token_horario(token: str):
+    """(cleaner_id, lunes) si el enlace es bueno, None si no."""
+    from itsdangerous import BadData
+    try:
+        datos = _firma_horario().loads(token, max_age=_VALIDEZ_ENLACE)
+        return int(datos['c']), date.fromisoformat(datos['s'])
+    except (BadData, KeyError, TypeError, ValueError):
+        return None
+
+
+def _enlace_horario(cleaner_id: int, lunes: date) -> str | None:
+    """La direccion completa de su horario, o None si no se puede construir.
+
+    No vale url_for(_external=True): la aplicacion corre detras del proxy del
+    NAS y sin ProxyFix saldria con http y el host del contenedor, asi que el
+    enlace no abriria en ningun movil. De ahi PUBLIC_BASE_URL.
+    """
+    base = (app.config.get('PUBLIC_BASE_URL') or '').rstrip('/')
+    if not base:
+        return None
+    return base + url_for('shifts.horario_publico',
+                          token=_token_horario(cleaner_id, lunes))
+
+
+def _whatsapp_configurado() -> bool:
+    return bool(app.config.get('WHATSAPP_TOKEN')
+                and app.config.get('WHATSAPP_PHONE_ID'))
+
+
+def _enviar_whatsapp(telefono: str, nombre: str, rotulo: str,
+                     enlace: str) -> tuple:
+    """Manda la plantilla por la API de Meta. Devuelve (id_del_mensaje, error).
+
+    El mensaje lleva el enlace, no el horario: viaja por un servicio externo,
+    igual que el aviso del movil. Y como para confirmar hay que abrir el enlace
+    de todas formas, no se pierde nada por el camino.
+    """
+    import requests
+    if not _whatsapp_configurado():
+        return None, 'WhatsApp no esta configurado en el servidor.'
+
+    cuerpo = {
+        'messaging_product': 'whatsapp',
+        'to': telefono,
+        'type': 'template',
+        'template': {
+            'name': app.config.get('WHATSAPP_TEMPLATE') or 'horario_semanal',
+            'language': {'code': app.config.get('WHATSAPP_LANG') or 'es'},
+            'components': [{
+                'type': 'body',
+                'parameters': [{'type': 'text', 'text': t}
+                               for t in (nombre, rotulo, enlace)],
+            }],
+        },
+    }
+    url = f"{WHATSAPP_API}/{app.config['WHATSAPP_PHONE_ID']}/messages"
+    try:
+        r = requests.post(
+            url, json=cuerpo, timeout=WHATSAPP_TIMEOUT,
+            headers={'Authorization': f"Bearer {app.config['WHATSAPP_TOKEN']}"})
+        datos = r.json() if r.content else {}
+        if r.status_code >= 400:
+            # El detalle tecnico al registro; a la pantalla, algo que se entienda.
+            app.logger.error('WhatsApp %s: %s', r.status_code, r.text[:400])
+            motivo = (datos.get('error') or {}).get('message') or ''
+            if motivo:
+                return None, 'WhatsApp lo ha rechazado: ' + motivo
+            return None, 'WhatsApp lo ha rechazado.'
+        return ((datos.get('messages') or [{}])[0].get('id') or 'enviado'), None
+    except requests.RequestException as e:
+        app.logger.error('WhatsApp sin respuesta: %s', e)
+        return None, 'No se ha podido conectar con WhatsApp.'
+    except ValueError as e:
+        app.logger.error('WhatsApp respuesta ilegible: %s', e)
+        return None, 'WhatsApp ha contestado algo que no se entiende.'
+
+
+def _recibos_de(lunes: date) -> dict:
+    """Los acuses de una semana, por trabajadora."""
+    return {r.cleaner_id: r for r in
+            ShiftWeekReceipt.query.filter_by(week_start=lunes).all()}
+
+
+def _recibo_de(lunes: date, cleaner_id: int) -> ShiftWeekReceipt:
+    """El acuse de esa persona y esa semana, creandolo si hace falta."""
+    recibo = ShiftWeekReceipt.query.filter_by(
+        week_start=lunes, cleaner_id=cleaner_id).first()
+    if not recibo:
+        recibo = ShiftWeekReceipt(week_start=lunes, cleaner_id=cleaner_id)
+        db.session.add(recibo)
+    return recibo
+
+
+def _con_turno_en(lunes: date) -> set:
+    """Quien tiene algo asignado esa semana."""
+    domingo = lunes + timedelta(days=6)
+    return {a.cleaner_id for a in ShiftAssignment.query.filter(
+        ShiftAssignment.date >= lunes, ShiftAssignment.date <= domingo).all()}
+
+
+def _resumen_acuses(lunes: date) -> dict:
+    """Cuantas tienen turno, a cuantas se les ha mandado y cuantas lo aceptan.
+
+    Es la pregunta que de verdad se hace quien planifica, y por eso va al lado
+    del estado de la publicacion y no escondida en otra pantalla.
+    """
+    con_turno = _con_turno_en(lunes)
+    recibos = _recibos_de(lunes)
+    return {
+        'total': len(con_turno),
+        'enviadas': sum(1 for c in con_turno
+                        if recibos.get(c) and recibos[c].sent_at),
+        'aceptadas': sum(1 for c in con_turno
+                         if recibos.get(c) and recibos[c].accepted_at),
+    }
+
+
+ESTADOS_ACUSE = {
+    'pendiente': ('Sin enviar', 'muted'),
+    'enviado': ('Enviado', 'info'),
+    'visto': ('Visto', 'warning'),
+    'aceptado': ('Aceptado', 'success'),
+    'error': ('No se pudo enviar', 'danger'),
+}
+
+
 @bp.route('/cuadrantes/tablero/envios')
 @admin_required
 def shift_board_envios():
-    """Por trabajadora: su horario en texto y el enlace que abre WhatsApp.
+    """A quien hay que mandarle el horario, y que ha pasado con cada envio.
 
-    No manda nada: monta el mensaje y lo deja escrito. Enviar lo hace una
-    persona, con un toque, desde su propio WhatsApp.
+    Una fila por trabajadora con turno: su numero tal y como se va a mandar
+    -para que un numero mal escrito se vea antes de gastar un mensaje-, en que
+    estado esta y los botones. Si Meta no esta configurado queda el wa.me de
+    siempre y se manda a mano, asi que esto sirve desde el primer dia.
     """
     from urllib.parse import quote
 
@@ -1737,22 +1940,186 @@ def shift_board_envios():
     domingo = lunes + timedelta(days=6)
     rotulo = f"{lunes.strftime('%d/%m')} al {domingo.strftime('%d/%m/%Y')}"
 
-    con_turno = {a.cleaner_id for a in ShiftAssignment.query.filter(
-        ShiftAssignment.date >= lunes, ShiftAssignment.date <= domingo).all()}
+    con_turno = _con_turno_en(lunes)
+    recibos = _recibos_de(lunes)
 
-    salida = []
+    filas = []
     for c in _personal_del_tablero():
         if c.id not in con_turno:
             continue
-        texto = (f'Hola {c.name}, tu horario del {rotulo}:\n\n'
+        texto = ('Hola ' + c.name + ', tu horario del ' + rotulo + ':\n\n'
                  + '\n'.join(_horario_de(c.id, lunes)))
-        telefono = re.sub(r'[^0-9]', '', c.phone or '')
-        salida.append({
+        telefono = _telefono_e164(c.phone)
+        recibo = recibos.get(c.id)
+        estado = recibo.estado if recibo else 'pendiente'
+        etiqueta, tono = ESTADOS_ACUSE[estado]
+        filas.append({
             'cleaner_id': c.id, 'name': c.name,
-            'phone': c.phone or '', 'texto': texto,
-            'wa_url': f'https://wa.me/{telefono}?text={quote(texto)}' if telefono else None,
+            'color': _color_trabajadora(c),
+            'phone': c.phone or '', 'telefono': telefono,
+            'estado': estado, 'etiqueta': etiqueta, 'tono': tono,
+            'recibo': recibo, 'enlace': _enlace_horario(c.id, lunes),
+            'texto': texto,
+            'wa_url': ('https://wa.me/' + telefono + '?text=' + quote(texto)
+                       if telefono else None),
         })
-    return jsonify({'semana': rotulo, 'trabajadoras': salida})
+
+    return render_template(
+        'shift_board_envios.html',
+        lunes=lunes, domingo=domingo, rotulo=rotulo, filas=filas,
+        semana_anterior=(lunes - timedelta(days=7)).isoformat(),
+        semana_siguiente=(lunes + timedelta(days=7)).isoformat(),
+        configurado=_whatsapp_configurado(),
+        tiene_base=bool(app.config.get('PUBLIC_BASE_URL')),
+        resumen={
+            'total': len(filas),
+            'enviadas': sum(1 for f in filas if f['recibo'] and f['recibo'].sent_at),
+            'aceptadas': sum(1 for f in filas if f['recibo'] and f['recibo'].accepted_at),
+            'sin_telefono': sum(1 for f in filas if not f['telefono']),
+        },
+    )
+
+
+@bp.route('/cuadrantes/tablero/enviar', methods=['POST'])
+@admin_required
+@limiter.limit('30/minute')
+def shift_board_enviar():
+    """Manda el horario por WhatsApp a quien se diga.
+
+    Sincrono y por lotes cortos a proposito: aqui hace falta saber cual ha
+    fallado para poder repetirla, y un "enviado" que en realidad significa "lo
+    he puesto en un hilo" no sirve de nada. Lleva tope de ritmo porque cada
+    mensaje cuesta dinero y sale a un tercero.
+    """
+    datos = request.get_json(silent=True) or {}
+    try:
+        lunes = _lunes_de(date.fromisoformat(datos.get('week_start')))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Semana no valida.'}), 400
+
+    if not _whatsapp_configurado():
+        return jsonify({'error': 'WhatsApp no esta configurado. Hay que anadir '
+                                 'WHATSAPP_TOKEN y WHATSAPP_PHONE_ID.'}), 400
+    if not app.config.get('PUBLIC_BASE_URL'):
+        # Sin esto el enlace saldria con el host interno del contenedor y no
+        # abriria en ningun movil: mejor no gastar el mensaje.
+        return jsonify({'error': 'Falta PUBLIC_BASE_URL: sin ella el enlace del '
+                                 'horario no abriria desde fuera.'}), 400
+
+    con_turno = _con_turno_en(lunes)
+    pedidas = datos.get('cleaner_ids') or []
+    if pedidas:
+        objetivo = [c for c in pedidas if c in con_turno]
+    else:
+        # Sin lista, las que faltan: lo que ya salio no se repite por su cuenta,
+        # porque cada mensaje se paga.
+        recibos = _recibos_de(lunes)
+        objetivo = [c for c in con_turno
+                    if not (recibos.get(c) and recibos[c].sent_at)]
+
+    rotulo = (lunes.strftime('%d/%m') + ' al '
+              + (lunes + timedelta(days=6)).strftime('%d/%m/%Y'))
+    detalle, enviados, fallidos = [], 0, 0
+
+    for cleaner_id in sorted(objetivo):
+        c = db.session.get(Cleaner, cleaner_id)
+        if not c or not c.active:
+            continue
+        recibo = _recibo_de(lunes, c.id)
+        telefono = _telefono_e164(c.phone)
+        if not telefono:
+            recibo.error = 'No tiene un telefono valido en su ficha.'
+            fallidos += 1
+            detalle.append({'cleaner_id': c.id, 'name': c.name, 'ok': False,
+                            'error': recibo.error})
+            continue
+
+        mensaje_id, error = _enviar_whatsapp(
+            telefono, c.name, rotulo, _enlace_horario(c.id, lunes))
+        if error:
+            recibo.error = error
+            fallidos += 1
+            detalle.append({'cleaner_id': c.id, 'name': c.name, 'ok': False,
+                            'error': error})
+        else:
+            recibo.sent_at = datetime.now()
+            recibo.channel = 'whatsapp'
+            recibo.provider_id = mensaje_id
+            recibo.error = None
+            enviados += 1
+            detalle.append({'cleaner_id': c.id, 'name': c.name, 'ok': True})
+
+    log_audit('send', 'shift_week_receipt', 0,
+              {'semana': lunes.isoformat(), 'enviados': enviados,
+               'fallidos': fallidos})
+    ok, error = _safe_commit('No se pudo guardar el resultado del envio')
+    if not ok:
+        return jsonify({'error': error}), 500
+
+    return jsonify({'ok': True, 'enviados': enviados, 'fallidos': fallidos,
+                    'detalle': detalle})
+
+
+# ── LA PAGINA DE LA TRABAJADORA (enlace firmado, sin sesion) ──
+#
+# Las dos unicas rutas publicas del proyecto. No llevan @admin_required ni
+# @jwt_required() porque quien las abre es una trabajadora desde un enlace de
+# WhatsApp, sin sesion y sin tener la aplicacion instalada. Lo que autoriza es
+# la firma del token: lleva dentro a quien pertenece y de que semana, caduca a
+# los noventa dias, y solo da acceso al horario de esa persona. Ni un dato de
+# residentes, que es la linea que no se cruza al abrir algo a internet.
+# La excepcion esta escrita en CLAUDE.md y en .claude/rules/04-seguridad.md.
+
+@bp.route('/horario/<token>')
+def horario_publico(token):
+    """El horario de una persona, para que lo vea y lo confirme."""
+    leido = _leer_token_horario(token)
+    if not leido:
+        return render_template('horario_publico.html', valido=False), 404
+    cleaner_id, lunes = leido
+    c = db.session.get(Cleaner, cleaner_id)
+    if not c or not c.active:
+        return render_template('horario_publico.html', valido=False), 404
+
+    recibo = _recibo_de(lunes, cleaner_id)
+    if not recibo.opened_at:
+        # El "visto" es la primera vez que lo abre; recargar no lo mueve.
+        recibo.opened_at = datetime.now()
+        if not recibo.channel:
+            recibo.channel = 'enlace'
+        _safe_commit('No se pudo apuntar que lo has abierto')
+
+    domingo = lunes + timedelta(days=6)
+    return render_template(
+        'horario_publico.html', valido=True, token=token, trabajadora=c,
+        lunes=lunes, domingo=domingo,
+        rotulo=lunes.strftime('%d/%m') + ' al ' + domingo.strftime('%d/%m/%Y'),
+        dias=_horario_detalle(cleaner_id, lunes),
+        recibo=recibo,
+    )
+
+
+@bp.route('/horario/<token>/confirmar', methods=['POST'])
+def horario_publico_confirmar(token):
+    """Apunta que lo ha visto y que lo da por bueno."""
+    leido = _leer_token_horario(token)
+    if not leido:
+        return render_template('horario_publico.html', valido=False), 404
+    cleaner_id, lunes = leido
+    c = db.session.get(Cleaner, cleaner_id)
+    if not c or not c.active:
+        return render_template('horario_publico.html', valido=False), 404
+
+    recibo = _recibo_de(lunes, cleaner_id)
+    # Confirmar dos veces no mueve la fecha: vale la primera, que es cuando se
+    # entero.
+    if not recibo.accepted_at:
+        recibo.accepted_at = datetime.now()
+        if not recibo.opened_at:
+            recibo.opened_at = recibo.accepted_at
+        _safe_commit('No se pudo guardar tu confirmacion')
+
+    return redirect(url_for('shifts.horario_publico', token=token))
 
 
 # ── PUESTOS ──────────────────────────────────────────────────────────────────
@@ -2075,7 +2442,8 @@ def shift_board_month():
         lunes = tramo[0]['fecha']
         pub, modificada = _estado_semana(lunes)
         semanas.append({'lunes': lunes, 'dias': tramo,
-                        'publicacion': pub, 'modificada': modificada})
+                        'publicacion': pub, 'modificada': modificada,
+                        'acuses': _resumen_acuses(lunes)})
 
     # La leyenda, solo con quien trabaja dentro del mes.
     del_mes = [d for d in dias if primero <= d['fecha'] <= ultimo]

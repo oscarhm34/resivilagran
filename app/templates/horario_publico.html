@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+{# La pagina que abre la trabajadora desde el enlace de WhatsApp.
+
+   No extiende base.html a proposito: aqui no hay sesion, ni menu, ni nada del
+   panel. Se abre siempre en un movil Android y la usan personas con poca
+   experiencia tecnologica, asi que: texto grande, un solo boton y ningun paso
+   de mas. No lleva ningun dato de residentes, que es la linea que no se cruza
+   al abrir algo a internet. #}
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>{% if valido %}Tu horario · La Vila Gran{% else %}Enlace no valido{% endif %}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f4f6f9; --surface: #ffffff; --border: #d0d7de;
+            --text: #1f2328; --text2: #656d76;
+            --azul: #0069d9; --verde: #1a7f37; --verde-suave: #eaf7ee;
+            --radio: 12px;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #0d1117; --surface: #161b22; --border: #30363d;
+                --text: #e6edf3; --text2: #8b949e;
+                --azul: #58a6ff; --verde: #3fb950; --verde-suave: #10261a;
+            }
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; padding: 16px;
+            font-family: Inter, -apple-system, "Segoe UI", Roboto, sans-serif;
+            font-size: 17px; line-height: 1.5;
+            background: var(--bg); color: var(--text);
+            -webkit-text-size-adjust: 100%;
+        }
+        .hoja { max-width: 480px; margin: 0 auto; }
+
+        .cab { text-align: center; margin-bottom: 18px; }
+        .cab img { max-width: 220px; height: auto; }
+        /* El logotipo es marron oscuro sobre transparente: en modo oscuro se
+           perderia contra el fondo, asi que se le pone su propio papel. */
+        @media (prefers-color-scheme: dark) {
+            .cab img {
+                background: #ffffff; border-radius: var(--radio);
+                padding: 8px 14px;
+            }
+        }
+        .cab h1 { font-size: 1.35rem; margin: 10px 0 2px; }
+        .cab .semana { color: var(--text2); font-size: .95rem; }
+
+        .dia {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--radio); padding: 12px 14px; margin-bottom: 10px;
+        }
+        .dia-cab {
+            display: flex; justify-content: space-between; align-items: baseline;
+            margin-bottom: 6px;
+        }
+        .dia-nombre { font-weight: 700; }
+        .dia-fecha { color: var(--text2); font-size: .9rem; }
+        .turno {
+            display: flex; align-items: center; gap: 10px;
+            padding: 6px 0;
+        }
+        .turno + .turno { border-top: 1px dashed var(--border); }
+        .turno-color {
+            width: 6px; align-self: stretch; min-height: 34px;
+            border-radius: 3px; flex-shrink: 0;
+        }
+        .turno-horas { font-weight: 600; font-variant-numeric: tabular-nums; }
+        .turno-que { color: var(--text2); font-size: .9rem; }
+        .libre { color: var(--text2); }
+        .ausencia { color: var(--text2); font-style: italic; }
+
+        .acuse {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--radio); padding: 16px; margin-top: 18px;
+            text-align: center;
+        }
+        /* Boton grande de verdad: se pulsa con el dedo, de pie y con prisa. */
+        .boton {
+            display: block; width: 100%; min-height: 56px;
+            border: 0; border-radius: var(--radio);
+            background: var(--verde); color: #fff;
+            font: inherit; font-weight: 700; font-size: 1.05rem;
+            cursor: pointer; margin-top: 10px;
+        }
+        .boton:active { filter: brightness(.92); }
+        .hecho {
+            background: var(--verde-suave); color: var(--verde);
+            border-radius: var(--radio); padding: 14px; font-weight: 600;
+        }
+        .hecho small { display: block; font-weight: 400; color: var(--text2); }
+        .pie { color: var(--text2); font-size: .82rem; text-align: center; margin-top: 18px; }
+        .aviso { text-align: center; padding: 48px 16px; }
+        .aviso .icono { font-size: 2.6rem; }
+    </style>
+</head>
+<body>
+<div class="hoja">
+
+{% if not valido %}
+    <div class="aviso">
+        <div class="icono">&#128274;</div>
+        <h1>Este enlace ya no sirve</h1>
+        <p>Puede que haya caducado o que el mensaje se haya cortado al copiarlo.
+           Pide que te lo manden otra vez.</p>
+    </div>
+{% else %}
+
+    <div class="cab">
+        <img src="{{ url_for('static', filename='logoLaVilaGranBanner.png') }}"
+             alt="La Vila Gran">
+        <h1>Hola, {{ trabajadora.name }}</h1>
+        <div class="semana">Tu horario del {{ rotulo }}</div>
+    </div>
+
+    {% for d in dias %}
+    <div class="dia">
+        <div class="dia-cab">
+            <span class="dia-nombre">{{ d.dow }}</span>
+            <span class="dia-fecha">{{ d.fecha.strftime('%d/%m') }}</span>
+        </div>
+        {% if d.ausencia %}
+        <div class="ausencia">{{ d.ausencia }}</div>
+        {% elif d.turnos %}
+        {% for t in d.turnos %}
+        <div class="turno">
+            <span class="turno-color" style="background:{{ t.color }}" aria-hidden="true"></span>
+            <span>
+                <span class="turno-horas">{{ t.desde }} – {{ t.hasta }}</span><br>
+                <span class="turno-que">
+                    {{ t.name }}{% if t.code %} · puesto {{ t.code }}{% endif %}
+                </span>
+            </span>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="libre">Libre</div>
+        {% endif %}
+    </div>
+    {% endfor %}
+
+    <div class="acuse">
+        {% if recibo.accepted_at %}
+        <div class="hecho">
+            &#10004; Ya lo has confirmado
+            <small>el {{ recibo.accepted_at.strftime('%d/%m/%Y a las %H:%M') }}</small>
+        </div>
+        <p style="color:var(--text2);font-size:.88rem;margin-bottom:0">
+            Si algo no te cuadra, avisa en la residencia.
+        </p>
+        {% else %}
+        <p style="margin-top:0">Si lo has leido y te parece bien, confirmalo aqui.</p>
+        <form method="POST"
+              action="{{ url_for('shifts.horario_publico_confirmar', token=token) }}">
+            <button type="submit" class="boton">He visto mi horario y lo acepto</button>
+        </form>
+        {% endif %}
+    </div>
+
+    <p class="pie">
+        Esta pagina es solo tuya. No la reenvies: quien tenga el enlace puede ver tu horario.
+    </p>
+{% endif %}
+
+</div>
+</body>
+</html>

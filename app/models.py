@@ -595,6 +595,45 @@ class ShiftWeekPublication(db.Model):
     publisher = db.relationship('Cleaner', foreign_keys=[published_by])
 
 
+class ShiftWeekReceipt(db.Model):
+    """Lo que le ha pasado al horario de una persona en una semana.
+
+    Publicar deja constancia de la semana entera, pero no de si a Maria le
+    llego el mensaje ni de si se ha enterado. Aqui caben los cuatro estados que
+    importan: sin enviar, enviado, visto y aceptado. El `error` se guarda para
+    poder decir por que no salio sin ir a mirar los registros del servidor.
+    """
+    __tablename__ = 'shift_week_receipt'
+    id = db.Column(db.Integer, primary_key=True)
+    week_start = db.Column(db.Date, nullable=False, index=True)       # siempre lunes
+    cleaner_id = db.Column(db.Integer,
+                           db.ForeignKey('cleaner.id', name='fk_receipt_cleaner'),
+                           nullable=False, index=True)
+    sent_at = db.Column(db.DateTime, nullable=True)
+    channel = db.Column(db.String(20), nullable=True)                 # 'whatsapp' | 'enlace'
+    provider_id = db.Column(db.String(80), nullable=True)             # el id que devuelve Meta
+    error = db.Column(db.Text, nullable=True)
+    opened_at = db.Column(db.DateTime, nullable=True)
+    accepted_at = db.Column(db.DateTime, nullable=True)
+
+    cleaner = db.relationship('Cleaner', foreign_keys=[cleaner_id])
+
+    __table_args__ = (db.UniqueConstraint('week_start', 'cleaner_id',
+                                          name='uq_receipt_semana'),)
+
+    @property
+    def estado(self) -> str:
+        if self.accepted_at:
+            return 'aceptado'
+        if self.opened_at:
+            return 'visto'
+        if self.error:
+            return 'error'
+        if self.sent_at:
+            return 'enviado'
+        return 'pendiente'
+
+
 class ShiftAssignment(db.Model):
     __tablename__ = 'shift_assignment'
     id = db.Column(db.Integer, primary_key=True)

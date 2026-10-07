@@ -30,6 +30,11 @@ RUTAS_PUBLICAS = {
     'nfc.worker',
     'nfc.service_worker',
     'nfc.worker_manifest',
+    # El horario que se manda por WhatsApp: lo abre una trabajadora desde un
+    # enlace, en un móvil sin sesión. Lo que autoriza es la firma del token.
+    # Las condiciones están en .claude/rules/04-seguridad.md y lo que de verdad
+    # tiene que cumplir se comprueba en tests/test_horario_whatsapp.py.
+    'shifts.horario_publico',
     # Comprueba current_user.is_authenticated en el cuerpo y devuelve 0 si no
     # hay sesión, así que no filtra nada.
     'notifications.unread_count',
@@ -100,10 +105,13 @@ def test_ruta_get_no_revienta_con_bd_vacia(auth_client, path):
 # Sin sesión la petición se corta en el decorador, antes del cuerpo de la vista,
 # así que recorrer los POST no escribe nada en la base de datos.
 
-# Públicas por diseño: son los propios formularios de login.
+# Públicas por diseño: los propios formularios de login, y el botón con el que
+# una trabajadora confirma su horario (autorizado por la firma del enlace, no
+# por una sesión; ver RUTAS_PUBLICAS).
 ESCRITURAS_PUBLICAS = {
     'admin_bp.admin_login',
     'nfc.login',
+    'shifts.horario_publico_confirmar',
 }
 
 

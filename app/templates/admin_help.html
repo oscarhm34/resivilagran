@@ -815,12 +815,66 @@
                     y ya esta: la semana queda marcada como <em>modificada despues de publicar</em>.</li>
                 <li>Al volver a publicar se avisa <strong>solo a quien le haya cambiado algo</strong>,
                     no a toda la plantilla otra vez.</li>
-                <li><strong>Enviar por WhatsApp</strong> abre una lista con el horario de cada una ya
-                    escrito. Cada boton abre WhatsApp con el mensaje preparado; <strong>enviarlo lo
-                    haces tu</strong>, la aplicacion no manda nada sola. Hace falta el telefono en la
-                    ficha de la trabajadora; quien no lo tenga sale sin boton, con la opcion de copiar
-                    el texto.</li>
+                <li><strong>Enviar por WhatsApp</strong> abre la pantalla de envios, explicada
+                    justo debajo.</li>
+                <li>Publicar <strong>no manda ningun WhatsApp</strong>. Son dos cosas distintas a
+                    proposito: cada mensaje de WhatsApp se paga, y volver a publicar por un cambio
+                    pequeno no puede convertirse en treinta mensajes.</li>
             </ul>
+
+            <h6 class="mt-3">Mandar el horario por WhatsApp</h6>
+            <p>En <strong>Turnos &rarr; Tablero</strong>, el boton <strong>Enviar por WhatsApp</strong>
+               abre una pantalla con una fila por trabajadora con turno esa semana: su numero, en que
+               estado esta su envio y los botones para mandarlo.</p>
+            <ul>
+                <li><strong>Lo que recibe es un enlace</strong>, no el horario escrito en el mensaje.
+                    Al abrirlo ve sus siete dias con las horas y el puesto, y abajo un boton
+                    <strong>"He visto mi horario y lo acepto"</strong>.</li>
+                <li>El enlace es <strong>personal</strong>: solo abre su horario y solo el de esa
+                    semana. Conviene decirles que no lo reenvien.</li>
+                <li>Los cuatro estados que se ven en la pantalla: <strong>Sin enviar</strong>,
+                    <strong>Enviado</strong> (le ha salido el mensaje), <strong>Visto</strong> (ha
+                    abierto el enlace) y <strong>Aceptado</strong> (ha pulsado el boton), con la fecha
+                    y la hora. Si algo falla sale <strong>No se pudo enviar</strong> con el motivo.</li>
+                <li>Arriba, <strong>Enviar a las que faltan</strong> manda de golpe a todas las que
+                    todavia no lo hayan recibido. A quien ya se le envio <strong>no se le repite</strong>;
+                    para eso esta el boton <em>Volver a enviar</em> de su fila.</li>
+                <li>El numero sale <strong>tal y como se va a mandar</strong> (con el +34 delante), para
+                    que un numero mal escrito se vea antes de gastar el mensaje. Se escribe en la ficha
+                    de la trabajadora (<strong>Personas &rarr; Empleados</strong>), con prefijo o sin el.</li>
+                <li>En la vista de semana y en la del mes aparece el recuento:
+                    <strong>"11 de 19 han confirmado su horario"</strong>.</li>
+            </ul>
+
+            <h6 class="mt-3">Lo que hay que dar de alta para que se mande solo</h6>
+            <p>El envio automatico va por la via oficial de WhatsApp (la <em>Cloud API</em> de Meta),
+               que es la unica que no acaba con el numero de la residencia bloqueado. Hace falta, una
+               sola vez:</p>
+            <ol>
+                <li>Una cuenta de <strong>Meta Business verificada</strong>.</li>
+                <li>Un <strong>numero de telefono dedicado</strong> que <strong>no</strong> tenga ya
+                    WhatsApp. No vale el movil de la residencia si lo usa.</li>
+                <li>Una app de tipo <em>Business</em> con el producto WhatsApp y un
+                    <strong>token permanente</strong> (el de prueba caduca cada 24 horas).</li>
+                <li>Una <strong>plantilla aprobada</strong> por Meta, categoria <em>Utility</em>, en
+                    castellano. El texto a presentar es exactamente este:
+                    <div class="border rounded p-2 my-2" style="background:var(--color-bg)">
+                        Hola {{ '{{1}}' }}, ya tienes tu horario de la semana del {{ '{{2}}' }}.<br>
+                        Puedes verlo y confirmarlo aqui: {{ '{{3}}' }}
+                    </div>
+                    Nombre sugerido: <code>horario_semanal</code>. La aprobacion tarda unos dias.</li>
+            </ol>
+            <p>Esos datos los pone el informatico en el servidor
+               (<code>WHATSAPP_TOKEN</code>, <code>WHATSAPP_PHONE_ID</code> y
+               <code>PUBLIC_BASE_URL</code>). <strong>Mientras no esten</strong>, la pantalla lo avisa
+               y se sigue mandando a mano: cada boton de WhatsApp abre la conversacion con el mensaje
+               escrito y solo hay que pulsar enviar. El seguimiento, la pagina y la confirmacion
+               funcionan igual desde el primer dia.</p>
+            <p class="small" style="color:var(--color-text-secondary)">
+               Aviso para quien mantenga el servidor: los enlaces van firmados con la clave que se
+               guarda en <code>instance/</code>. Si se pierde esa carpeta, la clave se regenera y
+               <strong>todos los enlaces ya mandados dejan de abrir</strong>; hay que volver a
+               enviarlos. Es el mismo caso que las claves de los avisos al movil.</p>
 
             <h6 class="mt-3">Lo que ve la trabajadora</h6>
             <p>En la webapp tiene <strong>Mi horario</strong>: el mes entero con su turno de cada dia,
@@ -1860,6 +1914,11 @@
                Existe para que los avisos del dia a dia dejen de ir por WhatsApp personal: alli
                circulan los telefonos particulares y las fotos acaban en el movil de cada una,
                fuera de la residencia y fuera de cualquier copia de seguridad.</p>
+            <p class="small" style="color:var(--color-text-secondary)">
+               Esto no se contradice con mandar los horarios por WhatsApp (seccion 9). Ahi quien
+               escribe es la residencia, por la via oficial de WhatsApp, a un numero que esta en la
+               ficha de la trabajadora, y lo que manda es un enlace. Lo que se quiere evitar es que
+               las conversaciones del dia a dia vivan en el movil particular de cada una.</p>
 
             <h6>Donde esta</h6>
             <ul>
@@ -2057,8 +2116,9 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>07/10</td><td><strong>El horario por WhatsApp, y que confirmen:</strong> en <strong>Turnos &rarr; Tablero</strong>, <strong>Enviar por WhatsApp</strong> abre una pantalla con una fila por trabajadora: su numero, el estado del envio y el boton de mandarlo. Lo que recibe es un <strong>enlace personal</strong> a su horario, no el horario dentro del mensaje, y al abrirlo tiene un boton para <strong>confirmar que lo ha visto y lo acepta</strong>. En la pantalla se ve quien lo ha recibido, quien lo ha abierto y quien lo ha aceptado, con la hora, y en la vista de semana el recuento de confirmaciones. Mientras no este dado de alta el numero en Meta, se sigue mandando a mano igual que antes.</td></tr>
+                    <tr><td>07/10</td><td><strong>El telefono de la ficha ya no hace falta escribirlo con prefijo:</strong> se puede poner <strong>600 00 00 00</strong> y la aplicacion le pone el +34 sola. Antes un numero sin prefijo generaba un enlace de WhatsApp que no abria la conversacion.</td></tr>
                     <tr><td>07/10</td><td><strong>Tablero de turnos:</strong> nueva pantalla en <strong>Turnos &rarr; Tablero</strong> con el recuadro de siempre, una casilla por puesto, que se rellena <strong>arrastrando</strong> a cada persona. La semana se ve de un vistazo con los siete dias y los colores de cada una, y al pulsar un dia se abre su recuadro. La rejilla mensual se queda para el control de horas, cobertura y descansos.</td></tr>
-                    <tr><td>07/10</td><td><strong>Tablero del mes:</strong> vista nueva en <strong>Turnos &rarr; Tablero del mes</strong>, un calendario con el recuadro de cada dia en pequeno y el estado de cada semana al lado, para ver de un vistazo que queda por cerrar.</td></tr>
                     <tr><td>07/10</td><td><strong>Tablero del mes:</strong> vista nueva en <strong>Turnos &rarr; Tablero del mes</strong>, un calendario con el recuadro de cada dia en pequeno y el estado de cada semana al lado, para ver de un vistazo que queda por cerrar.</td></tr>
                     <tr><td>07/10</td><td><strong>La semana, siete recuadros de verdad:</strong> cada dia de la vista de semana es ahora el mismo dibujo que el recuadro del dia pero en pequeno, con sus columnas y cada caja a su hora. Antes eran filas de cuadraditos que no se parecian al dia y costaba descifrarlos.</td></tr>
                     <tr><td>07/10</td><td><strong>Una misma persona puede doblar:</strong> ya se puede apuntar que alguien hace <strong>M1 y T1</strong> el mismo dia, que es lo que pasa cuando falta gente; antes el sistema solo dejaba un turno por persona y dia. La lista del tablero lleva ahora a todo el personal con una etiqueta de lo que ya tiene puesto, y para doblar a alguien se arrastra otra vez desde ahi. En la rejilla mensual ese dia sale con las dos abreviaturas.</td></tr>

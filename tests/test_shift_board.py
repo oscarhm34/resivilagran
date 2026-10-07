@@ -504,39 +504,46 @@ def test_publicar_una_semana_mal_formada_se_rechaza(auth_client, db):
 # ── Envios ────────────────────────────────────────────────────────────────────
 
 def test_el_horario_de_cada_una_solo_lleva_sus_dias(auth_client, db, manana, ana, berta):
+    """El texto del aviso, probado contra la funcion y no contra la pantalla."""
+    from app.blueprints.shifts import _horario_de
+
     m1 = _puesto(db, manana, 'M1', 1)
     m2 = _puesto(db, manana, 'M2', 2)
     _asignar(auth_client, LUNES, m1, ana)
     _asignar(auth_client, LUNES + timedelta(days=1), m2, berta)
 
-    datos = auth_client.get(f'/cuadrantes/tablero/envios?semana={LUNES}').get_json()
+    lineas = _horario_de(ana.id, LUNES)
+    assert 'Lun 05/10: Manana' in lineas[0]
+    assert 'M1' in lineas[0]
+    # El dia que trabaja Berta, Ana lo tiene libre: cada una ve lo suyo.
+    assert lineas[1] == 'Mar 06/10: Libre'
+    assert len(lineas) == 7
 
-    de_ana = [t for t in datos['trabajadoras'] if t['cleaner_id'] == ana.id][0]
-    assert 'Lun 05/10: Manana' in de_ana['texto']
-    assert 'M1' in de_ana['texto']
-    assert 'Mar 06/10: Libre' in de_ana['texto']
 
-
-def test_sin_telefono_no_hay_enlace_de_whatsapp(auth_client, db, manana, ana):
+def test_sin_telefono_la_pantalla_lo_dice(auth_client, db, manana, ana):
     m1 = _puesto(db, manana, 'M1')
     _asignar(auth_client, LUNES, m1, ana)
 
-    datos = auth_client.get(f'/cuadrantes/tablero/envios?semana={LUNES}').get_json()
+    texto = auth_client.get(
+        f'/cuadrantes/tablero/envios?semana={LUNES}').get_data(as_text=True)
 
-    assert datos['trabajadoras'][0]['wa_url'] is None
+    assert 'Sin telefono' in texto
+    assert 'wa.me' not in texto
 
 
-def test_con_telefono_el_enlace_lleva_el_texto(auth_client, db, manana, ana):
+def test_con_telefono_queda_el_respaldo_de_abrir_whatsapp_a_mano(auth_client, db,
+                                                                 manana, ana):
     ana.phone = '+34 600 11 22 33'
     db.session.commit()
     m1 = _puesto(db, manana, 'M1')
     _asignar(auth_client, LUNES, m1, ana)
 
-    datos = auth_client.get(f'/cuadrantes/tablero/envios?semana={LUNES}').get_json()
+    texto = auth_client.get(
+        f'/cuadrantes/tablero/envios?semana={LUNES}').get_data(as_text=True)
 
-    url = datos['trabajadoras'][0]['wa_url']
-    assert url.startswith('https://wa.me/34600112233?text=')
-    assert 'Ana' in url
+    # El enlace de siempre, con el numero ya en el formato que entiende WhatsApp.
+    assert 'https://wa.me/34600112233?text=' in texto
+    assert 'Ana' in texto
 
 
 # ── Puestos ───────────────────────────────────────────────────────────────────
