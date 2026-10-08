@@ -184,6 +184,38 @@ def _allowed_file(filename: str, allowed: set) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed
 
 
+# ── Contrasenas ──────────────────────────────────────────────────────────────
+
+LONGITUD_MINIMA_CONTRASENA = 10
+
+# Lo que la gente escribe cuando se le pide una contrasena y tiene prisa. La
+# lista es corta a proposito: sirve para cortar lo evidente, no para simular un
+# diccionario.
+CONTRASENAS_PROHIBIDAS = {
+    '1234567890', '0123456789', 'contrasena', 'contraseña', 'password',
+    'qwertyuiop', 'lavilagran', 'residencia', 'administrador',
+}
+
+
+def validar_contrasena(password: str, username: str = '') -> str | None:
+    """El motivo por el que esa contrasena no vale, o None si vale.
+
+    Solo longitud y unas pocas prohibidas. **No se exigen simbolos ni mayusculas
+    a proposito**: quien usa esto son trabajadoras tecleando en un movil, y la
+    complejidad obligatoria no produce contrasenas mejores, produce contrasenas
+    apuntadas en un papel al lado del ordenador.
+    """
+    password = password or ''
+    if len(password) < LONGITUD_MINIMA_CONTRASENA:
+        return (f'La contrasena debe tener al menos '
+                f'{LONGITUD_MINIMA_CONTRASENA} caracteres.')
+    if password.lower() in CONTRASENAS_PROHIBIDAS:
+        return 'Esa contrasena es demasiado facil de adivinar.'
+    if username and username.lower() in password.lower():
+        return 'La contrasena no puede contener el nombre de usuario.'
+    return None
+
+
 # Audio y video: la extension se deriva del MIME contra este mapa cerrado, nunca
 # del nombre que manda el cliente. Sin ffmpeg no se puede reprocesar el fichero
 # como se hace con las imagenes, asi que la defensa son tres capas: mapa cerrado,
@@ -1142,11 +1174,47 @@ def formato_constante(valor) -> str:
     return str(int(numero)) if numero.is_integer() else f'{numero:.1f}'
 
 
+def _autor_de_la_accion():
+    """Quien esta haciendo esto, mire por donde haya entrado.
+
+    Hay tres formas de estar autenticado y `current_user` solo conoce una. Sin
+    esta cascada, todo lo que hace la PWA queda registrado sin autor, que es
+    justo lo que no sirve el dia que hay que reconstruir un incidente.
+    """
+    try:
+        usuario = current_dual_user()
+        if usuario:
+            return usuario.id
+        if current_user and getattr(current_user, 'is_authenticated', False):
+            return current_user.id
+        # El JWT se mira el ultimo y con red: `log_audit` tambien se llama desde
+        # comandos de mantenimiento, donde no hay peticion que inspeccionar.
+        verify_jwt_in_request(optional=True)
+        trabajadora = _current_worker()
+        return trabajadora.id if trabajadora else None
+    except Exception:
+        return None
+
+
 def log_audit(action, table_name, record_id=None, details=None):
-    """Record an audit log entry."""
+    """Deja constancia de una operacion administrativa.
+
+    La entrada se escribe en dos sitios y no por capricho. En `AuditLog`, que es
+    donde se consulta, pero **sin commit propio**: hay 133 llamadas y casi todas
+    van dentro de una transaccion de negocio (`_safe_flush` -> `log_audit` ->
+    `_safe_commit`), asi que cerrarla aqui partiria operaciones por la mitad. Y
+    en el registro del servidor, que **si** es inmediato: si el commit posterior
+    falla, la traza se pierde de la tabla pero queda en el log.
+
+    Del `details` solo se registran las claves en el log. Los valores pueden
+    llevar nombres de residentes y esos no salen de la base de datos.
+    """
     import json
-    user_id = current_user.id if current_user and hasattr(current_user, 'id') else None
+    user_id = _autor_de_la_accion()
     ip = request.remote_addr if request else None
+    app.logger.info('AUDIT action=%s table=%s record=%s user=%s ip=%s campos=%s',
+                    action, table_name, record_id, user_id, ip,
+                    ','.join(sorted(details)) if isinstance(details, dict) else '')
     entry = AuditLog(
         user_id=user_id, action=action,
         table_name=table_name, record_id=record_id,
@@ -1154,3 +1222,40 @@ def log_audit(action, table_name, record_id=None, details=None):
         ip_address=ip,
     )
     db.session.add(entry)
+
+
+# Lo que puede aparecer en `AuditLog.action` para la tabla 'auth'.
+ACCIONES_AUTH = ('login', 'login_fallido', 'logout')
+
+
+def log_auth(accion: str, usuario=None, username_intentado: str | None = None,
+             motivo: str | None = None) -> None:
+    """Deja constancia de una entrada, una salida o un intento fallido.
+
+    Va aparte de `log_audit` y **si hace su propio commit**: un evento de
+    autenticacion no vive dentro de ninguna transaccion de negocio, y si se
+    perdiera con el rollback de otra cosa perderiamos justo la traza que hace
+    falta despues de un incidente. Un fallo al registrar nunca puede impedir que
+    alguien entre a trabajar, asi que todo va envuelto.
+
+    Nunca se registra la contrasena probada, ni su longitud, ni una pista.
+    """
+    import json
+    try:
+        detalle = {}
+        if username_intentado:
+            detalle['usuario_probado'] = username_intentado
+        if motivo:
+            detalle['motivo'] = motivo
+        entrada = AuditLog(
+            user_id=usuario.id if usuario else None,
+            action=accion, table_name='auth',
+            record_id=usuario.id if usuario else None,
+            details=json.dumps(detalle, ensure_ascii=False) if detalle else None,
+            ip_address=request.remote_addr if request else None,
+        )
+        db.session.add(entrada)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        app.logger.warning('No se pudo registrar el evento de %s: %s', accion, e)

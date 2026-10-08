@@ -1844,16 +1844,32 @@
                 <li>El log se guarda en <code>backups/backup.log</code>.</li>
             </ul>
 
-            <h6 class="mt-3">Backup en la nube</h6>
+            <h6 class="mt-3">Que se guarda y como</h6>
             <ul>
-                <li>Mediante <strong>Synology Cloud Sync</strong>, los backups se sincronizan automaticamente con Google Drive.</li>
-                <li>Carpeta remota: <code>backups-lavilagran/</code> en Google Drive.</li>
-                <li>Esto garantiza que hay una copia externa en caso de fallo del NAS.</li>
+                <li>Las dos copias se <strong>comprueban antes de darlas por buenas</strong>. Si
+                    una sale mal, el backup se marca como fallido en vez de dejar un fichero que
+                    parece correcto y no sirve.</li>
+                <li>Los <strong>secretos y la configuracion</strong> van en un fichero aparte y
+                    <strong>cifrado</strong>. Antes viajaban en claro dentro del mismo paquete que
+                    las fotos.</li>
             </ul>
+
+            <h6 class="mt-3">Copia fuera del NAS: pendiente</h6>
+            <div class="alert alert-warning">
+                <strong>Hoy las copias estan en el mismo NAS que los datos.</strong> Si un virus
+                de cifrado llega al NAS, se lleva las dos cosas a la vez. Una sincronizacion con
+                Google Drive <strong>no</strong> resuelve esto: es un espejo, asi que copia
+                tambien los ficheros cifrados.
+                <br>Lo que hace falta es una copia <strong>que se desconecte</strong> (un disco
+                externo que se guarda fuera del edificio) y otra <strong>que no se pueda
+                borrar</strong> (en la nube, con bloqueo). Esta recogido en el plan de
+                ciberseguridad del centro.
+            </div>
 
             <h6 class="mt-3">Ejecutar backup manual</h6>
             <ul>
-                <li>Conectar por SSH al NAS: <code>ssh -p 52222 lavilagran@lavilagran.synology.me</code></li>
+                <li>Conectar por SSH al NAS (los datos de conexion estan en el gestor de
+                    contrasenas del administrador, no aqui).</li>
                 <li>Ejecutar: <code>cd /volume1/docker/NFC2-docker && ./backup.sh</code></li>
             </ul>
 
@@ -2047,7 +2063,7 @@
                Android y no se puede cambiar desde aqui</strong>; lo que si cambia con el tono es la
                vibracion, que es lo que distingue un aviso de otro con el movil en el bolsillo.</p>
             <p><strong>La causa mas habitual de que no llegue nada es la direccion.</strong>
-               Entrar por la <strong>IP</strong> (<code>192.168.1.99</code>) hace que el navegador
+               Entrar por la <strong>IP</strong> de la red local hace que el navegador
                pida aceptar un aviso de seguridad, y <strong>aceptarlo no arregla nada</strong>:
                Chrome se niega igualmente a instalar la aplicacion en una pagina cuyo certificado no
                acepta, y sin instalarla no hay avisos con la app cerrada. Hay que entrar
@@ -2132,6 +2148,9 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>08/10</td><td><strong>Las contrasenas tienen un minimo:</strong> al dar de alta a alguien o cambiarle la contrasena, ahora hace falta que tenga al menos <strong>10 caracteres</strong> y que no sea de las evidentes. Antes se podia crear una cuenta con la contrasena en blanco. No se piden simbolos ni mayusculas a proposito: con moviles de por medio, eso acaba en una contrasena apuntada en un papel.</td></tr>
+                    <tr><td>08/10</td><td><strong>Queda constancia de quien entra:</strong> en <strong>Registros &rarr; Auditoria</strong> aparecen ahora las entradas, las salidas y los <strong>intentos fallidos</strong>, tanto del panel como de la webapp, con la fecha y la hora. Nunca se guarda la contrasena que se probo. Sirve para dos cosas: notar que alguien esta probando contrasenas, y poder explicar que paso si algun dia hay un problema de seguridad.</td></tr>
+                    <tr><td>08/10</td><td><strong>Las copias de seguridad se comprueban:</strong> antes se daba por buena una copia sin mirar si servia, y restaurar una copia defectuosa podia borrar la base de datos buena. Ahora se verifican al hacerlas, se guardan los secretos cifrados y aparte, y al restaurar se comprueba todo <strong>antes</strong> de tocar nada y se guarda el estado anterior por si acaso. Ver la seccion de copias de seguridad.</td></tr>
                     <tr><td>07/10</td><td><strong>Que no haya dos personas pintadas igual:</strong> cada trabajadora tiene ahora <strong>un color y un relleno</strong> (liso, rayas, puntos o cuadricula), asi que en el tablero y sobre todo en la vista del mes se distingue quien es cada una de un vistazo. Se eligen en su ficha, con una muestra al lado. Si dos personas coinciden, en <strong>Personas &rarr; Empleados</strong> sale un aviso con quienes son y un boton <strong>Repartir los que chocan</strong> que lo arregla de golpe sin tocar el color de quien no hacia falta.</td></tr>
                     <tr><td>07/10</td><td><strong>El horario por WhatsApp, y que confirmen:</strong> en <strong>Turnos &rarr; Tablero</strong>, <strong>Enviar por WhatsApp</strong> abre una pantalla con una fila por trabajadora: su numero, el estado del envio y el boton de mandarlo. Lo que recibe es un <strong>enlace personal</strong> a su horario, no el horario dentro del mensaje, y al abrirlo tiene un boton para <strong>confirmar que lo ha visto y lo acepta</strong>. En la pantalla se ve quien lo ha recibido, quien lo ha abierto y quien lo ha aceptado, con la hora, y en la vista de semana el recuento de confirmaciones. Mientras no este dado de alta el numero en Meta, se sigue mandando a mano igual que antes.</td></tr>
                     <tr><td>07/10</td><td><strong>El telefono de la ficha ya no hace falta escribirlo con prefijo:</strong> se puede poner <strong>600 00 00 00</strong> y la aplicacion le pone el +34 sola. Antes un numero sin prefijo generaba un enlace de WhatsApp que no abria la conversacion.</td></tr>

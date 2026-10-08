@@ -47,4 +47,12 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD curl -f http://localhost:5000/ || exit 1
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--threads", "2", "--timeout", "120", "run:app"]
+# El log de accesos va a stdout para que lo recoja `docker logs`. Sin el no hay
+# forma de saber quien pidio que despues de un incidente. La direccion se toma
+# de `X-Forwarded-For` porque detras del proxy del NAS `%(h)s` es siempre la del
+# proxy; se registra la ruta, nunca el cuerpo ni la query, que llevan datos.
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--threads", "2", \
+     "--timeout", "120", \
+     "--access-logfile", "-", "--error-logfile", "-", \
+     "--access-logformat", "%({x-forwarded-for}i)s \"%(m)s %(U)s\" %(s)s %(b)s %(M)sms", \
+     "run:app"]

@@ -65,13 +65,21 @@ externo de datos.
 
 ## CSRF
 
-Los 14 blueprints están **exentos de CSRF** (`csrf.exempt(bp)` en `app/__init__.py`)
-porque la app es de red local y las rutas API usan Bearer JWT. La protección real de
-los formularios admin viene del token que `base.html` inyecta por JS.
+Los blueprints están **exentos de CSRF** (la lista de `csrf.exempt(bp)` al final de
+`app/__init__.py`, hoy 16) porque la app se pensó para la red local y las rutas API
+usan Bearer JWT. La protección real de los formularios admin viene del token que
+`base.html` inyecta por JS, y `dual_auth` (`app/utils.py`) exige además la cabecera
+`X-CSRFToken` en las escrituras autenticadas por cookie.
 
-Esto es una decisión deliberada y documentada. Si se añade un blueprint nuevo, hay
-que añadirlo a esa lista o sus formularios fallarán. Si en algún momento la app se
-expone fuera de la red local, esta decisión debe revisarse.
+**La condición que justificaba esto ya no se cumple:** la aplicación está expuesta en
+internet por el proxy del NAS y hay una ruta pública (`/horario/<token>`). La decisión
+está pendiente de revisión, y lo que se contempla no es quitar la exención blueprint a
+blueprint —casi todos mezclan rutas de panel y de PWA, así que romperían la PWA— sino
+un guardián global que deje pasar los `GET` y todo lo que traiga `Authorization: Bearer`
+y exija el token al resto. Antes hace falta arreglar `login.html`, que tiene un
+formulario sin token y no extiende `base.html`.
+
+Si se añade un blueprint nuevo, hay que añadirlo a esa lista o sus formularios fallarán.
 
 ## Secretos
 
@@ -90,8 +98,27 @@ expone fuera de la red local, esta decisión debe revisarse.
   `blueprints/nfc.py`): convierte a RGB, reduce a 800px y reescribe como JPEG. Ese
   reprocesado es la defensa contra ficheros maliciosos disfrazados de imagen —
   mantenerlo.
-- `MAX_CONTENT_LENGTH` = 16 MB. Nombres de fichero generados por el servidor
-  (`{cleaner_id}_{timestamp}.jpg`), nunca el nombre que envía el cliente.
+- `MAX_CONTENT_LENGTH` = **24 MB** (`app/config.py`), no 16: el tope de un vídeo
+  de mensajería son 15 MB y el multipart añade lo suyo. El tope real por tipo de
+  fichero se comprueba en `blueprints/messaging.py`. Nombres de fichero generados
+  por el servidor (`{cleaner_id}_{timestamp}.jpg`), nunca el que envía el cliente.
+
+## Registro de autenticación
+
+Toda entrada, salida e intento fallido se registra con `log_auth()` de `app/utils.py`,
+en `AuditLog` con `table_name='auth'`. A diferencia de `log_audit()`, **hace su propio
+commit**: un evento de autenticación no pertenece a ninguna transacción de negocio y no
+puede perderse en el rollback de otra cosa.
+
+- **Nunca** se registra la contraseña probada, ni su longitud, ni una pista de ella.
+- Al usuario se le dice siempre lo mismo (para no revelar qué nombres existen); el
+  motivo real (`usuario inexistente`, `contraseña incorrecta`, `cuenta desactivada`,
+  `sin permisos`) va solo a la auditoría.
+- `log_audit()` resuelve el autor en cascada (`current_dual_user` → `current_user` →
+  JWT) y **espeja la entrada al registro del servidor** antes de escribirla, con las
+  claves de `details` pero nunca sus valores: pueden llevar nombres de residentes.
+
+Cualquier endpoint de autenticación nuevo debe registrar sus eventos.
 
 ## Rate limiting
 

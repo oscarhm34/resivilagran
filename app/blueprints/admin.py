@@ -20,7 +20,8 @@ from ..models import (Cleaner, Room, CleaningRecord, Floor, RoomType, Resident,
                       WorkerDevice, WorkerDeviceUse, WorkerDeviceLogin)
 from ..utils import (admin_required, _format_duration,
                      _compute_cleaning_stats, _calculate_room_urgency,
-                     _safe_commit, _safe_flush, log_audit, volver_atras,
+                     _safe_commit, _safe_flush, log_audit, log_auth,
+                     validar_contrasena, volver_atras,
                      APP_LANGUAGES, _ultimo_movil_por_trabajadora,
                      _movil_de_cada_conectada)
 
@@ -48,6 +49,7 @@ def admin_login():
 
         if user and user.check_password(password) and user.is_admin and user.active:
             login_user(user)
+            log_auth('login', usuario=user)
             next_page = request.args.get('next', '')
             # Validate: must be relative path, no protocol, no double-slash
             if (not next_page or not next_page.startswith('/')
@@ -55,6 +57,19 @@ def admin_login():
                 next_page = url_for('admin_bp.index')
             return redirect(next_page)
 
+        # Al usuario se le dice lo mismo en los tres casos para no revelar que
+        # nombres existen; en la auditoria si se distingue, que es donde hace
+        # falta saberlo.
+        if not user:
+            motivo = 'usuario inexistente'
+        elif not user.check_password(password):
+            motivo = 'contrasena incorrecta'
+        elif not user.active:
+            motivo = 'cuenta desactivada'
+        else:
+            motivo = 'sin permisos de administrador'
+        log_auth('login_fallido', usuario=user, username_intentado=username,
+                 motivo=motivo)
         flash('Credenciales incorrectas o sin permisos de administrador.', 'danger')
 
     return render_template('login.html')
@@ -63,6 +78,7 @@ def admin_login():
 @bp.route('/admin/logout', methods=['POST'])
 @login_required
 def admin_logout():
+    log_auth('logout', usuario=current_user)
     logout_user()
     flash('Sesión cerrada correctamente.', 'success')
     return redirect(url_for('admin_bp.admin_login'))
@@ -314,6 +330,14 @@ def add_edit_cleaner():
     if pattern not in PATRONES_PERSONAL:
         pattern = None
     phone = (request.form.get('phone') or '').strip()[:20] or None
+
+    # En el alta la contrasena es obligatoria; al editar, dejarla vacia significa
+    # "no la cambies" y eso tiene que seguir funcionando.
+    if password or not cleaner_id:
+        fallo = validar_contrasena(password, username)
+        if fallo:
+            flash(fallo, 'danger')
+            return redirect(url_for('admin_bp.manage_workers'))
 
     group_ids = request.form.getlist('group_ids')
     selected_groups = ResidentGroup.query.filter(ResidentGroup.id.in_(group_ids)).all() if group_ids else []

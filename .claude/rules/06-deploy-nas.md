@@ -31,6 +31,11 @@ cd <DEPLOY_DIR> && curl -L https://github.com/oscarhm34/resivilagran/archive/ref
 **Nunca `cp -rf resivilagran-main/* .`** — sobrescribe `uploads/` e `instance/` y
 borra fotos, la BD y los secretos. Copiar solo los ficheros de código listados.
 
+**`backup.sh` y `restore.sh` no están en esa lista**, así que un cambio en ellos no
+llega al NAS con el despliegue normal: hay que subirlos a mano (File Station o `scp`).
+Es deliberado —no se quiere que un despliegue pise la configuración de copias— pero es
+fácil olvidarlo y creer que el arreglo está puesto.
+
 **El build necesita `sudo`** (comprobado el 31/08/2026). El directorio de deploy
 contiene `pgdata/`, el volumen de PostgreSQL, que pertenece al usuario del contenedor
 (uid 999, permisos 700). El cliente Docker recorre el contexto y muere con
@@ -79,9 +84,28 @@ docker exec -it <CONTENEDOR> bash
 
 ## Backups
 
-`backup.sh` corre cada día a las 03:00 desde el Task Scheduler de Synology
-(pg_dump + `uploads/` + secretos), con retención de 30 días en el directorio
-`backups/` del deploy. Restauración interactiva con `./restore.sh <nombre_backup>`.
+`backup.sh` corre cada día a las 03:00 desde el Task Scheduler de Synology, con
+retención de 30 días en el directorio `backups/` del deploy. Genera tres ficheros:
+el `pg_dump`, un tar con `uploads/` y **un tar aparte con los secretos y el `.env`,
+cifrado con GPG** si existe el fichero de contraseña (`/volume1/docker/.backup_pass`,
+`chmod 600`, fuera del directorio de copias). Sin ese fichero el script sigue haciendo
+la copia —si no, una restauración no levantaría la aplicación— pero avisa cada día.
+
+**Las dos copias se verifican antes de darlas por buenas**: `pg_restore --list` sobre
+el dump y `tar tzf` sobre el tar. El dump se escribe en `.tmp` y solo se renombra si
+pasa; antes, un `pg_dump` cortado a medias dejaba un fichero truncado que `restore.sh`
+listaba como válido. Si algo falla, el script sale con error para que el Task Scheduler
+lo marque como fallido.
+
+Restauración interactiva con `./restore.sh <nombre_backup>`. **Comprueba la copia antes
+de tocar nada** y guarda un `pre_restore_<fecha>.pgdump` del estado actual: antes
+ejecutaba `pg_restore --clean` directamente, así que un dump corrupto se llevaba por
+delante la base de datos viva. Reconoce las copias antiguas, que llevaban los secretos
+dentro del tar de ficheros.
+
+**Las copias viven en el mismo NAS que los datos**, así que no protegen contra un
+ransomware: ver el plan de ciberseguridad (fuera del repositorio) para la copia externa
+y las instantáneas inmutables.
 
 **Antes de cualquier operación destructiva en producción** (migración de datos,
 borrado masivo, cambio de esquema), verificar que existe backup del día.

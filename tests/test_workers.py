@@ -108,7 +108,7 @@ class TestAddCleaner:
             data={
                 "username": "nuevauser",
                 "name": "Nueva Limpiadora",
-                "password": "pass1234",
+                "password": "pass12345678",
                 "is_admin": "",
             },
             follow_redirects=False,
@@ -129,7 +129,7 @@ class TestAddCleaner:
             data={
                 "username": "adminuevo",
                 "name": "Admin Nuevo",
-                "password": "pass1234",
+                "password": "pass12345678",
                 "is_admin": "on",
             },
         )
@@ -239,7 +239,9 @@ class TestEditCleaner:
                 "cleaner_id": "99999",
                 "username": "ghost",
                 "name": "Ghost",
-                "password": "x",
+                # Valida a proposito: lo que se prueba es el id inexistente, no la
+                # politica de contrasenas, que se comprueba antes.
+                "password": "contrasena-valida",
                 "is_admin": "",
             },
             follow_redirects=True,

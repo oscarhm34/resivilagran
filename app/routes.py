@@ -2,6 +2,7 @@ from __future__ import annotations
 from . import app, db
 from .models import (Cleaner, CleaningRecord, CareRecord, CareType,
                       ShiftType, AbsenceType)
+from .utils import validar_contrasena
 from datetime import datetime, time as dt_time
 import click
 
@@ -39,6 +40,11 @@ def init_admin(username: str, password: str, name: str | None) -> None:
 
     Uso: flask init-admin <username> <password>
     """
+    fallo = validar_contrasena(password, username)
+    if fallo:
+        print(f'No se ha creado nada: {fallo}')
+        return
+
     cleaner = Cleaner.query.filter_by(username=username).first()
     if cleaner:
         cleaner.set_password(password)

@@ -32,3 +32,10 @@ services:
         condition: service_healthy
     restart: unless-stopped
     mem_limit: 512m
+    # Con el log de accesos activado, sin tope el fichero crece hasta llenar el
+    # volumen del NAS y entonces no arranca nada.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

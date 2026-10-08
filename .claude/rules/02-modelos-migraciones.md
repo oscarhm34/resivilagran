@@ -21,7 +21,8 @@ class MiModelo(db.Model):
 - Métodos de negocio pequeños dentro del modelo (`calculate_duration`,
   `check_password`, `current_year_records` como `@classmethod`).
 - Contraseñas: `set_password()` / `check_password()` con Werkzeug. Nunca guardar
-  ni loguear la contraseña en claro.
+  ni loguear la contraseña en claro. Toda alta o cambio pasa antes por
+  `validar_contrasena()` de `app/utils.py`.
 
 ## Doble motor: SQLite y PostgreSQL
 

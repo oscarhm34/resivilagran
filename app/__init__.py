@@ -1,4 +1,6 @@
 from __future__ import annotations
+import os
+
 from flask import Flask, request, jsonify, render_template
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -12,6 +14,38 @@ from .config import Config
 app = Flask(__name__)
 app.config.from_object(Config)
 app.config['JWT_SECRET_KEY'] = Config.JWT_SECRET_KEY
+
+
+def _configurar_registro() -> None:
+    """Que lo que se registra se vea de verdad.
+
+    Sin esto rige el nivel por defecto de Flask fuera de depuracion, que es
+    WARNING: todos los `app.logger.info` se descartan en silencio, incluido el
+    espejo de la auditoria. El dia de un incidente, lo que no se escribio no
+    existe.
+
+    Va a stderr porque asi lo recoge `docker logs`, que es la herramienta de
+    diagnostico del NAS. El tamano lo limita el propio Docker, no la aplicacion.
+    """
+    import logging
+    import sys
+
+    nivel = (os.environ.get('LOG_LEVEL') or 'INFO').upper()
+    formato = logging.Formatter(
+        '[%(asctime)s] %(levelname)s %(name)s: %(message)s')
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(formato)
+
+    app.logger.handlers = [handler]
+    app.logger.setLevel(nivel)
+    app.logger.propagate = False
+    # SQLAlchemy y urllib3 a INFO son un torrente que llenaria el disco del NAS
+    # y enterraria lo que importa.
+    for ruidoso in ('sqlalchemy.engine', 'urllib3', 'PIL'):
+        logging.getLogger(ruidoso).setLevel(logging.WARNING)
+
+
+_configurar_registro()
 
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)

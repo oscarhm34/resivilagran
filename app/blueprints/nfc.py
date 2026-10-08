@@ -27,6 +27,7 @@ from ..models import (
 )
 from ..utils import (
     admin_required, _verify_worker_id, _current_worker_id, _safe_commit, log_audit,
+    log_auth,
     _check_single_session_conflict, _resolve_nfc_code, _format_duration,
     _allowed_file, ALLOWED_IMAGE_EXTENSIONS, _open_image_oriented,
     _save_image_stream, _falta_para_cerrar, _aviso_falta,
@@ -126,8 +127,11 @@ def login():
         # El estado de la cuenta solo se revela tras acertar la contrasena, para
         # no permitir averiguar que usuarios existen probando nombres.
         if not user.active:
+            log_auth('login_fallido', usuario=user, username_intentado=username,
+                     motivo='cuenta desactivada')
             return jsonify({'error': 'Tu cuenta esta desactivada. Contacta con administracion.'}), 403
         access_token = create_access_token(identity=username, expires_delta=timedelta(days=7))
+        log_auth('login', usuario=user)
         # Se anota desde que movil entra. Va despues de emitir el token y con su
         # propio try: que no se pueda apuntar el telefono no es motivo para dejar
         # a nadie fuera de su turno.
@@ -145,6 +149,8 @@ def login():
                        cleaner_name=user.name, role=user.role,
                        lang=_idioma_valido(user.lang)), 200
 
+    log_auth('login_fallido', usuario=user, username_intentado=username,
+             motivo='contrasena incorrecta' if user else 'usuario inexistente')
     return jsonify({'error': 'Credenciales incorrectas'}), 401
 
 
