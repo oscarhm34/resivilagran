@@ -28,6 +28,9 @@ BACKUP_FILE="$BACKUP_DIR/backup_$DATE"
 LOG="$BACKUP_DIR/backup.log"
 
 mkdir -p "$BACKUP_DIR"
+# Aquestes còpies porten tot l'historial clínic i totes les fotos dels
+# residents. Només el propietari.
+chmod 700 "$BACKUP_DIR" 2>/dev/null || true
 
 # Qualsevol sortida per error deixa constància abans de morir. Sense això, un
 # backup que falla només es nota el dia que fa falta.
@@ -143,6 +146,10 @@ fi
 # extern o al núvol és exactament el que va sortir d'aquí.
 (cd "$BACKUP_DIR" && sha256sum "$(basename "$BACKUP_FILE")".* \
   > "$(basename "$BACKUP_FILE")".sha256 2>/dev/null) || true
+
+# El dump i les fotos també són dades de salut: no poden quedar llegibles per
+# qualsevol que entri al NAS, com passava fins ara (rwxrwxrwx).
+chmod 600 "$BACKUP_FILE".* 2>/dev/null || true
 
 # 2b. Adjunts de la missatgeria: espill setmanal, sense comprimir.
 # Un adjunt esborrat desapareix de l'espill, però el registre a la base de
