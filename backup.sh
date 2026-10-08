@@ -111,15 +111,24 @@ tar czf "$BACKUP_FILE.secrets.tar.gz" -C "$APP_DIR" $SECRETS \
   || fallar "no s'han pogut empaquetar els secrets"
 echo "  Secrets inclosos:$SECRETS" >> "$LOG"
 
+# Es xifra amb openssl i no amb gpg: el gpg del NAS vol crear-se un directori de
+# treball al home de l'usuari, i aquest usuari no en té («can't create directory
+# /var/services/homes/...»). openssl no necessita ni clauer ni pinentry.
+# -pbkdf2 amb moltes iteracions perquè la clau no surti d'un hash pelat.
 if [ -s "$PASS_FILE" ]; then
-  gpg --symmetric --cipher-algo AES256 --batch --yes \
-      --passphrase-file "$PASS_FILE" \
-      --output "$BACKUP_FILE.secrets.tar.gz.gpg" \
-      "$BACKUP_FILE.secrets.tar.gz" 2>> "$LOG" \
-    || fallar "no s'han pogut xifrar els secrets"
-  rm -f "$BACKUP_FILE.secrets.tar.gz"
-  chmod 600 "$BACKUP_FILE.secrets.tar.gz.gpg"
-  echo "  Secrets OK (xifrats)" >> "$LOG"
+  if openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 -salt \
+       -pass "file:$PASS_FILE" \
+       -in "$BACKUP_FILE.secrets.tar.gz" \
+       -out "$BACKUP_FILE.secrets.tar.gz.enc" 2>> "$LOG"; then
+    rm -f "$BACKUP_FILE.secrets.tar.gz"
+    chmod 600 "$BACKUP_FILE.secrets.tar.gz.enc"
+    echo "  Secrets OK (xifrats)" >> "$LOG"
+  else
+    # Si el xifrat falla, el tar en clar no es pot quedar al disc: és just el
+    # fitxer que no volem que hi hagi.
+    rm -f "$BACKUP_FILE.secrets.tar.gz" "$BACKUP_FILE.secrets.tar.gz.enc"
+    fallar "no s'han pogut xifrar els secrets"
+  fi
 else
   # Sense contrasenya no es pot xifrar, però tampoc es pot deixar de copiar:
   # sense aquests fitxers una restauració no aixeca l'aplicació. Es deixen amb

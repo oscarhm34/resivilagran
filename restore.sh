@@ -35,7 +35,7 @@ if [ -z "${1:-}" ]; then
     FILES_SIZE="—"
     [ -f "$FILES" ] && FILES_SIZE=$(du -sh "$FILES" 2>/dev/null | cut -f1 || echo "?")
     SECRETS="—"
-    [ -f "$BACKUP_DIR/${NAME}.secrets.tar.gz.gpg" ] && SECRETS="xifrats"
+    [ -f "$BACKUP_DIR/${NAME}.secrets.tar.gz.enc" ] && SECRETS="xifrats"
     [ -f "$BACKUP_DIR/${NAME}.secrets.tar.gz" ] && SECRETS="SENSE XIFRAR"
     DATE_PART=$(echo "$NAME" | sed 's/backup_//' | sed 's/_/ /')
     echo "  $NAME  (DB: $PG_SIZE, Fitxers: $FILES_SIZE, Secrets: $SECRETS)  [$DATE_PART]"
@@ -49,7 +49,7 @@ fi
 BACKUP_NAME="$1"
 PG_FILE="$BACKUP_DIR/${BACKUP_NAME}.pgdump"
 FILES_FILE="$BACKUP_DIR/${BACKUP_NAME}.files.tar.gz"
-SECRETS_GPG="$BACKUP_DIR/${BACKUP_NAME}.secrets.tar.gz.gpg"
+SECRETS_ENC="$BACKUP_DIR/${BACKUP_NAME}.secrets.tar.gz.enc"
 SECRETS_PLA="$BACKUP_DIR/${BACKUP_NAME}.secrets.tar.gz"
 
 # ── 0. Comprovar que la còpia serveix, ABANS de tocar res ───────────────────
@@ -78,7 +78,7 @@ if [ -f "$FILES_FILE" ]; then
   echo "  Arxiu de fitxers: correcte"
 fi
 
-if [ -f "$SECRETS_GPG" ] && [ ! -s "$PASS_FILE" ]; then
+if [ -f "$SECRETS_ENC" ] && [ ! -s "$PASS_FILE" ]; then
   echo "ERROR: els secrets estan xifrats i no hi ha $PASS_FILE per desxifrar-los."
   echo "       Sense ells l'aplicació no arrencarà. NO s'ha tocat res."
   exit 1
@@ -91,7 +91,7 @@ echo ""
 echo "ATENCIÓ: Això sobreescriurà:"
 echo "  - Tota la base de dades PostgreSQL"
 [ -f "$FILES_FILE" ] && echo "  - Els fitxers pujats (uploads)"
-{ [ -f "$SECRETS_GPG" ] || [ -f "$SECRETS_PLA" ]; } && echo "  - Els secrets i el .env"
+{ [ -f "$SECRETS_ENC" ] || [ -f "$SECRETS_PLA" ]; } && echo "  - Els secrets i el .env"
 echo ""
 read -p "Continuar? (s/N): " confirm
 if [ "$confirm" != "s" ] && [ "$confirm" != "S" ]; then
@@ -138,10 +138,18 @@ fi
 
 # Les còpies anteriors al canvi porten els secrets dins del tar de fitxers;
 # les noves els porten a part i xifrats. Es contemplen les dues.
-if [ -f "$SECRETS_GPG" ]; then
-  gpg --decrypt --batch --quiet --passphrase-file "$PASS_FILE" \
-      "$SECRETS_GPG" 2>/dev/null | tar xzf - -C "$APP_DIR"
-  echo "  Secrets desxifrats i restaurats OK"
+if [ -f "$SECRETS_ENC" ]; then
+  # Mateix xifrat que fa backup.sh: openssl, no gpg. El gpg del NAS vol crear-se
+  # un directori de treball al home de l'usuari i aquest usuari no en té.
+  if openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 \
+       -pass "file:$PASS_FILE" -in "$SECRETS_ENC" 2>/dev/null \
+       | tar xzf - -C "$APP_DIR"; then
+    echo "  Secrets desxifrats i restaurats OK"
+  else
+    echo "  ERROR: no s'han pogut desxifrar els secrets."
+    echo "         La contrasenya de $PASS_FILE no es la d'aquesta copia?"
+    echo "         La base de dades SI s'ha restaurat; cal posar el .env a ma."
+  fi
 elif [ -f "$SECRETS_PLA" ]; then
   tar xzf "$SECRETS_PLA" -C "$APP_DIR"
   echo "  Secrets restaurats OK (no estaven xifrats)"
