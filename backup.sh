@@ -35,6 +35,10 @@ C2_DESTI="${C2_DESTI:-c2:lavilagran-copias/nas-residencia}"
 # Quants dies es conserven a la núvol. Ha de ser MÉS que el bloqueig del
 # depòsit (30 dies), o l'esborrat xocarà contra l'Object Lock cada nit.
 C2_DIES=45
+# La còpia de Resiplus l'envia el seu propi PC a aquesta carpeta. Aquí només es
+# vigila que segueixi arribant (pas 5).
+RESIPLUS_DIR="${RESIPLUS_DIR:-/volume1/backupResiPlus}"
+RESIPLUS_HORES=48
 DATE=$(date +%Y%m%d_%H%M%S)
 BACKUP_FILE="$BACKUP_DIR/backup_$DATE"
 LOG="$BACKUP_DIR/backup.log"
@@ -232,7 +236,36 @@ fi
 DELETED=$(find "$BACKUP_DIR" -name "backup_*" -mtime +30 -delete -print | wc -l)
 echo "  Neteja: $DELETED fitxers antics eliminats" >> "$LOG"
 
-# 4. Resum
+# 5. Vigilància: que la còpia de Resiplus segueixi arribant.
+#
+# La còpia de Resiplus la fa un script del seu propi PC i la deixa a la carpeta
+# `backupResiPlus` del NAS. El 5 de febrer de 2026 el NAS es va reiniciar, la
+# carpeta xifrada no es va tornar a muntar, i aquella còpia va deixar d'arribar
+# **durant vuit mesos** sense que ningú se n'adonés: el PC fallava cada nit i
+# ho escrivia en un registre que ningú llegeix.
+#
+# Això ho mira des d'aquí. No perquè sigui el lloc natural —la còpia no és
+# nostra— sinó perquè aquest script ja s'executa cada dia, ja escriu en un
+# registre i ja surt amb error quan alguna cosa va malament. L'avís apareix on
+# algú ja està mirant.
+ALERTA=""
+if [ ! -d "$RESIPLUS_DIR" ]; then
+  # Si no existeix, probablement la carpeta xifrada està desmuntada: exactament
+  # el que va passar al febrer.
+  ALERTA="la carpeta $RESIPLUS_DIR no existeix (xifrada sense muntar?)"
+elif [ -z "$(find "$RESIPLUS_DIR" -maxdepth 1 -type f \
+             -mmin -"$((RESIPLUS_HORES * 60))" 2>/dev/null | head -1)" ]; then
+  ULTIM=$(ls -t "$RESIPLUS_DIR" 2>/dev/null | head -1)
+  ALERTA="cap còpia de Resiplus en ${RESIPLUS_HORES}h (l'última: ${ULTIM:-cap})"
+fi
+
+if [ -n "$ALERTA" ]; then
+  echo "  AVIS RESIPLUS: $ALERTA" >> "$LOG"
+else
+  echo "  Resiplus: còpia recent, correcte" >> "$LOG"
+fi
+
+# 6. Resum
 TOTAL_BACKUPS=$(ls "$BACKUP_DIR"/backup_*.pgdump 2>/dev/null | wc -l)
 TOTAL_SIZE=$(du -sh "$BACKUP_DIR" 2>/dev/null | cut -f1)
 echo "  Backup completat: $BACKUP_FILE (DB: $PG_SIZE, Files: $FILES_SIZE)" >> "$LOG"
@@ -240,3 +273,12 @@ echo "  Total backups: $TOTAL_BACKUPS, Espai total: $TOTAL_SIZE" >> "$LOG"
 echo "---" >> "$LOG"
 
 echo "Backup completat i verificat: $BACKUP_FILE"
+
+# L'avís va al final i amb codi d'error, perquè el Task Scheduler del NAS marqui
+# la tasca com a fallida i enviï el correu. La còpia d'aquest script sí que és
+# bona —per això el missatge d'èxit de dalt— però hi ha una altra que no arriba,
+# i això s'ha de veure el dia següent, no vuit mesos després.
+if [ -n "$ALERTA" ]; then
+  echo "AVIS: $ALERTA" >&2
+  exit 1
+fi
