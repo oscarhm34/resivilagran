@@ -86,15 +86,30 @@ echo "  Fitxers OK i verificat: $FILES_SIZE" >> "$LOG"
 # Fins ara el .env i les claus anaven en clar dins del tar d'uploads: qui
 # aconseguís una còpia tenia DB_PASSWORD, les claus d'API i la VAPID privada,
 # i aquestes còpies han de poder sortir de l'edifici.
+#
+# Només s'empaqueta el que existeix de debò: SECRET_KEY i JWT_SECRET_KEY poden
+# viure al .env en comptes de a instance/, i llavors aquells dos fitxers no
+# existeixen enlloc. La versió anterior els demanava sempre, el tar sortia amb
+# error cada nit i ningú se n'assabentava perquè anava tot a /dev/null.
 echo "  Desant secrets..." >> "$LOG"
-tar czf "$BACKUP_FILE.secrets.tar.gz" \
-  -C "$APP_DIR" \
-  instance/.secret_key \
-  instance/.jwt_secret_key \
-  instance/.vapid_private_key \
-  instance/.vapid_public_key \
-  .env 2>/dev/null \
+SECRETS=""
+for f in instance/.secret_key instance/.jwt_secret_key \
+         instance/.vapid_private_key instance/.vapid_public_key .env; do
+  # Amb `if` i no amb `&&`: si l'últim de la llista no existís, l'`&&` deixaria
+  # el bucle amb codi d'error i `set -e` mataria l'script sense dir per què.
+  if [ -e "$APP_DIR/$f" ]; then
+    SECRETS="$SECRETS $f"
+  else
+    echo "  (no hi ha $f, se salta)" >> "$LOG"
+  fi
+done
+[ -n "$SECRETS" ] || fallar "no s'ha trobat cap fitxer de secrets"
+
+# Sense cometes a propòsit: $SECRETS és una llista d'arguments, no un sol nom.
+# shellcheck disable=SC2086
+tar czf "$BACKUP_FILE.secrets.tar.gz" -C "$APP_DIR" $SECRETS \
   || fallar "no s'han pogut empaquetar els secrets"
+echo "  Secrets inclosos:$SECRETS" >> "$LOG"
 
 if [ -s "$PASS_FILE" ]; then
   gpg --symmetric --cipher-algo AES256 --batch --yes \
