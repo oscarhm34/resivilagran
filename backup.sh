@@ -7,7 +7,12 @@
 #   1. pg_dump de PostgreSQL i EL VERIFICA abans de donar-lo per bo
 #   2. Comprimeix uploads (sense secrets)
 #   3. Desa els secrets a part i xifrats
-#   4. Elimina backups > 30 dies
+#   4. Puja una copia xifrada a C2 Object Storage (immutable, 30 dies)
+#   5. Elimina backups > 30 dies
+
+# Per recuperar des de la nuvol quan el NAS no hi sigui, veure la guia
+# `guia-copia-nube.md` de la carpeta de seguretat: son dues ordres d'rclone i
+# un openssl, i es poden executar des de qualsevol ordinador.
 #
 # Ús manual: /volume1/docker/NFC2-docker/backup.sh
 #
@@ -23,6 +28,13 @@ APP_DIR="/volume1/docker/NFC2-docker"
 # estigués dins, aniria dins de la còpia que protegeix.
 PASS_FILE="${BACKUP_PASS_FILE:-/volume1/docker/.backup_pass}"
 MIDA_MINIMA_DUMP=100000          # Menys de 100 KB no és una base de dades real
+# Còpia fora de l'edifici, a C2 Object Storage. Si el fitxer de configuració no
+# hi és, l'script fa la còpia local igual i salta aquest pas.
+RCLONE_CONF="${RCLONE_CONF:-/volume1/docker/.rclone.conf}"
+C2_DESTI="${C2_DESTI:-c2:lavilagran-copias/nas-residencia}"
+# Quants dies es conserven a la núvol. Ha de ser MÉS que el bloqueig del
+# depòsit (30 dies), o l'esborrat xocarà contra l'Object Lock cada nit.
+C2_DIES=45
 DATE=$(date +%Y%m%d_%H%M%S)
 BACKUP_FILE="$BACKUP_DIR/backup_$DATE"
 LOG="$BACKUP_DIR/backup.log"
@@ -150,6 +162,60 @@ fi
 # El dump i les fotos també són dades de salut: no poden quedar llegibles per
 # qualsevol que entri al NAS, com passava fins ara (rwxrwxrwx).
 chmod 600 "$BACKUP_FILE".* 2>/dev/null || true
+
+# 4. Fora de l'edifici: C2 Object Storage, amb Object Lock de 30 dies.
+#
+# Es puja amb rclone i no amb Hyper Backup per dos motius. El primer, pràctic:
+# en aquest NAS Hyper Backup no connecta amb C2 (falla després de llistar el
+# depòsit, i té dues tasques velles en error). El segon, de fons: Hyper Backup
+# reescriu el seu conjunt de còpies, i això xoca amb un depòsit bloquejat, que
+# per definició no deixa reescriure res. Aquests fitxers, en canvi, porten la
+# data al nom i no es toquen mai més: són exactament el que un magatzem
+# immutable espera.
+#
+# Tot el que surt de l'edifici va xifrat. El dump i les fotos són dades de
+# salut i C2 és un tercer; que només hi arribi un bloc il·legible no és un
+# extra, és la condició per poder-ho enviar.
+if [ -s "$RCLONE_CONF" ] && [ -s "$PASS_FILE" ]; then
+  echo "  Pujant a la nuvol..." >> "$LOG"
+  PUJADA="$BACKUP_DIR/.pujada"
+  rm -rf "$PUJADA"
+  mkdir -p "$PUJADA"
+
+  for f in "$BACKUP_FILE.pgdump" "$BACKUP_FILE.files.tar.gz"; do
+    [ -f "$f" ] || continue
+    openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 -salt \
+      -pass "file:$PASS_FILE" -in "$f" -out "$PUJADA/$(basename "$f").enc" \
+      || { rm -rf "$PUJADA"; fallar "no s'ha pogut xifrar $(basename "$f")"; }
+  done
+  # Els secrets ja estan xifrats, i el sha256 no és cap secret.
+  cp "$BACKUP_FILE.secrets.tar.gz.enc" "$PUJADA/" 2>/dev/null || true
+  cp "$BACKUP_FILE.sha256" "$PUJADA/" 2>/dev/null || true
+
+  # --s3-no-check-bucket: la clau d'accés només té permisos sobre el depòsit,
+  # no per comprovar-ne l'existència. Sense això rclone falla abans de pujar.
+  if docker run --rm \
+       -v "$RCLONE_CONF":/config/rclone/rclone.conf:ro \
+       -v "$PUJADA":/data:ro \
+       rclone/rclone copy /data "$C2_DESTI/" \
+       --s3-no-check-bucket --transfers 2 >> "$LOG" 2>&1; then
+    echo "  Nuvol OK: $(ls "$PUJADA" | wc -l) fitxers" >> "$LOG"
+  else
+    rm -rf "$PUJADA"
+    fallar "no s'ha pogut pujar a la nuvol"
+  fi
+  rm -rf "$PUJADA"
+
+  # Neteja del que ja ha passat el bloqueig. Si encara està bloquejat, C2 ho
+  # rebutja i no passa res: per això el `|| true`, que un esborrat fallit no
+  # pot carregar-se un backup que ja és bo.
+  docker run --rm \
+    -v "$RCLONE_CONF":/config/rclone/rclone.conf:ro \
+    rclone/rclone delete "$C2_DESTI/" --min-age "${C2_DIES}d" \
+    --s3-no-check-bucket >> "$LOG" 2>&1 || true
+else
+  echo "  (sense còpia a la nuvol: falta $RCLONE_CONF o $PASS_FILE)" >> "$LOG"
+fi
 
 # 2b. Adjunts de la missatgeria: espill setmanal, sense comprimir.
 # Un adjunt esborrat desapareix de l'espill, però el registre a la base de
