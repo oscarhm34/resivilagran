@@ -1,5 +1,6 @@
 """Shifts / Cuadrantes blueprint — admin shift management + worker API."""
 from __future__ import annotations
+import json
 import re
 from datetime import datetime, timedelta, date, time as dt_time
 
@@ -15,6 +16,7 @@ from ..models import (
     RotationPattern, RotationPatternDay, WorkerShiftConfig,
     AbsenceType, Absence, ShiftCoverageRequirement,
     ShiftPosition, ShiftWeekPublication, ShiftWeekReceipt, Notification,
+    AppSetting,
 )
 from ..utils import (
     admin_required, _safe_commit, _safe_flush, _parse_hhmm, log_audit,
@@ -1156,6 +1158,29 @@ FILAS_TABLERO = ['manana', 'tarde', 'noche', 'lateral']
 ETIQUETAS_FILA = {'manana': 'Mañana', 'tarde': 'Tarde',
                   'noche': 'Noche', 'lateral': 'Otros puestos'}
 
+# El ancho que alguien le ha dado a cada columna del recuadro del dia, como en
+# la hoja de calculo de la que viene esta pantalla: la columna de la
+# coordinadora se deja estrecha y la de M1 ancha, porque los nombres que caen en
+# cada una no miden lo mismo.
+#
+# Va en AppSetting y no en una columna de `shift_position` porque es una
+# preferencia de dibujo, no un dato del puesto, y asi no hace falta ALTER TABLE
+# en el NAS. Es global a proposito: el cuadrante lo miran varias personas y
+# tiene que verse igual para todas.
+CLAVE_ANCHOS = 'shift_board_col_widths'
+# Y en que orden van. El reparto de serie pone los puestos de fuera (cocina,
+# recepcion) a los dos lados y los de planta en medio, pero cada residencia
+# dibuja su cuadrante como lo tiene en la cabeza, asi que se puede arrastrar
+# una columna a donde toque.
+CLAVE_ORDEN = 'shift_board_col_order'
+# Un tope por si alguien manda una lista absurda: no hay cuadrante con cien
+# columnas.
+MAX_COLUMNAS = 100
+# Por debajo de 70 px no cabe un codigo de puesto; por encima de 420 una columna
+# se come el recuadro y las demas dejan de verse.
+ANCHO_MIN, ANCHO_MAX = 70, 420
+
+
 DIAS_SEMANA = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo']
 # A mano y no con strftime('%B'): eso sale en el idioma del sistema, que en el
 # contenedor es ingles. El resto del modulo ya lleva los dias asi.
@@ -1460,7 +1485,150 @@ def _columnas_del_dia(filas: dict) -> list:
     return izquierda + columnas + derecha
 
 
-def _tablero_de_dia(dia: date, puestos, asignaciones: dict, ausencias: dict) -> dict:
+def _anchos_columnas() -> dict:
+    """{position_id: ancho en px} de las columnas que alguien ha ajustado.
+
+    La clave es el puesto de la primera caja de la columna, porque las columnas
+    no son entidades: `_columnas_del_dia` las reparte cada vez. Dentro de
+    `columnas` ese puesto no se repite —los de noche viven en su propia franja—
+    asi que sirve de clave mientras los puestos no cambien. Un ancho de un
+    puesto que ya no existe se queda huerfano aqui y se ignora: esa columna
+    vuelve a su ancho automatico, que es lo que toca.
+
+    Nunca levanta: un JSON corrupto en AppSetting no puede tumbar el tablero,
+    asi que lo que no se entienda sale con el ancho de siempre.
+    """
+    try:
+        guardado = json.loads(AppSetting.get(CLAVE_ANCHOS, '{}'))
+    except (ValueError, TypeError):
+        return {}
+    if not isinstance(guardado, dict):
+        return {}
+
+    anchos = {}
+    for clave, valor in guardado.items():
+        try:
+            pid, px = int(clave), int(valor)
+        except (ValueError, TypeError):
+            continue
+        anchos[pid] = max(ANCHO_MIN, min(ANCHO_MAX, px))
+    return anchos
+
+
+def _guardar_anchos(anchos: dict):
+    """Escribe el mapa de anchos. (ok, error), como el resto de escrituras.
+
+    A mano y no con `AppSetting.set()`: ese hace commit directo y aqui manda
+    `_safe_commit`, que traduce el fallo a un mensaje en castellano.
+    """
+    valor = json.dumps({str(k): v for k, v in sorted(anchos.items())})
+    fila = AppSetting.query.filter_by(key=CLAVE_ANCHOS).first()
+    if fila:
+        fila.value = valor
+    else:
+        db.session.add(AppSetting(key=CLAVE_ANCHOS, value=valor))
+    return _safe_commit('No se pudieron guardar los anchos de las columnas.')
+
+
+def _orden_columnas() -> list:
+    """[[position_id, ...], ...]: las columnas y lo que lleva cada una.
+
+    Una columna puede llevar mas de un puesto —la manana encima de la tarde,
+    como en el cuadrante de papel— asi que lo guardado es una lista de
+    columnas, no una lista plana. Se acepta tambien la lista plana que se
+    guardo al principio: cada puesto, su columna.
+
+    Misma tolerancia que los anchos: lo que no se entienda sale con el reparto
+    de siempre, nunca una pantalla de error.
+    """
+    try:
+        guardado = json.loads(AppSetting.get(CLAVE_ORDEN, '[]'))
+    except (ValueError, TypeError):
+        return []
+    if not isinstance(guardado, list):
+        return []
+
+    orden, vistos = [], set()
+    for bruto in guardado[:MAX_COLUMNAS]:
+        grupo = []
+        for clave in (bruto if isinstance(bruto, list) else [bruto]):
+            try:
+                pid = int(clave)
+            except (ValueError, TypeError):
+                continue
+            # Un puesto esta en una columna y en una sola.
+            if pid not in vistos:
+                vistos.add(pid)
+                grupo.append(pid)
+        if grupo:
+            orden.append(grupo)
+    return orden
+
+
+def _tramo_en_columna(p) -> tuple:
+    """El rato que ocupa la caja de ese puesto dentro del recuadro.
+
+    En `columnas` un puesto de noche sale como reflejo —donde tambien esta—, y
+    el que viene de la vispera se mide en negativo. Es el mismo tramo que dibuja
+    `_casilla`, que es lo que hay que mirar para saber si dos cajas se pisan.
+    """
+    if p.echo_row in FILAS_TABLERO:
+        return _tramo(p.shift_type, p.echo_previous_day)
+    return _tramo(p.shift_type, False)
+
+
+def _se_pisan(a: tuple, b: tuple) -> bool:
+    """Si dos cajas comparten un rato, y por tanto no caben una sobre otra.
+
+    Se mide lo dibujado, no lo fichado: una caja nunca baja de media hora de
+    alto (`_situar`), asi que dos turnos de diez minutos pegados se solaparian
+    en pantalla aunque en el reloj no.
+    """
+    fin_a = max(a[1], a[0] + 30)
+    fin_b = max(b[1], b[0] + 30)
+    return a[0] < fin_b and b[0] < fin_a
+
+
+def _guardar_orden(orden: list):
+    """Escribe el orden de las columnas. (ok, error)."""
+    valor = json.dumps(orden)
+    fila = AppSetting.query.filter_by(key=CLAVE_ORDEN).first()
+    if fila:
+        fila.value = valor
+    else:
+        db.session.add(AppSetting(key=CLAVE_ORDEN, value=valor))
+    return _safe_commit('No se pudo guardar el orden de las columnas.')
+
+
+def _ordena_columnas(columnas: list, orden: list) -> list:
+    """Rehace las columnas con lo que haya colocado alguien.
+
+    Un puesto nuevo todavia no esta en lo guardado: se queda en la columna que
+    le toca de serie y esa columna va al final, que es donde se ve que hay algo
+    por situar. Uno borrado sobra en la lista y se cae solo, sin dejar hueco.
+    """
+    if not orden:
+        return columnas
+
+    por_puesto = {c['position_id']: c for col in columnas for c in col}
+    nuevas, colocados = [], set()
+    for grupo in orden:
+        col = [por_puesto[pid] for pid in grupo
+               if pid in por_puesto and pid not in colocados]
+        if not col:
+            continue
+        colocados.update(c['position_id'] for c in col)
+        nuevas.append(col)
+
+    for col in columnas:
+        resto = [c for c in col if c['position_id'] not in colocados]
+        if resto:
+            nuevas.append(resto)
+    return nuevas
+
+
+def _tablero_de_dia(dia: date, puestos, asignaciones: dict, ausencias: dict,
+                    orden: list = None) -> dict:
     """El recuadro de un dia: un eje de horas y las cajas colocadas en el.
 
     Cada caja empieza y acaba donde dice su horario, asi que se ve de un vistazo
@@ -1485,7 +1653,8 @@ def _tablero_de_dia(dia: date, puestos, asignaciones: dict, ausencias: dict) -> 
         _situar(caja, eje)
 
     return {'fecha': dia, 'iso': dia.isoformat(), 'dow': DIAS_SEMANA[dia.weekday()],
-            'eje': eje, 'columnas': _columnas_del_dia(filas),
+            'eje': eje,
+            'columnas': _ordena_columnas(_columnas_del_dia(filas), orden or []),
             'noche': filas['noche'], 'filas': filas}
 
 
@@ -1512,7 +1681,10 @@ def _tablero_de_rango(desde: date, hasta: date) -> list:
     vispera = desde - timedelta(days=1)
     asignaciones = _asignaciones_por_puesto(vispera, hasta)
     ausencias = _ausencias_de(vispera, hasta)
-    return [_tablero_de_dia(desde + timedelta(days=i), puestos, asignaciones, ausencias)
+    # El orden, una vez y no por dia: un mes son cuarenta y dos recuadros.
+    orden = _orden_columnas()
+    return [_tablero_de_dia(desde + timedelta(days=i), puestos, asignaciones,
+                            ausencias, orden)
             for i in range((hasta - desde).days + 1)]
 
 
@@ -1581,7 +1753,8 @@ def shift_board_day(iso: str):
     puestos = _puestos_activos()
     asignaciones = _asignaciones_por_puesto(dia - timedelta(days=1), dia)
     ausencias = _ausencias_de(dia, dia)
-    tablero = _tablero_de_dia(dia, puestos, asignaciones, ausencias)
+    tablero = _tablero_de_dia(dia, puestos, asignaciones, ausencias,
+                              _orden_columnas())
 
     # La lista lleva a todo el mundo, tenga puesto o no: para doblar un M1 con
     # un T1 hay que poder arrastrar otra vez a quien ya esta colocada. Quien ya
@@ -1613,6 +1786,9 @@ def shift_board_day(iso: str):
         dia_siguiente=(dia + timedelta(days=1)).isoformat(),
         semana=_lunes_de(dia).isoformat(),
         hay_puestos=bool(puestos),
+        # El ancho que alguien le haya dado a cada columna. Solo aqui: las
+        # miniaturas de semana y mes se dibujan a su escala.
+        anchos=_anchos_columnas(),
     )
 
 
@@ -1799,6 +1975,124 @@ def _horario_de(cleaner_id: int, lunes: date) -> list:
         else:
             lineas.append(f'{cabecera}: Libre')
     return lineas
+
+
+@bp.route('/cuadrantes/tablero/anchos', methods=['POST'])
+@admin_required
+def shift_board_widths():
+    """El ancho de una columna del recuadro, o el de todas de vuelta.
+
+    Tres gestos, un endpoint: `width` con numero lo guarda, `width` a null
+    devuelve esa columna a automatica (el doble clic en el tirador), y
+    `reset` las devuelve todas.
+    """
+    datos = request.get_json(silent=True) or {}
+    anchos = _anchos_columnas()
+
+    if datos.get('reset'):
+        if anchos:
+            log_audit('update', 'app_setting', 0,
+                      {'ajuste': CLAVE_ANCHOS, 'columnas': len(anchos),
+                       'accion': 'restablecer'})
+            ok, error = _guardar_anchos({})
+            if not ok:
+                return jsonify({'error': error}), 500
+        return jsonify({'ok': True, 'anchos': {}})
+
+    try:
+        pid = int(datos['position_id'])
+    except (KeyError, TypeError, ValueError):
+        return jsonify({'error': 'Faltan datos o no son validos.'}), 400
+
+    puesto = db.session.get(ShiftPosition, pid)
+    if not puesto or not puesto.active:
+        return jsonify({'error': 'Ese puesto ya no existe. Recarga la pagina.'}), 404
+
+    ancho = datos.get('width')
+    if ancho is None:
+        # Quitarlo es devolver la columna al reparto automatico, no ponerle 0.
+        anchos.pop(pid, None)
+    else:
+        try:
+            ancho = int(ancho)
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Ese ancho no es un numero.'}), 400
+        anchos[pid] = max(ANCHO_MIN, min(ANCHO_MAX, ancho))
+
+    log_audit('update', 'app_setting', 0,
+              {'ajuste': CLAVE_ANCHOS, 'puesto': puesto.code,
+               'ancho': anchos.get(pid)})
+    ok, error = _guardar_anchos(anchos)
+    if not ok:
+        return jsonify({'error': error}), 500
+    return jsonify({'ok': True, 'anchos': {str(k): v for k, v in anchos.items()}})
+
+
+@bp.route('/cuadrantes/tablero/orden', methods=['POST'])
+@admin_required
+def shift_board_order():
+    """Como quedan repartidas las columnas del recuadro.
+
+    `orden` son las columnas de izquierda a derecha, y cada una la lista de
+    puestos que lleva de arriba abajo. `reset` devuelve el reparto de serie.
+    """
+    datos = request.get_json(silent=True) or {}
+
+    if datos.get('reset'):
+        if _orden_columnas():
+            log_audit('update', 'app_setting', 0,
+                      {'ajuste': CLAVE_ORDEN, 'accion': 'restablecer'})
+            ok, error = _guardar_orden([])
+            if not ok:
+                return jsonify({'error': error}), 500
+        return jsonify({'ok': True, 'orden': []})
+
+    bruto = datos.get('orden')
+    if not isinstance(bruto, list) or not bruto:
+        return jsonify({'error': 'Faltan datos o no son validos.'}), 400
+    if len(bruto) > MAX_COLUMNAS:
+        return jsonify({'error': 'Son demasiadas columnas.'}), 400
+
+    puestos = {p.id: p for p in _puestos_activos()}
+    orden, vistos = [], set()
+    for grupo_bruto in bruto:
+        grupo = []
+        for clave in (grupo_bruto if isinstance(grupo_bruto, list) else [grupo_bruto]):
+            try:
+                pid = int(clave)
+            except (TypeError, ValueError):
+                return jsonify({'error': 'Faltan datos o no son validos.'}), 400
+            if pid not in vistos:
+                vistos.add(pid)
+                grupo.append(pid)
+        if not grupo:
+            continue
+
+        # Una columna es una franja de tiempo leida de arriba abajo: dos cajas
+        # que comparten un rato no caben una sobre otra sin mentir sobre el
+        # horario, que es justo lo que este recuadro sirve para ver.
+        for i, pid in enumerate(grupo):
+            for otro in grupo[i + 1:]:
+                uno, dos = puestos.get(pid), puestos.get(otro)
+                if not uno or not dos:
+                    continue
+                if _se_pisan(_tramo_en_columna(uno), _tramo_en_columna(dos)):
+                    return jsonify({'error': (
+                        f'{uno.code} y {dos.code} coinciden en el horario, asi que '
+                        f'no caben en la misma columna. Dejalos uno al lado del otro.'
+                    )}), 400
+        orden.append(grupo)
+
+    if not orden:
+        return jsonify({'error': 'Faltan datos o no son validos.'}), 400
+
+    log_audit('update', 'app_setting', 0,
+              {'ajuste': CLAVE_ORDEN, 'columnas': len(orden),
+               'puestos': sum(len(g) for g in orden)})
+    ok, error = _guardar_orden(orden)
+    if not ok:
+        return jsonify({'error': error}), 500
+    return jsonify({'ok': True, 'orden': orden})
 
 
 @bp.route('/cuadrantes/tablero/publicar', methods=['POST'])

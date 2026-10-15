@@ -12,14 +12,16 @@ la misma casilla, que nadie quede asignado estando de baja, y que lo que se
 coloca a mano no se lo lleve por delante la siguiente generacion automatica.
 """
 
+import json
+import re
 from datetime import date, datetime, time, timedelta
 
 import pytest
 from flask_jwt_extended import create_access_token
 
 from app.models import (
-    Absence, AbsenceType, AuditLog, Cleaner, Notification, ShiftAssignment,
-    ShiftPosition, ShiftType, ShiftWeekPublication,
+    Absence, AbsenceType, AppSetting, AuditLog, Cleaner, Notification,
+    ShiftAssignment, ShiftPosition, ShiftType, ShiftWeekPublication,
 )
 
 
@@ -54,6 +56,28 @@ def tarde(db):
     st = ShiftType(name='Tarde', short_name='T', color='#8fe3b0',
                    start_time=time(14, 0), end_time=time(20, 30),
                    sort_order=2, active=True, board_row='tarde')
+    db.session.add(st)
+    db.session.commit()
+    return st
+
+
+@pytest.fixture
+def cocina(db):
+    """Un puesto de fuera de planta: de serie se dibuja a un lado del recuadro."""
+    st = ShiftType(name='Cocina', short_name='CO', color='#f0a01e',
+                   start_time=time(9, 0), end_time=time(16, 0),
+                   sort_order=5, active=True, board_row='lateral')
+    db.session.add(st)
+    db.session.commit()
+    return st
+
+
+@pytest.fixture
+def recepcion(db):
+    """Otro puesto de fuera, y su horario se pisa con el de cocina."""
+    st = ShiftType(name='Recepcion', short_name='RE', color='#b9a7e8',
+                   start_time=time(8, 0), end_time=time(15, 0),
+                   sort_order=6, active=True, board_row='lateral')
     db.session.add(st)
     db.session.commit()
     return st
@@ -107,6 +131,8 @@ RUTAS_POST = [
     '/cuadrantes/tablero/asignar',
     '/cuadrantes/tablero/quitar',
     '/cuadrantes/tablero/publicar',
+    '/cuadrantes/tablero/anchos',
+    '/cuadrantes/tablero/orden',
     '/cuadrantes/puestos/add_edit',
     '/cuadrantes/puestos/delete/1',
 ]
@@ -812,3 +838,362 @@ def test_un_mes_mal_escrito_cae_en_el_de_hoy(auth_client, db, manana):
 def test_el_mes_sin_puestos_lo_dice(auth_client, db):
     texto = auth_client.get('/cuadrantes/tablero/mes').get_data(as_text=True)
     assert 'no hay puestos definidos' in texto
+
+
+# ── El ancho de las columnas ──────────────────────────────────────────────────
+#
+# El recuadro viene de una hoja de calculo, donde la columna de la coordinadora
+# se deja estrecha y la de M1 ancha. Lo que se protege aqui es que el ancho se
+# guarde donde todos lo ven, que no se pueda meter un valor absurdo y que un
+# ajuste corrupto no se lleve por delante el tablero entero.
+
+URL_ANCHOS = '/cuadrantes/tablero/anchos'
+
+
+def _anchos_guardados():
+    from app.blueprints.shifts import CLAVE_ANCHOS
+    return json.loads(AppSetting.get(CLAVE_ANCHOS, '{}'))
+
+
+def test_el_ancho_se_guarda_y_sale_en_el_recuadro(auth_client, db, manana):
+    m1 = _puesto(db, manana, 'M1')
+
+    res = auth_client.post(URL_ANCHOS, json={'position_id': m1.id, 'width': 148})
+
+    assert res.status_code == 200
+    assert _anchos_guardados() == {str(m1.id): 148}
+
+    texto = auth_client.get(f'/cuadrantes/tablero/dia/{LUNES.isoformat()}').get_data(as_text=True)
+    assert 'style="width:148px"' in texto
+
+
+def test_el_ancho_se_recorta_a_lo_que_cabe(auth_client, db, manana):
+    m1 = _puesto(db, manana, 'M1')
+
+    auth_client.post(URL_ANCHOS, json={'position_id': m1.id, 'width': 10})
+    assert _anchos_guardados() == {str(m1.id): 70}
+
+    auth_client.post(URL_ANCHOS, json={'position_id': m1.id, 'width': 9999})
+    assert _anchos_guardados() == {str(m1.id): 420}
+
+
+def _ancho_pintado(texto, puesto):
+    """El `data-ancho` de la columna de ese puesto, o None si no lleva ninguno."""
+    trozo = re.search(r'data-clave="%d"(.*?)>' % puesto.id, texto, re.S)
+    assert trozo, f'la columna de {puesto.code} no sale en el recuadro'
+    px = re.search(r'data-ancho="(\d+)"', trozo.group(1))
+    return int(px.group(1)) if px else None
+
+
+def test_cada_columna_lleva_su_ancho(auth_client, db, manana):
+    m1 = _puesto(db, manana, 'M1', orden=1)
+    m2 = _puesto(db, manana, 'M2', orden=2)
+
+    auth_client.post(URL_ANCHOS, json={'position_id': m1.id, 'width': 200})
+
+    texto = auth_client.get(f'/cuadrantes/tablero/dia/{LUNES.isoformat()}').get_data(as_text=True)
+    assert _ancho_pintado(texto, m1) == 200
+    # La que nadie ha tocado sigue repartiendose el sitio.
+    assert _ancho_pintado(texto, m2) is None
+    assert texto.count('data-ancho=') == 1
+
+
+def test_quitar_el_ancho_devuelve_la_columna_a_automatica(auth_client, db, manana):
+    m1 = _puesto(db, manana, 'M1', orden=1)
+    m2 = _puesto(db, manana, 'M2', orden=2)
+    auth_client.post(URL_ANCHOS, json={'position_id': m1.id, 'width': 148})
+    auth_client.post(URL_ANCHOS, json={'position_id': m2.id, 'width': 90})
+
+    res = auth_client.post(URL_ANCHOS, json={'position_id': m1.id, 'width': None})
+
+    assert res.status_code == 200
+    # Solo esa: el doble clic en un tirador no toca las demas columnas.
+    assert _anchos_guardados() == {str(m2.id): 90}
+
+
+def test_restablecer_las_devuelve_todas(auth_client, db, manana):
+    m1 = _puesto(db, manana, 'M1', orden=1)
+    m2 = _puesto(db, manana, 'M2', orden=2)
+    auth_client.post(URL_ANCHOS, json={'position_id': m1.id, 'width': 148})
+    auth_client.post(URL_ANCHOS, json={'position_id': m2.id, 'width': 90})
+
+    res = auth_client.post(URL_ANCHOS, json={'reset': True})
+
+    assert res.status_code == 200
+    assert res.get_json()['anchos'] == {}
+    assert _anchos_guardados() == {}
+
+
+def test_restablecer_sin_nada_puesto_no_falla(auth_client, db, manana):
+    _puesto(db, manana, 'M1')
+    assert auth_client.post(URL_ANCHOS, json={'reset': True}).status_code == 200
+
+
+def test_un_puesto_que_no_existe_no_guarda_nada(auth_client, db, manana):
+    _puesto(db, manana, 'M1')
+
+    res = auth_client.post(URL_ANCHOS, json={'position_id': 9999, 'width': 148})
+
+    assert res.status_code == 404
+    assert _anchos_guardados() == {}
+
+
+def test_un_puesto_de_baja_tampoco(auth_client, db, manana):
+    m1 = _puesto(db, manana, 'M1')
+    m1.active = False
+    db.session.commit()
+
+    assert auth_client.post(URL_ANCHOS,
+                            json={'position_id': m1.id, 'width': 148}).status_code == 404
+
+
+def test_sin_puesto_ni_reset_es_peticion_invalida(auth_client, db, manana):
+    _puesto(db, manana, 'M1')
+    assert auth_client.post(URL_ANCHOS, json={}).status_code == 400
+    assert auth_client.post(URL_ANCHOS, json={'width': 148}).status_code == 400
+
+
+def test_un_ancho_que_no_es_numero_se_rechaza(auth_client, db, manana):
+    m1 = _puesto(db, manana, 'M1')
+    res = auth_client.post(URL_ANCHOS, json={'position_id': m1.id, 'width': 'ancho'})
+    assert res.status_code == 400
+    assert _anchos_guardados() == {}
+
+
+def test_el_ajuste_queda_en_la_auditoria(auth_client, db, manana):
+    m1 = _puesto(db, manana, 'M1')
+    auth_client.post(URL_ANCHOS, json={'position_id': m1.id, 'width': 148})
+
+    registro = AuditLog.query.filter_by(table_name='app_setting').first()
+    assert registro is not None
+    assert 'M1' in (registro.details or '')
+
+
+@pytest.mark.parametrize('basura', ['no es json', '[]', '{"a": "b"}', '', 'null'])
+def test_un_ajuste_corrupto_no_tumba_el_tablero(auth_client, db, manana, basura):
+    """Un AppSetting ilegible deja las columnas como siempre, no una pantalla de error."""
+    from app.blueprints.shifts import CLAVE_ANCHOS, _anchos_columnas
+
+    _puesto(db, manana, 'M1')
+    db.session.add(AppSetting(key=CLAVE_ANCHOS, value=basura))
+    db.session.commit()
+
+    assert _anchos_columnas() == {}
+    res = auth_client.get(f'/cuadrantes/tablero/dia/{LUNES.isoformat()}')
+    assert res.status_code == 200
+    assert 'data-ancho=' not in res.get_data(as_text=True)
+
+
+def test_un_puesto_borrado_deja_su_ancho_huerfano_sin_molestar(auth_client, db, manana):
+    """El ancho de un puesto que ya no esta se ignora: esa columna no existe."""
+    m1 = _puesto(db, manana, 'M1', orden=1)
+    m2 = _puesto(db, manana, 'M2', orden=2)
+    auth_client.post(URL_ANCHOS, json={'position_id': m1.id, 'width': 148})
+    db.session.delete(m1)
+    db.session.commit()
+
+    texto = auth_client.get(f'/cuadrantes/tablero/dia/{LUNES.isoformat()}').get_data(as_text=True)
+    assert 'data-ancho=' not in texto
+    assert f'data-clave="{m2.id}"' in texto
+
+
+# ── El orden de las columnas ──────────────────────────────────────────────────
+#
+# El reparto de serie pone los puestos de fuera a los dos lados, pero cada
+# residencia dibuja su cuadrante como lo tiene en la cabeza. Lo que se protege
+# aqui es que lo colocado se respete, que un puesto nuevo no desaparezca y que
+# uno borrado no deje hueco.
+
+URL_ORDEN = '/cuadrantes/tablero/orden'
+
+
+_SIN_ICONOS = re.compile(r'<i [^>]*></i>')
+
+
+def _columnas_del_recuadro(texto):
+    """[[codigo, ...], ...]: las columnas del recuadro y lo que lleva cada una."""
+    cuerpo = texto.split('<div class="tb-lienzo">')[1]
+    for corte in ('class="tb-noche"', 'id="tb-banquillo"'):
+        if corte in cuerpo:
+            cuerpo = cuerpo.split(corte)[0]
+            break
+    columnas = []
+    for trozo in cuerpo.split('<div class="tb-col"')[1:]:
+        columnas.append([_SIN_ICONOS.sub('', c.split('</div>')[0]).strip()
+                         for c in trozo.split('<div class="tb-code">')[1:]])
+    return columnas
+
+
+def _codigos_de_columna(texto):
+    """El codigo de arriba de cada columna, de izquierda a derecha."""
+    return [col[0] for col in _columnas_del_recuadro(texto) if col]
+
+
+def _recuadro(client, dia=LUNES):
+    return client.get(f'/cuadrantes/tablero/dia/{dia.isoformat()}').get_data(as_text=True)
+
+
+def test_sin_orden_guardado_manda_el_reparto_de_siempre(auth_client, db, manana, cocina):
+    """Los puestos de fuera a los lados y los de planta en medio."""
+    _puesto(db, manana, 'M1', orden=1)
+    _puesto(db, cocina, 'Cocina', orden=1)
+
+    assert _codigos_de_columna(_recuadro(auth_client)) == ['Cocina', 'M1']
+
+
+def test_una_columna_se_puede_llevar_a_la_derecha(auth_client, db, manana, cocina):
+    m1 = _puesto(db, manana, 'M1', orden=1)
+    co = _puesto(db, cocina, 'Cocina', orden=1)
+
+    res = auth_client.post(URL_ORDEN, json={'orden': [m1.id, co.id]})
+
+    assert res.status_code == 200
+    assert _codigos_de_columna(_recuadro(auth_client)) == ['M1', 'Cocina']
+
+
+def test_el_orden_tambien_manda_en_la_semana(auth_client, db, manana, cocina):
+    """La semana son los mismos recuadros en pequeno: no pueden salir al reves."""
+    m1 = _puesto(db, manana, 'M1', orden=1)
+    co = _puesto(db, cocina, 'Cocina', orden=1)
+    auth_client.post(URL_ORDEN, json={'orden': [m1.id, co.id]})
+
+    texto = auth_client.get(f'/cuadrantes/tablero?semana={LUNES.isoformat()}').get_data(as_text=True)
+
+    # En las miniaturas el codigo va en su propia etiqueta, no en una caja.
+    assert texto.index('M1') < texto.index('Cocina')
+
+
+def test_un_puesto_nuevo_sale_al_final(auth_client, db, manana, cocina):
+    """Hasta que se coloque: al final se ve que hay algo por situar."""
+    m1 = _puesto(db, manana, 'M1', orden=1)
+    co = _puesto(db, cocina, 'Cocina', orden=1)
+    auth_client.post(URL_ORDEN, json={'orden': [m1.id, co.id]})
+
+    _puesto(db, manana, 'M2', orden=2)
+
+    assert _codigos_de_columna(_recuadro(auth_client)) == ['M1', 'Cocina', 'M2']
+
+
+def test_un_puesto_borrado_no_deja_hueco(auth_client, db, manana, cocina):
+    m1 = _puesto(db, manana, 'M1', orden=1)
+    m2 = _puesto(db, manana, 'M2', orden=2)
+    co = _puesto(db, cocina, 'Cocina', orden=1)
+    auth_client.post(URL_ORDEN, json={'orden': [m2.id, co.id, m1.id]})
+
+    db.session.delete(co)
+    db.session.commit()
+
+    assert _codigos_de_columna(_recuadro(auth_client)) == ['M2', 'M1']
+
+
+def test_restablecer_devuelve_el_reparto_de_siempre(auth_client, db, manana, cocina):
+    m1 = _puesto(db, manana, 'M1', orden=1)
+    co = _puesto(db, cocina, 'Cocina', orden=1)
+    auth_client.post(URL_ORDEN, json={'orden': [m1.id, co.id]})
+
+    res = auth_client.post(URL_ORDEN, json={'reset': True})
+
+    assert res.status_code == 200
+    assert res.get_json()['orden'] == []
+    assert _codigos_de_columna(_recuadro(auth_client)) == ['Cocina', 'M1']
+
+
+def test_un_orden_repetido_se_queda_con_la_primera_vez(auth_client, db, manana):
+    m1 = _puesto(db, manana, 'M1', orden=1)
+    m2 = _puesto(db, manana, 'M2', orden=2)
+
+    res = auth_client.post(URL_ORDEN, json={'orden': [m2.id, m1.id, m2.id]})
+
+    # Un puesto esta en una columna y en una sola.
+    assert res.get_json()['orden'] == [[m2.id], [m1.id]]
+
+
+@pytest.mark.parametrize('cuerpo', [
+    {}, {'orden': []}, {'orden': 'M1,M2'}, {'orden': ['dos']}, {'orden': list(range(200))},
+])
+def test_un_orden_invalido_se_rechaza(auth_client, db, manana, cuerpo):
+    _puesto(db, manana, 'M1')
+    assert auth_client.post(URL_ORDEN, json=cuerpo).status_code == 400
+
+
+@pytest.mark.parametrize('basura', ['no es json', '{}', '', 'null', '[{"a": 1}]'])
+def test_un_orden_corrupto_no_tumba_el_tablero(auth_client, db, manana, cocina, basura):
+    from app.blueprints.shifts import CLAVE_ORDEN, _orden_columnas
+
+    _puesto(db, manana, 'M1', orden=1)
+    _puesto(db, cocina, 'Cocina', orden=1)
+    db.session.add(AppSetting(key=CLAVE_ORDEN, value=basura))
+    db.session.commit()
+
+    assert _orden_columnas() == []
+    assert _codigos_de_columna(_recuadro(auth_client)) == ['Cocina', 'M1']
+
+
+def test_el_orden_queda_en_la_auditoria(auth_client, db, manana):
+    m1 = _puesto(db, manana, 'M1', orden=1)
+    m2 = _puesto(db, manana, 'M2', orden=2)
+    auth_client.post(URL_ORDEN, json={'orden': [m2.id, m1.id]})
+
+    detalles = [r.details or '' for r in
+                AuditLog.query.filter_by(table_name='app_setting').all()]
+    assert any('shift_board_col_order' in d for d in detalles)
+
+
+# ── Apilar dos cuadros en la misma columna ────────────────────────────────────
+#
+# Una columna es una franja de tiempo leida de arriba abajo, asi que apilar solo
+# vale si los dos turnos no coinciden. Si coincidieran, el recuadro estaria
+# mintiendo sobre el horario, que es justo para lo que se mira.
+
+def test_dos_puestos_que_no_coinciden_caben_en_una_columna(auth_client, db, manana, tarde):
+    m1 = _puesto(db, manana, 'M1', orden=1)
+    t1 = _puesto(db, tarde, 'T1', orden=1)
+
+    res = auth_client.post(URL_ORDEN, json={'orden': [[m1.id, t1.id]]})
+
+    assert res.status_code == 200
+    assert _columnas_del_recuadro(_recuadro(auth_client)) == [['M1', 'T1']]
+
+
+def test_apilar_dos_que_coinciden_se_rechaza(auth_client, db, cocina, recepcion):
+    co = _puesto(db, cocina, 'Cocina', orden=1)
+    re_ = _puesto(db, recepcion, 'Recep', orden=1)
+
+    res = auth_client.post(URL_ORDEN, json={'orden': [[co.id, re_.id]]})
+
+    assert res.status_code == 400
+    assert 'Cocina' in res.get_json()['error'] and 'Recep' in res.get_json()['error']
+    # Y no se guarda nada: siguen una al lado de la otra.
+    assert _columnas_del_recuadro(_recuadro(auth_client)) == [['Cocina'], ['Recep']]
+
+
+def test_un_cuadro_apilado_vuelve_a_columna_propia(auth_client, db, manana, tarde):
+    m1 = _puesto(db, manana, 'M1', orden=1)
+    t1 = _puesto(db, tarde, 'T1', orden=1)
+    auth_client.post(URL_ORDEN, json={'orden': [[m1.id, t1.id]]})
+
+    auth_client.post(URL_ORDEN, json={'orden': [[t1.id], [m1.id]]})
+
+    assert _columnas_del_recuadro(_recuadro(auth_client)) == [['T1'], ['M1']]
+
+
+def test_el_formato_antiguo_de_lista_plana_se_entiende(auth_client, db, manana, cocina):
+    """Lo guardado antes de que una columna pudiera llevar dos puestos."""
+    from app.blueprints.shifts import CLAVE_ORDEN
+
+    m1 = _puesto(db, manana, 'M1', orden=1)
+    co = _puesto(db, cocina, 'Cocina', orden=1)
+    db.session.add(AppSetting(key=CLAVE_ORDEN, value=json.dumps([m1.id, co.id])))
+    db.session.commit()
+
+    assert _columnas_del_recuadro(_recuadro(auth_client)) == [['M1'], ['Cocina']]
+
+
+def test_un_puesto_no_puede_estar_en_dos_columnas(auth_client, db, manana, tarde):
+    m1 = _puesto(db, manana, 'M1', orden=1)
+    t1 = _puesto(db, tarde, 'T1', orden=1)
+
+    res = auth_client.post(URL_ORDEN, json={'orden': [[m1.id, t1.id], [m1.id]]})
+
+    # La segunda vez sobra; la columna que queda vacia no se guarda.
+    assert res.get_json()['orden'] == [[m1.id, t1.id]]

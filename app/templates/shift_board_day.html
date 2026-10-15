@@ -5,11 +5,22 @@
 
 {# Una caja del recuadro. `top` y `alto` salen del horario, asi que quien entra
    antes empieza mas arriba y quien hace menos horas ocupa menos. #}
-{% macro caja(c, con_horario=false) %}
+{% macro caja(c, con_horario=false, asa=false, movible=false) %}
 <div class="tb-caja{% if c.reflejo %} tb-reflejo{% endif %}{% if c.recortado %} tb-recortada{% endif %}"
+     data-position-id="{{ c.position_id }}"
+     data-inicio="{{ c.inicio }}" data-fin="{{ c.fin }}"
      {% if c.top is defined %}style="top:{{ c.top }}%;height:{{ c.alto }}%"{% endif %}
      title="{{ c.name or c.shift_name }} · {{ c.horario }}{% if c.reflejo %} · tambien esta en esta franja; se cambia en su casilla de noche{% endif %}{% if c.recortado %} · entro el dia anterior{% endif %}">
-    <div class="tb-code">{{ c.code }}</div>
+    {# Dos agarres, dos gestos: el de la izquierda (solo en la caja de arriba)
+       se lleva la columna entera; el de la derecha, solo esta caja, a otra
+       columna o al hueco entre dos. #}
+    <div class="tb-code">
+        {%- if asa %}<i class="bi bi-grip-vertical tb-grip tb-grip-col" aria-hidden="true"
+                        title="Arrastra para mover la columna entera"></i>{% endif -%}
+        {{ c.code }}
+        {%- if movible and not c.solo_lectura %}<i class="bi bi-grip-vertical tb-grip tb-asa-caja"
+             aria-hidden="true" title="Arrastra para llevarte solo este cuadro"></i>{% endif -%}
+    </div>
     <div class="tb-slot" data-position-id="{{ c.position_id }}"
          {% if c.solo_lectura %}data-solo-lectura="1"{% endif %}
          {% if c.reflejo and not c.reflejo_de_ayer %}data-reflejo-hoy="1"{% endif %}
@@ -40,12 +51,34 @@
         padding: 10px;
         overflow-x: auto;
     }
-    /* La altura es la de la jornada; dentro, cada caja se coloca por su hora. */
-    .tb-lienzo { position: relative; height: 560px; display: flex; gap: 6px; flex: 1; min-width: 0; }
+    /* La altura es la de la jornada; dentro, cada caja se coloca por su hora.
+       `min-width: min-content` y no 0: con 0 el lienzo se encoge y sus columnas
+       lo desbordan sin que el `overflow-x` del recuadro tenga nada que
+       desplazar, asi que una columna ancha aplastaba a las demas en vez de
+       sacar barra. Con min-content el lienzo crece hasta la suma de sus
+       columnas y el recuadro se desplaza, como una hoja de calculo. */
+    .tb-lienzo {
+        position: relative; height: 560px; display: flex;
+        flex: 1; min-width: min-content;
+    }
 
     /* Regla de horas: las rayas cruzan el recuadro para poder seguir a que hora
        entra cada una sin tener que contar cajas. */
-    .tb-horas { position: relative; width: 46px; flex-shrink: 0; }
+    /* Pegada a la izquierda mientras se desplaza el recuadro, igual que la
+       columna de nombres de la rejilla mensual: en cuanto las columnas se
+       salen de la pantalla, sin la regla no se sabe a que hora empieza nada.
+       Lleva fondo propio porque las cajas le pasan por debajo, y va por encima
+       de los tiradores (z-index 3). */
+    .tb-horas {
+        position: sticky; left: 0; z-index: 4;
+        width: 46px; flex-shrink: 0; background: var(--tb-papel);
+    }
+    /* El recuadro tiene 10px de margen interior, y por ahi se colaba lo que
+       pasa por detras de la regla al desplazarse. Esta tira lo tapa. */
+    .tb-horas::before {
+        content: ''; position: absolute; top: 0; bottom: 0;
+        right: 100%; width: 12px; background: var(--tb-papel);
+    }
     .tb-hora {
         position: absolute; left: 0; right: 0; transform: translateY(-50%);
         font-size: .68rem; color: var(--color-text-secondary); text-align: right;
@@ -55,6 +88,55 @@
     .tb-raya { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--tb-raya); }
 
     .tb-col { position: relative; flex: 1 0 104px; min-width: 104px; }
+    /* Una columna a la que alguien le ha dado un ancho deja de repartirse el
+       sitio con las demas. `min-width: 0` para que no la frene ni el minimo de
+       arriba ni el del bloque de movil: el ancho puesto a mano manda. */
+    .tb-col[data-ancho] { flex: 0 0 auto; min-width: 0; }
+
+    /* Se arrastra el borde derecho de la columna, como en el Excel del que
+       viene este recuadro. El tirador vive en el hueco entre columnas y por
+       encima de las cajas, que son absolutas. */
+    .tb-tirador {
+        position: absolute; top: 0; bottom: 0; right: -4px; width: 9px;
+        z-index: 3; cursor: col-resize;
+        touch-action: none;   /* en la tablet, el dedo no desplaza el recuadro */
+    }
+    .tb-tirador::after {
+        content: ''; position: absolute; top: 0; bottom: 0; left: 3px; width: 3px;
+        border-radius: 2px; background: transparent;
+    }
+    .tb-tirador:hover::after,
+    .tb-tirador:focus-visible::after,
+    .tb-tirador.tb-tirando::after { background: var(--color-primary); }
+    .tb-tirador:focus { outline: none; }
+    /* Mientras se arrastra, el cursor es el mismo en toda la pantalla y no se
+       selecciona media pagina de paso. */
+    body.tb-redimensionando { cursor: col-resize; user-select: none; }
+
+    /* Dos agarres y dos gestos, cada uno en una punta del codigo para que no
+       se pisen: a la izquierda la columna entera, a la derecha solo la caja. */
+    .tb-grip {
+        position: absolute; top: 50%; transform: translateY(-50%);
+        color: var(--color-text-secondary); opacity: .6; cursor: grab;
+    }
+    .tb-grip:hover { opacity: 1; color: var(--color-primary); }
+    .tb-grip:active { cursor: grabbing; }
+    .tb-grip-col { left: 0; }
+    .tb-asa-caja { right: 0; }
+
+    /* El hueco entre columnas. De serie solo separa; mientras se lleva una
+       caja se ensancha y se marca, porque soltarla ahi le da columna propia. */
+    .tb-sep { flex: 0 0 6px; align-self: stretch; border-radius: var(--radius-sm); }
+    .tb-lienzo.tb-soltando .tb-sep {
+        flex-basis: 26px;
+        outline: 2px dashed var(--color-primary); outline-offset: -4px;
+    }
+    /* Durante el arrastre el tirador del ancho estorba: esta en el mismo hueco. */
+    .tb-lienzo.tb-soltando .tb-tirador { pointer-events: none; }
+
+    /* La columna que se esta llevando y el hueco donde va a caer. */
+    .tb-col.tb-llevando { opacity: .45; }
+    .tb-col.tb-hueco { outline: 2px dashed var(--color-primary); outline-offset: -2px; }
 
     .tb-caja {
         position: absolute; left: 0; right: 0;
@@ -69,6 +151,7 @@
         overflow: hidden;
     }
     .tb-code {
+        position: relative;   /* los agarres se cuelgan de aqui */
         font-size: .76rem; font-weight: 700; text-align: center;
         padding: 2px 4px; background: var(--color-bg); color: var(--color-text);
         flex-shrink: 0;
@@ -153,6 +236,10 @@
                 <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Anadir puesto
             </button>
             {% endif %}
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="tb-reset-anchos"
+                    title="Devuelve las columnas a su ancho y su orden de siempre">
+                <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Restablecer columnas
+            </button>
             <a class="btn btn-sm btn-outline-secondary"
                href="{{ url_for('shifts.shift_board_day', iso=dia_anterior) }}">&laquo; Dia anterior</a>
             <a class="btn btn-sm btn-outline-secondary"
@@ -190,10 +277,20 @@
                         <div class="tb-raya" style="top:{{ h.pct }}%"></div>
                         {% endfor %}
                     </div>
+                    <div class="tb-sep" aria-hidden="true"></div>
                     {% for col in tablero.columnas %}
-                    <div class="tb-col">
-                        {% for c in col %}{{ caja(c) }}{% endfor %}
+                    {# La clave de la columna es el puesto de su primera caja: las
+                       columnas se reparten cada vez, los puestos no. #}
+                    {% set clave = col[0].position_id %}
+                    {% set ancho = anchos.get(clave) %}
+                    <div class="tb-col" data-clave="{{ clave }}"
+                         {% if ancho %}data-ancho="{{ ancho }}" style="width:{{ ancho }}px"{% endif %}>
+                        {% for c in col %}{{ caja(c, asa=loop.first, movible=true) }}{% endfor %}
+                        <div class="tb-tirador" role="separator" aria-orientation="vertical"
+                             tabindex="0" aria-label="Ancho de la columna {{ col[0].code }}"
+                             title="Arrastra para cambiar el ancho. Doble clic para dejarlo automatico."></div>
                     </div>
+                    <div class="tb-sep" aria-hidden="true"></div>
                     {% endfor %}
                 </div>
             </div>
@@ -521,6 +618,279 @@
         group: {name: 'personal', pull: 'clone', put: true},
         onAdd: alSoltarEnBanquillo
     }));
+
+    // ── El ancho de las columnas ─────────────────────────────────────────────
+    // Se arrastra el borde derecho, como en la hoja de calculo de la que viene
+    // este recuadro: la columna de la coordinadora se deja estrecha y la de M1
+    // ancha, porque los nombres que caen en cada una no miden lo mismo.
+    //
+    // Se guarda al soltar, no mientras se mueve: un gesto, una peticion. Y es
+    // global, porque el cuadrante lo miran varias personas y tiene que verse
+    // igual para todas.
+    var URL_ANCHOS = {{ url_for('shifts.shift_board_widths')|tojson }};
+    var URL_ORDEN = {{ url_for('shifts.shift_board_order')|tojson }};
+    var MIN_ANCHO = 70, MAX_ANCHO = 420;
+
+    function anchoDe(col) {
+        return col.dataset.ancho ? parseInt(col.dataset.ancho, 10) : null;
+    }
+
+    function recorta(px) {
+        return Math.max(MIN_ANCHO, Math.min(MAX_ANCHO, Math.round(px)));
+    }
+
+    // `null` devuelve la columna al reparto automatico, que no es lo mismo que
+    // ponerle cero.
+    function aplicaAncho(col, px) {
+        if (px === null) {
+            delete col.dataset.ancho;
+            col.style.width = '';
+        } else {
+            col.dataset.ancho = px;
+            col.style.width = px + 'px';
+        }
+    }
+
+    // Los anchos viajan como un mapa entero, asi que dos guardados a la vez se
+    // pisan: el segundo escribe sobre lo que leyo antes de que llegara el
+    // primero. Se encadenan para que de este navegador nunca salgan dos a la
+    // vez, que es el caso que pasa de verdad —ensanchar dos columnas seguidas.
+    var cola = Promise.resolve();
+    function enCola(tarea) {
+        cola = cola.then(tarea, tarea);
+        return cola;
+    }
+
+    // Si el servidor dice que no, la columna vuelve a como estaba: la pantalla
+    // no puede ensenar un ancho que no esta guardado.
+    function fijaAncho(col, px, previo) {
+        aplicaAncho(col, px);
+        return enCola(async function () {
+            try {
+                await pedir(URL_ANCHOS, {
+                    position_id: parseInt(col.dataset.clave, 10),
+                    width: px
+                });
+            } catch (e) {
+                aplicaAncho(col, previo);
+                aviso(e.message, 'error');
+            }
+        });
+    }
+
+    document.querySelectorAll('.tb-tirador').forEach(function (tirador) {
+        var col = tirador.closest('.tb-col');
+        var arrastre = null;
+        var espera = null, antesDeTeclear = null;
+
+        tirador.addEventListener('pointerdown', function (e) {
+            // Que no lo vea Sortable y que no se seleccione media pantalla al
+            // arrastrar. El foco se pone a mano porque preventDefault lo quita.
+            e.preventDefault();
+            e.stopPropagation();
+            tirador.focus();
+            arrastre = {x: e.clientX, desde: col.getBoundingClientRect().width,
+                        previo: anchoDe(col)};
+            tirador.setPointerCapture(e.pointerId);
+            tirador.classList.add('tb-tirando');
+            document.body.classList.add('tb-redimensionando');
+        });
+
+        // Un solo camino para raton, dedo y lapiz: esta pantalla se usa en
+        // tablet, por lo mismo que Sortable va con forceFallback.
+        tirador.addEventListener('pointermove', function (e) {
+            if (!arrastre) return;
+            aplicaAncho(col, recorta(arrastre.desde + (e.clientX - arrastre.x)));
+        });
+
+        function suelta(e) {
+            if (!arrastre) return;
+            var previo = arrastre.previo;
+            arrastre = null;
+            tirador.classList.remove('tb-tirando');
+            document.body.classList.remove('tb-redimensionando');
+            if (tirador.hasPointerCapture(e.pointerId)) {
+                tirador.releasePointerCapture(e.pointerId);
+            }
+            var px = anchoDe(col);
+            if (px !== previo) fijaAncho(col, px, previo);
+        }
+        tirador.addEventListener('pointerup', suelta);
+        tirador.addEventListener('pointercancel', suelta);
+
+        // Doble clic: esta columna vuelve a repartirse el sitio con las demas.
+        tirador.addEventListener('dblclick', function (e) {
+            e.preventDefault();
+            var previo = anchoDe(col);
+            if (previo === null) return;
+            fijaAncho(col, null, previo);
+        });
+
+        // Con el tirador enfocado, las flechas lo mueven e Inicio lo deja
+        // automatico. El guardado espera a que se pare de pulsar, para no
+        // mandar una peticion por tecla.
+        tirador.addEventListener('keydown', function (e) {
+            var paso = e.shiftKey ? 16 : 8;
+            var actual = Math.round(col.getBoundingClientRect().width);
+            var px;
+            if (e.key === 'ArrowRight') px = recorta(actual + paso);
+            else if (e.key === 'ArrowLeft') px = recorta(actual - paso);
+            else if (e.key === 'Home') px = null;
+            else return;
+            e.preventDefault();
+
+            if (espera === null) antesDeTeclear = anchoDe(col);
+            else clearTimeout(espera);
+            aplicaAncho(col, px);
+            espera = setTimeout(function () {
+                espera = null;
+                if (px !== antesDeTeclear) fijaAncho(col, px, antesDeTeclear);
+            }, 400);
+        });
+    });
+
+    // ── Mover columnas y cuadros de sitio ───────────────────────────────────
+    // Dos gestos con el mismo Sortable que las fichas, en grupos distintos
+    // para que no se mezclen: el agarre de la izquierda se lleva la columna
+    // entera y el de la derecha solo esa caja. Soltar una caja en el hueco
+    // entre dos columnas le da columna propia; soltarla dentro de otra la
+    // apila debajo, que es como esta el cuadrante de papel.
+    var lienzo = document.querySelector('.tb-lienzo');
+
+    function columnasDelDom() {
+        return [].map.call(lienzo.querySelectorAll('.tb-col'), function (col) {
+            return [].map.call(col.querySelectorAll('.tb-caja'), function (caja) {
+                return parseInt(caja.dataset.positionId, 10);
+            });
+        }).filter(function (grupo) { return grupo.length; });
+    }
+
+    function guardaOrden(alFallar) {
+        return enCola(async function () {
+            try {
+                await pedir(URL_ORDEN, {orden: columnasDelDom()});
+            } catch (e) {
+                aviso(e.message, 'error');
+                if (alFallar) alFallar();
+            }
+        });
+    }
+
+
+    // Una columna es una franja de tiempo leida de arriba abajo. Se comprueba
+    // aqui ademas de en el servidor para que el cuadro vuelva a su sitio en el
+    // acto en vez de despues de ir y volver.
+    function seChocan(a, b) {
+        var iniA = parseInt(a.dataset.inicio, 10), finA = parseInt(a.dataset.fin, 10);
+        var iniB = parseInt(b.dataset.inicio, 10), finB = parseInt(b.dataset.fin, 10);
+        return iniA < Math.max(finB, iniB + 30) && iniB < Math.max(finA, iniA + 30);
+    }
+
+    function choqueEn(col, caja) {
+        var chocan = null;
+        [].forEach.call(col.querySelectorAll('.tb-caja'), function (otra) {
+            if (otra !== caja && !chocan && seChocan(otra, caja)) chocan = otra;
+        });
+        return chocan;
+    }
+
+    function codigoDe(caja) {
+        return caja.querySelector('.tb-code').textContent.trim();
+    }
+
+    // Tras mover un cuadro cambian las columnas, cual lleva el agarre de
+    // columna y cual se queda vacia: en vez de rehacerlo a mano se vuelve a
+    // pedir la pagina, que es la que sabe como queda. Si el guardado falla,
+    // tambien: lo que se ve tiene que ser lo que esta guardado.
+    async function guardaYRecarga() {
+        await guardaOrden();
+        location.reload();
+    }
+
+    if (lienzo) {
+        new Sortable(lienzo, {
+            group: 'columnas',
+            draggable: '.tb-col',
+            handle: '.tb-grip-col',
+            animation: 150,
+            forceFallback: true,     // el arrastre nativo no va con el dedo
+            scroll: true,
+            chosenClass: 'tb-llevando',
+            ghostClass: 'tb-hueco',
+            onEnd: function () {
+                guardaOrden(function () { location.reload(); });
+            }
+        });
+
+        var comunCuadro = {
+            group: 'cuadros',
+            draggable: '.tb-caja',
+            handle: '.tb-asa-caja',
+            animation: 150,
+            forceFallback: true,
+            scroll: true,
+            chosenClass: 'tb-llevando',
+            onStart: function () { lienzo.classList.add('tb-soltando'); },
+            onEnd: function (evt) {
+                lienzo.classList.remove('tb-soltando');
+                var caja = evt.item;
+                var destino = evt.to;
+                if (destino === evt.from && evt.oldIndex === evt.newIndex) return;
+
+                // En el hueco entre columnas: columna propia, ahi mismo.
+                if (destino.classList.contains('tb-sep')) {
+                    var col = document.createElement('div');
+                    col.className = 'tb-col';
+                    destino.parentNode.insertBefore(col, destino);
+                    col.appendChild(caja);
+                } else {
+                    var choque = choqueEn(destino, caja);
+                    if (choque) {
+                        evt.from.insertBefore(caja, evt.from.children[evt.oldIndex] || null);
+                        aviso(codigoDe(choque) + ' y ' + codigoDe(caja) + ' coinciden en el ' +
+                              'horario, asi que no caben en la misma columna. Dejalos uno al ' +
+                              'lado del otro.', 'error');
+                        return;
+                    }
+                }
+                // La columna de la que sale puede haberse quedado sin nada.
+                if (evt.from.classList.contains('tb-col') && !evt.from.querySelector('.tb-caja')) {
+                    evt.from.remove();
+                }
+                guardaYRecarga();
+            }
+        };
+
+        lienzo.querySelectorAll('.tb-col').forEach(function (col) {
+            new Sortable(col, Object.assign({}, comunCuadro));
+        });
+        lienzo.querySelectorAll('.tb-sep').forEach(function (sep) {
+            new Sortable(sep, Object.assign({}, comunCuadro, {sort: false}));
+        });
+    }
+
+    var botonReset = document.getElementById('tb-reset-anchos');
+    if (botonReset) {
+        botonReset.addEventListener('click', async function () {
+            var previos = [];
+            document.querySelectorAll('.tb-col[data-ancho]').forEach(function (c) {
+                previos.push([c, anchoDe(c)]);
+            });
+            previos.forEach(function (par) { aplicaAncho(par[0], null); });
+            await enCola(async function () {
+                try {
+                    await pedir(URL_ANCHOS, {reset: true});
+                    await pedir(URL_ORDEN, {reset: true});
+                } catch (e) {
+                    previos.forEach(function (par) { aplicaAncho(par[0], par[1]); });
+                    aviso(e.message, 'error');
+                    return;
+                }
+                // El orden lo reparte el servidor, asi que hay que volver a pedirlo.
+                location.reload();
+            });
+        });
+    }
 })();
 </script>
 {% endblock %}
