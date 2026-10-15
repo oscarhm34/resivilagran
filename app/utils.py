@@ -186,14 +186,21 @@ def _allowed_file(filename: str, allowed: set) -> bool:
 
 # ── Contrasenas ──────────────────────────────────────────────────────────────
 
-LONGITUD_MINIMA_CONTRASENA = 10
+# Cuatro, no diez. Es una decision tomada a sabiendas: lo que de verdad frena
+# aqui el probar combinaciones es el limite de diez intentos por minuto del
+# login, no la longitud. Lo que no se cede es el cero: una cuenta sin
+# contrasena no es una cuenta.
+LONGITUD_MINIMA_CONTRASENA = 4
 
 # Lo que la gente escribe cuando se le pide una contrasena y tiene prisa. La
 # lista es corta a proposito: sirve para cortar lo evidente, no para simular un
-# diccionario.
+# diccionario. Con un minimo de cuatro hacen falta ademas las cortas de toda la
+# vida, que antes no llegaban ni a pasar por aqui.
 CONTRASENAS_PROHIBIDAS = {
-    '1234567890', '0123456789', 'contrasena', 'contraseña', 'password',
-    'qwertyuiop', 'lavilagran', 'residencia', 'administrador',
+    '1234', '12345', '123456', '1234567', '12345678', '123456789',
+    '1234567890', '0123456789', '0000', '1111', 'abcd', 'abcdef',
+    'contrasena', 'contraseña', 'password', 'qwerty', 'qwertyuiop',
+    'admin', 'lavilagran', 'residencia', 'administrador',
 }
 
 
@@ -203,7 +210,9 @@ def validar_contrasena(password: str, username: str = '') -> str | None:
     Solo longitud y unas pocas prohibidas. **No se exigen simbolos ni mayusculas
     a proposito**: quien usa esto son trabajadoras tecleando en un movil, y la
     complejidad obligatoria no produce contrasenas mejores, produce contrasenas
-    apuntadas en un papel al lado del ordenador.
+    apuntadas en un papel al lado del ordenador. Por lo mismo el minimo es
+    corto: lo que frena el probar combinaciones es el limite de intentos del
+    login.
     """
     password = password or ''
     if len(password) < LONGITUD_MINIMA_CONTRASENA:

@@ -45,8 +45,9 @@ def _entradas(accion=None):
 
 @pytest.mark.parametrize('password, motivo', [
     ('', 'vacia'),
-    ('corta', 'menos de 10'),
-    ('123456789', 'nueve caracteres'),
+    ('abc', 'tres caracteres'),
+    ('1234', 'prohibida'),
+    ('0000', 'prohibida'),
     ('password', 'prohibida'),
     ('lavilagran', 'prohibida'),
 ])
@@ -58,9 +59,17 @@ def test_una_contrasena_floja_se_rechaza(app, password, motivo):
 def test_una_contrasena_razonable_se_acepta(app):
     from app.utils import validar_contrasena
     assert validar_contrasena('martes-de-octubre') is None
-    # Exactamente el minimo: el limite entra.
     assert validar_contrasena('gatoVerde1') is None
-    assert len('gatoVerde1') == 10
+    # Exactamente el minimo: el limite entra.
+    assert validar_contrasena('pera') is None
+    assert len('pera') == 4
+
+
+def test_la_cuenta_sin_contrasena_sigue_sin_valer(app):
+    """El minimo bajo a cuatro, pero el cero no se cede: sin contrasena no hay cuenta."""
+    from app.utils import validar_contrasena
+    assert validar_contrasena('') is not None
+    assert validar_contrasena(None) is not None
 
 
 def test_la_contrasena_no_puede_llevar_el_usuario_dentro(app):
@@ -83,7 +92,7 @@ def test_no_se_crea_una_trabajadora_sin_contrasena(auth_client, db):
 def test_no_se_crea_una_trabajadora_con_contrasena_corta(auth_client, db):
     res = auth_client.post('/cleaners/add_edit', data={
         'username': 'nueva', 'name': 'Nueva', 'role': 'atenciones',
-        'active': 'on', 'password': 'corta',
+        'active': 'on', 'password': 'cor',
     }, follow_redirects=True)
     assert 'al menos' in res.get_data(as_text=True)
     assert Cleaner.query.filter_by(username='nueva').first() is None
