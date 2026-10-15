@@ -25,7 +25,29 @@ El NAS **no tiene git**. Se descarga el zip de GitHub:
 3. Descargar, descomprimir y reconstruir (una línea):
 
 ```
-cd <DEPLOY_DIR> && curl -L https://github.com/oscarhm34/resivilagran/archive/refs/heads/main.zip -o main.zip && 7z x -y main.zip && cp -rf resivilagran-main/app resivilagran-main/run.py resivilagran-main/requirements.txt resivilagran-main/Dockerfile resivilagran-main/.dockerignore resivilagran-main/docker-compose.yml resivilagran-main/migrations . && rm -rf resivilagran-main main.zip && sudo docker build --no-cache -t nfc2-docker-nfc <DEPLOY_DIR> && docker-compose up -d --force-recreate nfc
+cd <DEPLOY_DIR> && curl -L https://github.com/oscarhm34/resivilagran/archive/refs/heads/main.zip -o main.zip && 7z x -y main.zip && cp -rf resivilagran-main/app resivilagran-main/run.py resivilagran-main/requirements.txt resivilagran-main/Dockerfile resivilagran-main/.dockerignore resivilagran-main/docker-compose.yml resivilagran-main/migrations . && rm -rf resivilagran-main main.zip && sudo docker build --no-cache -t nfc2-docker-nfc <DEPLOY_DIR> && docker compose up -d --force-recreate nfc
+```
+
+**`docker compose`, sin guión.** Este NAS ya no tiene el binario antiguo
+`docker-compose`, y el fallo es traicionero: la cadena va con `&&`, así que el
+`docker build` termina bien, parece que todo ha ido, y el `command not found` se
+pierde al final de las cientos de líneas del build. El contenedor se queda con el
+código viejo **sin avisar de nada** (comprobado el 15/10/2026).
+
+**Comprobar siempre que el contenedor se ha reemplazado de verdad**, porque que el
+build funcione no quiere decir que el despliegue se haya hecho:
+
+```
+docker ps | grep nfc
+```
+
+Tiene que poner `Up X seconds`. Si pone `Up 7 days`, el contenedor es el de antes y
+solo falta `cd <DEPLOY_DIR> && docker compose up -d --force-recreate nfc`.
+
+Para mirar dentro del que está corriendo, en vez de en el disco del NAS:
+
+```
+docker exec <CONTENEDOR> grep -c <algo_nuevo> /app/app/templates/<plantilla>.html
 ```
 
 **Nunca `cp -rf resivilagran-main/* .`** — sobrescribe `uploads/` e `instance/` y
@@ -51,8 +73,8 @@ Arreglo de fondo pendiente: sacar `pgdata` del directorio de build (moverlo fuer
 pasarlo a volumen con nombre en `docker-compose.yml`) y así quitar el `sudo`. Toca la
 base de datos: hacerlo con backup del día verificado, nunca en mitad de un deploy.
 
-`docker-compose build` falla en este NAS (`mkdir /var/services/homes: file exists`);
-usar `docker build` directamente.
+Construir desde compose falla en este NAS (`mkdir /var/services/homes: file exists`);
+usar `docker build` directamente, que es lo que hace la línea de arriba.
 
 ## Migraciones en producción: `stamp`, nunca `upgrade`
 
