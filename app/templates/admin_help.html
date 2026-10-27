@@ -524,6 +524,31 @@
                 <li>Se puede leer lo que se le esta enviando y anadirle instrucciones propias desde <strong>Config &rarr; Asistente IA</strong>. Ver el apartado 18.</li>
             </ul>
 
+            <h6 class="mt-3">Recuerda la conversacion <span class="badge bg-success">NUEVO</span></h6>
+            <p>Ya se le puede preguntar <strong>una cosa detras de otra</strong> sin repetir el nombre:</p>
+            <ul>
+                <li>"Que atenciones ha recibido Tadea Cazorla?" &rarr; "<strong>y ayer?</strong>" &rarr; "<strong>y de limpieza?</strong>"</li>
+                <li>"Quien es Maria Garcia?" &rarr; "<strong>que habitacion tiene?</strong>"</li>
+            </ul>
+            <p>El hilo vive <strong>solo en la ventana abierta</strong>. El boton de la flecha, arriba
+               a la derecha del chat, empieza una conversacion nueva, y cerrar la ventana hace lo
+               mismo. <strong>Nada de lo que se pregunta se guarda en ningun sitio.</strong></p>
+            <p class="mb-0">Antes cada pregunta llegaba suelta, sin lo anterior, asi que "y de ella?"
+               no podia funcionar de ninguna manera.</p>
+
+            <h6 class="mt-3">Sabe que dia es hoy <span class="badge bg-success">NUEVO</span></h6>
+            <p>Las fechas en lenguaje normal ya funcionan: <strong>"ayer"</strong>,
+               <strong>"el martes pasado"</strong>, <strong>"esta semana"</strong>,
+               <strong>"este mes"</strong>. Antes habia que darle la fecha completa, porque no sabia
+               en que dia vivia y la tenia que adivinar.</p>
+
+            <h6 class="mt-3">Si una consulta falla, lo dice <span class="badge bg-success">NUEVO</span></h6>
+            <p class="mb-0">Antes, un fallo interno devolvia un <em>Error del chatbot</em> en blanco y
+               ahi se acababa todo. Ahora el asistente <strong>ve el fallo y lo corrige</strong> —si
+               pidio mal una fecha, la vuelve a pedir bien— y solo si no puede, explica en una linea
+               que no ha logrado consultar ese dato. Tambien tiene un tope de consultas por pregunta:
+               si se enreda, responde con lo que haya encontrado en vez de quedarse colgado.</p>
+
             <h6 class="mt-3">Ejemplos de preguntas</h6>
             <ul>
                 <li>"Que atenciones se han hecho hoy?"</li>
@@ -2239,6 +2264,9 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>27/10</td><td><strong>El asistente recuerda la conversacion:</strong> ya se le puede preguntar "y ayer?" o "y de ella?" sin repetir el nombre. El hilo vive solo en la ventana abierta; el boton de la flecha empieza una conversacion nueva, y <strong>nada de lo que se pregunta se guarda</strong>. Antes cada pregunta llegaba suelta, asi que las preguntas de seguimiento no podian funcionar.</td></tr>
+                    <tr><td>27/10</td><td><strong>El asistente sabe que dia es hoy:</strong> "ayer", "el martes pasado", "esta semana" o "este mes" ya los entiende sin que haya que darle la fecha completa.</td></tr>
+                    <tr><td>27/10</td><td><strong>Si una consulta del asistente falla, lo dice:</strong> antes un fallo interno devolvia un error en blanco. Ahora el asistente ve el fallo, lo corrige si puede y, si no, explica que no ha podido consultar ese dato. Ademas tiene un tope de consultas por pregunta, para no quedarse colgado.</td></tr>
                     <tr><td>27/10</td><td><strong>Control diario:</strong> en <strong>Registros &rarr; Control diario</strong> sale en una sola pagina lo que antes se montaba a mano cada madrugada sobre un Excel: los registros del dia agrupados <strong>por trabajadora</strong>, <strong>por residente</strong> y los del <strong>turno de noche</strong>, cada bloque con su fila de TOTAL. El boton <strong>Imprimir</strong> lo saca en A4 apaisado sin que ningun bloque se parta entre hojas.</td></tr>
                     <tr><td>27/10</td><td><strong>Las limpiezas suman en el mismo total:</strong> cada trabajadora tiene un unico total del dia con sus atenciones y sus limpiezas juntas, que es lo que hace falta para justificar horas. Antes habia que pegar dos listados distintos en el mismo libro.</td></tr>
                     <tr><td>27/10</td><td><strong>Lo que no se puede defender queda fuera del total, y se dice:</strong> un registro que nadie cerro <strong>no suma</strong> y sale marcado <strong>SIN CERRAR</strong>; uno que pasa del limite (por defecto <strong>2 horas</strong>) sale marcado <strong>REVISAR</strong> y tampoco entra, aunque la hoja ensena cuanto se ha dejado fuera. Antes una sesion olvidada de doce horas inflaba el total del dia sin que se notara. El limite se cambia en el propio filtro.</td></tr>

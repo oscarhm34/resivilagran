@@ -6214,6 +6214,10 @@ $('inv-match-end').addEventListener('click', function () {
         return d;
     }
 
+    // Los turnos anteriores, para que entienda "¿y de ella?". Viven solo aquí:
+    // no se guardan en el servidor ni sobreviven a cerrar la aplicación.
+    let historialChat = [];
+
     async function sendChat() {
         const text = chatInput.value.trim();
         if (!text) return;
@@ -6225,9 +6229,15 @@ $('inv-match-end').addEventListener('click', function () {
         chatMsgs.appendChild(typing);
         chatMsgs.scrollTop = chatMsgs.scrollHeight;
         try {
-            const { ok, data } = await api('/api/chat', 'POST', { message: text });
+            const { ok, data } = await api('/api/chat', 'POST',
+                                           { message: text, historial: historialChat });
             typing.remove();
             addChatMsg(data.response || data.error || 'Error', 'chat-bot');
+            if (data.response) {
+                historialChat.push({ rol: 'user', texto: text });
+                historialChat.push({ rol: 'assistant', texto: data.response });
+                historialChat = historialChat.slice(-20);
+            }
         } catch(e) {
             typing.remove();
             addChatMsg('Error de conexión', 'chat-bot');

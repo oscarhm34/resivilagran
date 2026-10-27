@@ -117,6 +117,7 @@ class _RespuestaFalsa:
     stop_reason = 'end_turn'
 
     class _Bloque:
+        type = 'text'       # como los bloques de verdad: el tipo decide, no el atributo
         text = 'Listo.'
 
     content = [_Bloque()]
@@ -124,12 +125,15 @@ class _RespuestaFalsa:
 
 def test_las_instrucciones_llegan_a_la_llamada_al_modelo(db, monkeypatch):
     """El unico sitio donde esto importa: el `system` que sale hacia la API."""
-    import app.chatbot as chatbot
+    # El cliente se construye dentro de `nucleo`, asi que es ahi donde hay que
+    # sustituirlo: parchear `app.chatbot` no alcanzaria a la referencia que usa
+    # `chat()`. El paquete reexporta `chat`, pero no sus dependencias internas.
+    import app.chatbot.nucleo as chatbot
     AppSetting.set(CHATBOT_EXTRA_KEY, 'Responde siempre con un refran.')
     enviados = {}
 
     class _ClienteFalso:
-        def __init__(self, api_key=None):
+        def __init__(self, api_key=None, **kwargs):   # timeout, max_retries...
             self.messages = self
 
         def create(self, **kwargs):

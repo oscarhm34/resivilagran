@@ -8,280 +8,14 @@ import re
 import unicodedata
 from datetime import datetime, timedelta, time as dt_time
 from anthropic import Anthropic
-from . import db
-from .models import (Resident, CareRecord, CareType, CleaningRecord, Room, Floor,
+from .. import db, app
+from .prompt import (SYSTEM_PROMPT, CHATBOT_EXTRA_KEY, MAX_EXTRA_PROMPT,  # noqa: F401
+                     system_prompt, _bloque_de_fecha)
+from .esquemas import TOOLS
+from ..models import (Resident, CareRecord, CareType, CleaningRecord, Room, Floor,
                      Cleaner, ResidentGroup, ChecklistItem, ResidentDocument,
                      VitalSignType, VitalSignReading, AssessmentRecord, Incident,
                      WorkerDeviceLogin, ShiftAssignment, Absence, AppSetting)
-
-SYSTEM_PROMPT = """Eres un asistente de la residencia de mayores "La Vila Gran".
-Ayudas al personal a consultar información sobre residentes, limpiezas y atenciones.
-Responde siempre en español, de forma breve y clara.
-Usa las herramientas disponibles para buscar datos antes de responder.
-Si no encuentras datos, dilo honestamente.
-Formatea listas con viñetas y destaca nombres en negrita cuando sea útil.
-No inventes datos — solo responde con lo que devuelven las herramientas.
-
-Capacidades importantes:
-- Los tipos de atención se organizan en categorías con subtipos: "Deposiciones" tiene FECALOMA, NORMAL y DIARREA; en el registro se guarda el subtipo. Las herramientas te lo devuelven como "Deposiciones: DIARREA".
-- Para "quién ha hecho deposiciones", "a quién se le ha cambiado el pañal" o "cuántas diarreas ha habido", usa atenciones_por_tipo. Acepta tanto la categoría (Deposiciones) como el subtipo (DIARREA), y un periodo de varios días con el parámetro dias.
-- Si atenciones_por_tipo no encuentra el tipo, mira los nombres reales con tipos_de_atencion y vuelve a intentarlo; no des por hecho que no ha pasado nada.
-- atenciones_por_tipo acepta una franja horaria con desde_hora y hasta_hora ("9", "9:30"). Para "qué cambios de pañal ha habido esta mañana", pásale desde_hora y hasta_hora.
-- Para preguntas EN NEGATIVO —"a quién NO se le ha cambiado el pañal", "quién no ha desayunado", "qué residentes se han quedado sin X"— usa residentes_sin_atencion, que también acepta franja horaria. No intentes deducirlo de atenciones_por_tipo: esa herramienta no sabe quiénes son todos los residentes.
-- Al responder a eso, ten cuidado: la aplicación NO sabe qué residentes necesitan cada atención, así que la lista no es una lista de fallos. Nombra primero a los que tienen la_recibe_habitualmente=true, que son los que sí la reciben normalmente y hoy no, y di cuánto llevan sin ella. De los que la tienen en false, di que no la han recibido en dos semanas y que probablemente no la necesiten — no los enumeres uno a uno si son muchos.
-- Puedes buscar qué residentes tienen documentos adjuntos (PIAs, informes médicos, etc.) con residentes_con_documentos.
-- Cuando pides info de un residente con info_residente, ya incluye el CONTENIDO de sus documentos (PIAs, informes). No necesitas llamar a leer_documento_residente por separado.
-- Puedes responder preguntas sobre el contenido de los documentos (medicación, dietas, objetivos, etc.) directamente con la info que devuelve info_residente.
-- Si el usuario pregunta "quién tiene PIA" o "qué residentes tienen informes", usa residentes_con_documentos.
-- Puedes consultar constantes vitales (tensión arterial, glucemia, temperatura, etc.) de un residente con constantes_vitales_residente.
-- Para preguntas como "cuál es la tensión de María" o "glucemia de Juan", usa constantes_vitales_residente.
-- Para preguntas como "cómo está María" o "estado de Juan", usa info_residente — incluye perfil médico, valoraciones Barthel/Norton, notas recientes del personal e incidencias. Resume el estado del residente de forma clara.
-- Si preguntan sobre valoraciones, dependencia o riesgo de úlceras, la info ya viene en info_residente (campo valoraciones).
-- Para buscar a un residente no hace falta su nombre exacto: buscar_residente entiende el nombre a medias, en cualquier orden y con erratas. Pásale el nombre tal cual te lo digan.
-- Si buscar_residente o buscar_trabajador devuelven "sugerencias", no digas que esa persona no existe: pregunta si se refieren a alguno de esos nombres.
-- Si devuelven varias coincidencias, no elijas por tu cuenta: enuméralas (con la habitación, que ayuda a distinguir) y pide que concreten.
-- Si buscar_residente devuelve "inactivos", esa persona consta dada de baja: dilo y no intentes consultar sus datos.
-- Puedes consultar turnos de cualquier día con consultar_turnos. Para "quién trabaja hoy", "quién está de tarde", etc.
-- Si alguien falta o necesitan cobertura, usa sugerir_cobertura para encontrar al mejor candidato. Analiza horas, descansos y equidad.
-- Para preguntas como "quién puede cubrir mañana por la mañana" o "María está de baja, quién la sustituye", usa sugerir_cobertura.
-- Para preguntas sobre el uso de la aplicación —"quién la está usando menos", "quién no entra en la webapp", "quién no registra nada", "quién lleva días sin aparecer"— usa uso_de_la_aplicacion. Viene ordenada de menos uso a más uso.
-- Al responder a eso, ten cuidado: estás hablando del trabajo de personas concretas. La herramienta ya separa el grano de la paja con el campo uso_comparable. Responde SOLO con las de uso_comparable=true, que vienen primero y ordenadas de menos uso a más. A las de uso_comparable=false no las nombres como si usaran poco la aplicación: si las mencionas, di su motivo_no_comparable (está de baja, no ha tenido turnos, trabaja desde el panel).
-- Da también el contexto en la respuesta: cuántas entradas y cuántos registros tiene cada una, y sobre cuántos días de turno. Un número suelto no dice nada.
-- Compara por registros_por_dia_con_turno, no por el total: quien ha trabajado dos días no es comparable con quien ha trabajado veinte.
-- Si te preguntan por un periodo distinto ("este mes", "la última semana"), pasa los días con el parámetro dias."""
-
-# ── Instrucciones que anade la direccion desde Configuracion ──────────────────
-# El prompt de arriba es codigo y no se toca desde el panel: lleva reglas que se
-# romperian con un descuido (como hablar del uso de la app sin senalar a nadie,
-# o como leer la lista de "no la han recibido"). Lo que si se puede es anadirle
-# instrucciones propias sin desplegar, y se ven junto al prompt en /admin/settings.
-
-CHATBOT_EXTRA_KEY = 'chatbot_extra_prompt'
-MAX_EXTRA_PROMPT = 4000   # el mismo tope que valida el formulario
-
-
-def system_prompt() -> str:
-    """El prompt base mas las instrucciones adicionales, si las hay."""
-    extra = (AppSetting.get(CHATBOT_EXTRA_KEY, '') or '').strip()
-    if not extra:
-        return SYSTEM_PROMPT
-    return (f'{SYSTEM_PROMPT}\n\n'
-            f'Instrucciones adicionales de la residencia:\n{extra[:MAX_EXTRA_PROMPT]}')
-
-
-TOOLS = [
-    {
-        "name": "buscar_residente",
-        "description": "Busca residentes por nombre. Acepta el nombre incompleto, las palabras en cualquier orden (nombre y apellidos dan igual), sin tildes y con erratas leves. Devuelve lista de coincidencias con id, nombre, habitación y grupo; si no encuentra a nadie, devuelve nombres parecidos en sugerencias.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "nombre": {"type": "string", "description": "Nombre del residente, entero o en parte, en el orden que sea"}
-            },
-            "required": ["nombre"]
-        }
-    },
-    {
-        "name": "info_residente",
-        "description": "Devuelve información completa de un residente: nombre, habitación, grupo, notas, información relevante y últimas atenciones.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "residente_id": {"type": "integer", "description": "ID del residente"}
-            },
-            "required": ["residente_id"]
-        }
-    },
-    {
-        "name": "atenciones_residente",
-        "description": "Lista las atenciones/asistencias realizadas a un residente en una fecha. Si no se indica fecha, usa hoy.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "residente_id": {"type": "integer", "description": "ID del residente"},
-                "fecha": {"type": "string", "description": "Fecha en formato YYYY-MM-DD (opcional, por defecto hoy)"}
-            },
-            "required": ["residente_id"]
-        }
-    },
-    {
-        "name": "atenciones_hoy",
-        "description": "Lista todas las atenciones realizadas hoy en la residencia, agrupadas por residente.",
-        "input_schema": {
-            "type": "object",
-            "properties": {},
-        }
-    },
-    {
-        "name": "atenciones_por_tipo",
-        "description": (
-            "Busca qué residentes han recibido un tipo de atención concreto y cuándo. "
-            "El término puede ser una categoría (ej: Deposiciones, Higiene) o un subtipo "
-            "concreto (ej: DIARREA, FECALOMA): si es una categoría, devuelve todos sus "
-            "subtipos. Úsala para preguntas del tipo 'quién ha hecho deposiciones', "
-            "'a quién se le ha cambiado el pañal', 'cuántas diarreas ha habido esta semana'."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "tipo": {"type": "string", "description": "Nombre de la categoría o del subtipo de atención a buscar"},
-                "fecha": {"type": "string", "description": "Día final del periodo, en formato YYYY-MM-DD (opcional, por defecto hoy)"},
-                "dias": {"type": "integer", "description": "Cuántos días hacia atrás mirar, contando el de la fecha (por defecto 1, solo ese día)"},
-                "desde_hora": {"type": "string", "description": "Hora de inicio de la franja, HH:MM o HH (opcional). Solo tiene sentido con dias=1"},
-                "hasta_hora": {"type": "string", "description": "Hora de fin de la franja, HH:MM o HH (opcional)"}
-            },
-            "required": ["tipo"]
-        }
-    },
-    {
-        "name": "residentes_sin_atencion",
-        "description": ("Residentes que NO han recibido un tipo de atención en un día, opcionalmente "
-                        "dentro de una franja horaria. Para preguntas en negativo: \"a quién no se le "
-                        "ha cambiado el pañal entre las 9 y las 13\", \"quién no ha desayunado\". "
-                        "De cada residente sin la atención dice cuándo la recibió por última vez, que "
-                        "es lo que distingue a quien se ha quedado sin ella de quien no la necesita."),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "tipo": {"type": "string", "description": "Tipo o categoría de atención (ej. 'Cambio de pañal', 'Deposiciones')"},
-                "fecha": {"type": "string", "description": "Fecha YYYY-MM-DD (opcional, por defecto hoy)"},
-                "desde_hora": {"type": "string", "description": "Hora de inicio de la franja, HH:MM o HH (opcional)"},
-                "hasta_hora": {"type": "string", "description": "Hora de fin de la franja, HH:MM o HH (opcional)"},
-            },
-            "required": ["tipo"],
-        }
-    },
-    {
-        "name": "tipos_de_atencion",
-        "description": (
-            "Lista los tipos de atención configurados, con sus subtipos. Úsala cuando no "
-            "sepas con qué nombre se registra algo, o cuando atenciones_por_tipo no "
-            "encuentre coincidencias."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {},
-        }
-    },
-    {
-        "name": "limpiezas_hoy",
-        "description": "Muestra qué zonas se han limpiado hoy y cuáles están pendientes.",
-        "input_schema": {
-            "type": "object",
-            "properties": {},
-        }
-    },
-    {
-        "name": "ultima_limpieza_zona",
-        "description": "Muestra cuándo fue la última limpieza de una zona/habitación específica.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "numero_zona": {"type": "string", "description": "Número de la zona/habitación"}
-            },
-            "required": ["numero_zona"]
-        }
-    },
-    {
-        "name": "trabajadores_activos",
-        "description": "Muestra qué trabajadores están realizando alguna actividad ahora mismo (limpieza o atención en curso).",
-        "input_schema": {
-            "type": "object",
-            "properties": {},
-        }
-    },
-    {
-        "name": "uso_de_la_aplicacion",
-        "description": ("Cuánto usa cada trabajadora la webapp del móvil en un periodo: veces que ha entrado, "
-                        "limpiezas y atenciones que ha registrado, y cuándo se la vio por última vez. "
-                        "Devuelve también los días de turno y los días de ausencia de cada una, que hacen falta "
-                        "para interpretar los ceros. La lista viene ordenada de menos uso a más uso."),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "dias": {"type": "integer", "description": "Días hacia atrás que se miran (por defecto 30)"}
-            },
-        }
-    },
-    {
-        "name": "resumen_dia",
-        "description": "Resumen general del día: total limpiezas, total atenciones, trabajadores activos, zonas pendientes.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "fecha": {"type": "string", "description": "Fecha en formato YYYY-MM-DD (opcional, por defecto hoy)"}
-            },
-        }
-    },
-    {
-        "name": "buscar_trabajador",
-        "description": "Busca trabajadoras por nombre. Acepta el nombre incompleto, las palabras en cualquier orden, sin tildes y con erratas leves. Si no encuentra a nadie, devuelve nombres parecidos en sugerencias.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "nombre": {"type": "string", "description": "Nombre de la trabajadora, entero o en parte, en el orden que sea"}
-            },
-            "required": ["nombre"]
-        }
-    },
-    {
-        "name": "leer_documento_residente",
-        "description": "Lee el contenido de un documento de un residente (PIA, informe médico, etc). Normalmente no necesitas usar esto porque info_residente ya incluye el contenido.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "documento_id": {"type": "integer", "description": "ID del documento a leer"}
-            },
-            "required": ["documento_id"]
-        }
-    },
-    {
-        "name": "residentes_con_documentos",
-        "description": "Lista los residentes que tienen documentos adjuntos (PIAs, informes médicos, etc). Puede filtrar por tipo de documento.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "tipo": {"type": "string", "description": "Filtrar por tipo: PIA, Informe médico, Pauta farmacológica, Consentimiento, Otros. Dejar vacío para todos."}
-            },
-        }
-    },
-    {
-        "name": "constantes_vitales_residente",
-        "description": "Consulta las constantes vitales registradas para un residente (tensión arterial, glucemia, temperatura, etc). Puede filtrar por tipo y número de días.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "residente_id": {"type": "integer", "description": "ID del residente"},
-                "dias": {"type": "integer", "description": "Últimos N días (por defecto 7)"},
-                "tipo": {"type": "string", "description": "Filtrar por nombre del campo vital (ej: Sistólica, Glucosa). Vacío para todos."}
-            },
-            "required": ["residente_id"]
-        }
-    },
-    {
-        "name": "consultar_turnos",
-        "description": "Consulta los turnos asignados en una fecha. Muestra qué trabajadores trabajan, en qué turno, y quién está ausente. Si no se indica fecha se usa hoy.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "fecha": {"type": "string", "description": "Fecha en formato YYYY-MM-DD. Si no se indica, se usa hoy."}
-            },
-        }
-    },
-    {
-        "name": "sugerir_cobertura",
-        "description": "Sugiere el mejor trabajador para cubrir un turno vacante o sustituir a un ausente. Analiza horas trabajadas, descansos, competencias y equidad.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "fecha": {"type": "string", "description": "Fecha del turno a cubrir (YYYY-MM-DD)"},
-                "turno": {"type": "string", "description": "Nombre corto del turno (ej: M, T, N1). Si no se sabe, dejarlo vacío."},
-                "motivo": {"type": "string", "description": "Motivo de la búsqueda (ej: 'María está de baja', 'falta 1 persona por la tarde')"}
-            },
-            "required": ["fecha"]
-        }
-    },
-]
 
 
 # ── Tipos de atención: la categoría importa tanto como el subtipo ─────────────
@@ -1291,50 +1025,179 @@ def _get_tool_handlers(is_admin: bool = False):
     return handlers
 
 
-def chat(message: str, api_key: str, is_admin: bool = False) -> str:
-    """Procesa un mensaje del usuario y devuelve la respuesta del chatbot."""
-    client = Anthropic(api_key=api_key)
-    messages = [{"role": "user", "content": message}]
+# ── El bucle de herramientas ─────────────────────────────────────────────────
+
+MODELO = "claude-haiku-4-5-20251001"
+MAX_TOKENS = 2048
+# Un tope para que una conversacion que se enreda no se lleve la factura ni un
+# worker por delante. Al agotarse NO se corta: se hace una ultima llamada sin
+# herramientas, que obliga al modelo a responder con lo que ya tiene.
+MAX_VUELTAS = 8
+# Y un presupuesto de reloj, porque ocho vueltas lentas siguen siendo una
+# peticion web colgada. El limite de 10/minuto no protege de esto.
+PRESUPUESTO_SEGUNDOS = 90
+TIMEOUT_API = 60.0
+
+MAX_TURNOS_HISTORIAL = 10
+MAX_CARACTERES_TURNO = 4000
+
+
+def _crear_cliente(api_key: str):
+    """El cliente de Anthropic, con timeout.
+
+    En funcion aparte para que los tests puedan sustituirlo sin tocar la firma
+    publica de `chat()` ni parchear el simbolo del SDK. Sin timeout explicito,
+    una llamada lenta deja colgado un worker de gunicorn; la transcripcion de
+    audio ya pone el suyo.
+    """
+    return Anthropic(api_key=api_key, timeout=TIMEOUT_API, max_retries=1)
+
+
+def _normalizar_historial(historial) -> list:
+    """Los turnos anteriores que manda el cliente, acotados y saneados.
+
+    Llega del navegador, asi que no se cree nada: se comprueba la forma, se
+    recorta el texto y se limita el numero de turnos. Solo viaja el TEXTO
+    visible, nunca los bloques de herramienta: esos llevan datos de residentes
+    en crudo y no tienen por que bajar al navegador para volver a subir. Ademas,
+    mandando solo texto es imposible construir un `tool_use` sin su
+    `tool_result`, que la API rechaza con un 400.
+    """
+    if not isinstance(historial, list):
+        return []
+    turnos = []
+    for entrada in historial[-MAX_TURNOS_HISTORIAL * 2:]:
+        if not isinstance(entrada, dict):
+            continue
+        rol = entrada.get('rol') or entrada.get('role')
+        texto = entrada.get('texto') or entrada.get('content') or ''
+        if rol not in ('user', 'assistant') or not isinstance(texto, str):
+            continue
+        texto = texto.strip()[:MAX_CARACTERES_TURNO]
+        if not texto:
+            continue
+        # Dos turnos seguidos del mismo rol se funden: la API los aceptaria,
+        # pero el modelo lee peor una conversacion que no alterna.
+        if turnos and turnos[-1]['role'] == rol:
+            turnos[-1]['content'] += '\n' + texto
+        else:
+            turnos.append({'role': rol, 'content': texto})
+    # Una conversacion empieza por quien pregunta.
+    while turnos and turnos[0]['role'] != 'user':
+        turnos.pop(0)
+    return turnos[-MAX_TURNOS_HISTORIAL:]
+
+
+def _ejecutar_herramienta(handlers, nombre: str, argumentos) -> tuple:
+    """Ejecuta una herramienta. Devuelve (contenido, es_error). Nunca lanza.
+
+    Antes no habia guardia ninguna: si el modelo omitia un parametro o se
+    inventaba una fecha, la excepcion subia hasta el blueprint y la persona veia
+    "Error del chatbot" sin mas. El modelo nunca llegaba a ver el fallo, asi que
+    tampoco podia corregirse. Ahora el error vuelve como resultado de la
+    herramienta y el modelo reintenta con los parametros bien.
+    """
+    handler = handlers.get(nombre)
+    if handler is None:
+        return json.dumps({
+            "error": f"La herramienta '{nombre}' no esta disponible.",
+            "disponibles": sorted(handlers),
+        }, ensure_ascii=False), True
+    try:
+        return handler(argumentos if isinstance(argumentos, dict) else {}), False
+    except KeyError as e:
+        falta = str(e).strip("'")
+        return json.dumps({
+            "error": f"Falta el parametro obligatorio '{falta}'.",
+        }, ensure_ascii=False), True
+    except ValueError:
+        return json.dumps({
+            "error": "Algun valor no es valido. Las fechas van en formato AAAA-MM-DD.",
+        }, ensure_ascii=False), True
+    except Exception as e:
+        # Una consulta que peta deja la sesion de SQLAlchemy inservible, y sin
+        # esto las herramientas siguientes de la misma pregunta fallarian todas
+        # en cascada por un fallo que ya paso.
+        db.session.rollback()
+        # Nunca los argumentos: llevan nombres de residentes.
+        app.logger.error('La herramienta %s ha fallado: %s', nombre, e)
+        return json.dumps({
+            "error": "No se ha podido consultar ese dato.",
+        }, ensure_ascii=False), True
+
+
+def _texto_de(respuesta) -> str:
+    partes = [b.text for b in respuesta.content
+              if getattr(b, 'type', None) == 'text' and getattr(b, 'text', '')]
+    return '\n'.join(partes)
+
+
+def chat(message: str, api_key: str, is_admin: bool = False,
+         historial=None) -> str:
+    """Procesa un mensaje del usuario y devuelve la respuesta del chatbot.
+
+    `historial` son los turnos anteriores de la conversacion, que manda el
+    cliente. Sin el, cada pregunta llegaba suelta y "y de ella?" no podia
+    funcionar.
+    """
+    client = _crear_cliente(api_key)
     handlers = _get_tool_handlers(is_admin)
-    # Se lee una sola vez: las dos llamadas tienen que ir con el mismo prompt,
-    # y no tiene sentido volver a la BD en cada vuelta del bucle de tools.
+    # Se lee una sola vez: todas las vueltas tienen que ir con el mismo prompt,
+    # y no tiene sentido volver a la BD en cada una.
     prompt = system_prompt()
-    # Filter tools to only those available for this role
+    # La fecha va aparte del prompt, en el turno del usuario: metida dentro del
+    # prompt cambiaria sus bytes cada dia (y cada minuto, con la hora), que es
+    # justo lo que impide cachearlo.
+    contexto = _bloque_de_fecha()
     available_tools = [t for t in TOOLS if t['name'] in handlers]
 
-    # Primera llamada — Claude puede pedir tools
-    response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=1024,
-        system=prompt,
-        tools=available_tools,
-        messages=messages,
-    )
+    messages = _normalizar_historial(historial)
+    messages.append({"role": "user", "content": f'{contexto}\n\n{message}'})
 
-    # Loop de tool use — Claude puede llamar varias herramientas
-    while response.stop_reason == "tool_use":
-        tool_results = []
-        for block in response.content:
-            if block.type == "tool_use":
-                handler = handlers.get(block.name)
-                result = handler(block.input) if handler else json.dumps({"error": "Herramienta no disponible"})
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": result,
-                })
-
-        messages.append({"role": "assistant", "content": response.content})
-        messages.append({"role": "user", "content": tool_results})
-
-        response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=1024,
+    empezado = datetime.now()
+    respuesta = None
+    for vuelta in range(MAX_VUELTAS):
+        sin_tiempo = (datetime.now() - empezado).total_seconds() > PRESUPUESTO_SEGUNDOS
+        respuesta = client.messages.create(
+            model=MODELO,
+            max_tokens=MAX_TOKENS,
             system=prompt,
-            tools=available_tools,
+            messages=messages,
+            **({} if sin_tiempo else {"tools": available_tools}),
+        )
+        if sin_tiempo or respuesta.stop_reason != "tool_use":
+            break
+
+        resultados = []
+        for bloque in respuesta.content:
+            if getattr(bloque, 'type', None) != "tool_use":
+                continue
+            contenido, es_error = _ejecutar_herramienta(handlers, bloque.name, bloque.input)
+            # Un resultado por cada bloque, fallos incluidos y todos en el mismo
+            # mensaje: dejarse uno es un 400, y repartirlos en varios mensajes
+            # ensena al modelo a dejar de pedir herramientas en paralelo.
+            resultados.append({
+                "type": "tool_result",
+                "tool_use_id": bloque.id,
+                "content": contenido,
+                **({"is_error": True} if es_error else {}),
+            })
+
+        messages.append({"role": "assistant", "content": respuesta.content})
+        messages.append({"role": "user", "content": resultados})
+    else:
+        # Agotadas las vueltas: una ultima sin herramientas para que responda
+        # con lo que tenga, en vez de devolver un error despues de todo el
+        # trabajo hecho.
+        respuesta = client.messages.create(
+            model=MODELO,
+            max_tokens=MAX_TOKENS,
+            system=prompt,
             messages=messages,
         )
 
-    # Extraer texto de la respuesta final
-    text_parts = [block.text for block in response.content if hasattr(block, 'text')]
-    return '\n'.join(text_parts) or "No he podido generar una respuesta."
+    if getattr(respuesta, 'stop_reason', None) == 'refusal':
+        return ('No puedo responder a eso. Si crees que es un error, '
+                'prueba a preguntarlo de otra forma.')
+    return _texto_de(respuesta) or "No he podido generar una respuesta."
+

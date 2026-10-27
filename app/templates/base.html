@@ -897,6 +897,9 @@
         <div style="padding:14px 18px;border-bottom:1px solid var(--color-border);display:flex;align-items:center;gap:10px;flex-shrink:0">
             <i class="bi bi-robot" style="font-size:20px;color:var(--color-primary)"></i>
             <strong id="chat-dialog-title" style="flex:1;font-size:15px">Asistente La Vila Gran</strong>
+            <button id="chat-nuevo" type="button" title="Empezar una conversación nueva"
+                    aria-label="Empezar una conversación nueva"
+                    style="background:none;border:none;font-size:16px;cursor:pointer;color:var(--color-text-secondary);padding:0 6px"><i class="bi bi-arrow-clockwise"></i></button>
             <button onclick="document.getElementById('chat-dialog').close()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--color-text-secondary)">&times;</button>
         </div>
         <div id="chat-messages" style="flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:10px">
@@ -941,6 +944,11 @@
             return d;
         }
 
+        // La conversación vive aquí y en ningún sitio más: se manda en cada
+        // pregunta para que el asistente entienda "¿y de ella?", y se pierde al
+        // cerrar la ventana. No se guarda nada en el servidor.
+        var historial = [];
+
         async function sendMessage() {
             var text = input.value.trim();
             if (!text) return;
@@ -955,16 +963,28 @@
                 var res = await fetch(chatUrl, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({message: text}),
+                    body: JSON.stringify({message: text, historial: historial}),
                 });
                 var data = await res.json();
                 typing.remove();
                 addMsg(data.response || data.error || 'Error desconocido', 'bot');
+                if (data.response) {
+                    historial.push({rol: 'user', texto: text});
+                    historial.push({rol: 'assistant', texto: data.response});
+                    historial = historial.slice(-20);
+                }
             } catch(e) {
                 typing.remove();
                 addMsg('Error de conexión', 'bot');
             }
         }
+
+        document.getElementById('chat-nuevo').addEventListener('click', function () {
+            historial = [];
+            msgs.innerHTML = '';
+            addMsg('Hola, soy el asistente de La Vila Gran. ¿En qué puedo ayudarte?', 'bot');
+            input.focus();
+        });
 
         sendBtn.addEventListener('click', sendMessage);
         input.addEventListener('keydown', function(e){ if(e.key==='Enter') sendMessage(); });
