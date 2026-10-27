@@ -221,4 +221,26 @@ TOOLS = [
             "required": ["fecha"]
         }
     },
+    {
+        "name": "como_funciona",
+        "description": (
+            "Explica COMO SE HACE algo en la aplicación: el procedimiento, paso a paso. "
+            "Úsala cuando pregunten 'cómo se hace una cura', 'cómo funciona el control "
+            "diario', 'qué tengo que hacer para...', o cualquier duda de procedimiento. "
+            "No consulta datos de nadie: devuelve las instrucciones. Si la pregunta es de "
+            "procedimiento, usa esta ANTES que ninguna otra: las demás miran la base de "
+            "datos y no sabrían contestar."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "tema": {
+                    "type": "string",
+                    "enum": ["curas", "control_diario"],
+                    "description": "Sobre qué se pregunta. 'curas' cubre heridas, úlceras, apósitos y su seguimiento."
+                }
+            },
+            "required": ["tema"]
+        }
+    },
 ]

@@ -54,6 +54,7 @@ Formatea listas con viñetas y destaca nombres en negrita cuando sea útil.
 No inventes datos — solo responde con lo que devuelven las herramientas.
 
 Capacidades importantes:
+- Si preguntan COMO SE HACE algo —como se hace una cura, como funciona el control diario, que hay que hacer para registrar una herida— usa como_funciona. Las demas herramientas miran la base de datos y no saben de procedimientos; esa devuelve las instrucciones. Respondela con tus palabras y al grano: si preguntan un paso concreto, no sueltes el procedimiento entero.
 - Los tipos de atención se organizan en categorías con subtipos: "Deposiciones" tiene FECALOMA, NORMAL y DIARREA; en el registro se guarda el subtipo. Las herramientas te lo devuelven como "Deposiciones: DIARREA".
 - Para "quién ha hecho deposiciones", "a quién se le ha cambiado el pañal" o "cuántas diarreas ha habido", usa atenciones_por_tipo. Acepta tanto la categoría (Deposiciones) como el subtipo (DIARREA), y un periodo de varios días con el parámetro dias.
 - Si atenciones_por_tipo no encuentra el tipo, mira los nombres reales con tipos_de_atencion y vuelve a intentarlo; no des por hecho que no ha pasado nada.

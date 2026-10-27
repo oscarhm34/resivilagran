@@ -12,6 +12,7 @@ from .. import db, app
 from .prompt import (SYSTEM_PROMPT, CHATBOT_EXTRA_KEY, MAX_EXTRA_PROMPT,  # noqa: F401
                      system_prompt, _bloque_de_fecha)
 from .esquemas import TOOLS
+from .guias import GUIAS, TEMAS
 from ..models import (Resident, CareRecord, CareType, CleaningRecord, Room, Floor,
                      Cleaner, ResidentGroup, ChecklistItem, ResidentDocument,
                      VitalSignType, VitalSignReading, AssessmentRecord, Incident,
@@ -1000,8 +1001,26 @@ def _sugerir_cobertura(fecha_str: str, turno: str = '', motivo: str = '') -> str
     }, ensure_ascii=False)
 
 
+
+def _como_funciona(tema: str) -> str:
+    """El procedimiento que se pregunta, en texto.
+
+    El asistente sabia consultar datos pero no explicar como se hacen las
+    cosas: a "como se hace una cura?" miraba la base de datos, que no es la
+    pregunta.
+    """
+    texto = GUIAS.get((tema or '').strip().lower())
+    if not texto:
+        return json.dumps({
+            "error": f"No hay guia de '{tema}'.",
+            "temas_disponibles": TEMAS,
+        }, ensure_ascii=False)
+    return json.dumps({"tema": tema, "procedimiento": texto}, ensure_ascii=False)
+
+
 def _get_tool_handlers(is_admin: bool = False):
     handlers = {
+        "como_funciona": lambda args: _como_funciona(args["tema"]),
         "buscar_residente": lambda args: _buscar_residente(args["nombre"]),
         "info_residente": lambda args: _info_residente(args["residente_id"], include_content=is_admin),
         "atenciones_residente": lambda args: _atenciones_residente(args["residente_id"], args.get("fecha")),

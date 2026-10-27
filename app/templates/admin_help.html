@@ -1870,6 +1870,56 @@
             <p>Todo queda ademas en el <a href="#auditoria">registro de auditoria</a>. Nada se borra:
                una cura cerrada desaparece del mapa corporal, pero su historial se conserva.</p>
 
+            <h6 class="mt-3">Un ejemplo completo: una ulcera de principio a fin</h6>
+            <p>El mismo recorrido con fechas, para que se vea el ritmo. Residente ficticio.</p>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr><th style="white-space:nowrap">Dia</th><th>Que pasa</th><th>Como queda la cura</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>1</strong></td>
+                            <td>Al asear al residente aparece una ulcera en el sacro. Durante la atencion
+                                se toca <strong>Registrar herida</strong>: zona Sacro, tipo Ulcera, tamano
+                                3x2, gravedad Moderada, y se describe lo que se ve. Se cierra la atencion
+                                con normalidad.</td>
+                            <td><span class="badge" style="background:#dc3545">Activa</span><br>
+                                <small class="text-body-secondary">Se crea su primer parte. El historial
+                                empieza hoy.</small></td>
+                        </tr>
+                        <tr>
+                            <td><strong>3</strong></td>
+                            <td>Se vuelve a atender al residente. Al cerrar la atencion, la cura ya sale en
+                                <strong>Curas abiertas</strong> con la zona, el estado y la fecha del ultimo
+                                parte. Se toca, se pone «Curando», el tamano y una observacion, y se hacen
+                                <strong>dos fotos</strong>: el conjunto y un primer plano.</td>
+                            <td><span class="badge" style="background:#f59e0b">Curando</span><br>
+                                <small class="text-body-secondary">Sigue abierta.</small></td>
+                        </tr>
+                        <tr>
+                            <td><strong>10</strong></td>
+                            <td>La herida tiene peor aspecto. Mismo gesto, pero eligiendo
+                                <strong>Empeorando</strong> y describiendolo.</td>
+                            <td><span class="badge" style="background:#7c3aed">Empeorando</span><br>
+                                <small class="text-body-secondary">El panel recibe una <strong>alerta
+                                critica</strong> al momento. No hace falta avisar por otro canal.</small></td>
+                        </tr>
+                        <tr>
+                            <td><strong>21</strong></td>
+                            <td>La piel esta integra. Ultimo parte, se elige <strong>Curada &mdash; cerrar</strong>,
+                                foto final y guardar.</td>
+                            <td><span class="badge" style="background:#22c55e">Curada</span><br>
+                                <small class="text-body-secondary">Desaparece del mapa corporal y del movil.
+                                El historial se conserva entero.</small></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p>Al abrir esa herida desde la ficha del residente salen <strong>los cuatro partes</strong>,
+               del ultimo al primero, cada uno con su fecha, quien lo escribio, lo que puso y sus fotos.
+               Los tres primeros indican ademas que se hicieron <strong>dentro de una atencion</strong>.</p>
+
             <h6 class="mt-3">Lo que suele salir mal</h6>
             <ul>
                 <li><strong>Dar de alta otra vez una herida que ya estaba.</strong> Pasaba
@@ -2359,6 +2409,7 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>27/10</td><td><strong>El asistente ya explica como se hacen las cosas:</strong> preguntale "como se hace una cura?" o "como funciona el control diario?" y te cuenta el procedimiento paso a paso, desde el panel o desde el movil. Antes solo sabia consultar datos, asi que a una pregunta de procedimiento se ponia a mirar la base de datos.</td></tr>
                     <tr><td>27/10</td><td><strong>Las curas se siguen con fotos:</strong> una cura es un episodio que dura lo que tarde en curar la herida. Cada visita le anade un <strong>parte</strong> con el estado, el tamano, una observacion y <strong>hasta 4 fotos</strong>, y se cierra cuando esta curada. El historial completo, con las fotos de cada dia, sale al tocar la herida en la ficha del residente.</td></tr>
                     <tr><td>27/10</td><td><strong>Las curas, desde el movil:</strong> al atender a un residente salen sus <strong>curas abiertas</strong> y se les puede anadir el parte del dia con fotos hechas con la camara, sin salir de la atencion. Antes desde el movil solo se podia dar de alta una herida nueva, nunca contar como iba — y como tampoco se veian las que ya estaban, se duplicaban.</td></tr>
                     <tr><td>27/10</td><td><strong>Arreglado: una herida podia quedar anotada al residente equivocado.</strong> Al registrar una herida durante una <strong>atencion grupal</strong>, se guardaba contra el residente de la atencion individual anterior. Era un error de historia clinica.</td></tr>
