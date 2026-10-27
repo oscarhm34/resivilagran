@@ -50,7 +50,7 @@
                         <li><a href="#pfeiffer">16h. Escala Pfeiffer</a></li>
                         <li><a href="#falls">16i. Caidas estructuradas</a></li>
                         <li><a href="#kpis">16c. KPIs de calidad</a></li>
-                        <li><a href="#ferides">16k. Mapa corporal de heridas</a></li>
+                        <li><a href="#ferides">16k. Curas y mapa corporal de heridas</a></li>
                         <li><a href="#ia">17. Inteligencia artificial (IA)</a></li>
                         <li><a href="#config">18. Configuracion</a></li>
                         <li><a href="#backups">18b. Copias de seguridad</a></li>
@@ -1766,57 +1766,125 @@
         </div>
     </div>
 
-    <!-- 16k. Mapa corporal de heridas -->
+    <!-- 16k. Curas y mapa corporal de heridas -->
     <div class="card mb-4" id="ferides">
-        <div class="card-header">16k. Mapa corporal de heridas <span class="badge bg-success">NUEVO</span></div>
+        <div class="card-header">16k. Curas y mapa corporal de heridas <span class="badge bg-success">NUEVO</span></div>
         <div class="card-body">
-            <p>Registro visual de heridas y lesiones con seguimiento de evolucion.</p>
 
-            <h6 class="mt-3">Registrar una herida</h6>
+            <h6>Una cura no es una atencion</h6>
+            <p>Es la distincion de la que sale todo lo demas, y confundirlas es lo que hace que los
+               registros no cuadren:</p>
             <ul>
-                <li>En la ficha del residente, pestana <strong>Heridas</strong>.</li>
-                <li><strong>Haz clic en el diagrama del cuerpo</strong> (delante o detras) donde se localiza la herida.</li>
-                <li>Se abre un formulario con la zona auto-detectada. Selecciona: <strong>tipo</strong> (ulcera, hematoma, corte, quemadura, erupcion), <strong>tamano</strong> (cm), <strong>severidad</strong> (leve, moderada, grave) y <strong>descripcion</strong>.</li>
-                <li>Las heridas activas se muestran como <strong>circulos de color</strong> sobre el diagrama (verde=leve, naranja=moderada, rojo=grave).</li>
+                <li>La <strong>atencion</strong> dura <strong>unos minutos</strong>. Se abre acercando
+                    el movil a la pulsera y se cierra antes de salir de la habitacion.</li>
+                <li>La <strong>cura</strong> dura <strong>lo que tarde la herida en curar</strong>: dias
+                    o semanas. Se abre cuando aparece y se cierra cuando ha curado, con todas las
+                    visitas de por medio.</li>
             </ul>
+            <p>Dentro de una atencion se anade <strong>el parte de hoy</strong> de una cura. La atencion
+               se cierra; la cura sigue abierta hasta la proxima vez.</p>
+            <p class="mb-0"><strong>Nunca</strong> hay que dejar una atencion abierta para seguir una
+               cura. Una atencion que pasa de 24 horas se cierra sola, con una duracion falsa y sin tipo
+               de atencion, y hasta entonces va generando avisos de sesion colgada. La cura no necesita
+               nada de eso: vive por su cuenta.</p>
 
-            <h6 class="mt-3">La cura es un episodio, no una atencion <span class="badge bg-success">NUEVO</span></h6>
-            <p>Una cura <strong>dura lo que tarde en curar la herida</strong>: dias o semanas. Se abre
-               cuando aparece, cada visita le anade un <strong>parte de seguimiento</strong>, y se
-               cierra cuando esta curada. Ese es el historial de la cura.</p>
-            <p>No hay que dejar abierta una atencion para eso. La atencion es lo que dura una visita
-               y se cierra al salir de la habitacion; la cura sigue abierta por su cuenta.</p>
-
-            <h6 class="mt-3">Partes de seguimiento, con fotos <span class="badge bg-success">NUEVO</span></h6>
+            <h6 class="mt-3">Los cuatro estados</h6>
+            <p>Cada parte dice como esta la herida ese dia. El estado del ultimo parte es el estado de
+               la cura.</p>
             <ul>
-                <li>En la lista de heridas, los botones <strong>↗ Curandose</strong>, <strong>✓ Curada</strong>
-                    y <strong>↘ Empeorando</strong> abren el <strong>parte de hoy</strong>, con el estado,
-                    el tamano, una observacion y <strong>hasta 4 fotos</strong>.</li>
+                <li><strong>Activa</strong> &mdash; esta ahi y no se mueve. Es el estado con el que nace
+                    toda cura.</li>
+                <li><strong>Curando</strong> &mdash; va a mejor: mas pequena, mejor aspecto, menos
+                    exudado.</li>
+                <li><strong>Empeorando</strong> &mdash; va a peor. <strong>Genera un aviso critico</strong>
+                    en el panel al momento.</li>
+                <li><strong>Curada</strong> &mdash; cierra la cura. Desaparece del mapa corporal, pero el
+                    historial se conserva entero.</li>
+            </ul>
+            <p>Si una herida curada <strong>vuelve a abrirse</strong>, basta con ponerle un parte nuevo
+               en cualquier otro estado: la fecha de curacion se borra sola, para que la ficha no diga
+               que curo un dia en que no lo estaba.</p>
+
+            <h6 class="mt-3">Desde el movil, durante la atencion</h6>
+            <p>Es el camino normal: quien hace la cura la cuenta en el momento, con la herida delante.</p>
+            <ol>
+                <li><strong>Acerca el movil a la pulsera</strong>, como siempre.</li>
+                <li>Al cerrar la atencion, mira el apartado <strong>Curas abiertas</strong>. Salen las
+                    curas que ese residente tiene en marcha, con la zona, el tipo, como estaba y
+                    <strong>cuando fue el ultimo parte</strong>. Si no hay ninguna, el apartado no
+                    aparece.</li>
+                <li><strong>Toca la cura</strong> y rellena el parte: como esta hoy, el tamano, una
+                    observacion y <strong>hasta cuatro fotos</strong> hechas con la camara.</li>
+                <li><strong>Guarda el parte.</strong> Si has elegido <strong>Curada</strong>, la cura
+                    queda cerrada ahi mismo; si no, sigue abierta esperando la proxima visita.</li>
+                <li><strong>Cierra la atencion con normalidad.</strong> El parte queda <strong>ligado a
+                    esa visita</strong>, asi que despues se puede saber que curas se hicieron en ella.</li>
+            </ol>
+            <p>Mira siempre las curas abiertas <strong>antes</strong> de registrar una herida nueva: si
+               ya esta, lo que toca es anadirle un parte, no darla de alta otra vez. Para una herida que
+               de verdad es nueva sigue el boton <strong>Registrar herida</strong>, y al guardarla se
+               crea ya su primer parte, asi que el historial empieza el primer dia.</p>
+            <p class="mb-0">En la <strong>atencion grupal</strong> las curas no se muestran: un parte es
+               de una persona concreta. Para seguir una cura en ese caso, hazlo desde el panel o en una
+               atencion individual.</p>
+
+            <h6 class="mt-3">Desde el panel</h6>
+            <ul>
+                <li>Ficha del residente, pestana <strong>Heridas</strong>: el mapa corporal con las
+                    heridas activas marcadas y, debajo, la lista. Los circulos van coloreados por
+                    gravedad; la lista, por estado.</li>
+                <li>Para dar de alta una herida, <strong>clic en el diagrama</strong> (delante o detras)
+                    donde esta. Se abre el formulario con la zona ya detectada: tipo, tamano, gravedad y
+                    descripcion.</li>
+                <li>Los botones <strong>&#8599; Curandose</strong>, <strong>&#10003; Curada</strong> y
+                    <strong>&#8600; Empeorando</strong> abren el <strong>parte de hoy</strong> con el
+                    estado ya preseleccionado, y permiten anadir tamano, observacion y fotos.</li>
                 <li>Debajo sale el <strong>historial completo</strong> de esa cura: cada parte con su
-                    fecha, quien lo escribio, lo que puso y <strong>sus fotos</strong>. Al dar de alta una
-                    herida se guarda ya su primer parte, asi que el historial empieza el primer dia.</li>
-                <li>Si un parte se hizo <strong>dentro de una atencion</strong>, el historial lo dice.</li>
-                <li>Las heridas que <strong>empeoran</strong> generan una <strong>alerta critica</strong>.</li>
-                <li>Las heridas curadas desaparecen del diagrama pero se mantienen en el registro. Si una
-                    <strong>se reabre</strong>, se le quita la fecha de curacion: antes se quedaba puesta
-                    y la ficha decia que estaba curada desde un dia en que no lo estaba.</li>
+                    fecha, quien lo escribio, que puso y <strong>sus fotos</strong>. Los partes hechos
+                    dentro de una atencion lo indican.</li>
             </ul>
 
-            <h6 class="mt-3">Desde el movil, dentro de la atencion <span class="badge bg-success">NUEVO</span></h6>
+            <h6 class="mt-3">Las fotos</h6>
             <ul>
-                <li>Al acercar el movil a la pulsera de un residente, en la pantalla de la atencion salen
-                    sus <strong>curas abiertas</strong>. Antes no se veian: quien iba a hacer la cura no
-                    sabia si ya estaba registrada, y la daba de alta otra vez.</li>
-                <li>Tocando una se anade el parte: como esta hoy, el tamano, una nota y
-                    <strong>fotos hechas con la camara</strong>.</li>
-                <li>Si se elige <strong>Curada</strong>, la cura queda cerrada desde el movil.</li>
-                <li>El parte queda <strong>ligado a esa atencion</strong>, asi que se puede saber que curas
-                    se hicieron en cada visita.</li>
-                <li>Sigue estando el boton de <strong>registrar una herida nueva</strong>.</li>
+                <li><strong>Hasta cuatro por parte.</strong> Con el conjunto, un primer plano y una
+                    referencia de tamano ya se ve la evolucion.</li>
+                <li><strong>Van en el parte, no en la herida</strong>: una foto de una cura solo
+                    significa algo con su fecha y su estado al lado.</li>
+                <li>Se <strong>reprocesan al subirlas</strong>: se corrige la orientacion del movil y se
+                    reescriben como JPEG. Eso es tambien lo que impide colar un fichero malicioso
+                    disfrazado de foto.</li>
+                <li>Si una falla, <strong>no se guarda ninguna</strong>: media subida dejaria ficheros
+                    sueltos que no apunta nadie.</li>
+                <li><strong>Son datos de salud.</strong> La foto de una herida identifica a una persona y
+                    describe su estado clinico. No sale de la aplicacion: ni por WhatsApp, ni a la
+                    galeria del movil, ni se ensena a quien no este atendiendo a ese residente.</li>
+            </ul>
+
+            <h6 class="mt-3">Que queda registrado</h6>
+            <ul>
+                <li><strong>De cada parte:</strong> estado, tamano, observacion, fecha y hora exactas,
+                    quien lo escribio, sus fotos y en que atencion se hizo.</li>
+                <li><strong>De la cura:</strong> zona del cuerpo y posicion en el mapa, tipo, gravedad,
+                    cuando se abrio, cuando se cerro y quien la detecto.</li>
+            </ul>
+            <p>Todo queda ademas en el <a href="#auditoria">registro de auditoria</a>. Nada se borra:
+               una cura cerrada desaparece del mapa corporal, pero su historial se conserva.</p>
+
+            <h6 class="mt-3">Lo que suele salir mal</h6>
+            <ul>
+                <li><strong>Dar de alta otra vez una herida que ya estaba.</strong> Pasaba
+                    constantemente, porque desde el movil no se veian las curas abiertas. Ahora salen en
+                    la pantalla de la atencion: mira ahi antes de registrar nada.</li>
+                <li><strong>No poner el parte porque "hoy esta igual".</strong> Un parte que dice que no
+                    ha cambiado <strong>es informacion</strong>: una herida que lleva diez dias igual no
+                    esta curando, y eso solo se ve si cada visita deja su linea.</li>
+                <li><strong>Cerrar la cura antes de tiempo.</strong> Curada significa cerrada. Si hay
+                    dudas, pon <strong>Curando</strong> y cierrala en la siguiente visita.</li>
+                <li><strong>Dejar la atencion abierta para seguir la cura.</strong> La atencion se cierra
+                    siempre al salir de la habitacion; la cura no depende de ella.</li>
             </ul>
         </div>
     </div>
-
     <!-- 17. Inteligencia artificial -->
     <div class="card mb-4" id="ia">
         <div class="card-header">17. Inteligencia artificial (IA)</div>
@@ -1827,7 +1895,8 @@
             <ul>
                 <li>Disponible tanto en el <strong>panel admin</strong> como en la <strong>webapp del trabajador</strong>.</li>
                 <li>Puede consultar datos de residentes, atenciones, limpiezas, turnos y constantes vitales.</li>
-                <li>Preguntas como <strong>"Com esta Maria?"</strong> devuelven un resumen completo con perfil medico, valoraciones Barthel/Norton, notas recientes del personal e incidencias.</li>
+                <li>Preguntas como <strong>"Como esta Maria?"</strong> devuelven un resumen completo con perfil medico, valoraciones Barthel/Norton, notas recientes del personal e incidencias.</li>
+                <li><strong>Recuerda la conversacion</strong>, asi que se le puede preguntar "y ayer?" sin repetir el nombre, y <strong>sabe que dia es hoy</strong>: "el martes pasado" o "esta semana" ya los entiende. Ver <a href="#chatbot">7. Chatbot IA</a>.</li>
                 <li>Soporta <strong>entrada por voz</strong> via Whisper (OpenAI).</li>
             </ul>
 
