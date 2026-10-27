@@ -853,6 +853,51 @@
             </div>
         </div>
 
+        <!-- Seguimiento de una cura: el parte de hoy y el historial con fotos -->
+        <div class="modal fade" id="modal-cura" tabindex="-1" aria-labelledby="modal-cura-titulo">
+            <div class="modal-dialog modal-dialog-scrollable modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modal-cura-titulo">Cura</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" id="cura-wound-id">
+                        <div class="row g-2 align-items-end mb-2">
+                            <div class="col-sm-4">
+                                <label for="cura-estado" class="form-label">Cómo está</label>
+                                <select id="cura-estado" class="form-select form-select-sm">
+                                    <option value="healing">Curando</option>
+                                    <option value="active">Igual</option>
+                                    <option value="worsening">Empeorando</option>
+                                    <option value="healed">Curada — cerrar</option>
+                                </select>
+                            </div>
+                            <div class="col-sm-3">
+                                <label for="cura-size" class="form-label">Tamaño</label>
+                                <input id="cura-size" class="form-control form-control-sm" placeholder="2x3">
+                            </div>
+                            <div class="col-sm-5">
+                                <label for="cura-fotos" class="form-label">Fotos (máx. 4)</label>
+                                <input id="cura-fotos" type="file" accept="image/*" multiple class="form-control form-control-sm">
+                            </div>
+                            <div class="col-12">
+                                <label for="cura-desc" class="form-label">Observación</label>
+                                <textarea id="cura-desc" class="form-control form-control-sm" rows="2"
+                                          placeholder="Cómo está hoy la herida"></textarea>
+                            </div>
+                        </div>
+                        <div class="text-end mb-3">
+                            <button type="button" id="cura-guardar" class="btn btn-primary btn-sm"
+                                    onclick="guardarParteCura()">Guardar parte</button>
+                        </div>
+                        <h6 class="mt-3">Historial de la cura</h6>
+                        <div id="cura-historial"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Tab Inventario de pertenencias -->
         <div class="tab-pane fade" id="tab-inventario" role="tabpanel">
             {% if belongings %}
@@ -1550,7 +1595,7 @@ function renderWoundList() {
         html += '<div class="fw-bold" style="font-size:.85rem">' + w.wound_type_label + ' — ' + w.body_zone_label + '</div>';
         html += '<div style="font-size:.78rem;color:var(--color-text-secondary)">' + w.created_at;
         if (w.size_cm) html += ' · ' + w.size_cm + ' cm';
-        if (w.description) html += ' · ' + w.description;
+        if (w.description) html += ' · ' + escaparHtml(w.description);
         html += '</div></div>';
         html += '<span class="badge" style="background:' + sc + '">' + (STATUS_LABELS[w.status] || w.status) + '</span>';
         if (w.status !== 'healed') {
@@ -1566,25 +1611,84 @@ function renderWoundList() {
     el.innerHTML = html;
 }
 
+function escaparHtml(texto) {
+    var d = document.createElement('div');
+    d.textContent = texto == null ? '' : texto;
+    return d.innerHTML;
+}
+
 function updateWoundStatus(woundId, status) {
-    var desc = prompt('Observación (opcional):') || '';
-    fetch('/api/wound/' + woundId + '/update', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({status: status, description: desc}),
-    }).then(function(r) { return r.json(); }).then(function() { loadWounds(); });
+    abrirModalCura(woundId, status);
+}
+
+function abrirModalCura(woundId, estadoSugerido) {
+    document.getElementById('cura-wound-id').value = woundId;
+    document.getElementById('cura-estado').value = estadoSugerido || 'healing';
+    document.getElementById('cura-size').value = '';
+    document.getElementById('cura-desc').value = '';
+    document.getElementById('cura-fotos').value = '';
+    document.getElementById('cura-historial').innerHTML =
+        '<div class="text-muted small">Cargando...</div>';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-cura')).show();
+    cargarHistorialCura(woundId);
 }
 
 function showWoundDetail(woundId) {
+    abrirModalCura(woundId, null);
+}
+
+function cargarHistorialCura(woundId) {
     fetch('/api/wound/' + woundId + '/history')
     .then(function(r) { return r.json(); })
     .then(function(data) {
-        var msg = data.wound.wound_type + ' (' + data.wound.body_zone + ') — ' + data.wound.created_at + '\n\n';
-        if (data.updates.length) {
-            msg += 'Historial:\n';
-            data.updates.forEach(function(u) { msg += '  ' + u.created_at + ': ' + (STATUS_LABELS[u.status]||u.status) + (u.description ? ' — ' + u.description : '') + '\n'; });
-        } else { msg += 'Sin actualizaciones'; }
-        alert(msg);
+        var caja = document.getElementById('cura-historial');
+        document.getElementById('modal-cura-titulo').textContent =
+            data.wound.wound_type_label + ' — ' + data.wound.body_zone_label;
+        if (!data.updates.length) {
+            caja.innerHTML = '<div class="text-muted small">Sin partes todavía.</div>';
+            return;
+        }
+        caja.innerHTML = data.updates.map(function(u) {
+            var fotos = (u.fotos || []).map(function(f) {
+                return '<a href="' + f.url + '" target="_blank" rel="noopener">' +
+                       '<img src="' + f.url + '" alt="Foto de la cura" ' +
+                       'style="width:72px;height:72px;object-fit:cover;border-radius:var(--radius-sm);' +
+                       'border:1px solid var(--color-border)"></a>';
+            }).join(' ');
+            return '<div class="border-start ps-2 mb-3" style="border-width:3px !important;border-color:' +
+                   (STATUS_COLORS[u.status] || '#6c757d') + ' !important">' +
+                   '<div class="small fw-bold">' + escaparHtml(u.status_label) +
+                   ' <span class="fw-normal text-body-secondary">· ' + escaparHtml(u.created_at) +
+                   (u.updated_by ? ' · ' + escaparHtml(u.updated_by) : '') +
+                   (u.en_atencion ? ' · en una atención' : '') + '</span></div>' +
+                   (u.size_cm ? '<div class="small">' + escaparHtml(u.size_cm) + ' cm</div>' : '') +
+                   (u.description ? '<div class="small">' + escaparHtml(u.description) + '</div>' : '') +
+                   (fotos ? '<div class="d-flex flex-wrap gap-1 mt-1">' + fotos + '</div>' : '') +
+                   '</div>';
+        }).join('');
+    });
+}
+
+function guardarParteCura() {
+    var woundId = document.getElementById('cura-wound-id').value;
+    var btn = document.getElementById('cura-guardar');
+    btn.disabled = true;
+    var fd = new FormData();
+    fd.append('status', document.getElementById('cura-estado').value);
+    fd.append('size_cm', document.getElementById('cura-size').value);
+    fd.append('description', document.getElementById('cura-desc').value);
+    Array.from(document.getElementById('cura-fotos').files || []).forEach(function(f) {
+        fd.append('fotos', f);
+    });
+    fetch('/api/wound/' + woundId + '/update', { method: 'POST', body: fd })
+    .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, d: d}; }); })
+    .then(function(res) {
+        btn.disabled = false;
+        if (!res.ok) { alert(res.d.error || 'Error al guardar el parte'); return; }
+        document.getElementById('cura-desc').value = '';
+        document.getElementById('cura-fotos').value = '';
+        cargarHistorialCura(woundId);
+        loadWounds();
     });
 }
 

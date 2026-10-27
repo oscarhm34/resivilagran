@@ -19,7 +19,8 @@ from ..models import (
     Cleaner, Resident, ResidentGroup, CareRecord, CareType,
     CleaningRecord, Room, ResidentDocument,
     VitalSignType, VitalSignReading, MoodRecord,
-    WoundRecord, WoundUpdate, Notification, ResidentBelonging, BelongingPhoto,
+    WoundRecord, WoundUpdate, WoundPhoto, Notification,
+    ResidentBelonging, BelongingPhoto,
 )
 from .assessments import get_resident_assessment_data
 from ..models import MedicationPrescription, MedicationAdministration
@@ -1516,6 +1517,162 @@ BODY_ZONES = {
     'sacrum': 'Sacro', 'left_heel': 'Talón izquierdo', 'right_heel': 'Talón derecho',
 }
 
+WOUND_STATUSES = {
+    'active': 'Activa', 'healing': 'Curando',
+    'worsening': 'Empeorando', 'healed': 'Curada',
+}
+
+WOUND_SEVERITIES = {'mild': 'Leve', 'moderate': 'Moderada', 'severe': 'Grave'}
+
+MAX_FOTOS_POR_PARTE = 4
+
+
+# ── Reglas de las curas, compartidas por el panel y la webapp ───────────────
+# Las dos superficies tienen que validar y guardar igual. El panel autentica por
+# cookie y la webapp por JWT, pero lo que pasa con los datos es lo mismo.
+
+def _valida_opcion(valor, opciones: dict, campo: str, por_defecto=None):
+    """El valor si esta en la lista; si no, (None, error).
+
+    Antes no se validaba nada: una zona que no llegara se guardaba como 'other',
+    un valor que ni siquiera existe en BODY_ZONES, asi que la herida quedaba en
+    una parte del cuerpo inventada y no se pintaba en el mapa.
+    """
+    valor = (valor or '').strip() or por_defecto
+    if valor in opciones:
+        return valor, None
+    return None, f'El campo {campo} no es valido.'
+
+
+def _siguiente_orden_foto_cura(parte: WoundUpdate) -> int:
+    return max((f.sort_order for f in parte.photos), default=-1) + 1
+
+
+def _save_wound_photo(file_storage, wound_id: int) -> str:
+    """Guarda una foto de cura reprocesada y devuelve su ruta relativa.
+
+    El sufijo aleatorio no es decoracion: una cura se fotografia varias veces
+    seguidas y con solo la marca de segundos las tomas se pisarian entre ellas,
+    que es justo lo que le pasa a `_save_base64_photo`.
+    """
+    carpeta = os.path.join(app.config['UPLOAD_FOLDER'], 'wounds', f'w_{wound_id}')
+    base = f'cura_{wound_id}_{datetime.now().strftime("%Y%m%d%H%M%S")}_{uuid.uuid4().hex[:6]}'
+    nombre, _, _ = _save_image_stream(file_storage, carpeta, base,
+                                      max_side=1280, quality=85)
+    return f'wounds/w_{wound_id}/{nombre}'
+
+
+def _anadir_fotos_cura(parte: WoundUpdate, ficheros) -> tuple:
+    """Cuelga las fotos del parte. Devuelve (fotos, error).
+
+    Si una falla a mitad se borran las ya guardadas: media subida deja ficheros
+    sueltos en el disco que no apunta nadie.
+    """
+    ficheros = [f for f in (ficheros or []) if f and f.filename]
+    if not ficheros:
+        return [], None
+    hueco = MAX_FOTOS_POR_PARTE - len(parte.photos)
+    if len(ficheros) > hueco:
+        # Si el parte esta vacio, lo util es decir el tope; si ya tiene fotos,
+        # lo util es decir cuantas caben todavia.
+        return None, (f'Como mucho {MAX_FOTOS_POR_PARTE} fotos por parte.'
+                      if not parte.photos else
+                      f'Solo caben {hueco} fotos mas en este parte.'
+                      if hueco > 0 else
+                      f'Este parte ya tiene las {MAX_FOTOS_POR_PARTE} fotos.')
+    nuevas, orden = [], _siguiente_orden_foto_cura(parte)
+    for fichero in ficheros:
+        if not _allowed_file(fichero.filename, ALLOWED_IMAGE_EXTENSIONS):
+            for f in nuevas:
+                _borrar_fichero(f.photo_path)
+            return None, 'Formato de imagen no permitido.'
+        try:
+            ruta = _save_wound_photo(fichero, parte.wound_id)
+        except (ValueError, OSError) as e:
+            for f in nuevas:
+                _borrar_fichero(f.photo_path)
+            app.logger.error('No se pudo guardar la foto de la cura: %s', e)
+            return None, 'No se ha podido guardar la foto.'
+        foto = WoundPhoto(photo_path=ruta, sort_order=orden)
+        orden += 1
+        parte.photos.append(foto)
+        nuevas.append(foto)
+    return nuevas, None
+
+
+def _nuevo_parte(wound: WoundRecord, *, status: str, size_cm, description,
+                 autor_id, care_record_id=None) -> WoundUpdate:
+    """Crea un parte y propaga su estado a la herida.
+
+    Es el unico sitio donde se toca `wound.status`, para que el episodio y su
+    ultimo parte no puedan acabar diciendo cosas distintas.
+    """
+    parte = WoundUpdate(
+        wound_id=wound.id, status=status,
+        size_cm=(size_cm or '').strip() or None,
+        description=(description or '').strip() or None,
+        updated_by=autor_id, care_record_id=care_record_id,
+    )
+    db.session.add(parte)
+
+    wound.status = status
+    wound.updated_at = datetime.now()
+    if status == 'healed':
+        wound.healed_at = datetime.now()
+    else:
+        # Una herida que se reabre no puede seguir con fecha de curacion.
+        wound.healed_at = None
+    if parte.size_cm:
+        wound.size_cm = parte.size_cm
+    return parte
+
+
+def _fotos_json(parte: WoundUpdate) -> list:
+    return [{'id': f.id, 'url': f'/api/uploads/{f.photo_path}'}
+            for f in parte.photos]
+
+
+def _crear_herida(resident_id: int, data: dict, autor_id: int, notas=None):
+    """Abre una cura con su parte de apertura. Devuelve (herida, error).
+
+    El parte de apertura se crea aqui para que `wound.updates` sea el historial
+    completo desde el primer dia: asi las fotos de apertura caben sin inventar
+    una excepcion y no hay dos sitios donde mirar la evolucion.
+    """
+    zona, error = _valida_opcion(data.get('body_zone'), BODY_ZONES, 'zona del cuerpo')
+    if error:
+        return None, error
+    tipo, error = _valida_opcion(data.get('wound_type'), WOUND_TYPES, 'tipo de herida')
+    if error:
+        return None, error
+    severidad, error = _valida_opcion(data.get('severity'), WOUND_SEVERITIES,
+                                      'gravedad', por_defecto='moderate')
+    if error:
+        return None, error
+
+    descripcion = (data.get('description') or '').strip() or None
+    wound = WoundRecord(
+        resident_id=resident_id,
+        body_zone=zona, body_x=data.get('body_x'), body_y=data.get('body_y'),
+        wound_type=tipo, description=descripcion,
+        size_cm=(data.get('size_cm') or '').strip() or None,
+        severity=severidad, status='active', reported_by=autor_id,
+        notes=(notas or '').strip() or None,
+    )
+    db.session.add(wound)
+    ok, _ = _safe_flush('Error al registrar la herida')
+    if not ok:
+        return None, None
+
+    _nuevo_parte(wound, status='active', size_cm=wound.size_cm,
+                 description=descripcion or 'Apertura de la cura',
+                 autor_id=autor_id,
+                 care_record_id=data.get('care_record_id'))
+    ok, _ = _safe_flush('Error al registrar la herida')
+    if not ok:
+        return None, None
+    return wound, None
+
 
 @bp.route('/api/resident/<int:resident_id>/wounds')
 @login_required
@@ -1555,22 +1712,12 @@ def create_wound(resident_id: int):
     """Register a new wound on the body map."""
     data = request.get_json(silent=True) or {}
 
-    wound = WoundRecord(
-        resident_id=resident_id,
-        body_zone=data.get('body_zone', 'other'),
-        body_x=data.get('body_x'),
-        body_y=data.get('body_y'),
-        wound_type=data.get('wound_type', 'other'),
-        description=(data.get('description') or '').strip() or None,
-        size_cm=(data.get('size_cm') or '').strip() or None,
-        severity=data.get('severity', 'moderate'),
-        reported_by=current_user.id,
-        notes=(data.get('notes') or '').strip() or None,
-    )
-    db.session.add(wound)
-    ok, error = _safe_flush('Error al registrar la herida')
-    if not ok:
-        return jsonify({'error': error}), 500
+    wound, error = _crear_herida(resident_id, data, current_user.id,
+                                 notas=data.get('notes'))
+    if error:
+        return jsonify({'error': error}), 400
+    if wound is None:
+        return jsonify({'error': 'Error al registrar la herida'}), 500
 
     # Notification
     resident = db.session.get(Resident, resident_id)
@@ -1601,24 +1748,24 @@ def update_wound(wound_id: int):
     if not wound:
         return jsonify({'error': 'Herida no encontrada'}), 404
 
-    data = request.get_json(silent=True) or {}
-    new_status = data.get('status', wound.status)
+    # Acepta JSON (panel de siempre) y multipart (cuando lleva fotos).
+    data = request.form.to_dict() if request.files else (request.get_json(silent=True) or {})
+    new_status, error = _valida_opcion(data.get('status'), WOUND_STATUSES,
+                                       'estado', por_defecto=wound.status)
+    if error:
+        return jsonify({'error': error}), 400
 
-    update = WoundUpdate(
-        wound_id=wound_id,
-        status=new_status,
-        size_cm=(data.get('size_cm') or '').strip() or None,
-        description=(data.get('description') or '').strip() or None,
-        updated_by=current_user.id,
-    )
-    db.session.add(update)
+    update = _nuevo_parte(wound, status=new_status, size_cm=data.get('size_cm'),
+                          description=data.get('description'),
+                          autor_id=current_user.id)
+    ok, error = _safe_flush('Error al actualizar la herida')
+    if not ok:
+        return jsonify({'error': error}), 500
 
-    wound.status = new_status
-    wound.updated_at = datetime.now()
-    if new_status == 'healed':
-        wound.healed_at = datetime.now()
-    if data.get('size_cm'):
-        wound.size_cm = data['size_cm'].strip()
+    _, error = _anadir_fotos_cura(update, request.files.getlist('fotos'))
+    if error:
+        db.session.rollback()
+        return jsonify({'error': error}), 400
 
     # Alert if worsening
     if new_status == 'worsening':
@@ -1647,18 +1794,29 @@ def wound_history(wound_id: int):
     if not wound:
         return jsonify({'error': 'No encontrada'}), 404
 
-    updates = WoundUpdate.query.filter_by(wound_id=wound_id).order_by(WoundUpdate.created_at.desc()).all()
+    updates = WoundUpdate.query.options(
+        joinedload(WoundUpdate.photos), joinedload(WoundUpdate.updater),
+    ).filter_by(wound_id=wound_id).order_by(WoundUpdate.created_at.desc()).all()
     return jsonify({
         'wound': {
             'id': wound.id, 'wound_type': wound.wound_type, 'body_zone': wound.body_zone,
-            'status': wound.status, 'created_at': wound.created_at.strftime('%d/%m/%Y'),
+            'wound_type_label': WOUND_TYPES.get(wound.wound_type, wound.wound_type),
+            'body_zone_label': BODY_ZONES.get(wound.body_zone, wound.body_zone),
+            'status': wound.status,
+            'status_label': WOUND_STATUSES.get(wound.status, wound.status),
+            'created_at': wound.created_at.strftime('%d/%m/%Y') if wound.created_at else '',
+            'healed_at': wound.healed_at.strftime('%d/%m/%Y') if wound.healed_at else None,
         },
         'updates': [{
+            'id': u.id,
             'status': u.status,
+            'status_label': WOUND_STATUSES.get(u.status, u.status),
             'size_cm': u.size_cm or '',
             'description': u.description or '',
             'updated_by': u.updater.name if u.updater else '',
-            'created_at': u.created_at.strftime('%d/%m/%Y %H:%M'),
+            'created_at': u.created_at.strftime('%d/%m/%Y %H:%M') if u.created_at else '',
+            'en_atencion': u.care_record_id is not None,
+            'fotos': _fotos_json(u),
         } for u in updates],
     })
 
@@ -1684,8 +1842,76 @@ def worker_get_wounds(resident_id: int):
         'status': w.status,
         'body_x': w.body_x,
         'body_y': w.body_y,
-        'created_at': w.created_at.strftime('%d/%m/%Y'),
+        'status_label': WOUND_STATUSES.get(w.status, w.status),
+        'created_at': w.created_at.strftime('%d/%m/%Y') if w.created_at else '',
+        'partes': len(w.updates),
+        'ultimo_parte': (w.updates[0].created_at.strftime('%d/%m/%Y')
+                         if w.updates and w.updates[0].created_at else None),
     } for w in wounds]})
+
+
+@bp.route('/api/worker/wound/<int:wound_id>/update', methods=['POST'])
+@jwt_required()
+def worker_update_wound(wound_id: int):
+    """Un parte de seguimiento desde la webapp, con sus fotos.
+
+    Es lo que faltaba para que la cura sirva: hasta ahora la trabajadora podia
+    abrir una herida desde el movil pero no contar como iba.
+    """
+    identity = get_jwt_identity()
+    worker = Cleaner.query.filter_by(username=identity).first()
+    if not worker:
+        return jsonify({'error': 'No autorizado'}), 403
+
+    wound = db.session.get(WoundRecord, wound_id)
+    if not wound:
+        return jsonify({'error': 'Cura no encontrada'}), 404
+
+    data = request.form.to_dict() if request.files else (request.get_json(silent=True) or {})
+    estado, error = _valida_opcion(data.get('status'), WOUND_STATUSES,
+                                   'estado', por_defecto=wound.status)
+    if error:
+        return jsonify({'error': error}), 400
+
+    # El id de la atencion se comprueba contra quien lo manda: nunca se guarda
+    # un parte en la atencion de otra persona.
+    care_record_id = data.get('care_record_id') or None
+    if care_record_id:
+        atencion = db.session.get(CareRecord, int(care_record_id))
+        if not atencion or atencion.worker_id != worker.id:
+            return jsonify({'error': 'Esa atención no es tuya'}), 403
+        if atencion.resident_id != wound.resident_id:
+            return jsonify({'error': 'Esa cura no es de ese residente'}), 400
+
+    parte = _nuevo_parte(wound, status=estado, size_cm=data.get('size_cm'),
+                         description=data.get('description'),
+                         autor_id=worker.id, care_record_id=care_record_id)
+    ok, error = _safe_flush('Error al guardar el parte')
+    if not ok:
+        return jsonify({'error': error}), 500
+
+    _, error = _anadir_fotos_cura(parte, request.files.getlist('fotos'))
+    if error:
+        db.session.rollback()
+        return jsonify({'error': error}), 400
+
+    if estado == 'worsening':
+        residente = db.session.get(Resident, wound.resident_id)
+        db.session.add(Notification(
+            type='wound_alert',
+            title=(f'Herida empeorando: {residente.name if residente else "Residente"} '
+                   f'— {WOUND_TYPES.get(wound.wound_type, wound.wound_type)}'),
+            severity='critical', resident_id=wound.resident_id,
+            link=f'/admin/resident/{wound.resident_id}',
+        ))
+
+    log_audit('update', 'wound', wound.id,
+              {'resident_id': wound.resident_id, 'estado': estado,
+               'fotos': len(parte.photos), 'cleaner_id': worker.id})
+    ok, error = _safe_commit('Error al guardar el parte')
+    if not ok:
+        return jsonify({'error': error}), 500
+    return jsonify({'ok': True, 'id': parte.id, 'fotos': _fotos_json(parte)}), 201
 
 
 @bp.route('/api/worker/resident/<int:resident_id>/wounds', methods=['POST'])
@@ -1698,21 +1924,11 @@ def worker_create_wound(resident_id: int):
         return jsonify({'error': 'No autorizado'}), 403
 
     data = request.get_json(silent=True) or {}
-    wound = WoundRecord(
-        resident_id=resident_id,
-        body_zone=data.get('body_zone', 'other'),
-        body_x=data.get('body_x'),
-        body_y=data.get('body_y'),
-        wound_type=data.get('wound_type', 'other'),
-        description=(data.get('description') or '').strip() or None,
-        size_cm=(data.get('size_cm') or '').strip() or None,
-        severity=data.get('severity', 'moderate'),
-        reported_by=worker.id,
-    )
-    db.session.add(wound)
-    ok, error = _safe_flush('Error al registrar la herida')
-    if not ok:
-        return jsonify({'error': error}), 500
+    wound, error = _crear_herida(resident_id, data, worker.id)
+    if error:
+        return jsonify({'error': error}), 400
+    if wound is None:
+        return jsonify({'error': 'Error al registrar la herida'}), 500
 
     resident = db.session.get(Resident, resident_id)
     r_name = resident.name if resident else 'Residente'

@@ -1277,19 +1277,60 @@ class WoundRecord(db.Model):
 
 
 class WoundUpdate(db.Model):
-    """Track wound evolution over time."""
+    """Un parte de seguimiento de una cura: como esta hoy esa herida.
+
+    La herida es el episodio y dura lo que tarde en curar; cada parte es una
+    visita. El historial de la cura son sus partes, del mas reciente al mas
+    antiguo, incluido el de apertura: al dar de alta una herida se crea tambien
+    su primer parte, para que no haya dos sitios donde mirar.
+    """
     __tablename__ = 'wound_update'
     id = db.Column(db.Integer, primary_key=True)
     wound_id = db.Column(db.Integer, db.ForeignKey('wound_record.id'), nullable=False, index=True)
     status = db.Column(db.String(20), nullable=False)  # active, healing, healed, worsening
     size_cm = db.Column(db.String(20), nullable=True)
     description = db.Column(db.Text, nullable=True)
+    # Columna antigua de una sola foto. Las fotos de verdad son `photos`: una
+    # cura se retrata desde varios angulos y en una sola no cabe.
     photo_path = db.Column(db.String(255), nullable=True)
+    # En que atencion se hizo este parte. NULL cuando se anade desde el panel,
+    # que no pasa por ninguna atencion. Es lo que permite responder "que curas
+    # se hicieron en esta visita".
+    care_record_id = db.Column(db.Integer,
+                               db.ForeignKey('care_record.id',
+                                             name='fk_wound_update_care_record',
+                                             ondelete='SET NULL'),
+                               nullable=True, index=True)
     updated_by = db.Column(db.Integer, db.ForeignKey('cleaner.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
 
     wound = db.relationship('WoundRecord', backref=db.backref('updates', lazy=True, order_by='WoundUpdate.created_at.desc()'))
     updater = db.relationship('Cleaner', foreign_keys=[updated_by])
+    care_record = db.relationship('CareRecord',
+                                  backref=db.backref('wound_updates', lazy=True))
+
+
+class WoundPhoto(db.Model):
+    """Una foto de un parte de seguimiento.
+
+    Cuelga del parte y no de la herida porque una foto de una cura solo
+    significa algo con su fecha y su estado al lado, y eso es justo lo que es un
+    parte. Mismo planteamiento que `BelongingPhoto` con las pertenencias.
+    """
+    __tablename__ = 'wound_photo'
+    id = db.Column(db.Integer, primary_key=True)
+    wound_update_id = db.Column(db.Integer,
+                                db.ForeignKey('wound_update.id',
+                                              name='fk_wound_photo_update'),
+                                nullable=False, index=True)
+    photo_path = db.Column(db.String(255), nullable=False)   # relativo a UPLOAD_FOLDER
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
+
+    update = db.relationship('WoundUpdate',
+                             backref=db.backref('photos', lazy=True,
+                                                order_by='WoundPhoto.sort_order',
+                                                cascade='all, delete-orphan'))
 
 
 # ── AUDIT TRAIL ─────────────────────────────────────────────────────────────

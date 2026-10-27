@@ -1780,13 +1780,39 @@
                 <li>Las heridas activas se muestran como <strong>circulos de color</strong> sobre el diagrama (verde=leve, naranja=moderada, rojo=grave).</li>
             </ul>
 
-            <h6 class="mt-3">Seguimiento de evolucion</h6>
+            <h6 class="mt-3">La cura es un episodio, no una atencion <span class="badge bg-success">NUEVO</span></h6>
+            <p>Una cura <strong>dura lo que tarde en curar la herida</strong>: dias o semanas. Se abre
+               cuando aparece, cada visita le anade un <strong>parte de seguimiento</strong>, y se
+               cierra cuando esta curada. Ese es el historial de la cura.</p>
+            <p>No hay que dejar abierta una atencion para eso. La atencion es lo que dura una visita
+               y se cierra al salir de la habitacion; la cura sigue abierta por su cuenta.</p>
+
+            <h6 class="mt-3">Partes de seguimiento, con fotos <span class="badge bg-success">NUEVO</span></h6>
             <ul>
-                <li>En la lista de heridas, botones para actualizar el estado: <strong>↗ Curandose</strong>, <strong>✓ Curada</strong>, <strong>↘ Empeorando</strong>.</li>
-                <li>Cada actualizacion se guarda con fecha, observacion y trabajador.</li>
-                <li>Clic en el circulo del diagrama para ver el historial completo de la herida.</li>
-                <li>Las heridas que <strong>empeoran</strong> generan una <strong>alerta critica</strong> en el panel de notificaciones.</li>
-                <li>Las heridas curadas desaparecen del diagrama pero se mantienen en el registro.</li>
+                <li>En la lista de heridas, los botones <strong>↗ Curandose</strong>, <strong>✓ Curada</strong>
+                    y <strong>↘ Empeorando</strong> abren el <strong>parte de hoy</strong>, con el estado,
+                    el tamano, una observacion y <strong>hasta 4 fotos</strong>.</li>
+                <li>Debajo sale el <strong>historial completo</strong> de esa cura: cada parte con su
+                    fecha, quien lo escribio, lo que puso y <strong>sus fotos</strong>. Al dar de alta una
+                    herida se guarda ya su primer parte, asi que el historial empieza el primer dia.</li>
+                <li>Si un parte se hizo <strong>dentro de una atencion</strong>, el historial lo dice.</li>
+                <li>Las heridas que <strong>empeoran</strong> generan una <strong>alerta critica</strong>.</li>
+                <li>Las heridas curadas desaparecen del diagrama pero se mantienen en el registro. Si una
+                    <strong>se reabre</strong>, se le quita la fecha de curacion: antes se quedaba puesta
+                    y la ficha decia que estaba curada desde un dia en que no lo estaba.</li>
+            </ul>
+
+            <h6 class="mt-3">Desde el movil, dentro de la atencion <span class="badge bg-success">NUEVO</span></h6>
+            <ul>
+                <li>Al acercar el movil a la pulsera de un residente, en la pantalla de la atencion salen
+                    sus <strong>curas abiertas</strong>. Antes no se veian: quien iba a hacer la cura no
+                    sabia si ya estaba registrada, y la daba de alta otra vez.</li>
+                <li>Tocando una se anade el parte: como esta hoy, el tamano, una nota y
+                    <strong>fotos hechas con la camara</strong>.</li>
+                <li>Si se elige <strong>Curada</strong>, la cura queda cerrada desde el movil.</li>
+                <li>El parte queda <strong>ligado a esa atencion</strong>, asi que se puede saber que curas
+                    se hicieron en cada visita.</li>
+                <li>Sigue estando el boton de <strong>registrar una herida nueva</strong>.</li>
             </ul>
         </div>
     </div>
@@ -2264,6 +2290,10 @@
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>27/10</td><td><strong>Las curas se siguen con fotos:</strong> una cura es un episodio que dura lo que tarde en curar la herida. Cada visita le anade un <strong>parte</strong> con el estado, el tamano, una observacion y <strong>hasta 4 fotos</strong>, y se cierra cuando esta curada. El historial completo, con las fotos de cada dia, sale al tocar la herida en la ficha del residente.</td></tr>
+                    <tr><td>27/10</td><td><strong>Las curas, desde el movil:</strong> al atender a un residente salen sus <strong>curas abiertas</strong> y se les puede anadir el parte del dia con fotos hechas con la camara, sin salir de la atencion. Antes desde el movil solo se podia dar de alta una herida nueva, nunca contar como iba — y como tampoco se veian las que ya estaban, se duplicaban.</td></tr>
+                    <tr><td>27/10</td><td><strong>Arreglado: una herida podia quedar anotada al residente equivocado.</strong> Al registrar una herida durante una <strong>atencion grupal</strong>, se guardaba contra el residente de la atencion individual anterior. Era un error de historia clinica.</td></tr>
+                    <tr><td>27/10</td><td><strong>Arreglado: heridas en partes del cuerpo inexistentes.</strong> El servidor no comprobaba la zona ni el tipo ni la gravedad, asi que un valor que no llegara bien se guardaba como "otra" y la herida no salia en el mapa. Ahora se rechaza y se avisa.</td></tr>
                     <tr><td>27/10</td><td><strong>El asistente recuerda la conversacion:</strong> ya se le puede preguntar "y ayer?" o "y de ella?" sin repetir el nombre. El hilo vive solo en la ventana abierta; el boton de la flecha empieza una conversacion nueva, y <strong>nada de lo que se pregunta se guarda</strong>. Antes cada pregunta llegaba suelta, asi que las preguntas de seguimiento no podian funcionar.</td></tr>
                     <tr><td>27/10</td><td><strong>El asistente sabe que dia es hoy:</strong> "ayer", "el martes pasado", "esta semana" o "este mes" ya los entiende sin que haya que darle la fecha completa.</td></tr>
                     <tr><td>27/10</td><td><strong>Si una consulta del asistente falla, lo dice:</strong> antes un fallo interno devolvia un error en blanco. Ahora el asistente ve el fallo, lo corrige si puede y, si no, explica que no ha podido consultar ese dato. Ademas tiene un tope de consultas por pregunta, para no quedarse colgado.</td></tr>
