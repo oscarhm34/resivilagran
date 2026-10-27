@@ -98,6 +98,38 @@
                         <textarea id="instructions" name="instructions" class="form-control" rows="3"
                                   placeholder="Subir la persiana, asear, vestir y sentar en el sillón."></textarea>
                     </div>
+                    <div class="col-12">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="1"
+                                   id="control_diario" name="control_diario">
+                            <label class="form-check-label" for="control_diario">
+                                Atención de control diario
+                                <small class="text-body-secondary">
+                                    — Aparece en <strong>Registros &rarr; Control diario</strong>, que avisa
+                                    de qué residentes no la han recibido hoy. Para las imprescindibles:
+                                    levantar, acostar, WC.
+                                </small>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-sm-3 control-extra" style="display:none">
+                        <label for="minimo_diario" class="form-label">Veces al día esperadas</label>
+                        <input type="number" id="minimo_diario" name="minimo_diario" class="form-control"
+                               min="2" placeholder="1" aria-describedby="minimo-ayuda">
+                        <small id="minimo-ayuda" class="text-body-secondary">
+                            Déjalo vacío si basta con una vez. Si pones 2, un residente con una sola
+                            saldrá señalado igualmente.
+                        </small>
+                    </div>
+                    <div class="col-sm-3 control-extra" style="display:none">
+                        <label for="control_etiqueta" class="form-label">Etiqueta corta</label>
+                        <input type="text" id="control_etiqueta" name="control_etiqueta" class="form-control"
+                               maxlength="12" placeholder="WC" aria-describedby="etiqueta-ayuda">
+                        <small id="etiqueta-ayuda" class="text-body-secondary">
+                            Como sale impreso: <strong>NO WC</strong>. Si lo dejas vacío se usa el
+                            nombre entero, que en la hoja puede no caber.
+                        </small>
+                    </div>
                     <div class="col-auto d-flex gap-2">
                         <button type="submit" class="btn btn-primary" id="submit-btn">Añadir</button>
                         <button type="button" class="btn btn-outline-secondary" id="cancel-btn" style="display:none">Cancelar</button>
@@ -136,6 +168,12 @@
                             <span class="badge bg-info-subtle text-info-emphasis ms-1"
                                   title="{{ ct.instructions }}">con instrucciones</span>
                             {% endif %}
+                            {% if ct.control_diario %}
+                            <span class="badge bg-warning-subtle text-warning-emphasis ms-1"
+                                  title="Se repasa en el control diario">
+                                control diario{% if ct.minimo_diario %} · mín. {{ ct.minimo_diario }}{% endif %}
+                            </span>
+                            {% endif %}
                         </td>
                         <td>
                             {% if ct.start_time and ct.end_time %}
@@ -161,6 +199,9 @@
                                     data-icon-path="{{ ct.icon_path or '' }}"
                                     data-start="{{ ct.start_time.strftime('%H:%M') if ct.start_time else '' }}"
                                     data-end="{{ ct.end_time.strftime('%H:%M') if ct.end_time else '' }}"
+                                    data-control="{{ '1' if ct.control_diario else '' }}"
+                                    data-minimo="{{ ct.minimo_diario or '' }}"
+                                    data-etiqueta="{{ ct.control_etiqueta or '' }}"
                                     data-instructions="{{ ct.instructions or '' }}">Editar</button>
                             <button type="button" class="btn btn-sm btn-outline-danger delete-btn"
                                     data-name="{{ ct.name }}"
@@ -224,7 +265,15 @@
                             <img src="{{ url_for('nfc.serve_upload', filename=child.icon_path) }}" style="width:24px;height:24px;object-fit:contain">
                             {% else %}{{ child.icon or '·' }}{% endif %}
                         </td>
-                        <td style="padding-left:2.5rem">↳ {{ child.name }}</td>
+                        <td style="padding-left:2.5rem">
+                            ↳ {{ child.name }}
+                            {% if child.control_diario %}
+                            <span class="badge bg-warning-subtle text-warning-emphasis ms-1"
+                                  title="Se repasa en el control diario">
+                                control diario{% if child.minimo_diario %} · mín. {{ child.minimo_diario }}{% endif %}
+                            </span>
+                            {% endif %}
+                        </td>
                         <td>{{ child.sort_order }}</td>
                         <td>
                             <label class="form-check m-0 d-flex align-items-center gap-1" style="cursor:pointer">
@@ -239,7 +288,13 @@
                                     data-id="{{ child.id }}" data-name="{{ child.name }}"
                                     data-icon="{{ child.icon or '' }}" data-parent="{{ child.parent_id or '' }}"
                                     data-sort="{{ child.sort_order }}"
-                                    data-icon-path="{{ child.icon_path or '' }}">Editar</button>
+                                    data-icon-path="{{ child.icon_path or '' }}"
+                                    data-start="{{ child.start_time.strftime('%H:%M') if child.start_time else '' }}"
+                                    data-end="{{ child.end_time.strftime('%H:%M') if child.end_time else '' }}"
+                                    data-control="{{ '1' if child.control_diario else '' }}"
+                                    data-minimo="{{ child.minimo_diario or '' }}"
+                                    data-etiqueta="{{ child.control_etiqueta or '' }}"
+                                    data-instructions="{{ child.instructions or '' }}">Editar</button>
                             <button type="button" class="btn btn-sm btn-outline-danger delete-btn"
                                     data-name="{{ child.name }}"
                                     data-action="{{ url_for('care.delete_care_type', id=child.id) }}">Eliminar</button>
@@ -362,6 +417,18 @@
         removeIconInput.value = '1';
     });
 
+    // El minimo solo significa algo en las atenciones de control, asi que se
+    // esconde mientras la casilla este desmarcada en vez de pedir un numero que
+    // despues se guardaria a None sin avisar.
+    var casillaControl = document.getElementById('control_diario');
+    function alternarMinimo() {
+        document.querySelectorAll('.control-extra').forEach(function (campo) {
+            campo.style.display = casillaControl.checked ? '' : 'none';
+        });
+    }
+    casillaControl.addEventListener('change', alternarMinimo);
+    alternarMinimo();
+
     document.querySelectorAll('.edit-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
             var form = document.getElementById('ct-form');
@@ -373,6 +440,10 @@
             form.querySelector('[name="start_time"]').value   = this.dataset.start || '';
             form.querySelector('[name="end_time"]').value     = this.dataset.end || '';
             form.querySelector('[name="instructions"]').value = this.dataset.instructions || '';
+            form.querySelector('[name="control_diario"]').checked = this.dataset.control === '1';
+            form.querySelector('[name="minimo_diario"]').value = this.dataset.minimo || '';
+            form.querySelector('[name="control_etiqueta"]').value = this.dataset.etiqueta || '';
+            alternarMinimo();
             // Icon preview
             iconFileInput.value = '';
             removeIconInput.value = '';
@@ -397,6 +468,7 @@
         iconFileInput.value = '';
         iconPreview.style.display = 'none';
         removeIconInput.value = '';
+        alternarMinimo();
         document.getElementById('submit-btn').textContent  = 'Añadir';
         document.getElementById('form-title').textContent  = 'Añadir tipo de atención';
         document.getElementById('edit-badge').classList.add('d-none');

@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+{% block title %}Control diario{% endblock %}
+
+{% block styles %}
+<style>
+    .bloque-control { margin-bottom: 1.5rem; }
+    .bloque-cab {
+        display: flex; align-items: baseline; gap: .75rem; flex-wrap: wrap;
+        font-size: 1rem; font-weight: 600; margin-bottom: .35rem;
+        padding-bottom: .25rem; border-bottom: 2px solid var(--color-border);
+    }
+    .bloque-cab .total { margin-left: auto; font-variant-numeric: tabular-nums; }
+    .tabla-control { font-size: .875rem; }
+    .tabla-control td, .tabla-control th { padding: .3rem .5rem; }
+    .tabla-control .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    /* El estado no se comunica solo por color: cada uno lleva su texto. */
+    .sello {
+        display: inline-block; padding: 0 .4rem; border-radius: var(--radius-sm);
+        font-size: .72rem; font-weight: 600; letter-spacing: .02em;
+    }
+    .sello-abierta { background: var(--color-primary-lt); color: var(--color-primary-dk); }
+    .sello-anomala { background: #fdf0ef; color: var(--color-danger); }
+    .fila-dudosa td { color: var(--color-text-secondary); }
+
+    .marca {
+        display: inline-block; padding: 0 .4rem; border-radius: var(--radius-sm);
+        font-size: .72rem; font-weight: 600; margin-right: .25rem;
+        background: #fdf0ef; color: var(--color-danger);
+    }
+    /* Sin historial en dos semanas: probablemente no le toca. Se ve, pero no grita. */
+    .marca-apagada {
+        background: transparent; color: var(--color-text-secondary);
+        border: 1px dashed var(--color-border); font-weight: 500;
+    }
+    .recuento {
+        font-size: .78rem; font-weight: 500; color: var(--color-text-secondary);
+    }
+
+    [data-theme="dark"] .sello-anomala,
+    [data-theme="dark"] .marca { background: #3a1d1d; color: #ff8080; }
+    [data-theme="dark"] .marca-apagada { background: transparent; color: var(--color-text-secondary); }
+
+    .membrete { display: none; }
+
+    @media print {
+        @page { size: A4 landscape; margin: 10mm; }
+        .bloque-control { break-inside: avoid; page-break-inside: avoid; }
+        .bloque-cab { break-after: avoid; page-break-after: avoid; }
+        .tabla-control { font-size: 9pt; }
+        .tabla-control thead { display: table-header-group; }
+        .card { border: 0 !important; box-shadow: none !important; }
+        /* Quien tenga el panel en oscuro gastaria medio toner en fondos. */
+        .tabla-control, .tabla-control td, .tabla-control th,
+        .sello, .marca { background: #fff !important; color: #000 !important; }
+        .sello, .marca { border: 1px solid #999 !important; }
+    }
+</style>
+{% endblock %}
+
+{% macro tabla_filas(grupo, mostrar_residente=True) %}
+<table class="table table-sm table-hover tabla-control mb-0">
+    <caption class="visually-hidden">Registros de {{ grupo.nombre }}</caption>
+    <thead>
+        <tr>
+            {% if mostrar_residente %}<th scope="col">Residente</th>{% endif %}
+            <th scope="col">Atención o zona</th>
+            <th scope="col">Hora</th>
+            <th scope="col" class="num">Duración</th>
+            <th scope="col">Estado</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for fila in grupo.filas %}
+        <tr class="{% if fila.abierta or fila.anomala %}fila-dudosa{% endif %}">
+            {% if mostrar_residente %}<td>{{ fila.residente or '—' }}</td>{% endif %}
+            <td>{{ fila.etiqueta }}</td>
+            <td>{{ fila.momento.strftime('%H:%M') }}</td>
+            <td class="num">
+                {{ fila.duracion }}
+            </td>
+            <td>
+                {% if fila.abierta %}
+                <span class="sello sello-abierta">SIN CERRAR</span>
+                {% elif fila.anomala %}
+                <span class="sello sello-anomala">REVISAR</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr>
+            <th colspan="{{ 3 if mostrar_residente else 2 }}" scope="row">TOTAL</th>
+            <td class="num"><strong>{{ grupo.total }}</strong></td>
+            <td>
+                {% if grupo.anomalas or grupo.abiertas %}
+                <small class="text-body-secondary">
+                    fuera: {{ grupo.total_anomalo }}
+                    {%- if grupo.abiertas %} y {{ grupo.abiertas }} sin cerrar{% endif %}
+                </small>
+                {% endif %}
+            </td>
+        </tr>
+    </tfoot>
+</table>
+{% endmacro %}
+
+{% block content %}
+<div class="py-4">
+
+    <div class="d-flex align-items-center gap-3 mb-3 flex-wrap no-print">
+        <h1 class="h3 mb-0">Control diario</h1>
+        <button type="button" class="btn btn-outline-primary btn-sm ms-auto" id="btn-imprimir">
+            <i class="bi bi-printer me-1" aria-hidden="true"></i>Imprimir
+        </button>
+    </div>
+
+    <div class="card mb-4 no-print">
+        <div class="card-body">
+            <form method="GET" class="row g-3 align-items-end">
+                <div class="col-sm-3">
+                    <label for="fecha" class="form-label">Día</label>
+                    <input type="date" id="fecha" name="fecha" class="form-control" value="{{ filters.fecha }}">
+                </div>
+                <div class="col-sm-2">
+                    <label for="noche_inicio" class="form-label">La noche empieza</label>
+                    <input type="time" id="noche_inicio" name="noche_inicio" class="form-control" value="{{ filters.noche_inicio }}">
+                </div>
+                <div class="col-sm-2">
+                    <label for="noche_fin" class="form-label">y acaba</label>
+                    <input type="time" id="noche_fin" name="noche_fin" class="form-control" value="{{ filters.noche_fin }}">
+                </div>
+                <div class="col-sm-2">
+                    <label for="umbral_horas" class="form-label">Máximo por registro</label>
+                    <div class="input-group">
+                        <input type="number" id="umbral_horas" name="umbral_horas" class="form-control"
+                               min="1" max="24" value="{{ filters.umbral_horas }}">
+                        <span class="input-group-text">h</span>
+                    </div>
+                </div>
+                <div class="col-auto d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">Aplicar</button>
+                    <a href="{{ url_for('residents.control_diario') }}" class="btn btn-outline-secondary">Hoy</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if totales.abiertas or totales.anomalas %}
+    <div class="alert alert-warning no-print" role="status">
+        <strong>Hay registros que no suman en los totales.</strong>
+        {% if totales.abiertas %}
+        {{ totales.abiertas }} sin cerrar —
+        <a href="{{ url_for('residents.registros_atencion', estado='abiertas', start_date=filters.fecha, end_date=filters.fecha) }}">revisarlos y cerrarlos</a>.
+        {% endif %}
+        {% if totales.anomalas %}
+        {{ totales.anomalas }} de más de {{ filters.umbral_horas }} h, casi siempre sesiones que nadie cerró.
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div id="control-print-area">
+
+        <div class="membrete mb-3">
+            <h2 style="font-size:1.1rem;margin:0">Residencia La Vila Gran — Control diario</h2>
+            <div style="font-size:.85rem">
+                {{ fecha.strftime('%d/%m/%Y') }} ·
+                Jornada de {{ jornada_desde.strftime('%d/%m %H:%M') }} a {{ jornada_hasta.strftime('%d/%m %H:%M') }} ·
+                Noche de {{ noche_desde.strftime('%d/%m %H:%M') }} a {{ noche_hasta.strftime('%d/%m %H:%M') }} ·
+                Los totales no incluyen los registros sin cerrar ni los de más de {{ filters.umbral_horas }} h
+                {%- if totales.abiertas or totales.anomalas %}
+                ({{ totales.abiertas }} sin cerrar, {{ totales.anomalas }} por revisar)
+                {%- endif %}
+            </div>
+        </div>
+
+        {# ── Por trabajadora ─────────────────────────────────────────────── #}
+        <h2 class="h5 mt-4">
+            Por trabajadora
+            <small class="text-body-secondary">
+                · de {{ jornada_desde.strftime('%d/%m %H:%M') }} a {{ jornada_hasta.strftime('%d/%m %H:%M') }}
+                · total {{ totales.dia }}
+            </small>
+        </h2>
+        {% for grupo in por_trabajadora %}
+        <div class="bloque-control">
+            <div class="bloque-cab">
+                <span>{{ grupo.nombre }} · {{ fecha.strftime('%d-%m-%y') }}</span>
+                {% if grupo.recuentos %}
+                <span class="recuento">{{ grupo.recuentos|join(' · ') }}</span>
+                {% endif %}
+                <span class="total">{{ grupo.total }}</span>
+            </div>
+            {{ tabla_filas(grupo) }}
+        </div>
+        {% else %}
+        <p class="text-body-secondary">Ningún registro este día.</p>
+        {% endfor %}
+
+        {# ── Por residente ───────────────────────────────────────────────── #}
+        <h2 class="h5 mt-4">
+            Por residente
+            <small class="text-body-secondary">· el día entero, de 00:00 a 24:00</small>
+        </h2>
+        {% for grupo in por_residente %}
+        <div class="bloque-control">
+            <div class="bloque-cab">
+                <span>{{ grupo.nombre }}</span>
+                {% for marca in grupo.marcas %}
+                <span class="marca {% if marca.sin_historial %}marca-apagada{% endif %}"
+                      title="{{ marca.titulo }}">{{ marca.texto }}</span>
+                {% endfor %}
+                <span class="total">{{ grupo.total }}</span>
+            </div>
+            {{ tabla_filas(grupo, mostrar_residente=False) }}
+        </div>
+        {% endfor %}
+
+        {% if sin_registros %}
+        <div class="bloque-control">
+            <div class="bloque-cab"><span>Sin ningún registro este día</span></div>
+            <table class="table table-sm tabla-control mb-0">
+                <caption class="visually-hidden">Residentes activos sin ningún registro de atención</caption>
+                <tbody>
+                    {% for residente in sin_registros %}
+                    <tr>
+                        <td>{{ residente.nombre }}</td>
+                        <td>
+                            {% for marca in residente.marcas %}
+                            <span class="marca {% if marca.sin_historial %}marca-apagada{% endif %}"
+                                  title="{{ marca.titulo }}">{{ marca.texto }}</span>
+                            {% endfor %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        {# ── Noche ───────────────────────────────────────────────────────── #}
+        <h2 class="h5 mt-4">
+            Noche
+            <small class="text-body-secondary">
+                · de {{ noche_desde.strftime('%d/%m %H:%M') }} a {{ noche_hasta.strftime('%d/%m %H:%M') }}
+                · total {{ totales.noche }}
+            </small>
+        </h2>
+        {% for grupo in noche %}
+        <div class="bloque-control">
+            <div class="bloque-cab">
+                <span>{{ grupo.nombre }}</span>
+                {% if grupo.recuentos %}
+                <span class="recuento">{{ grupo.recuentos|join(' · ') }}</span>
+                {% endif %}
+                <span class="total">{{ grupo.total }}</span>
+            </div>
+            {{ tabla_filas(grupo) }}
+        </div>
+        {% else %}
+        <p class="text-body-secondary">Ningún registro en esta franja.</p>
+        {% endfor %}
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById('btn-imprimir').addEventListener('click', function () {
+        window.printFragment('control-print-area', { reveal: '.membrete' });
+    });
+</script>
+{% endblock %}

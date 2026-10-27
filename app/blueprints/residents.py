@@ -1,6 +1,6 @@
 """Residents, groups, fichajes, and care record view endpoints."""
 from __future__ import annotations
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dt_time
 
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash, send_file, abort
 from flask_login import login_required, current_user
@@ -9,7 +9,7 @@ from sqlalchemy.orm import joinedload, subqueryload, selectinload
 from sqlalchemy.exc import IntegrityError
 import pandas as pd
 from io import BytesIO
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 import os
 import uuid
 
@@ -28,7 +28,8 @@ from ..utils import (
     admin_required, _format_duration, _allowed_file, _safe_commit,
     ALLOWED_IMAGE_EXTENSIONS, ALLOWED_DOC_EXTENSIONS,
     _open_image_oriented, _save_image_stream, log_audit, _safe_flush,
-    formato_constante, _filtro_fecha_hora,
+    formato_constante, _filtro_fecha_hora, _today_range, _parse_iso_date,
+    _parse_hhmm,
 )
 
 bp = Blueprint('residents', __name__)
@@ -839,6 +840,377 @@ def registros_atencion():
         tipos_agrupados=tipos_agrupados,
         filters=filters,
     )
+
+
+# ── CONTROL DIARIO ──────────────────────────────────────────────────────────
+
+# Franja de noche por defecto. Coincide con el turno de noche que ya trae el
+# modulo de cuadrantes (22:00 a 07:00), pero quien mira el informe la cambia.
+NOCHE_INICIO_POR_DEFECTO = '22:00'
+NOCHE_FIN_POR_DEFECTO = '07:00'
+
+# Un registro mas largo que esto casi nunca es trabajo: es una sesion que nadie
+# cerro. El Excel que se hacia a mano traia una limpieza de 12:33:35, y una sola
+# fila asi invalida el total del dia. Mismo criterio que `_compute_cleaning_stats`,
+# que descarta por arriba a las dos horas.
+UMBRAL_ANOMALA_HORAS = 2
+
+# Una fila del informe, venga de una atencion o de una limpieza. Las dos fuentes
+# se normalizan aqui porque el informe suma las dos para justificar horas, y
+# `CareRecord` y `CleaningRecord` ya exponen `calculate_duration()` igual.
+FilaControl = namedtuple('FilaControl', [
+    'origen', 'momento', 'trabajador_id', 'trabajador',
+    'residente_id', 'residente', 'etiqueta', 'segundos', 'duracion',
+    'abierta', 'anomala',
+])
+
+
+def _duracion_larga(segundos: float) -> str:
+    """Un total en horas:minutos:segundos, sin tope de 24 h.
+
+    `_format_duration` trabaja sobre dos `datetime` y aqui lo que hay son
+    totales ya sumados, que pasan de las 24 horas en cuanto se juntan varias
+    trabajadoras.
+    """
+    segundos = int(segundos or 0)
+    return f'{segundos // 3600:02d}:{(segundos % 3600) // 60:02d}:{segundos % 60:02d}'
+
+
+def _tipos_de_un_registro(registro) -> list:
+    """Los `CareType` de una atencion, mirando los dos sitios donde viven.
+
+    La webapp guarda los tipos en la relacion multiple; los registros anteriores
+    a los tipos multiples solo tienen la columna antigua. Mirar uno solo deja
+    fuera media base de datos. Mismo motivo que `_filtro_tipo_atencion`.
+    """
+    if registro.care_types:
+        return list(registro.care_types)
+    return [registro.care_type] if registro.care_type else []
+
+
+def _fila_de_atencion(registro, umbral_segundos: int) -> FilaControl:
+    segundos = registro.calculate_duration()
+    tipos = _tipos_de_un_registro(registro)
+    return FilaControl(
+        origen='atencion',
+        momento=registro.start_time,
+        trabajador_id=registro.worker_id,
+        trabajador=registro.worker.name if registro.worker else 'Sin asignar',
+        residente_id=registro.resident_id,
+        residente=registro.resident.name if registro.resident else 'Sin asignar',
+        etiqueta=', '.join(ct.name for ct in tipos) or 'Sin tipo',
+        segundos=segundos or 0,
+        duracion=_duracion_larga(segundos) if segundos is not None else '—',
+        abierta=segundos is None,
+        anomala=segundos is not None and segundos > umbral_segundos,
+    )
+
+
+def _fila_de_limpieza(registro, umbral_segundos: int) -> FilaControl:
+    segundos = registro.calculate_duration()
+    zona = registro.room.description if registro.room else None
+    numero = str(registro.room.number) if registro.room else ''
+    return FilaControl(
+        origen='limpieza',
+        momento=registro.start_time,
+        trabajador_id=registro.cleaner_id,
+        trabajador=registro.cleaner.name if registro.cleaner else 'Sin asignar',
+        residente_id=None,
+        residente=None,
+        etiqueta=zona or numero or 'Zona sin asignar',
+        segundos=segundos or 0,
+        duracion=_duracion_larga(segundos) if segundos is not None else '—',
+        abierta=segundos is None,
+        anomala=segundos is not None and segundos > umbral_segundos,
+    )
+
+
+def _ventana_de_noche(fecha, noche_inicio, noche_fin):
+    """(desde, hasta) de la noche que empieza en `fecha`.
+
+    Si la hora de inicio es mayor que la de fin, la noche cruza la medianoche y
+    acaba a la manana siguiente: es el caso normal y el que hace que la hoja se
+    titule "NIT 15-16". Si no, se trata como una franja dentro del mismo dia.
+    """
+    desde = datetime.combine(fecha, noche_inicio)
+    if noche_inicio > noche_fin:
+        return desde, datetime.combine(fecha + timedelta(days=1), noche_fin)
+    return desde, datetime.combine(fecha, noche_fin)
+
+
+def _agrupar(filas, clave_id, clave_nombre):
+    """Agrupa filas y suma lo que se puede sumar, apartando lo dudoso.
+
+    El total no incluye las duraciones anomalas ni las sesiones sin cerrar: un
+    total que se traga doce horas de una sesion olvidada no lo puede defender
+    nadie. Pero tampoco se esconden, van aparte y contadas.
+    """
+    grupos = defaultdict(lambda: {'nombre': '', 'filas': [], 'segundos': 0,
+                                  'segundos_anomalos': 0, 'anomalas': 0, 'abiertas': 0})
+    for fila in filas:
+        grupo = grupos[getattr(fila, clave_id)]
+        grupo['nombre'] = getattr(fila, clave_nombre)
+        grupo['filas'].append(fila)
+        if fila.abierta:
+            grupo['abiertas'] += 1
+        elif fila.anomala:
+            grupo['anomalas'] += 1
+            grupo['segundos_anomalos'] += fila.segundos
+        else:
+            grupo['segundos'] += fila.segundos
+    for grupo in grupos.values():
+        grupo['filas'].sort(key=lambda f: f.momento or datetime.min)
+        grupo['total'] = _duracion_larga(grupo['segundos'])
+        grupo['total_anomalo'] = _duracion_larga(grupo['segundos_anomalos'])
+    return sorted(grupos.values(), key=lambda g: g['nombre'])
+
+
+def _catalogo_control(tipos_control) -> dict:
+    """`{tipo_id: (tipo, etiqueta, nombres que cuentan)}` para los de control.
+
+    Un tipo padre cuenta tambien los registros de sus hijos: en el registro solo
+    se guarda el hijo, nunca el padre, asi que marcar una categoria como de
+    control y mirar solo el padre sacaria "NO HIGIENE" para los 55 residentes
+    todos los dias.
+    """
+    catalogo = {}
+    for tipo in tipos_control:
+        nombres = {tipo.name.upper()}
+        nombres.update(hijo.name.upper() for hijo in tipo.children)
+        etiqueta = (tipo.control_etiqueta or tipo.name).upper()
+        catalogo[tipo.id] = (tipo, etiqueta, nombres)
+    return catalogo
+
+
+def _cuenta_de_control(filas, catalogo) -> dict:
+    """`{resident_id: {tipo_id: veces}}` a partir de las filas de atencion."""
+    cuenta = defaultdict(lambda: defaultdict(int))
+    for fila in filas:
+        if fila.origen != 'atencion' or fila.residente_id is None:
+            continue
+        etiquetas = {parte.strip().upper() for parte in fila.etiqueta.split(',')}
+        for tipo_id, (_, _, nombres) in catalogo.items():
+            if etiquetas & nombres:
+                cuenta[fila.residente_id][tipo_id] += 1
+    return cuenta
+
+
+def _historial_de_control(fecha, catalogo, dias=14) -> set:
+    """Pares (residente, tipo de control) vistos en los dias anteriores.
+
+    La aplicacion no sabe que residente necesita que atencion. Una persona
+    encamada no se levanta nunca, asi que sin esto saldria con "NO LEVANTAR"
+    cada dia hasta que nadie mire ya las marcas, que es como muere un aviso.
+    Si en dos semanas no ha recibido esa atencion ni una vez, la marca se
+    ensena apagada: probablemente no le toca, no es que se la hayan saltado.
+    """
+    if not catalogo:
+        return set()
+    hasta, _ = _today_range(fecha)
+    desde = hasta - timedelta(days=dias)
+
+    # Solo los registros de los tipos de control, no los catorce dias enteros:
+    # de otro modo esta consulta serian miles de filas en cada carga de pagina
+    # para acabar mirando dos o tres tipos. Se filtra por los dos sitios donde
+    # vive el tipo, igual que `_filtro_tipo_atencion`.
+    ids = set(catalogo)
+    for tipo, _, _ in catalogo.values():
+        ids.update(hijo.id for hijo in tipo.children)
+
+    registros = CareRecord.query.options(
+        joinedload(CareRecord.care_types),
+        joinedload(CareRecord.care_type),
+    ).filter(
+        CareRecord.start_time >= desde,
+        CareRecord.start_time < hasta,
+        CareRecord.resident_id.isnot(None),
+        db.or_(
+            CareRecord.care_types.any(CareType.id.in_(ids)),
+            CareRecord.care_type_id.in_(ids),
+        ),
+    ).all()
+
+    vistos = set()
+    for registro in registros:
+        nombres = {ct.name.upper() for ct in _tipos_de_un_registro(registro)}
+        for tipo_id, (_, _, nombres_control) in catalogo.items():
+            if nombres & nombres_control:
+                vistos.add((registro.resident_id, tipo_id))
+    return vistos
+
+
+def _marcas_de(residente_id, cuenta, catalogo, historial) -> list:
+    """Las marcas de un residente: lo que le falta hoy, y si eso es noticia."""
+    pendientes = []
+    for tipo_id, (tipo, etiqueta, _) in catalogo.items():
+        veces = cuenta.get(tipo_id, 0)
+        minimo = tipo.minimo_diario or 1
+        if veces >= minimo:
+            continue
+        sin_historial = (residente_id, tipo_id) not in historial
+        pendientes.append({
+            'texto': f'NO {etiqueta}' if veces == 0 else f'{veces} {etiqueta}',
+            'sin_historial': sin_historial,
+            'titulo': ('Sin ningun registro de esta atencion en los ultimos 14 dias: '
+                       'puede que este residente no la necesite'
+                       if sin_historial else
+                       f'Esperadas {minimo} al dia, hoy {veces}'),
+        })
+    return pendientes
+
+
+def _anotar_recuentos(grupos, filas, catalogo):
+    """El "AIXECAR 8" que se escribia a mano en la cabecera de cada bloque.
+
+    A cuantos residentes distintos les hizo cada trabajadora cada atencion de
+    control. Es la misma marca que la del residente, mirada del otro lado.
+    """
+    recuentos = defaultdict(lambda: defaultdict(set))
+    for fila in filas:
+        if fila.origen != 'atencion' or fila.residente_id is None:
+            continue
+        etiquetas = {p.strip().upper() for p in fila.etiqueta.split(',')}
+        for tipo_id, (_, _, nombres) in catalogo.items():
+            if etiquetas & nombres:
+                recuentos[fila.trabajador_id][tipo_id].add(fila.residente_id)
+    for grupo in grupos:
+        hechas = recuentos.get(grupo['filas'][0].trabajador_id, {})
+        grupo['recuentos'] = [f'{catalogo[t][1]} {len(r)}'
+                              for t, r in hechas.items() if r]
+
+
+def _construir_control(fecha, noche_inicio, noche_fin, umbral_segundos):
+    """Los tres bloques del informe, a partir de dos consultas.
+
+    - Por trabajadora: el dia natural, sin la noche que arranca esa tarde.
+    - Por residente: el dia natural entero, que es lo que cuadra con la hoja
+      que se hacia a mano.
+    - Noche: de la tarde de ese dia a la manana siguiente.
+    """
+    inicio_dia, fin_dia = _today_range(fecha)
+    noche_desde, noche_hasta = _ventana_de_noche(fecha, noche_inicio, noche_fin)
+    hasta = max(fin_dia, noche_hasta)
+
+    atenciones = CareRecord.query.options(
+        joinedload(CareRecord.resident),
+        joinedload(CareRecord.worker),
+        joinedload(CareRecord.care_types),
+        joinedload(CareRecord.care_type),
+    ).filter(
+        CareRecord.start_time >= inicio_dia,
+        CareRecord.start_time < hasta,
+    ).all()
+
+    limpiezas = CleaningRecord.query.options(
+        joinedload(CleaningRecord.cleaner),
+        joinedload(CleaningRecord.room),
+    ).filter(
+        CleaningRecord.start_time >= inicio_dia,
+        CleaningRecord.start_time < hasta,
+    ).all()
+
+    filas = ([_fila_de_atencion(r, umbral_segundos) for r in atenciones]
+             + [_fila_de_limpieza(r, umbral_segundos) for r in limpiezas])
+    filas = [f for f in filas if f.momento]
+
+    # El bloque de dia es el dia natural MENOS la noche, no "lo anterior a la
+    # noche": con una franja que no cruce la medianoche (02:00 a 06:00), mirar
+    # solo lo anterior dejaria fuera de los dos bloques todo lo de despues, y
+    # un informe de horas no puede perder registros por el camino.
+    def es_de_noche(fila):
+        return noche_desde <= fila.momento < noche_hasta
+
+    # Y empieza cuando acaba la noche anterior. La madrugada de hoy pertenece a
+    # la noche de ayer y ya esta contada en el informe de ayer: sin este corte,
+    # sumar los totales de dos dias seguidos cuenta esas horas dos veces, que es
+    # justo lo que no puede pasar en un papel que justifica horas.
+    jornada_desde = (datetime.combine(fecha, noche_fin)
+                     if noche_inicio > noche_fin else inicio_dia)
+
+    del_dia = [f for f in filas if f.momento < fin_dia]
+    de_noche = [f for f in filas if es_de_noche(f)]
+    de_dia = [f for f in del_dia
+              if not es_de_noche(f) and f.momento >= jornada_desde]
+
+    tipos_control = CareType.query.options(joinedload(CareType.children)) \
+        .filter_by(control_diario=True, active=True) \
+        .order_by(CareType.sort_order, CareType.name).all()
+    catalogo = _catalogo_control(tipos_control)
+    cuenta = _cuenta_de_control(del_dia, catalogo)
+    historial = _historial_de_control(fecha, catalogo)
+
+    por_residente = _agrupar([f for f in del_dia if f.residente_id is not None],
+                             'residente_id', 'residente')
+    for grupo in por_residente:
+        residente_id = grupo['filas'][0].residente_id
+        grupo['marcas'] = _marcas_de(residente_id, cuenta.get(residente_id, {}),
+                                     catalogo, historial)
+
+    # Residentes activos sin un solo registro: son los que mas importan y los
+    # que el listado agrupado nunca ensenaria, porque no tienen ninguna fila.
+    con_registros = {g['filas'][0].residente_id for g in por_residente}
+    sin_nada = []
+    for residente in Resident.query.filter_by(active=True).order_by(Resident.name).all():
+        if residente.id not in con_registros:
+            sin_nada.append({
+                'nombre': residente.name,
+                'marcas': _marcas_de(residente.id, {}, catalogo, historial),
+            })
+
+    por_trabajadora = _agrupar(de_dia, 'trabajador_id', 'trabajador')
+    de_noche_agrupado = _agrupar(de_noche, 'trabajador_id', 'trabajador')
+    # Cada bloque cuenta lo suyo: el recuento de la noche sale de los registros
+    # de esa noche, no de los del dia. Si no, a la de noche se le atribuiria lo
+    # que hizo la del turno anterior.
+    _anotar_recuentos(por_trabajadora, de_dia, catalogo)
+    _anotar_recuentos(de_noche_agrupado, de_noche, catalogo)
+
+    return {
+        'por_trabajadora': por_trabajadora,
+        'por_residente': por_residente,
+        'sin_registros': sin_nada,
+        'noche': de_noche_agrupado,
+        'noche_desde': noche_desde,
+        'noche_hasta': noche_hasta,
+        'jornada_desde': jornada_desde,
+        'jornada_hasta': noche_desde,
+        'tipos_control': tipos_control,
+    }
+
+
+@bp.route('/control-diario')
+@admin_required
+def control_diario():
+    fecha = _parse_iso_date(request.args.get('fecha', ''), datetime.now().date())
+    noche_inicio = _parse_hhmm(request.args.get('noche_inicio', ''),
+                               _parse_hhmm(NOCHE_INICIO_POR_DEFECTO))
+    noche_fin = _parse_hhmm(request.args.get('noche_fin', ''),
+                            _parse_hhmm(NOCHE_FIN_POR_DEFECTO))
+    try:
+        umbral_horas = max(1, int(request.args.get('umbral_horas', UMBRAL_ANOMALA_HORAS)))
+    except (TypeError, ValueError):
+        umbral_horas = UMBRAL_ANOMALA_HORAS
+
+    datos = _construir_control(fecha, noche_inicio, noche_fin, umbral_horas * 3600)
+
+    totales = {
+        'dia': _duracion_larga(sum(g['segundos'] for g in datos['por_trabajadora'])),
+        'noche': _duracion_larga(sum(g['segundos'] for g in datos['noche'])),
+        'anomalas': sum(g['anomalas'] for g in datos['por_trabajadora']) +
+                    sum(g['anomalas'] for g in datos['noche']),
+        'abiertas': sum(g['abiertas'] for g in datos['por_trabajadora']) +
+                    sum(g['abiertas'] for g in datos['noche']),
+    }
+
+    filtros = {
+        'fecha': fecha.isoformat(),
+        'noche_inicio': noche_inicio.strftime('%H:%M'),
+        'noche_fin': noche_fin.strftime('%H:%M'),
+        'umbral_horas': umbral_horas,
+    }
+
+    return render_template('control_diario.html', fecha=fecha, filters=filtros,
+                           totales=totales, **datos)
 
 
 @bp.route('/exportar_atenciones_excel')

@@ -75,6 +75,24 @@ def _parsear_franja(texto_inicio: str, texto_fin: str):
     return None, None, None
 
 
+def _parsear_minimo(texto: str, control_diario: bool):
+    """Minimo diario esperado por residente, o None si no aplica.
+
+    Solo significa algo en las atenciones de control: en el resto se guarda a
+    None aunque el campo venga relleno, para que desmarcar la casilla no deje un
+    numero escondido que reaparezca al volver a marcarla. Un valor que no sea un
+    entero positivo se trata como sin minimo, que es el comportamiento por
+    defecto, en vez de reventar el guardado del tipo entero.
+    """
+    if not control_diario:
+        return None
+    try:
+        valor = int((texto or '').strip())
+    except (TypeError, ValueError):
+        return None
+    return valor if valor > 1 else None
+
+
 @bp.route('/care-types/add_edit', methods=['POST'])
 @admin_required
 def add_edit_care_type():
@@ -88,6 +106,10 @@ def add_edit_care_type():
     instrucciones = request.form.get('instructions', '').strip() or None
     inicio, fin, aviso_horario = _parsear_franja(
         request.form.get('start_time', ''), request.form.get('end_time', ''))
+    control_diario = request.form.get('control_diario') == '1'
+    minimo_diario = _parsear_minimo(request.form.get('minimo_diario', ''), control_diario)
+    control_etiqueta = (request.form.get('control_etiqueta', '').strip()[:12] or None
+                        ) if control_diario else None
 
     if not name:
         flash('El nombre es obligatorio.', 'error')
@@ -102,6 +124,9 @@ def add_edit_care_type():
                 ct.sort_order = int(sort_order) if sort_order else 0
                 ct.start_time, ct.end_time = inicio, fin
                 ct.instructions = instrucciones
+                ct.control_diario = control_diario
+                ct.minimo_diario = minimo_diario
+                ct.control_etiqueta = control_etiqueta
                 # Handle icon: file upload > selected from library > keep existing
                 icon_file = request.files.get('icon_file')
                 if icon_file and icon_file.filename and _allowed_file(icon_file.filename, ALLOWED_IMAGE_EXTENSIONS):
@@ -121,6 +146,8 @@ def add_edit_care_type():
                     'nombre': name,
                     'horario': f'{inicio}-{fin}' if inicio else None,
                     'con_instrucciones': bool(instrucciones),
+                    'control_diario': control_diario,
+                    'minimo_diario': minimo_diario,
                 })
                 ok, error = _safe_commit('Error al actualizar el tipo de atencion')
                 if not ok:
@@ -140,6 +167,9 @@ def add_edit_care_type():
                 start_time=inicio,
                 end_time=fin,
                 instructions=instrucciones,
+                control_diario=control_diario,
+                minimo_diario=minimo_diario,
+                control_etiqueta=control_etiqueta,
             )
             db.session.add(ct)
             db.session.flush()
@@ -152,6 +182,8 @@ def add_edit_care_type():
                 'nombre': name,
                 'horario': f'{inicio}-{fin}' if inicio else None,
                 'con_instrucciones': bool(instrucciones),
+                'control_diario': control_diario,
+                'minimo_diario': minimo_diario,
             })
             ok, error = _safe_commit('Error al crear el tipo de atencion')
             if not ok:

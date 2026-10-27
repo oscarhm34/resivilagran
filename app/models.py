@@ -204,6 +204,17 @@ class CareType(db.Model):
     # lleva tiempo, asi que quien entra nueva trabaja de memoria o preguntando.
     instructions = db.Column(db.Text, nullable=True)
 
+    # Atenciones que se repasan cada dia una por una: levantar, acostar, WC. El
+    # informe de control diario avisa de quien no la ha recibido. Antes eso se
+    # miraba a mano sobre un Excel, de madrugada.
+    control_diario = db.Column(db.Boolean, nullable=False, default=False)
+    # Cuantas veces al dia se espera por residente. NULL o 0 = basta con una.
+    # Es lo que distingue "no ha ido al WC" de "solo ha ido una vez de dos".
+    minimo_diario = db.Column(db.Integer, nullable=True)
+    # Como sale en el informe: "NO WC" cabe en la hoja, "NO ACOMPANAR AL WC"
+    # no. NULL = se usa el nombre del tipo en mayusculas.
+    control_etiqueta = db.Column(db.String(12), nullable=True)
+
     children = db.relationship('CareType', backref=db.backref('parent', remote_side='CareType.id'), lazy=True)
     care_records = db.relationship('CareRecord', back_populates='care_type', lazy=True)
     vital_sign_types = db.relationship('VitalSignType', backref='care_type', lazy=True, order_by='VitalSignType.sort_order')

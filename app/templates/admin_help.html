@@ -246,7 +246,28 @@
     <div class="card mb-4" id="atenciones">
         <div class="card-header">3. Atenciones y tipos de atencion</div>
         <div class="card-body">
-            <h6>Horario e instrucciones de un tipo de atencion <span class="badge bg-success">NUEVO</span></h6>
+            <h6>Atenciones de control diario <span class="badge bg-success">NUEVO</span></h6>
+            <p>En <strong>Tipos de atencion</strong>, marcar un tipo como <strong>de control diario</strong>
+               hace que aparezca en <strong>Registros &rarr; Control diario</strong>: el residente que no la
+               ha recibido ese dia sale senalado. Es para las imprescindibles, las que antes se repasaban a
+               mano una por una: levantar, acostar, WC.</p>
+            <ul>
+                <li><strong>Veces al dia esperadas:</strong> dejalo vacio si basta con una. Si pones
+                    <strong>2</strong>, un residente con una sola sale marcado igualmente
+                    (<strong>1 WC</strong> en vez de <strong>NO WC</strong>).</li>
+                <li><strong>Etiqueta corta:</strong> como sale impreso. <strong>NO WC</strong> cabe en la
+                    hoja; <strong>NO ACOMPANAR AL WC</strong> no. Si la dejas vacia se usa el nombre entero.</li>
+                <li>Si marcas una <strong>categoria</strong>, cuentan tambien sus subtipos. Hace falta,
+                    porque en el registro se guarda siempre el subtipo y nunca la categoria: sin esto,
+                    marcar "Higiene" sacaria <strong>NO HIGIENE</strong> para todos los residentes
+                    todos los dias.</li>
+                <li>Si alguien <strong>no ha recibido esa atencion ni una vez en dos semanas</strong>, su
+                    marca sale <strong>apagada</strong>. Lo mas probable es que no la necesite: una persona
+                    encamada no se levanta. La aplicacion no sabe quien necesita que, asi que en vez de
+                    repetir el mismo aviso cada dia hasta que nadie lo mire, lo baja de tono.</li>
+            </ul>
+
+            <h6 class="mt-3">Horario e instrucciones de un tipo de atencion</h6>
             <p>En <strong>Tipos de atencion</strong>, cada tipo puede llevar un <strong>horario</strong>
                (desde / hasta) y unas <strong>instrucciones</strong>:</p>
             <ul>
@@ -1208,8 +1229,48 @@
                 <li><strong>Registros de limpieza:</strong> Consulta con filtros por <strong>estado</strong> (En curso / Finalizados), fecha, trabajador y habitacion. Checklist visible en cada registro. El admin puede <strong>cerrar</strong> una sesion abierta o <strong>eliminar</strong> el registro.</li>
                 <li><strong>Registros de atencion:</strong> Consulta con filtros por <strong>estado</strong> (En curso / Finalizados), fecha, <strong>hora</strong>, trabajador, residente y tipo de atencion. Constantes vitales visibles en cada registro. El admin puede <strong>cerrar</strong> una sesion abierta, <strong>corregir el tipo</strong> de un registro ya finalizado con el boton del lapiz (util para los registros antiguos que quedaron sin tipo o para arreglar una seleccion equivocada) o <strong>eliminar</strong> el registro.</li>
                 <li><strong>Fichajes por trabajador:</strong> Historial de inicio/fin de sesiones por trabajador y fecha.</li>
+                <li><strong>Control diario:</strong> La hoja del dia, lista para imprimir. Ver abajo.</li>
                 <li><strong>Ultima limpieza:</strong> Vista rapida de cuando se limpio por ultima vez cada zona.</li>
             </ul>
+
+            <h6 class="mt-3">Control diario <span class="badge bg-success">NUEVO</span></h6>
+            <p>En <strong>Registros &rarr; Control diario</strong> esta, en una sola pagina, lo que hasta
+               ahora se montaba a mano cada madrugada: se descargaban dos listados, se pegaban en un Excel
+               y se iban escribiendo los totales uno por uno. Eran unas tres horas al dia.</p>
+            <p>La pagina tiene <strong>tres bloques</strong>, los mismos que tenia aquel Excel:</p>
+            <ul>
+                <li><strong>Por trabajadora:</strong> todo lo que hizo cada una, atenciones
+                    <strong>y limpiezas juntas</strong>, con su TOTAL. Es el numero que sirve para
+                    justificar horas. Va <strong>desde que acaba la noche anterior hasta que empieza
+                    la de ese dia</strong> (con el horario por defecto, de 07:00 a 22:00): la
+                    madrugada de hoy pertenece a la noche de ayer y ya esta contada en la hoja de
+                    ayer. Asi un registro sale <strong>una sola vez</strong>, y los totales de dias
+                    seguidos se pueden sumar sin contar dos veces las mismas horas.</li>
+                <li><strong>Por residente:</strong> el dia natural entero (de 00:00 a 24:00), con su TOTAL y
+                    las marcas de lo que le ha faltado. Al final sale la lista de los que <strong>no tienen
+                    ni un registro</strong>, que son los que mas importa mirar y los que una lista normal
+                    nunca ensena, porque no tienen ninguna linea.</li>
+                <li><strong>Noche:</strong> lo mismo para el turno de noche, que va de la tarde de ese dia a
+                    la manana siguiente. Las dos horas se cambian en el filtro; por defecto
+                    <strong>de 22:00 a 07:00</strong>. La franja usada <strong>sale impresa</strong> en la
+                    hoja, porque es lo primero que hay que mirar si los numeros no cuadran.</li>
+            </ul>
+            <p>El boton <strong>Imprimir</strong> la saca en <strong>A4 apaisado</strong>, y ningun bloque se
+               parte entre dos hojas.</p>
+
+            <h6 class="mt-3">Por que el TOTAL deja cosas fuera</h6>
+            <p>Hay dos clases de registro que <strong>no suman</strong>, y los dos salen senalados en vez de
+               desaparecer:</p>
+            <ul>
+                <li><strong>SIN CERRAR:</strong> la sesion sigue abierta, asi que no se sabe cuanto duro.
+                    Contarla como si hubiera acabado ahora mismo convertiria un descuido en horas
+                    justificadas. Desde el aviso de arriba se va directo a cerrarlas y se vuelve a imprimir.</li>
+                <li><strong>REVISAR:</strong> dura mas del limite (por defecto <strong>2 horas</strong>,
+                    cambiable en el filtro). Casi siempre es una sesion que nadie cerro. Antes, una limpieza
+                    de doce horas y media entraba en el total del dia y nadie lo notaba.</li>
+            </ul>
+            <p>Debajo de cada TOTAL sale <strong>cuanto se ha dejado fuera</strong>, para que el numero se
+               pueda defender: quien lo lea ve la cifra y ve lo que no esta dentro.</p>
 
             <h6 class="mt-3">Filtrar atenciones por hora</h6>
             <p>Ademas de las fechas, los registros de atencion tienen <strong>Desde hora</strong> y
@@ -2169,15 +2230,22 @@
 
     <!-- 21. Registro de cambios -->
     <div class="card mb-4" id="changelog">
-        <div class="card-header">20. Registro de cambios recientes</div>
+        <div class="card-header">21. Registro de cambios recientes</div>
         <div class="card-body">
 
-            <h6>Septiembre 2026</h6>
+            <h6>Octubre 2026</h6>
             <table class="table table-sm">
                 <thead>
                     <tr><th>Fecha</th><th>Cambio</th></tr>
                 </thead>
                 <tbody>
+                    <tr><td>27/10</td><td><strong>Control diario:</strong> en <strong>Registros &rarr; Control diario</strong> sale en una sola pagina lo que antes se montaba a mano cada madrugada sobre un Excel: los registros del dia agrupados <strong>por trabajadora</strong>, <strong>por residente</strong> y los del <strong>turno de noche</strong>, cada bloque con su fila de TOTAL. El boton <strong>Imprimir</strong> lo saca en A4 apaisado sin que ningun bloque se parta entre hojas.</td></tr>
+                    <tr><td>27/10</td><td><strong>Las limpiezas suman en el mismo total:</strong> cada trabajadora tiene un unico total del dia con sus atenciones y sus limpiezas juntas, que es lo que hace falta para justificar horas. Antes habia que pegar dos listados distintos en el mismo libro.</td></tr>
+                    <tr><td>27/10</td><td><strong>Lo que no se puede defender queda fuera del total, y se dice:</strong> un registro que nadie cerro <strong>no suma</strong> y sale marcado <strong>SIN CERRAR</strong>; uno que pasa del limite (por defecto <strong>2 horas</strong>) sale marcado <strong>REVISAR</strong> y tampoco entra, aunque la hoja ensena cuanto se ha dejado fuera. Antes una sesion olvidada de doce horas inflaba el total del dia sin que se notara. El limite se cambia en el propio filtro.</td></tr>
+                    <tr><td>27/10</td><td><strong>Atenciones de control:</strong> en <strong>Residentes &rarr; Tipos de atencion</strong> se puede marcar un tipo como <strong>de control diario</strong>, con las <strong>veces al dia esperadas</strong> y una <strong>etiqueta corta</strong>. En el informe, el residente que no la recibio sale con <strong>NO WC</strong> y el que la recibio menos veces de las esperadas con <strong>1 WC</strong>; en el bloque de cada trabajadora sale a cuantos se la hizo. Si marcas una categoria cuentan tambien sus subtipos.</td></tr>
+                    <tr><td>27/10</td><td><strong>Las marcas no gritan sin motivo:</strong> si un residente no ha recibido esa atencion <strong>ni una vez en dos semanas</strong>, la marca sale <strong>apagada</strong>: lo mas probable es que no la necesite, no que se la hayan saltado. Asi la hoja avisa de lo que importa en vez de repetir los mismos 55 avisos cada dia.</td></tr>
+                    <tr><td>27/10</td><td><strong>La franja de noche la eliges tu:</strong> el bloque de noche tiene dos campos de hora (por defecto <strong>22:00 a 07:00</strong>) y cuenta la <strong>madrugada del dia siguiente</strong>, que es como se entiende el turno de noche. La franja usada sale impresa en la hoja.</td></tr>
+                    <tr><td>27/10</td><td><strong>Ningun registro se cuenta dos veces:</strong> el bloque <strong>por trabajadora</strong> empieza cuando acaba la noche anterior, porque la madrugada de hoy ya esta contada en la hoja de ayer. Asi los totales de dias seguidos se pueden sumar sin que las mismas horas aparezcan dos veces. En cada bloque sale impreso <strong>que horas cubre</strong>.</td></tr>
                     <tr><td>15/10</td><td><strong>Contrasenas mas cortas:</strong> el minimo baja de <strong>10 a 4 caracteres</strong>. Diez era incomodo de teclear en el movil y no es lo que de verdad protege la entrada: para eso esta el limite de 10 intentos por minuto. Se sigue sin poder crear una cuenta <strong>sin contrasena</strong>, ni ponerla de las evidentes (1234, 0000, password, qwerty...), ni que lleve dentro el nombre de usuario.</td></tr>
                     <tr><td>15/10</td><td><strong>Las columnas se mueven de sitio:</strong> en el codigo de cada cuadro del recuadro del dia hay ahora <strong>dos agarres</strong>. El de la <strong>izquierda</strong> se lleva la columna entera: si la cocina os cuadra mas a la derecha, se arrastra y se queda ahi, como en una hoja de calculo. El de la <strong>derecha</strong> se lleva solo ese cuadro, y soltandolo <strong>dentro de otra columna</strong> queda debajo del que ya estaba (como el M1 con el T1); soltandolo en el <strong>hueco entre dos columnas</strong> vuelve a tener columna propia. Solo se pueden juntar turnos que <strong>no coincidan en hora</strong>, porque cada cuadro se dibuja a la altura de su horario; si chocan, el cuadro vuelve a su sitio y os dice cuales son. El orden lo ve todo el mundo y vale tambien para las vistas de <strong>semana</strong> y <strong>mes</strong>. Un puesto nuevo sale al final hasta que se coloca.</td></tr>
                     <tr><td>15/10</td><td><strong>Columnas del tablero a medida:</strong> en el recuadro del dia ya se puede cambiar el <strong>ancho de cada columna</strong> arrastrando su borde derecho, igual que en una hoja de calculo. Antes todas median lo mismo y un nombre largo se partia en tres lineas mientras al lado sobraba sitio. El ancho que se deja <strong>lo ven todas</strong>, no solo quien lo cambia. Doble clic en el borde devuelve esa columna a su ancho automatico, y el boton <strong>Restablecer columnas</strong> las devuelve todas. De paso, si las columnas se pasan del ancho de la pantalla ahora sale <strong>barra de desplazamiento</strong> en vez de aplastarlas.</td></tr>
@@ -2199,6 +2267,15 @@
                     <tr><td>07/10</td><td><strong>La noche, reflejada donde toca:</strong> en el recuadro del dia, quien entra por la tarde sale tambien al principio de la fila de tarde, y quien hizo la noche sale al principio de la manana del dia siguiente, marcado <strong>dia-1</strong>. Es la misma persona ensenada donde esta, con el borde discontinuo; se cambia en su casilla de noche. Donde se refleja cada puesto se elige al crearlo.</td></tr>
                     <tr><td>07/10</td><td><strong>Publicar la semana y avisar:</strong> al dar una semana por buena se avisa a cada trabajadora de que tiene horario nuevo, y hay un boton que abre <strong>WhatsApp</strong> con el horario de cada una ya escrito (enviarlo lo haces tu). Si despues hay que cambiar algo por una baja, se arrastra y al volver a publicar se avisa solo a quien le afecte.</td></tr>
                     <tr><td>07/10</td><td><strong>Mi horario en la webapp:</strong> la trabajadora ya puede ver su mes entero desde el movil, con el turno de cada dia, su horario, el puesto y sus vacaciones. Antes solo veia el turno de hoy y para el resto tenia que preguntar.</td></tr>
+                </tbody>
+            </table>
+
+            <h6>Septiembre 2026</h6>
+            <table class="table table-sm">
+                <thead>
+                    <tr><th>Fecha</th><th>Cambio</th></tr>
+                </thead>
+                <tbody>
                     <tr><td>30/09</td><td><strong>El cronometro empezaba con tiempo ya contado:</strong> al abrir una atencion el movil podia mostrar casi una hora transcurrida. Pasaba cuando el reloj del servidor y el del movil no coincidian, porque el tiempo se calculaba restando uno del otro. Ahora la webapp mide esa diferencia sola en cada peticion y la descuenta, asi que el cronometro arranca en cero aunque algun reloj vaya desajustado.</td></tr>
                     <tr><td>30/09</td><td><strong>El movil pregunta que atencion vas a hacer:</strong> al escanear a un residente dentro del horario de una atencion, antes de nada sale <strong>"¿Es una atencion de ...?"</strong> con Si y No. Diciendo que si se ensenan sus instrucciones, para leerlas o escucharlas, y el tiempo no empieza hasta pulsar Iniciar. Diciendo que no, la atencion se abre con normalidad. Si a esa hora tocan varias, se elige cual de una lista. Antes la pantalla afirmaba lo que tocaba y la unica alternativa era cancelar el escaneo.</td></tr>
                     <tr><td>29/09</td><td><strong>Cambiar una pertenencia de residente:</strong> si un objeto se apunto a la persona equivocada ya no hay que borrarlo y volver a fotografiarlo. En <strong>Personas &rarr; Pertenencias</strong>, el boton de las dos flechas de cada tarjeta lo pasa a otro residente con todas sus fotos, y aparece el primero en el inventario de quien lo recibe.</td></tr>
