@@ -33,6 +33,12 @@
         background: transparent; color: var(--color-text-secondary);
         border: 1px dashed var(--color-border); font-weight: 500;
     }
+    .origen {
+        font-size: .68rem; font-weight: 600; letter-spacing: .03em;
+        text-transform: uppercase; color: var(--color-text-secondary);
+        border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+        padding: 0 .25rem; margin-left: .3rem;
+    }
     .recuento {
         font-size: .78rem; font-weight: 500; color: var(--color-text-secondary);
     }
@@ -58,12 +64,15 @@
 </style>
 {% endblock %}
 
-{% macro tabla_filas(grupo, mostrar_residente=True) %}
+{% macro tabla_filas(grupo, por='trabajadora', marcas=None) %}
+{#  Por trabajadora se ve a quien atendio; por residente, quien le atendio. La
+    columna que sobra es la del propio encabezado del bloque: repetirla en cada
+    fila, como hacia la hoja de calculo, es ruido en papel. #}
 <table class="table table-sm table-hover tabla-control mb-0">
     <caption class="visually-hidden">Registros de {{ grupo.nombre }}</caption>
     <thead>
         <tr>
-            {% if mostrar_residente %}<th scope="col">Residente</th>{% endif %}
+            <th scope="col">{{ 'Residente' if por == 'trabajadora' else 'Trabajadora' }}</th>
             <th scope="col">Atención o zona</th>
             <th scope="col">Hora</th>
             <th scope="col" class="num">Duración</th>
@@ -73,12 +82,16 @@
     <tbody>
         {% for fila in grupo.filas %}
         <tr class="{% if fila.abierta or fila.anomala %}fila-dudosa{% endif %}">
-            {% if mostrar_residente %}<td>{{ fila.residente or '—' }}</td>{% endif %}
-            <td>{{ fila.etiqueta }}</td>
-            <td>{{ fila.momento.strftime('%H:%M') }}</td>
-            <td class="num">
-                {{ fila.duracion }}
+            <td>
+                {% if por == 'trabajadora' %}{{ fila.residente or '—' }}
+                {% else %}{{ fila.trabajador }}{% endif %}
             </td>
+            <td>
+                {{ fila.etiqueta }}
+                {% if fila.origen == 'limpieza' %}<span class="origen">limpieza</span>{% endif %}
+            </td>
+            <td>{{ fila.momento.strftime('%H:%M') }}</td>
+            <td class="num">{{ fila.duracion }}</td>
             <td>
                 {% if fila.abierta %}
                 <span class="sello sello-abierta">SIN CERRAR</span>
@@ -91,7 +104,16 @@
     </tbody>
     <tfoot>
         <tr>
-            <th colspan="{{ 3 if mostrar_residente else 2 }}" scope="row">TOTAL</th>
+            <th scope="row">TOTAL</th>
+            <td>
+                {# Las marcas van aqui, junto al total, como en la columna de la
+                   hoja que se hacia a mano. #}
+                {% for marca in marcas or [] %}
+                <span class="marca {% if marca.sin_historial %}marca-apagada{% endif %}"
+                      title="{{ marca.titulo }}">{{ marca.texto }}</span>
+                {% endfor %}
+            </td>
+            <td></td>
             <td class="num"><strong>{{ grupo.total }}</strong></td>
             <td>
                 {% if grupo.anomalas or grupo.abiertas %}
@@ -187,16 +209,25 @@
         <div class="bloque-control">
             <div class="bloque-cab">
                 <span>{{ grupo.nombre }} · {{ fecha.strftime('%d-%m-%y') }}</span>
-                {% if grupo.recuentos %}
-                <span class="recuento">{{ grupo.recuentos|join(' · ') }}</span>
-                {% endif %}
+                <span class="recuento">
+                    {{ grupo.atenciones }} atenc.{% if grupo.limpiezas %} · {{ grupo.limpiezas }} limp.{% endif %}
+                    {%- if grupo.recuentos %} · {{ grupo.recuentos|join(' · ') }}{% endif %}
+                </span>
                 <span class="total">{{ grupo.total }}</span>
             </div>
-            {{ tabla_filas(grupo) }}
+            {{ tabla_filas(grupo, 'trabajadora') }}
         </div>
         {% else %}
         <p class="text-body-secondary">Ningún registro este día.</p>
         {% endfor %}
+        {% if madrugada %}
+        <p class="text-body-secondary" style="font-size:.85rem">
+            Además hay {{ madrugada }} registro{{ 's' if madrugada != 1 }}
+            ({{ madrugada_total }}) entre las 00:00 y las
+            {{ jornada_desde.strftime('%H:%M') }}: son de la noche anterior y
+            están en la hoja del día de ayer, para no contarlos dos veces.
+        </p>
+        {% endif %}
 
         {# ── Por residente ───────────────────────────────────────────────── #}
         <h2 class="h5 mt-4">
@@ -207,13 +238,9 @@
         <div class="bloque-control">
             <div class="bloque-cab">
                 <span>{{ grupo.nombre }}</span>
-                {% for marca in grupo.marcas %}
-                <span class="marca {% if marca.sin_historial %}marca-apagada{% endif %}"
-                      title="{{ marca.titulo }}">{{ marca.texto }}</span>
-                {% endfor %}
                 <span class="total">{{ grupo.total }}</span>
             </div>
-            {{ tabla_filas(grupo, mostrar_residente=False) }}
+            {{ tabla_filas(grupo, 'residente', grupo.marcas) }}
         </div>
         {% endfor %}
 
@@ -251,12 +278,13 @@
         <div class="bloque-control">
             <div class="bloque-cab">
                 <span>{{ grupo.nombre }}</span>
-                {% if grupo.recuentos %}
-                <span class="recuento">{{ grupo.recuentos|join(' · ') }}</span>
-                {% endif %}
+                <span class="recuento">
+                    {{ grupo.atenciones }} atenc.{% if grupo.limpiezas %} · {{ grupo.limpiezas }} limp.{% endif %}
+                    {%- if grupo.recuentos %} · {{ grupo.recuentos|join(' · ') }}{% endif %}
+                </span>
                 <span class="total">{{ grupo.total }}</span>
             </div>
-            {{ tabla_filas(grupo) }}
+            {{ tabla_filas(grupo, 'trabajadora') }}
         </div>
         {% else %}
         <p class="text-body-secondary">Ningún registro en esta franja.</p>

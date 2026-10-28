@@ -380,3 +380,50 @@ def test_la_madrugada_si_sale_en_el_bloque_por_residente(db, cleaner_user, resid
     grupos = _construir(fecha=manana)["por_residente"]
     assert len(grupos) == 1
     assert grupos[0]["total"] == "00:30:00"
+
+
+# ── Que la hoja se parezca a la que se hacia a mano ──────────────────────────
+
+def test_el_bloque_por_residente_dice_quien_le_atendio(auth_client, db,
+                                                       cleaner_user, residente):
+    """En la hoja de calculo la trabajadora iba en cada fila; aqui, en columna."""
+    _atencion(cleaner_user, residente, _momento(9), _momento(9, 5))
+    db.session.commit()
+
+    cuerpo = auth_client.get(f"/control-diario?fecha={HOY.isoformat()}").get_data(as_text=True)
+    assert 'Trabajadora' in cuerpo
+    assert cleaner_user.name in cuerpo
+
+
+def test_las_limpiezas_se_distinguen_de_las_atenciones(auth_client, db,
+                                                       cleaner_user, residente, room):
+    """Iban en un bloque aparte rotulado NETEJA; aqui van juntas y hay que verlo."""
+    _atencion(cleaner_user, residente, _momento(9), _momento(9, 5))
+    db.session.add(CleaningRecord(cleaner_id=cleaner_user.id, room_id=room.id,
+                                  start_time=_momento(10), end_time=_momento(10, 20)))
+    db.session.commit()
+
+    datos = _construir()
+    grupo = datos["por_trabajadora"][0]
+    assert grupo["atenciones"] == 1
+    assert grupo["limpiezas"] == 1
+
+    cuerpo = auth_client.get(f"/control-diario?fecha={HOY.isoformat()}").get_data(as_text=True)
+    assert 'limpieza' in cuerpo
+
+
+def test_dice_cuanto_se_ha_ido_a_la_hoja_de_ayer(db, cleaner_user, residente):
+    """Sin esto el bloque del dia parece incompleto y nadie sabe por que.
+
+    El turno de noche que limpia a las tres de la madrugada esta en la hoja de
+    ayer, porque esa es su noche; aqui solo se dice cuanto es.
+    """
+    _atencion(cleaner_user, residente, _momento(3), _momento(3, 20))
+    _atencion(cleaner_user, residente, _momento(10), _momento(10, 10))
+    db.session.commit()
+
+    datos = _construir()
+    assert datos["madrugada"] == 1
+    assert datos["madrugada_total"] == "00:20:00"
+    # Y no se cuenta en el bloque del dia.
+    assert datos["por_trabajadora"][0]["total"] == "00:10:00"

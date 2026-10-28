@@ -963,6 +963,11 @@ def _agrupar(filas, clave_id, clave_nombre):
         grupo['filas'].sort(key=lambda f: f.momento or datetime.min)
         grupo['total'] = _duracion_larga(grupo['segundos'])
         grupo['total_anomalo'] = _duracion_larga(grupo['segundos_anomalos'])
+        # De que esta hecho el bloque. En la hoja de antes las limpiezas iban en
+        # un bloque aparte rotulado NETEJA; aqui van con lo demas, asi que hay
+        # que decir cuantas son o parece que falten.
+        grupo['atenciones'] = sum(1 for f in grupo['filas'] if f.origen == 'atencion')
+        grupo['limpiezas'] = sum(1 for f in grupo['filas'] if f.origen == 'limpieza')
     return sorted(grupos.values(), key=lambda g: g['nombre'])
 
 
@@ -1132,6 +1137,10 @@ def _construir_control(fecha, noche_inicio, noche_fin, umbral_segundos):
     de_noche = [f for f in filas if es_de_noche(f)]
     de_dia = [f for f in del_dia
               if not es_de_noche(f) and f.momento >= jornada_desde]
+    # Lo de la madrugada pertenece a la noche de ayer y esta en la hoja de ayer.
+    # Se cuenta para poder decirlo: si no, el bloque del dia parece incompleto
+    # —falta el turno de noche que limpia a las tres— y nadie sabe por que.
+    de_madrugada = [f for f in del_dia if f.momento < jornada_desde]
 
     tipos_control = CareType.query.options(joinedload(CareType.children)) \
         .filter_by(control_diario=True, active=True) \
@@ -1173,6 +1182,9 @@ def _construir_control(fecha, noche_inicio, noche_fin, umbral_segundos):
         'noche': de_noche_agrupado,
         'noche_desde': noche_desde,
         'noche_hasta': noche_hasta,
+        'madrugada': len(de_madrugada),
+        'madrugada_total': _duracion_larga(sum(f.segundos for f in de_madrugada
+                                               if not f.abierta and not f.anomala)),
         'jornada_desde': jornada_desde,
         'jornada_hasta': noche_desde,
         'tipos_control': tipos_control,
